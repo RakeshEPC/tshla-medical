@@ -74,6 +74,14 @@ class EnvironmentValidator {
   private loadAndValidateConfig(): EnvironmentConfig {
     const errors: string[] = [];
 
+    // Helper to get environment without using this.getEnvironment()
+    const getEnv = (): 'development' | 'staging' | 'production' => {
+      const env = import.meta.env.MODE;
+      if (env === 'production') return 'production';
+      if (env === 'staging') return 'staging';
+      return 'development';
+    };
+
     // Critical security check: No hardcoded API keys allowed
     const requiredVars = {
       VITE_AZURE_OPENAI_ENDPOINT: 'Azure OpenAI endpoint',
@@ -184,7 +192,7 @@ class EnvironmentValidator {
       },
       app: {
         apiUrl: import.meta.env.VITE_API_URL || (import.meta.env.MODE === 'production' ? 'https://api.tshla.ai' : 'http://localhost:3001'),
-        environment: this.getEnvironment(),
+        environment: getEnv(),
         sessionTimeoutMinutes: parseInt(import.meta.env.VITE_SESSION_TIMEOUT_MINUTES || '120'),
         enableHipaaMode: import.meta.env.VITE_ENABLE_HIPAA_MODE === 'true',
         enableAuditLogging: import.meta.env.VITE_ENABLE_AUDIT_LOGGING !== 'false', // Default to true unless explicitly disabled
