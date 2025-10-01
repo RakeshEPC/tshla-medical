@@ -1,4 +1,3 @@
-import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
 /**
  * Environment Configuration and Validation for TSHLA Medical
  * SECURITY: Validates all required environment variables at startup
@@ -147,9 +146,10 @@ class EnvironmentValidator {
     }
 
     if (errors.length > 0) {
-      logError('App', 'Error message', {});
-      logError('App', 'Error message', {});
-      errors.forEach(error => logError('App', 'Error message', { error }));
+      console.error('❌ Environment validation failed:');
+      console.error('='.repeat(80));
+      errors.forEach(error => console.error(`  • ${error}`));
+      console.error('='.repeat(80));
       throw new Error(`Environment validation failed. Check console for details.`);
     }
 
@@ -183,7 +183,7 @@ class EnvironmentValidator {
         password: import.meta.env.VITE_RDS_PASSWORD,
       },
       app: {
-        apiUrl: import.meta.env.VITE_API_URL || (this.getEnvironment() === 'production' ? 'https://api.tshla.ai' : 'http://localhost:3001'),
+        apiUrl: import.meta.env.VITE_API_URL || (import.meta.env.MODE === 'production' ? 'https://api.tshla.ai' : 'http://localhost:3001'),
         environment: this.getEnvironment(),
         sessionTimeoutMinutes: parseInt(import.meta.env.VITE_SESSION_TIMEOUT_MINUTES || '120'),
         enableHipaaMode: import.meta.env.VITE_ENABLE_HIPAA_MODE === 'true',
