@@ -1,0 +1,25 @@
+# Auth API Dockerfile
+FROM node:20-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package.json package-lock.json ./
+
+# Install dependencies
+RUN npm ci --only=production
+
+# Copy application files
+COPY medical-auth-api.js ./
+COPY services/ ./services/
+COPY utils/ ./utils/
+
+# Expose port
+EXPOSE 3003
+
+# Set environment to production
+ENV NODE_ENV=production
+
+# Start the application
+CMD ["node", "medical-auth-api.js"]
