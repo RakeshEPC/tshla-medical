@@ -40,10 +40,26 @@ jobs:
       run: |
         mkdir -p deploy
         cp medical-auth-api.js deploy/
-        cp package.json deploy/
+        cp package-lock.json deploy/
         cp -r node_modules deploy/
         if [ -d "services" ]; then cp -r services deploy/; fi
         if [ -d "utils" ]; then cp -r utils deploy/; fi
+
+        # Create a custom package.json for this specific API
+        cat > deploy/package.json << 'PKGJSON'
+        {
+          "name": "tshla-medical-auth-api",
+          "version": "1.0.0",
+          "description": "TSHLA Medical Authentication API",
+          "main": "medical-auth-api.js",
+          "scripts": {
+            "start": "node medical-auth-api.js"
+          },
+          "engines": {
+            "node": ">=18.0.0"
+          }
+        }
+        PKGJSON
 
     - name: Create web.config for Azure
       working-directory: ${{ env.WORKING_DIRECTORY }}/deploy
