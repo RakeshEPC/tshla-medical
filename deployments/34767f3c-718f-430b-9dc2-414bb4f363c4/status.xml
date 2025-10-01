@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<deployment>
+  <id>34767f3c-718f-430b-9dc2-414bb4f363c4</id>
+  <author>N/A</author>
+  <deployer>GITHUB_ZIP_DEPLOY</deployer>
+  <authorEmail>N/A</authorEmail>
+  <message>{"type":"deployment","sha":"01455468f7e340bd4ea5454055fa050d0f2b2d7e","repoName":"RakeshEPC/tshla-medical","actor":"RakeshEPC","slotName":"production","commitMessage":""}</message>
+  <progress></progress>
+  <status>Success</status>
+  <statusText></statusText>
+  <lastSuccessEndTime>2025-10-01T17:46:32.3862324Z</lastSuccessEndTime>
+  <receivedTime>2025-10-01T17:46:22.1896763Z</receivedTime>
+  <startTime>2025-10-01T17:46:23.602914Z</startTime>
+  <endTime>2025-10-01T17:46:32.3862324Z</endTime>
+  <complete>True</complete>
+  <is_temp>False</is_temp>
+  <is_readonly>True</is_readonly>
+  <buildSummary />
+</deployment>

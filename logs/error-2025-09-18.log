@@ -1,0 +1,1 @@
+{"error":"Access denied for user 'tshlaadmin'@'98.196.176.211' (using password: YES)","level":"error","message":"Database Error","operation":"Connection failed, using fallback mode","service":"tshla-api","status":"failed","timestamp":"2025-09-18 08:11:53","type":"database"}

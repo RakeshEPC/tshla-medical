@@ -1,0 +1,21 @@
+<step title="Incoming Request" date="2025-10-01T17:46:15.593" instance="0a7f99" url="/api/zipdeploy?isAsync=true&amp;deployer=GITHUB_ZIP_DEPLOY&amp;message=%7B%22type%22%3A%22deployment%22%2C%22sha%22%3A%2201455468f7e340bd4ea5454055fa050d0f2b2d7e%22%2C%22repoName%22%3A%22RakeshEPC%2Ftshla-medical%22%2C%22actor%22%3A%22RakeshEPC%22%2C%22slotName%22%3A%22production%22%2C%22commitMessage%22%3A%22%22%7D" method="POST" type="request" pid="821,1,7" Host="tshla-auth-api.scm.azurewebsites.net" User-Agent="GITHUBACTIONS_DeployWebAppToAzure_afb48cf46bb273f8cf0f932507629ca33d4b3ee6a37850bde824a1e7535efcc9" Authorization="Bas..." Content-Type="application/octet-stream" Cookie="ARRAffinity=0a7f999574deca4bd62582ea97de0fa90a88f0309b81207992f608cdcc4a09c1;Path=/;HttpOnly;Secure;Domain=tshla-auth-api.scm.azurewebsites.net; ARRAffinitySameSite=0a7f999574deca4bd62582ea97de0fa90a88f0309b81207992f608cdcc4a09c1;Path=/;HttpOnly;SameSite=None;Secure;Domain=tshla-auth-api.scm.azurewebsites.net" Transfer-Encoding="chunked" X-ARR-LOG-ID="1f6ef5f0-60ce-4bad-8ef9-569421c61f20" CLIENT-IP="135.232.201.229:14336" X-SITE-DEPLOYMENT-ID="tshla-auth-api" WAS-DEFAULT-HOSTNAME="tshla-auth-api.scm.azurewebsites.net" X-Forwarded-Proto="https" X-AppService-Proto="https" X-Forwarded-TlsVersion="1.3" X-WAWS-Unencoded-URL="/api/zipdeploy?isAsync=true&amp;deployer=GITHUB_ZIP_DEPLOY&amp;message=%7B%22type%22%3A%22deployment%22%2C%22sha%22%3A%2201455468f7e340bd4ea5454055fa050d0f2b2d7e%22%2C%22repoName%22%3A%22RakeshEPC%2Ftshla-medical%22%2C%22actor%22%3A%22RakeshEPC%22%2C%22slotName%22%3A%22production%22%2C%22commitMessage%22%3A%22%22%7D" X-Client-IP="135.232.201.229" X-Client-Port="14336" >
+  <step title="Cleanup Xml Logs" date="2025-10-01T17:46:15.606" /><!-- duration: 15ms -->
+  <step title="ZipPushDeploy" date="2025-10-01T17:46:15.684" >
+    <step title="ZipDeploy. Extract zip." date="2025-10-01T17:46:15.707" /><!-- duration: 13ms -->
+    <step title="None repository commit" date="2025-10-01T17:46:15.734" >
+      <step title="Commit id: 34767f3c-718f-430b-9dc2-414bb4f363c4" date="2025-10-01T17:46:15.738" Message="N/A" AuthorName="N/A" AuthorEmail="N/A" /><!-- duration: 4ms -->
+    </step><!-- duration: 12ms -->
+    <step title="Starting PushDeployAsync" date="2025-10-01T17:46:15.755" /><!-- duration: 4ms -->
+    <step title="Removing node_modules symlink" date="2025-10-01T17:46:15.796" >
+      <step title="Removing _del_node_modules symlink" date="2025-10-01T17:46:15.832" >
+        <step title="Writing artifact to /tmp/zipdeploy/09ada394-a213-46a5-8597-54fe91c0e088.zip" date="2025-10-01T17:46:15.868" >
+          <step title="Writing multipart request body to /tmp/zipdeploy/09ada394-a213-46a5-8597-54fe91c0e088.zip" date="2025-10-01T17:46:15.873" /><!-- duration: 8ms -->
+        </step><!-- duration: 220ms -->
+        <step title="Removing previous build artifact&apos;s manifest file" date="2025-10-01T17:46:16.096" >
+          <step title="Start deployment in the background" date="2025-10-01T17:46:16.119" >
+            <step title="Acquiring Deployment Lock" date="2025-10-01T17:46:16.139" /><!-- duration: 3ms -->
+            <step title="Acquired Deployment Lock" date="2025-10-01T17:46:16.194" /><!-- duration: 3ms -->
+          </step><!-- duration: 205ms -->
+        </step><!-- duration: 234ms -->
+        <step title="Outgoing response" date="2025-10-01T17:46:16.341" type="response" statusCode="202" statusText="Accepted" /><!-- duration: 3ms -->
+      </step><!-- duration: 515ms -->

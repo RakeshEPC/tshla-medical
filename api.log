@@ -1,0 +1,26 @@
+🏥 TSHLA Enhanced Schedule & Notes API Server
+📡 Running on port 3003
+🗄️  Database: tshla-mysql-staging.mysql.database.azure.com/tshla_medical_staging
+
+Ignoring invalid configuration option passed to Connection: acquireTimeout. This is currently a warning, but in future versions of MySQL2, an error will be thrown if you pass an invalid configuration option to a Connection
+Ignoring invalid configuration option passed to Connection: timeout. This is currently a warning, but in future versions of MySQL2, an error will be thrown if you pass an invalid configuration option to a Connection
+🎯 API Endpoints Available:
+
+📅 Schedule Endpoints:
+   GET  /api/providers/:id/schedule     - Get provider schedule
+   POST /api/appointments               - Create appointment
+   PUT  /api/appointments/:id           - Update appointment
+   GET  /api/schedule/today             - Today's schedule
+
+📝 Notes Endpoints:
+   POST /api/dictated-notes             - Save dictated note
+   GET  /api/providers/:id/notes        - Get provider notes
+   GET  /api/notes/:id                  - Get note details
+   PUT  /api/notes/:id                  - Update note
+   GET  /api/notes/search               - Search notes
+
+📊 Analytics Endpoints:
+   GET  /api/providers/:id/analytics    - Provider analytics
+
+🚀 Server ready for schedule and notes management!
+✅ Database connected successfully

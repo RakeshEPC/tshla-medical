@@ -12,6 +12,7 @@ import { unifiedAuthService } from '../services/unifiedAuth.service';
 import { dictatedNotesService } from '../services/dictatedNotesService';
 import { scheduleService } from '../services/scheduleService';
 import { scheduleDatabaseService } from '../services/scheduleDatabase.service';
+import { azureAIService } from '../services/azureAI.service';
 import { ChevronDown, FileText, Star, Clock, Mic, MicOff, Brain, User, Trash2, Copy, Printer, Stethoscope, ArrowLeft } from 'lucide-react';
 import NoteFormatter from './NoteFormatter';
 import { NoteSharing } from './NoteSharing';
@@ -629,20 +630,15 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
           };
         }
       }
-      
-      logDebug('MedicalDictation', 'Debug message', {});
-      logDebug('MedicalDictation', 'Debug message', {}); 
-      
+
+      const result = await azureAIService.processMedicalTranscription(
         combinedContent,
         minimalPatientData,
         null, // Legacy template parameter
         `Patient context: ${patientContext}`,
         templateInstructions // Pass custom template instructions
       );
-      
-      logInfo('MedicalDictation', 'Info message', {});
-      logInfo('MedicalDictation', 'Info message', {});
-      
+
       // Extract just the formatted note from the result
       const processedContent = result.formatted;
       

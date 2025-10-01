@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<deployment>
+  <id>4f3dda70-a9b5-4d6f-81a1-61cb85ff90e5</id>
+  <author>N/A</author>
+  <deployer>GITHUB_ZIP_DEPLOY</deployer>
+  <authorEmail>N/A</authorEmail>
+  <message>{"type":"deployment","sha":"01455468f7e340bd4ea5454055fa050d0f2b2d7e","repoName":"RakeshEPC/tshla-medical","actor":"RakeshEPC","slotName":"production","commitMessage":"Fix API deployment workflows - correct package.json for each API\n\nEach API now gets its own package.json with the correct main entry point:\n- Auth API: medical-auth-api.js\n- Pump API: pump-report-api.js\n- Schedule API: enhanced-schedule-notes-api.js\n\nThis fixes the \"Cannot find module\" error on Azure Web Apps.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude &lt;noreply@anthropic.com&gt;"}</message>
+  <progress></progress>
+  <status>Success</status>
+  <statusText></statusText>
+  <lastSuccessEndTime>2025-10-01T17:42:33.4365911Z</lastSuccessEndTime>
+  <receivedTime>2025-10-01T17:42:25.0988419Z</receivedTime>
+  <startTime>2025-10-01T17:42:26.5448368Z</startTime>
+  <endTime>2025-10-01T17:42:33.4365911Z</endTime>
+  <complete>True</complete>
+  <is_temp>False</is_temp>
+  <is_readonly>True</is_readonly>
+  <buildSummary />
+</deployment>

@@ -1,0 +1,44 @@
+2025-09-18T08:24:01: ⚠️ Stripe not configured - payment endpoints will return errors
+2025-09-18T08:24:01: ⚠️ SMTP_PASSWORD not configured - email delivery will fail
+2025-09-18T08:24:41: Get conversation session error: SyntaxError: "[object Object]" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at /Users/rakeshpatel/Desktop/tshla-medical/server/pump-report-api.js:682:62
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2025-09-18T08:24:41: List assessments error: Error: Incorrect arguments to mysqld_stmt_execute
+    at PromisePoolConnection.execute (/Users/rakeshpatel/Desktop/tshla-medical/server/node_modules/mysql2/lib/promise/connection.js:47:22)
+    at /Users/rakeshpatel/Desktop/tshla-medical/server/pump-report-api.js:770:39
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5) {
+  code: 'ER_WRONG_ARGUMENTS',
+  errno: 1210,
+  sql: '\n' +
+    '        SELECT\n' +
+    '          id, patient_name, doctor_name, payment_status,\n' +
+    '          sent_to_provider, provider_name, created_at\n' +
+    '        FROM pump_assessments\n' +
+    '       ORDER BY created_at DESC LIMIT ? OFFSET ?',
+  sqlState: 'HY000',
+  sqlMessage: 'Incorrect arguments to mysqld_stmt_execute'
+}
+2025-09-18T08:57:03: ⚠️ Stripe not configured - payment endpoints will return errors
+2025-09-18T08:57:04: ⚠️ SMTP_PASSWORD not configured - email delivery will fail
+2025-09-21T09:49:01: Stripe not initialized - missing secret key
+2025-09-21T09:49:01: App Placeholder message
+2025-09-21T10:19:25: Stripe not initialized - missing secret key
+2025-09-21T10:19:25: App Placeholder message
+2025-09-21T12:41:21: Stripe not initialized - missing secret key
+2025-09-21T12:41:22: App Placeholder message
+2025-09-22T14:43:38: Stripe not initialized - missing secret key
+2025-09-22T14:43:38: Ignoring invalid configuration option passed to Connection: acquireTimeout. This is currently a warning, but in future versions of MySQL2, an error will be thrown if you pass an invalid configuration option to a Connection
+2025-09-22T14:43:38: Ignoring invalid configuration option passed to Connection: timeout. This is currently a warning, but in future versions of MySQL2, an error will be thrown if you pass an invalid configuration option to a Connection
+2025-09-22T14:43:38: Ignoring invalid configuration option passed to Connection: reconnect. This is currently a warning, but in future versions of MySQL2, an error will be thrown if you pass an invalid configuration option to a Connection
+2025-09-22T14:43:39: App Placeholder message
+2025-09-22T15:23:26: Stripe not initialized - missing secret key
+2025-09-22T15:23:26: Ignoring invalid configuration option passed to Connection: acquireTimeout. This is currently a warning, but in future versions of MySQL2, an error will be thrown if you pass an invalid configuration option to a Connection
+2025-09-22T15:23:26: Ignoring invalid configuration option passed to Connection: timeout. This is currently a warning, but in future versions of MySQL2, an error will be thrown if you pass an invalid configuration option to a Connection
+2025-09-22T15:23:26: Ignoring invalid configuration option passed to Connection: reconnect. This is currently a warning, but in future versions of MySQL2, an error will be thrown if you pass an invalid configuration option to a Connection
+2025-09-22T15:23:29: App Placeholder message
+2025-09-22T16:08:30: Stripe not initialized - missing secret key
+2025-09-22T16:08:30: Ignoring invalid configuration option passed to Connection: acquireTimeout. This is currently a warning, but in future versions of MySQL2, an error will be thrown if you pass an invalid configuration option to a Connection
+2025-09-22T16:08:30: Ignoring invalid configuration option passed to Connection: timeout. This is currently a warning, but in future versions of MySQL2, an error will be thrown if you pass an invalid configuration option to a Connection
+2025-09-22T16:08:30: Ignoring invalid configuration option passed to Connection: reconnect. This is currently a warning, but in future versions of MySQL2, an error will be thrown if you pass an invalid configuration option to a Connection
+2025-09-22T16:08:31: App Placeholder message

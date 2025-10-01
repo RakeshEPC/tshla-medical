@@ -1,0 +1,67 @@
+2025-09-11T02:35:45.311799438Z    _____                               
+2025-09-11T02:35:45.311849928Z   /  _  \ __________ _________   ____  
+2025-09-11T02:35:45.311854116Z  /  /_\  \\___   /  |  \_  __ \_/ __ \ 
+2025-09-11T02:35:45.311857052Z /    |    \/    /|  |  /|  | \/\  ___/ 
+2025-09-11T02:35:45.311860226Z \____|__  /_____ \____/ |__|    \___  >
+2025-09-11T02:35:45.311863317Z         \/      \/                  \/ 
+2025-09-11T02:35:45.311865809Z A P P   S E R V I C E   O N   L I N U X
+2025-09-11T02:35:45.311868252Z 
+2025-09-11T02:35:45.311870500Z Documentation: http://aka.ms/webapp-linux
+2025-09-11T02:35:45.311872803Z NodeJS quickstart: https://aka.ms/node-qs
+2025-09-11T02:35:45.311875313Z NodeJS Version : v20.19.3
+2025-09-11T02:35:45.311877845Z Note: Any data outside '/home' is not persisted
+2025-09-11T02:35:45.311880468Z 
+2025-09-11T02:35:45.936828302Z Starting OpenBSD Secure Shell server: sshd.
+2025-09-11T02:35:45.943748389Z WEBSITES_INCLUDE_CLOUD_CERTS is not set to true.
+2025-09-11T02:35:45.951693611Z Updating certificates in /etc/ssl/certs...
+2025-09-11T02:35:47.773067652Z rehash: warning: skipping ca-certificates.crt,it does not contain exactly one certificate or CRL
+2025-09-11T02:35:47.781274450Z 4 added, 0 removed; done.
+2025-09-11T02:35:47.781363083Z Running hooks in /etc/ca-certificates/update.d...
+2025-09-11T02:35:47.783325079Z done.
+2025-09-11T02:35:47.787235307Z CA certificates copied and updated successfully.
+2025-09-11T02:35:47.821118720Z Starting periodic command scheduler: cron.
+2025-09-11T02:35:47.833130722Z Could not find build manifest file at '/home/site/wwwroot/oryx-manifest.toml'
+2025-09-11T02:35:47.833215684Z Could not find operation ID in manifest. Generating an operation id...
+2025-09-11T02:35:47.833261825Z Build Operation ID: 426a7e97-9bb0-4c72-b7e9-1783018f8867
+2025-09-11T02:35:48.013965298Z Environment Variables for Application Insight's IPA Codeless Configuration exists..
+2025-09-11T02:35:48.043834155Z Writing output script to '/opt/startup/startup.sh'
+2025-09-11T02:35:48.079089960Z Running #!/bin/sh
+2025-09-11T02:35:48.079135737Z 
+2025-09-11T02:35:48.079139229Z # Enter the source directory to make sure the script runs where the user expects
+2025-09-11T02:35:48.079142246Z cd "/home/site/wwwroot"
+2025-09-11T02:35:48.079144732Z 
+2025-09-11T02:35:48.079146880Z export NODE_PATH=/usr/local/lib/node_modules:$NODE_PATH
+2025-09-11T02:35:48.079149258Z if [ -z "$PORT" ]; then
+2025-09-11T02:35:48.079151936Z 		export PORT=8080
+2025-09-11T02:35:48.079154663Z fi
+2025-09-11T02:35:48.079157016Z 
+2025-09-11T02:35:48.079779459Z npm start
+2025-09-11T02:35:48.294287867Z npm info using npm@10.9.2
+2025-09-11T02:35:48.299289286Z npm info using node@v20.19.3
+2025-09-11T02:35:48.929619368Z 
+2025-09-11T02:35:48.929650038Z > tshla-medical-api-server@1.0.0 start
+2025-09-11T02:35:48.929654311Z > node twilio-server-enhanced.js
+2025-09-11T02:35:48.929657310Z 
+2025-09-11T02:35:48.999718815Z node:internal/modules/cjs/loader:1215
+2025-09-11T02:35:48.999750295Z   throw err;
+2025-09-11T02:35:48.999753834Z   ^
+2025-09-11T02:35:48.999756487Z 
+2025-09-11T02:35:48.999759091Z Error: Cannot find module 'express'
+2025-09-11T02:35:48.999762036Z Require stack:
+2025-09-11T02:35:48.999764579Z - /home/site/wwwroot/twilio-server-enhanced.js
+2025-09-11T02:35:48.999767148Z     at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
+2025-09-11T02:35:48.999769898Z     at Module._load (node:internal/modules/cjs/loader:1043:27)
+2025-09-11T02:35:48.999772751Z     at Module.require (node:internal/modules/cjs/loader:1298:19)
+2025-09-11T02:35:48.999775576Z     at require (node:internal/modules/helpers:182:18)
+2025-09-11T02:35:48.999778169Z     at Object.<anonymous> (/home/site/wwwroot/twilio-server-enhanced.js:6:17)
+2025-09-11T02:35:48.999781426Z     at Module._compile (node:internal/modules/cjs/loader:1529:14)
+2025-09-11T02:35:48.999784445Z     at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+2025-09-11T02:35:48.999787571Z     at Module.load (node:internal/modules/cjs/loader:1275:32)
+2025-09-11T02:35:48.999790447Z     at Module._load (node:internal/modules/cjs/loader:1096:12)
+2025-09-11T02:35:48.999793314Z     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12) {
+2025-09-11T02:35:48.999796195Z   code: 'MODULE_NOT_FOUND',
+2025-09-11T02:35:48.999798755Z   requireStack: [ '/home/site/wwwroot/twilio-server-enhanced.js' ]
+2025-09-11T02:35:48.999801837Z }
+2025-09-11T02:35:48.999804508Z 
+2025-09-11T02:35:48.999807123Z Node.js v20.19.3
+

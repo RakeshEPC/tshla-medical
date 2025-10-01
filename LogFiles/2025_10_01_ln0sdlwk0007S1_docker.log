@@ -1,0 +1,1205 @@
+2025-10-01T14:40:27.9239070Z Container start method called.
+2025-10-01T14:40:27.9240403Z Establishing network.
+2025-10-01T14:40:27.9241498Z Pulling image: appsvc/node:20-lts_20250724.2.tuxprod.
+2025-10-01T14:40:28.9818350Z Container is starting.
+2025-10-01T14:40:28.9820459Z Establishing user namespace if not established already.
+2025-10-01T14:40:28.9822316Z Establishing network if not established already.
+2025-10-01T14:40:28.9823852Z Mounting volumes.
+2025-10-01T14:40:28.9827582Z Nested mountpoint 
+2025-10-01T14:40:28.9913351Z Nested mountpoint volatile/logs
+2025-10-01T14:40:28.9989430Z Nested mountpoint 
+2025-10-01T14:40:28.9996330Z Nested mountpoint 
+2025-10-01T14:40:29.0221008Z Nested mountpoint 
+2025-10-01T14:40:29.1123052Z Creating container.
+2025-10-01T14:40:29.1124973Z Creating pipes for streaming container io.
+2025-10-01T14:40:29.1126446Z Creating stdout named pipe at /podr/container/pipe/65c6da4dc554_tshla-auth-api/stdout_640ddbd5bc0d4241afa771039ac5cc50.
+2025-10-01T14:40:29.1128949Z Successfully created stdout named pipe at: /podr/container/pipe/65c6da4dc554_tshla-auth-api/stdout_640ddbd5bc0d4241afa771039ac5cc50.
+2025-10-01T14:40:29.1130134Z Opening named pipe /podr/container/pipe/65c6da4dc554_tshla-auth-api/stdout_640ddbd5bc0d4241afa771039ac5cc50 for reading in non-blocking mode.
+2025-10-01T14:40:29.1131836Z Successfully opened named pipe: /podr/container/pipe/65c6da4dc554_tshla-auth-api/stdout_640ddbd5bc0d4241afa771039ac5cc50.
+2025-10-01T14:40:29.1133242Z Successfully removed non-blocking flag from /podr/container/pipe/65c6da4dc554_tshla-auth-api/stdout_640ddbd5bc0d4241afa771039ac5cc50.
+2025-10-01T14:40:29.1134629Z Creating stderr named pipe at /podr/container/pipe/65c6da4dc554_tshla-auth-api/stderr_e5a6e95666f0448996538d2f3a6a55aa.
+2025-10-01T14:40:29.1136449Z Successfully created stderr named pipe at: /podr/container/pipe/65c6da4dc554_tshla-auth-api/stderr_e5a6e95666f0448996538d2f3a6a55aa.
+2025-10-01T14:40:29.1137662Z Opening named pipe /podr/container/pipe/65c6da4dc554_tshla-auth-api/stderr_e5a6e95666f0448996538d2f3a6a55aa for reading in non-blocking mode.
+2025-10-01T14:40:29.1139367Z Successfully opened named pipe: /podr/container/pipe/65c6da4dc554_tshla-auth-api/stderr_e5a6e95666f0448996538d2f3a6a55aa.
+2025-10-01T14:40:29.1150155Z Successfully removed non-blocking flag from /podr/container/pipe/65c6da4dc554_tshla-auth-api/stderr_e5a6e95666f0448996538d2f3a6a55aa.
+2025-10-01T14:40:29.1152201Z Creating container with image: appsvc/node:20-lts_20250724.2.tuxprod from registry: mcr.microsoft.com and fully qualified image name: mcr.microsoft.com/appsvc/node:20-lts_20250724.2.tuxprod
+2025-10-01T14:40:29.7261778Z Starting container: 65c6da4dc554_tshla-auth-api.
+2025-10-01T14:40:29.7456675Z Starting watchers and probes.
+2025-10-01T14:40:29.7552675Z Starting metrics collection.
+2025-10-01T14:40:29.7554638Z Container is running.
+2025-10-01T14:40:29.7955478Z Container start method finished after 1871 ms.
+2025-10-01T14:40:32.8521833Z Site startup probe succeeded after 3.0450094 seconds.
+2025-10-01T14:40:32.8653181Z Site started.
+2025-10-01T14:40:32.8893078Z Site is running with patch version: 20.19.3
+2025-10-01T14:53:16.5282764Z Container start method called.
+2025-10-01T14:53:16.5284310Z Establishing network.
+2025-10-01T14:53:16.5295771Z Pulling image: appsvc/node:20-lts_20250724.2.tuxprod.
+2025-10-01T14:53:17.6021565Z Container is starting.
+2025-10-01T14:53:17.6023248Z Establishing user namespace if not established already.
+2025-10-01T14:53:17.6024494Z Establishing network if not established already.
+2025-10-01T14:53:17.6025920Z Mounting volumes.
+2025-10-01T14:53:17.6027797Z Nested mountpoint 
+2025-10-01T14:53:17.6112905Z Nested mountpoint volatile/logs
+2025-10-01T14:53:17.6222052Z Nested mountpoint 
+2025-10-01T14:53:17.6307486Z Nested mountpoint 
+2025-10-01T14:53:17.6382424Z Nested mountpoint 
+2025-10-01T14:53:17.7318411Z Creating container.
+2025-10-01T14:53:17.7323916Z Creating pipes for streaming container io.
+2025-10-01T14:53:17.7325788Z Creating stdout named pipe at /podr/container/pipe/a43b1245b2c8_tshla-auth-api/stdout_f91d63984ab34a20b5be5e3aa0c9bf80.
+2025-10-01T14:53:17.7328347Z Successfully created stdout named pipe at: /podr/container/pipe/a43b1245b2c8_tshla-auth-api/stdout_f91d63984ab34a20b5be5e3aa0c9bf80.
+2025-10-01T14:53:17.7329745Z Opening named pipe /podr/container/pipe/a43b1245b2c8_tshla-auth-api/stdout_f91d63984ab34a20b5be5e3aa0c9bf80 for reading in non-blocking mode.
+2025-10-01T14:53:17.7331344Z Successfully opened named pipe: /podr/container/pipe/a43b1245b2c8_tshla-auth-api/stdout_f91d63984ab34a20b5be5e3aa0c9bf80.
+2025-10-01T14:53:17.7332593Z Successfully removed non-blocking flag from /podr/container/pipe/a43b1245b2c8_tshla-auth-api/stdout_f91d63984ab34a20b5be5e3aa0c9bf80.
+2025-10-01T14:53:17.7344402Z Creating stderr named pipe at /podr/container/pipe/a43b1245b2c8_tshla-auth-api/stderr_1d0f76df6f644ef5b441dae785b1565f.
+2025-10-01T14:53:17.7347949Z Successfully created stderr named pipe at: /podr/container/pipe/a43b1245b2c8_tshla-auth-api/stderr_1d0f76df6f644ef5b441dae785b1565f.
+2025-10-01T14:53:17.7354356Z Opening named pipe /podr/container/pipe/a43b1245b2c8_tshla-auth-api/stderr_1d0f76df6f644ef5b441dae785b1565f for reading in non-blocking mode.
+2025-10-01T14:53:17.7358060Z Successfully opened named pipe: /podr/container/pipe/a43b1245b2c8_tshla-auth-api/stderr_1d0f76df6f644ef5b441dae785b1565f.
+2025-10-01T14:53:17.7360151Z Successfully removed non-blocking flag from /podr/container/pipe/a43b1245b2c8_tshla-auth-api/stderr_1d0f76df6f644ef5b441dae785b1565f.
+2025-10-01T14:53:17.7361855Z Creating container with image: appsvc/node:20-lts_20250724.2.tuxprod from registry: mcr.microsoft.com and fully qualified image name: mcr.microsoft.com/appsvc/node:20-lts_20250724.2.tuxprod
+2025-10-01T14:53:17.8860346Z Starting container: a43b1245b2c8_tshla-auth-api.
+2025-10-01T14:53:17.9023684Z Starting watchers and probes.
+2025-10-01T14:53:17.9048280Z Starting metrics collection.
+2025-10-01T14:53:17.9050564Z Container is running.
+2025-10-01T14:53:17.9200181Z Container start method finished after 1391 ms.
+2025-10-01T14:53:22.4835228Z Site startup probe succeeded after 4.5620015 seconds.
+2025-10-01T14:53:22.5029491Z Site started.
+2025-10-01T14:53:22.5044284Z Site is running with patch version: 20.19.3
+2025-10-01T14:53:42.5169334Z Container is terminating. Grace period: 5 seconds.
+2025-10-01T14:53:42.5201863Z Stop and delete container. Retry count = 0
+2025-10-01T14:53:42.5208561Z Stopping container: 65c6da4dc554_tshla-auth-api.
+2025-10-01T14:53:47.5443641Z Deleting container: 65c6da4dc554_tshla-auth-api. Retry count = 0
+2025-10-01T14:53:47.5933351Z Container spec TerminationMessagePolicy  path 
+2025-10-01T14:53:47.5979488Z Container is terminated. Total time elapsed: 5080 ms.
+2025-10-01T14:53:47.5980720Z Site: tshla-auth-api stopped.
+2025-10-01T14:53:47.9218829Z Container start method called.
+2025-10-01T14:53:47.9235852Z Establishing network.
+2025-10-01T14:53:47.9238066Z Pulling image: appsvc/node:20-lts_20250724.2.tuxprod.
+2025-10-01T14:53:49.0701157Z Container is starting.
+2025-10-01T14:53:49.0713387Z Establishing user namespace if not established already.
+2025-10-01T14:53:49.0716793Z Establishing network if not established already.
+2025-10-01T14:53:49.0719820Z Mounting volumes.
+2025-10-01T14:53:49.0722344Z Nested mountpoint 
+2025-10-01T14:53:49.0757755Z Nested mountpoint volatile/logs
+2025-10-01T14:53:49.0895501Z Nested mountpoint 
+2025-10-01T14:53:49.0905350Z Nested mountpoint 
+2025-10-01T14:53:49.1162604Z Nested mountpoint 
+2025-10-01T14:53:49.1925783Z Creating container.
+2025-10-01T14:53:49.1927810Z Creating pipes for streaming container io.
+2025-10-01T14:53:49.1929489Z Creating stdout named pipe at /podr/container/pipe/e0aac8201360_tshla-auth-api/stdout_d7094a4027fd4f2f909b1e22607ad235.
+2025-10-01T14:53:49.1932104Z Successfully created stdout named pipe at: /podr/container/pipe/e0aac8201360_tshla-auth-api/stdout_d7094a4027fd4f2f909b1e22607ad235.
+2025-10-01T14:53:49.1933855Z Opening named pipe /podr/container/pipe/e0aac8201360_tshla-auth-api/stdout_d7094a4027fd4f2f909b1e22607ad235 for reading in non-blocking mode.
+2025-10-01T14:53:49.1936285Z Successfully opened named pipe: /podr/container/pipe/e0aac8201360_tshla-auth-api/stdout_d7094a4027fd4f2f909b1e22607ad235.
+2025-10-01T14:53:49.1942574Z Successfully removed non-blocking flag from /podr/container/pipe/e0aac8201360_tshla-auth-api/stdout_d7094a4027fd4f2f909b1e22607ad235.
+2025-10-01T14:53:49.1947010Z Creating stderr named pipe at /podr/container/pipe/e0aac8201360_tshla-auth-api/stderr_dfec5f621eda4c64a67c865dce72d6d7.
+2025-10-01T14:53:49.1949319Z Successfully created stderr named pipe at: /podr/container/pipe/e0aac8201360_tshla-auth-api/stderr_dfec5f621eda4c64a67c865dce72d6d7.
+2025-10-01T14:53:49.1950692Z Opening named pipe /podr/container/pipe/e0aac8201360_tshla-auth-api/stderr_dfec5f621eda4c64a67c865dce72d6d7 for reading in non-blocking mode.
+2025-10-01T14:53:49.1952381Z Successfully opened named pipe: /podr/container/pipe/e0aac8201360_tshla-auth-api/stderr_dfec5f621eda4c64a67c865dce72d6d7.
+2025-10-01T14:53:49.1953674Z Successfully removed non-blocking flag from /podr/container/pipe/e0aac8201360_tshla-auth-api/stderr_dfec5f621eda4c64a67c865dce72d6d7.
+2025-10-01T14:53:49.1966020Z Creating container with image: appsvc/node:20-lts_20250724.2.tuxprod from registry: mcr.microsoft.com and fully qualified image name: mcr.microsoft.com/appsvc/node:20-lts_20250724.2.tuxprod
+2025-10-01T14:53:49.3806625Z Starting container: e0aac8201360_tshla-auth-api.
+2025-10-01T14:53:49.4024284Z Starting watchers and probes.
+2025-10-01T14:53:49.4042200Z Starting metrics collection.
+2025-10-01T14:53:49.4050203Z Container is running.
+2025-10-01T14:53:49.7817801Z Container start method finished after 1859 ms.
+2025-10-01T14:53:53.4667077Z Site startup probe succeeded after 3.6809582 seconds.
+2025-10-01T14:53:53.4773674Z Site started.
+2025-10-01T14:53:53.4778526Z Site is running with patch version: 20.19.3
+2025-10-01T14:54:13.4789654Z Container is terminating. Grace period: 5 seconds.
+2025-10-01T14:54:13.4833294Z Stop and delete container. Retry count = 0
+2025-10-01T14:54:13.4841094Z Stopping container: a43b1245b2c8_tshla-auth-api.
+2025-10-01T14:54:19.5562096Z Deleting container: a43b1245b2c8_tshla-auth-api. Retry count = 0
+2025-10-01T14:54:19.6937967Z Container spec TerminationMessagePolicy  path 
+2025-10-01T14:54:19.7012549Z Container is terminated. Total time elapsed: 6221 ms.
+2025-10-01T14:54:19.7016546Z Site: tshla-auth-api stopped.
+2025-10-01T14:54:20.1198881Z Container start method called.
+2025-10-01T14:54:20.1200097Z Establishing network.
+2025-10-01T14:54:20.1201299Z Pulling image: appsvc/node:20-lts_20250724.2.tuxprod.
+2025-10-01T14:54:21.2492216Z Container is starting.
+2025-10-01T14:54:21.2493748Z Establishing user namespace if not established already.
+2025-10-01T14:54:21.2495255Z Establishing network if not established already.
+2025-10-01T14:54:21.2496494Z Mounting volumes.
+2025-10-01T14:54:21.2498767Z Nested mountpoint 
+2025-10-01T14:54:21.2598663Z Nested mountpoint volatile/logs
+2025-10-01T14:54:21.2725174Z Nested mountpoint 
+2025-10-01T14:54:21.2795345Z Nested mountpoint 
+2025-10-01T14:54:21.2890534Z Nested mountpoint 
+2025-10-01T14:54:21.3591217Z Creating container.
+2025-10-01T14:54:21.3594020Z Creating pipes for streaming container io.
+2025-10-01T14:54:21.3598721Z Creating stdout named pipe at /podr/container/pipe/6056aebc2575_tshla-auth-api/stdout_92555adb5c6c48fd80b9bc91178a0f8e.
+2025-10-01T14:54:21.3649939Z Successfully created stdout named pipe at: /podr/container/pipe/6056aebc2575_tshla-auth-api/stdout_92555adb5c6c48fd80b9bc91178a0f8e.
+2025-10-01T14:54:21.3657359Z Opening named pipe /podr/container/pipe/6056aebc2575_tshla-auth-api/stdout_92555adb5c6c48fd80b9bc91178a0f8e for reading in non-blocking mode.
+2025-10-01T14:54:21.3659244Z Successfully opened named pipe: /podr/container/pipe/6056aebc2575_tshla-auth-api/stdout_92555adb5c6c48fd80b9bc91178a0f8e.
+2025-10-01T14:54:21.3667347Z Successfully removed non-blocking flag from /podr/container/pipe/6056aebc2575_tshla-auth-api/stdout_92555adb5c6c48fd80b9bc91178a0f8e.
+2025-10-01T14:54:21.3672589Z Creating stderr named pipe at /podr/container/pipe/6056aebc2575_tshla-auth-api/stderr_823cf11533ba44e0bf208e9bbd3e2c6c.
+2025-10-01T14:54:21.3676587Z Successfully created stderr named pipe at: /podr/container/pipe/6056aebc2575_tshla-auth-api/stderr_823cf11533ba44e0bf208e9bbd3e2c6c.
+2025-10-01T14:54:21.3677833Z Opening named pipe /podr/container/pipe/6056aebc2575_tshla-auth-api/stderr_823cf11533ba44e0bf208e9bbd3e2c6c for reading in non-blocking mode.
+2025-10-01T14:54:21.3679277Z Successfully opened named pipe: /podr/container/pipe/6056aebc2575_tshla-auth-api/stderr_823cf11533ba44e0bf208e9bbd3e2c6c.
+2025-10-01T14:54:21.3680705Z Successfully removed non-blocking flag from /podr/container/pipe/6056aebc2575_tshla-auth-api/stderr_823cf11533ba44e0bf208e9bbd3e2c6c.
+2025-10-01T14:54:21.3682140Z Creating container with image: appsvc/node:20-lts_20250724.2.tuxprod from registry: mcr.microsoft.com and fully qualified image name: mcr.microsoft.com/appsvc/node:20-lts_20250724.2.tuxprod
+2025-10-01T14:54:21.6854427Z Starting container: 6056aebc2575_tshla-auth-api.
+2025-10-01T14:54:21.7051986Z Starting watchers and probes.
+2025-10-01T14:54:21.7119250Z Starting metrics collection.
+2025-10-01T14:54:21.7158636Z Container is running.
+2025-10-01T14:54:21.7930352Z Container start method finished after 1670 ms.
+2025-10-01T14:54:27.8390503Z Site startup probe succeeded after 6.0418128 seconds.
+2025-10-01T14:54:27.8597019Z Site started.
+2025-10-01T14:54:27.8626162Z Site is running with patch version: 20.19.3
+2025-10-01T14:54:47.8705432Z Container is terminating. Grace period: 5 seconds.
+2025-10-01T14:54:47.8721607Z Stop and delete container. Retry count = 0
+2025-10-01T14:54:47.8723370Z Stopping container: e0aac8201360_tshla-auth-api.
+2025-10-01T14:54:52.9915013Z Deleting container: e0aac8201360_tshla-auth-api. Retry count = 0
+2025-10-01T14:54:53.1135697Z Container spec TerminationMessagePolicy  path 
+2025-10-01T14:54:53.1138717Z Container is terminated. Total time elapsed: 5243 ms.
+2025-10-01T14:54:53.1139255Z Site: tshla-auth-api stopped.
+2025-10-01T14:56:07.7188676Z Container start method called.
+2025-10-01T14:56:07.7190287Z Establishing network.
+2025-10-01T14:56:07.7191935Z Pulling image: appsvc/node:20-lts_20250724.2.tuxprod.
+2025-10-01T14:56:09.5641930Z Container pull image interrupted. Revert by terminate.
+2025-10-01T14:56:09.5650789Z Container is terminating. Grace period: 5 seconds.
+2025-10-01T14:56:09.5654935Z Container spec TerminationMessagePolicy  path 
+2025-10-01T14:56:09.5658489Z Container is terminated. Total time elapsed: 0 ms.
+2025-10-01T14:56:09.5664916Z Site container: tshla-auth-api terminated during site startup.
+2025-10-01T14:56:09.6004583Z Site container: tshla-auth-api terminated. Stopping the entire site.
+2025-10-01T14:56:09.6021374Z Site: tshla-auth-api stopped.
+2025-10-01T14:56:29.5979481Z Container is terminating. Grace period: 5 seconds.
+2025-10-01T14:56:29.6053705Z Stop and delete container. Retry count = 0
+2025-10-01T14:56:29.6055211Z Stopping container: 6056aebc2575_tshla-auth-api.
+2025-10-01T14:56:34.6442662Z Deleting container: 6056aebc2575_tshla-auth-api. Retry count = 0
+2025-10-01T14:56:34.6995132Z Container spec TerminationMessagePolicy  path 
+2025-10-01T14:56:34.6997212Z Container is terminated. Total time elapsed: 5101 ms.
+2025-10-01T14:56:34.6997679Z Site: tshla-auth-api stopped.
+2025-10-01T14:56:56.7015257Z Container start method called.
+2025-10-01T14:56:56.7016959Z Establishing network.
+2025-10-01T14:56:56.7020881Z Pulling image: appsvc/node:20-lts_20250724.2.tuxprod.
+2025-10-01T14:56:57.8856336Z Container is starting.
+2025-10-01T14:56:57.8862706Z Establishing user namespace if not established already.
+2025-10-01T14:56:57.8866886Z Establishing network if not established already.
+2025-10-01T14:56:57.8869752Z Mounting volumes.
+2025-10-01T14:56:57.8872835Z Nested mountpoint 
+2025-10-01T14:56:57.8941674Z Nested mountpoint volatile/logs
+2025-10-01T14:56:57.9001387Z Nested mountpoint 
+2025-10-01T14:56:57.9015377Z Nested mountpoint 
+2025-10-01T14:56:57.9035863Z Nested mountpoint 
+2025-10-01T14:56:58.0132013Z Creating container.
+2025-10-01T14:56:58.0149122Z Creating pipes for streaming container io.
+2025-10-01T14:56:58.0158567Z Creating stdout named pipe at /podr/container/pipe/00f65d936f87_tshla-auth-api/stdout_a0b52e9aeab04dab9653b3ccb35bd387.
+2025-10-01T14:56:58.0166872Z Successfully created stdout named pipe at: /podr/container/pipe/00f65d936f87_tshla-auth-api/stdout_a0b52e9aeab04dab9653b3ccb35bd387.
+2025-10-01T14:56:58.0172444Z Opening named pipe /podr/container/pipe/00f65d936f87_tshla-auth-api/stdout_a0b52e9aeab04dab9653b3ccb35bd387 for reading in non-blocking mode.
+2025-10-01T14:56:58.0177254Z Successfully opened named pipe: /podr/container/pipe/00f65d936f87_tshla-auth-api/stdout_a0b52e9aeab04dab9653b3ccb35bd387.
+2025-10-01T14:56:58.0178955Z Successfully removed non-blocking flag from /podr/container/pipe/00f65d936f87_tshla-auth-api/stdout_a0b52e9aeab04dab9653b3ccb35bd387.
+2025-10-01T14:56:58.0183358Z Creating stderr named pipe at /podr/container/pipe/00f65d936f87_tshla-auth-api/stderr_b09a9d277b7447bab21bb089e495df19.
+2025-10-01T14:56:58.0185159Z Successfully created stderr named pipe at: /podr/container/pipe/00f65d936f87_tshla-auth-api/stderr_b09a9d277b7447bab21bb089e495df19.
+2025-10-01T14:56:58.0186220Z Opening named pipe /podr/container/pipe/00f65d936f87_tshla-auth-api/stderr_b09a9d277b7447bab21bb089e495df19 for reading in non-blocking mode.
+2025-10-01T14:56:58.0187348Z Successfully opened named pipe: /podr/container/pipe/00f65d936f87_tshla-auth-api/stderr_b09a9d277b7447bab21bb089e495df19.
+2025-10-01T14:56:58.0188342Z Successfully removed non-blocking flag from /podr/container/pipe/00f65d936f87_tshla-auth-api/stderr_b09a9d277b7447bab21bb089e495df19.
+2025-10-01T14:56:58.0189386Z Creating container with image: appsvc/node:20-lts_20250724.2.tuxprod from registry: mcr.microsoft.com and fully qualified image name: mcr.microsoft.com/appsvc/node:20-lts_20250724.2.tuxprod
+2025-10-01T14:56:58.1706853Z Starting container: 00f65d936f87_tshla-auth-api.
+2025-10-01T14:56:58.1931279Z Starting watchers and probes.
+2025-10-01T14:56:58.1947367Z Starting metrics collection.
+2025-10-01T14:56:58.1949103Z Container is running.
+2025-10-01T14:56:58.2297220Z Container start method finished after 1528 ms.
+2025-10-01T14:57:04.0843678Z Container has finished running with exit code: 1.
+2025-10-01T14:57:04.0861743Z Container is terminating. Grace period: 5 seconds.
+2025-10-01T14:57:04.0867710Z Stop and delete container. Retry count = 0
+2025-10-01T14:57:04.0870828Z Stopping container: 00f65d936f87_tshla-auth-api.
+2025-10-01T14:57:04.1373041Z Deleting container: 00f65d936f87_tshla-auth-api. Retry count = 0
+2025-10-01T14:57:05.9648012Z Container spec TerminationMessagePolicy  path 
+2025-10-01T14:57:05.9653988Z Container is terminated. Total time elapsed: 1879 ms.
+2025-10-01T14:57:05.9657417Z Site container: tshla-auth-api terminated during site startup.
+2025-10-01T14:57:05.9661672Z Site startup probe failed after 7.7319983 seconds.
+2025-10-01T14:57:05.9683307Z Failed to start site. Revert by stopping site.
+2025-10-01T14:57:05.9686630Z Site: tshla-auth-api stopped.
+2025-10-01T14:57:13.024Z ERROR - DockerApiException: Docker API responded with status code=NotFound, response={"message":"manifest for 10.1.0.5:13209/appsvc/node:20-lts_20250724.2.tuxprod not found: manifest unknown: manifest unknown"}
+
+2025-10-01T14:57:13.241Z ERROR - DockerApiException: Docker API responded with status code=NotFound, response={"message":"manifest for 10.1.0.4:13209/appsvc/node:20-lts_20250724.2.tuxprod not found: manifest unknown: manifest unknown"}
+
+2025-10-01T14:57:13.435Z INFO  - 20-lts_20250724.2.tuxprod Pulling from appsvc/node
+2025-10-01T14:57:13.438Z INFO  - c19952135643 Pulling fs layer
+2025-10-01T14:57:13.439Z INFO  - b49b2c83cf45 Pulling fs layer
+2025-10-01T14:57:13.440Z INFO  - a7350ec49683 Pulling fs layer
+2025-10-01T14:57:13.440Z INFO  - ca64976d1f75 Pulling fs layer
+2025-10-01T14:57:13.445Z INFO  - 9c231cb2d468 Pulling fs layer
+2025-10-01T14:57:13.449Z INFO  - 6d5ed858bc79 Pulling fs layer
+2025-10-01T14:57:13.455Z INFO  - b147e1d819b6 Pulling fs layer
+2025-10-01T14:57:13.460Z INFO  - bddeee446dea Pulling fs layer
+2025-10-01T14:57:13.464Z INFO  - 3bba0ee51794 Pulling fs layer
+2025-10-01T14:57:13.465Z INFO  - 5b5c68b4e022 Pulling fs layer
+2025-10-01T14:57:13.465Z INFO  - 589fad460b75 Pulling fs layer
+2025-10-01T14:57:13.465Z INFO  - a4ac82e1650a Pulling fs layer
+2025-10-01T14:57:13.465Z INFO  - 6e652537f0de Pulling fs layer
+2025-10-01T14:57:13.465Z INFO  - 4f4fb700ef54 Pulling fs layer
+2025-10-01T14:57:13.466Z INFO  - 70b2d1c62102 Pulling fs layer
+2025-10-01T14:57:13.466Z INFO  - 81114daeece3 Pulling fs layer
+2025-10-01T14:57:13.466Z INFO  - 72560126db61 Pulling fs layer
+2025-10-01T14:57:13.466Z INFO  - b4ee02498c51 Pulling fs layer
+2025-10-01T14:57:13.466Z INFO  - 9f7642f5d897 Pulling fs layer
+2025-10-01T14:57:13.466Z INFO  - 064a93d404d8 Pulling fs layer
+2025-10-01T14:57:13.466Z INFO  - 9078bcfaabdd Pulling fs layer
+2025-10-01T14:57:13.466Z INFO  - 8367cb93fd79 Pulling fs layer
+2025-10-01T14:57:13.466Z INFO  - 432802c32c40 Pulling fs layer
+2025-10-01T14:57:13.466Z INFO  - b5ee41dce4d1 Pulling fs layer
+2025-10-01T14:57:13.466Z INFO  - 299358e274fc Pulling fs layer
+2025-10-01T14:57:13.466Z INFO  - a0f687a8a43e Pulling fs layer
+2025-10-01T14:57:13.466Z INFO  - f6668cf6fc4f Pulling fs layer
+2025-10-01T14:57:13.466Z INFO  - cab9518eb753 Pulling fs layer
+2025-10-01T14:57:13.466Z INFO  - f9717d513d08 Pulling fs layer
+2025-10-01T14:57:13.466Z INFO  - 81d0cf6a6204 Pulling fs layer
+2025-10-01T14:57:13.466Z INFO  - e705a3b12771 Pulling fs layer
+2025-10-01T14:57:13.466Z INFO  - cdcdb6bbda74 Pulling fs layer
+2025-10-01T14:57:13.466Z INFO  - 3c56665f14df Pulling fs layer
+2025-10-01T14:57:13.466Z INFO  - 6076b5261919 Pulling fs layer
+2025-10-01T14:57:13.466Z INFO  - cfb2442eec7a Pulling fs layer
+2025-10-01T14:57:13.466Z INFO  - c7bf2b05e76c Pulling fs layer
+2025-10-01T14:57:13.466Z INFO  - 9e40ee8f5c7c Pulling fs layer
+2025-10-01T14:57:13.466Z INFO  - 9078bcfaabdd Waiting
+2025-10-01T14:57:13.466Z INFO  - 8367cb93fd79 Waiting
+2025-10-01T14:57:13.466Z INFO  - 432802c32c40 Waiting
+2025-10-01T14:57:13.466Z INFO  - b5ee41dce4d1 Waiting
+2025-10-01T14:57:13.466Z INFO  - 299358e274fc Waiting
+2025-10-01T14:57:13.466Z INFO  - a0f687a8a43e Waiting
+2025-10-01T14:57:13.466Z INFO  - f6668cf6fc4f Waiting
+2025-10-01T14:57:13.466Z INFO  - cab9518eb753 Waiting
+2025-10-01T14:57:13.466Z INFO  - f9717d513d08 Waiting
+2025-10-01T14:57:13.466Z INFO  - 81d0cf6a6204 Waiting
+2025-10-01T14:57:13.466Z INFO  - e705a3b12771 Waiting
+2025-10-01T14:57:13.466Z INFO  - cdcdb6bbda74 Waiting
+2025-10-01T14:57:13.466Z INFO  - 3c56665f14df Waiting
+2025-10-01T14:57:13.466Z INFO  - 6076b5261919 Waiting
+2025-10-01T14:57:13.466Z INFO  - cfb2442eec7a Waiting
+2025-10-01T14:57:13.466Z INFO  - c7bf2b05e76c Waiting
+2025-10-01T14:57:13.466Z INFO  - 9e40ee8f5c7c Waiting
+2025-10-01T14:57:13.837Z INFO  - ca64976d1f75 Downloading 387B / 387B
+2025-10-01T14:57:13.840Z INFO  - ca64976d1f75 Verifying Checksum
+2025-10-01T14:57:13.840Z INFO  - ca64976d1f75 Download complete
+2025-10-01T14:57:13.902Z INFO  - 6d5ed858bc79 Downloading 3KB / 39KB
+2025-10-01T14:57:13.903Z INFO  - 4f4fb700ef54 Downloading 32B / 32B
+2025-10-01T14:57:13.904Z INFO  - 6d5ed858bc79 Downloading 39KB / 39KB
+2025-10-01T14:57:13.914Z INFO  - 4f4fb700ef54 Verifying Checksum
+2025-10-01T14:57:13.914Z INFO  - 4f4fb700ef54 Download complete
+2025-10-01T14:57:13.914Z INFO  - 6d5ed858bc79 Verifying Checksum
+2025-10-01T14:57:13.914Z INFO  - 6d5ed858bc79 Download complete
+2025-10-01T14:57:14.058Z INFO  - 9f7642f5d897 Downloading 126B / 126B
+2025-10-01T14:57:14.058Z INFO  - 6e652537f0de Verifying Checksum
+2025-10-01T14:57:14.058Z INFO  - 6e652537f0de Download complete
+2025-10-01T14:57:14.058Z INFO  - 9f7642f5d897 Verifying Checksum
+2025-10-01T14:57:14.058Z INFO  - 9f7642f5d897 Download complete
+2025-10-01T14:57:14.058Z INFO  - b147e1d819b6 Downloading 3KB / 10KB
+2025-10-01T14:57:14.058Z INFO  - b147e1d819b6 Downloading 10KB / 10KB
+2025-10-01T14:57:14.058Z INFO  - bddeee446dea Downloading 3KB / 14KB
+2025-10-01T14:57:14.058Z INFO  - bddeee446dea Downloading 14KB / 14KB
+2025-10-01T14:57:14.066Z INFO  - b147e1d819b6 Verifying Checksum
+2025-10-01T14:57:14.066Z INFO  - b147e1d819b6 Download complete
+2025-10-01T14:57:14.073Z INFO  - bddeee446dea Verifying Checksum
+2025-10-01T14:57:14.075Z INFO  - bddeee446dea Download complete
+2025-10-01T14:57:14.094Z INFO  - 5b5c68b4e022 Downloading 3KB / 10KB
+2025-10-01T14:57:14.094Z INFO  - 5b5c68b4e022 Downloading 10KB / 10KB
+2025-10-01T14:57:14.107Z INFO  - 5b5c68b4e022 Verifying Checksum
+2025-10-01T14:57:14.108Z INFO  - 5b5c68b4e022 Download complete
+2025-10-01T14:57:14.149Z INFO  - a7350ec49683 Downloading 1MB / 3MB
+2025-10-01T14:57:14.200Z INFO  - 3bba0ee51794 Downloading 281KB / 281KB
+2025-10-01T14:57:14.215Z INFO  - 9c231cb2d468 Downloading 414KB / 1MB
+2025-10-01T14:57:14.240Z INFO  - 81114daeece3 Downloading 958KB / 46MB
+2025-10-01T14:57:14.240Z INFO  - b49b2c83cf45 Downloading 1MB / 35MB
+2025-10-01T14:57:14.240Z INFO  - c19952135643 Downloading 1MB / 46MB
+2025-10-01T14:57:14.242Z INFO  - 3bba0ee51794 Verifying Checksum
+2025-10-01T14:57:14.242Z INFO  - 3bba0ee51794 Download complete
+2025-10-01T14:57:14.274Z INFO  - 9c231cb2d468 Verifying Checksum
+2025-10-01T14:57:14.279Z INFO  - 9c231cb2d468 Download complete
+2025-10-01T14:57:14.295Z INFO  - a7350ec49683 Downloading 3MB / 3MB
+2025-10-01T14:57:14.305Z INFO  - 064a93d404d8 Downloading 3MB / 5MB
+2025-10-01T14:57:14.318Z INFO  - b49b2c83cf45 Downloading 3MB / 35MB
+2025-10-01T14:57:14.336Z INFO  - a7350ec49683 Verifying Checksum
+2025-10-01T14:57:14.336Z INFO  - a7350ec49683 Download complete
+2025-10-01T14:57:14.336Z INFO  - a4ac82e1650a Verifying Checksum
+2025-10-01T14:57:14.336Z INFO  - a4ac82e1650a Download complete
+2025-10-01T14:57:14.378Z INFO  - b4ee02498c51 Downloading 350KB / 16MB
+2025-10-01T14:57:14.402Z INFO  - 589fad460b75 Downloading 686KB / 1MB
+2025-10-01T14:57:14.402Z INFO  - 81114daeece3 Downloading 1MB / 46MB
+2025-10-01T14:57:14.402Z INFO  - b49b2c83cf45 Downloading 6MB / 35MB
+2025-10-01T14:57:14.410Z INFO  - 589fad460b75 Downloading 1MB / 1MB
+2025-10-01T14:57:14.411Z INFO  - 589fad460b75 Verifying Checksum
+2025-10-01T14:57:14.411Z INFO  - 589fad460b75 Download complete
+2025-10-01T14:57:14.485Z INFO  - 9078bcfaabdd Downloading 948B / 948B
+2025-10-01T14:57:14.485Z INFO  - 064a93d404d8 Verifying Checksum
+2025-10-01T14:57:14.485Z INFO  - 064a93d404d8 Download complete
+2025-10-01T14:57:14.485Z INFO  - 9078bcfaabdd Verifying Checksum
+2025-10-01T14:57:14.485Z INFO  - 9078bcfaabdd Download complete
+2025-10-01T14:57:14.485Z INFO  - 72560126db61 Downloading 1MB / 11MB
+2025-10-01T14:57:14.490Z INFO  - c19952135643 Downloading 4MB / 46MB
+2025-10-01T14:57:14.517Z INFO  - b49b2c83cf45 Downloading 7MB / 35MB
+2025-10-01T14:57:14.558Z INFO  - 81114daeece3 Downloading 4MB / 46MB
+2025-10-01T14:57:14.567Z INFO  - 8367cb93fd79 Downloading 1KB / 1KB
+2025-10-01T14:57:14.578Z INFO  - 8367cb93fd79 Verifying Checksum
+2025-10-01T14:57:14.590Z INFO  - 8367cb93fd79 Download complete
+2025-10-01T14:57:14.647Z INFO  - 72560126db61 Downloading 2MB / 11MB
+2025-10-01T14:57:14.652Z INFO  - 299358e274fc Downloading 1KB / 1KB
+2025-10-01T14:57:14.657Z INFO  - 299358e274fc Verifying Checksum
+2025-10-01T14:57:14.657Z INFO  - 299358e274fc Download complete
+2025-10-01T14:57:14.783Z INFO  - b4ee02498c51 Downloading 5MB / 16MB
+2025-10-01T14:57:14.805Z INFO  - 432802c32c40 Downloading 139B / 139B
+2025-10-01T14:57:14.855Z INFO  - 432802c32c40 Verifying Checksum
+2025-10-01T14:57:14.855Z INFO  - 432802c32c40 Download complete
+2025-10-01T14:57:14.855Z INFO  - 81114daeece3 Downloading 11MB / 46MB
+2025-10-01T14:57:14.855Z INFO  - c19952135643 Downloading 12MB / 46MB
+2025-10-01T14:57:14.855Z INFO  - 70b2d1c62102 Downloading 5MB / 45MB
+2025-10-01T14:57:14.908Z INFO  - 72560126db61 Downloading 3MB / 11MB
+2025-10-01T14:57:14.913Z INFO  - f6668cf6fc4f Downloading 3KB / 3KB
+2025-10-01T14:57:14.913Z INFO  - f6668cf6fc4f Verifying Checksum
+2025-10-01T14:57:14.913Z INFO  - f6668cf6fc4f Download complete
+2025-10-01T14:57:14.970Z INFO  - b5ee41dce4d1 Downloading 526KB / 67MB
+2025-10-01T14:57:14.977Z INFO  - c19952135643 Downloading 14MB / 46MB
+2025-10-01T14:57:15.024Z INFO  - b49b2c83cf45 Downloading 14MB / 35MB
+2025-10-01T14:57:15.056Z INFO  - 81114daeece3 Downloading 16MB / 46MB
+2025-10-01T14:57:15.067Z INFO  - b4ee02498c51 Downloading 7MB / 16MB
+2025-10-01T14:57:15.073Z INFO  - 81d0cf6a6204 Downloading 1KB / 1KB
+2025-10-01T14:57:15.074Z INFO  - cab9518eb753 Downloading 151B / 151B
+2025-10-01T14:57:15.076Z INFO  - 81d0cf6a6204 Verifying Checksum
+2025-10-01T14:57:15.076Z INFO  - 81d0cf6a6204 Download complete
+2025-10-01T14:57:15.079Z INFO  - cab9518eb753 Verifying Checksum
+2025-10-01T14:57:15.082Z INFO  - cab9518eb753 Download complete
+2025-10-01T14:57:15.127Z INFO  - b5ee41dce4d1 Downloading 3MB / 67MB
+2025-10-01T14:57:15.127Z INFO  - b49b2c83cf45 Downloading 17MB / 35MB
+2025-10-01T14:57:15.167Z INFO  - c19952135643 Downloading 15MB / 46MB
+2025-10-01T14:57:15.175Z INFO  - a0f687a8a43e Downloading 1KB / 1KB
+2025-10-01T14:57:15.178Z INFO  - a0f687a8a43e Verifying Checksum
+2025-10-01T14:57:15.178Z INFO  - a0f687a8a43e Download complete
+2025-10-01T14:57:15.199Z INFO  - 70b2d1c62102 Downloading 9MB / 45MB
+2025-10-01T14:57:15.232Z INFO  - 72560126db61 Verifying Checksum
+2025-10-01T14:57:15.232Z INFO  - 72560126db61 Download complete
+2025-10-01T14:57:15.263Z INFO  - c19952135643 Downloading 15MB / 46MB
+2025-10-01T14:57:15.265Z INFO  - b49b2c83cf45 Downloading 20MB / 35MB
+2025-10-01T14:57:15.265Z INFO  - 81114daeece3 Downloading 18MB / 46MB
+2025-10-01T14:57:15.265Z INFO  - cfb2442eec7a Downloading 1KB / 1KB
+2025-10-01T14:57:15.265Z INFO  - cfb2442eec7a Verifying Checksum
+2025-10-01T14:57:15.265Z INFO  - cfb2442eec7a Download complete
+2025-10-01T14:57:15.280Z INFO  - 6076b5261919 Downloading 416B / 416B
+2025-10-01T14:57:15.280Z INFO  - 6076b5261919 Verifying Checksum
+2025-10-01T14:57:15.299Z INFO  - 6076b5261919 Download complete
+2025-10-01T14:57:15.364Z INFO  - e705a3b12771 Downloading 269B / 269B
+2025-10-01T14:57:15.368Z INFO  - f9717d513d08 Downloading 13KB / 13KB
+2025-10-01T14:57:15.368Z INFO  - e705a3b12771 Verifying Checksum
+2025-10-01T14:57:15.368Z INFO  - e705a3b12771 Download complete
+2025-10-01T14:57:15.374Z INFO  - f9717d513d08 Verifying Checksum
+2025-10-01T14:57:15.374Z INFO  - f9717d513d08 Download complete
+2025-10-01T14:57:15.374Z INFO  - 3c56665f14df Downloading 124B / 124B
+2025-10-01T14:57:15.374Z INFO  - 3c56665f14df Verifying Checksum
+2025-10-01T14:57:15.374Z INFO  - 3c56665f14df Download complete
+2025-10-01T14:57:15.374Z INFO  - 81114daeece3 Downloading 22MB / 46MB
+2025-10-01T14:57:15.374Z INFO  - cdcdb6bbda74 Downloading 269B / 269B
+2025-10-01T14:57:15.374Z INFO  - cdcdb6bbda74 Verifying Checksum
+2025-10-01T14:57:15.374Z INFO  - cdcdb6bbda74 Download complete
+2025-10-01T14:57:15.374Z INFO  - c19952135643 Downloading 16MB / 46MB
+2025-10-01T14:57:15.423Z INFO  - 9e40ee8f5c7c Downloading 133B / 133B
+2025-10-01T14:57:15.424Z INFO  - 9e40ee8f5c7c Verifying Checksum
+2025-10-01T14:57:15.424Z INFO  - 9e40ee8f5c7c Download complete
+2025-10-01T14:57:15.446Z INFO  - 70b2d1c62102 Downloading 11MB / 45MB
+2025-10-01T14:57:15.461Z INFO  - c19952135643 Downloading 19MB / 46MB
+2025-10-01T14:57:15.508Z INFO  - b49b2c83cf45 Downloading 26MB / 35MB
+2025-10-01T14:57:15.594Z INFO  - c7bf2b05e76c Downloading 1MB / 1MB
+2025-10-01T14:57:15.594Z INFO  - c7bf2b05e76c Verifying Checksum
+2025-10-01T14:57:15.594Z INFO  - c7bf2b05e76c Download complete
+2025-10-01T14:57:15.594Z INFO  - 70b2d1c62102 Downloading 14MB / 45MB
+2025-10-01T14:57:15.594Z INFO  - b5ee41dce4d1 Downloading 13MB / 67MB
+2025-10-01T14:57:15.594Z INFO  - 81114daeece3 Downloading 26MB / 46MB
+2025-10-01T14:57:15.604Z INFO  - b4ee02498c51 Downloading 14MB / 16MB
+2025-10-01T14:57:15.619Z INFO  - b4ee02498c51 Verifying Checksum
+2025-10-01T14:57:15.619Z INFO  - b4ee02498c51 Download complete
+2025-10-01T14:57:15.666Z INFO  - b5ee41dce4d1 Downloading 15MB / 67MB
+2025-10-01T14:57:15.736Z INFO  - c19952135643 Downloading 23MB / 46MB
+2025-10-01T14:57:15.847Z INFO  - 81114daeece3 Downloading 31MB / 46MB
+2025-10-01T14:57:15.890Z INFO  - 70b2d1c62102 Downloading 20MB / 45MB
+2025-10-01T14:57:15.924Z INFO  - b5ee41dce4d1 Downloading 19MB / 67MB
+2025-10-01T14:57:15.969Z INFO  - c19952135643 Downloading 30MB / 46MB
+2025-10-01T14:57:15.994Z INFO  - 81114daeece3 Downloading 35MB / 46MB
+2025-10-01T14:57:16.008Z INFO  - b49b2c83cf45 Verifying Checksum
+2025-10-01T14:57:16.008Z INFO  - b49b2c83cf45 Download complete
+2025-10-01T14:57:16.053Z INFO  - c19952135643 Downloading 32MB / 46MB
+2025-10-01T14:57:16.091Z INFO  - 70b2d1c62102 Downloading 25MB / 45MB
+2025-10-01T14:57:16.136Z INFO  - c19952135643 Downloading 35MB / 46MB
+2025-10-01T14:57:16.176Z INFO  - b5ee41dce4d1 Downloading 26MB / 67MB
+2025-10-01T14:57:16.229Z INFO  - 81114daeece3 Downloading 41MB / 46MB
+2025-10-01T14:57:16.290Z INFO  - b5ee41dce4d1 Downloading 29MB / 67MB
+2025-10-01T14:57:16.305Z INFO  - 70b2d1c62102 Downloading 31MB / 45MB
+2025-10-01T14:57:16.312Z INFO  - 81114daeece3 Verifying Checksum
+2025-10-01T14:57:16.312Z INFO  - 81114daeece3 Download complete
+2025-10-01T14:57:16.369Z INFO  - c19952135643 Downloading 42MB / 46MB
+2025-10-01T14:57:16.402Z INFO  - 70b2d1c62102 Downloading 34MB / 45MB
+2025-10-01T14:57:16.423Z INFO  - c19952135643 Verifying Checksum
+2025-10-01T14:57:16.423Z INFO  - c19952135643 Download complete
+2025-10-01T14:57:16.510Z INFO  - 70b2d1c62102 Downloading 37MB / 45MB
+2025-10-01T14:57:16.621Z INFO  - b5ee41dce4d1 Downloading 40MB / 67MB
+2025-10-01T14:57:16.784Z INFO  - b5ee41dce4d1 Downloading 44MB / 67MB
+2025-10-01T14:57:16.787Z INFO  - 70b2d1c62102 Verifying Checksum
+2025-10-01T14:57:16.787Z INFO  - 70b2d1c62102 Download complete
+2025-10-01T14:57:16.840Z INFO  - b5ee41dce4d1 Downloading 50MB / 67MB
+2025-10-01T14:57:16.954Z INFO  - b5ee41dce4d1 Downloading 54MB / 67MB
+2025-10-01T14:57:17.079Z INFO  - b5ee41dce4d1 Downloading 67MB / 67MB
+2025-10-01T14:57:17.079Z INFO  - b5ee41dce4d1 Verifying Checksum
+2025-10-01T14:57:17.079Z INFO  - b5ee41dce4d1 Download complete
+2025-10-01T14:57:17.117Z INFO  - c19952135643 Extracting 960KB / 46MB
+2025-10-01T14:57:17.224Z INFO  - c19952135643 Extracting 1MB / 46MB
+2025-10-01T14:57:17.335Z INFO  - c19952135643 Extracting 2MB / 46MB
+2025-10-01T14:57:17.436Z INFO  - c19952135643 Extracting 3MB / 46MB
+2025-10-01T14:57:17.531Z INFO  - c19952135643 Extracting 5MB / 46MB
+2025-10-01T14:57:17.651Z INFO  - c19952135643 Extracting 8MB / 46MB
+2025-10-01T14:57:18.012Z INFO  - c19952135643 Extracting 15MB / 46MB
+2025-10-01T14:57:18.120Z INFO  - c19952135643 Extracting 15MB / 46MB
+2025-10-01T14:57:18.255Z INFO  - c19952135643 Extracting 16MB / 46MB
+2025-10-01T14:57:18.360Z INFO  - c19952135643 Extracting 18MB / 46MB
+2025-10-01T14:57:18.464Z INFO  - c19952135643 Extracting 20MB / 46MB
+2025-10-01T14:57:18.723Z INFO  - c19952135643 Extracting 22MB / 46MB
+2025-10-01T14:57:19.066Z INFO  - c19952135643 Extracting 24MB / 46MB
+2025-10-01T14:57:20.543Z INFO  - c19952135643 Extracting 39MB / 46MB
+2025-10-01T14:57:20.786Z INFO  - c19952135643 Extracting 43MB / 46MB
+2025-10-01T14:57:21.181Z INFO  - c19952135643 Extracting 45MB / 46MB
+2025-10-01T14:57:21.414Z INFO  - c19952135643 Extracting 46MB / 46MB
+2025-10-01T14:57:21.831Z INFO  - c19952135643 Pull complete
+2025-10-01T14:57:22.235Z INFO  - b49b2c83cf45 Extracting 10MB / 35MB
+2025-10-01T14:57:22.337Z INFO  - b49b2c83cf45 Extracting 16MB / 35MB
+2025-10-01T14:57:22.656Z INFO  - b49b2c83cf45 Extracting 21MB / 35MB
+2025-10-01T14:57:22.761Z INFO  - b49b2c83cf45 Extracting 25MB / 35MB
+2025-10-01T14:57:22.936Z INFO  - b49b2c83cf45 Extracting 28MB / 35MB
+2025-10-01T14:57:23.163Z INFO  - b49b2c83cf45 Extracting 35MB / 35MB
+2025-10-01T14:57:23.192Z INFO  - b49b2c83cf45 Pull complete
+2025-10-01T14:57:23.350Z INFO  - a7350ec49683 Extracting 3MB / 3MB
+2025-10-01T14:57:23.371Z INFO  - a7350ec49683 Pull complete
+2025-10-01T14:57:23.373Z INFO  - ca64976d1f75 Extracting 387B / 387B
+2025-10-01T14:57:23.378Z INFO  - ca64976d1f75 Extracting 387B / 387B
+2025-10-01T14:57:23.382Z INFO  - ca64976d1f75 Pull complete
+2025-10-01T14:57:23.384Z INFO  - 9c231cb2d468 Extracting 32KB / 1MB
+2025-10-01T14:57:23.411Z INFO  - 9c231cb2d468 Extracting 1MB / 1MB
+2025-10-01T14:57:23.432Z INFO  - 9c231cb2d468 Pull complete
+2025-10-01T14:57:23.434Z INFO  - 6d5ed858bc79 Extracting 32KB / 39KB
+2025-10-01T14:57:23.448Z INFO  - 6d5ed858bc79 Extracting 39KB / 39KB
+2025-10-01T14:57:23.455Z INFO  - 6d5ed858bc79 Extracting 39KB / 39KB
+2025-10-01T14:57:23.480Z INFO  - 6d5ed858bc79 Pull complete
+2025-10-01T14:57:23.482Z INFO  - b147e1d819b6 Extracting 10KB / 10KB
+2025-10-01T14:57:23.490Z INFO  - b147e1d819b6 Extracting 10KB / 10KB
+2025-10-01T14:57:23.493Z INFO  - b147e1d819b6 Pull complete
+2025-10-01T14:57:23.495Z INFO  - bddeee446dea Extracting 14KB / 14KB
+2025-10-01T14:57:23.505Z INFO  - bddeee446dea Extracting 14KB / 14KB
+2025-10-01T14:57:23.510Z INFO  - bddeee446dea Pull complete
+2025-10-01T14:57:23.545Z INFO  - 3bba0ee51794 Extracting 281KB / 281KB
+2025-10-01T14:57:23.548Z INFO  - 3bba0ee51794 Extracting 281KB / 281KB
+2025-10-01T14:57:23.560Z INFO  - 3bba0ee51794 Pull complete
+2025-10-01T14:57:23.570Z INFO  - 5b5c68b4e022 Extracting 10KB / 10KB
+2025-10-01T14:57:23.575Z INFO  - 5b5c68b4e022 Extracting 10KB / 10KB
+2025-10-01T14:57:23.579Z INFO  - 5b5c68b4e022 Pull complete
+2025-10-01T14:57:23.580Z INFO  - 589fad460b75 Extracting 32KB / 1MB
+2025-10-01T14:57:23.591Z INFO  - 589fad460b75 Extracting 1MB / 1MB
+2025-10-01T14:57:23.613Z INFO  - 589fad460b75 Pull complete
+2025-10-01T14:57:23.615Z INFO  - a4ac82e1650a Extracting 32KB / 1MB
+2025-10-01T14:57:23.672Z INFO  - a4ac82e1650a Extracting 1MB / 1MB
+2025-10-01T14:57:23.675Z INFO  - a4ac82e1650a Pull complete
+2025-10-01T14:57:23.677Z INFO  - 6e652537f0de Extracting 3KB / 3KB
+2025-10-01T14:57:23.693Z INFO  - 6e652537f0de Extracting 3KB / 3KB
+2025-10-01T14:57:23.714Z INFO  - 6e652537f0de Pull complete
+2025-10-01T14:57:23.716Z INFO  - 4f4fb700ef54 Extracting 32B / 32B
+2025-10-01T14:57:23.736Z INFO  - 4f4fb700ef54 Extracting 32B / 32B
+2025-10-01T14:57:23.756Z INFO  - 4f4fb700ef54 Pull complete
+2025-10-01T14:57:24.297Z INFO  - 70b2d1c62102 Extracting 45MB / 45MB
+2025-10-01T14:57:24.311Z INFO  - 70b2d1c62102 Pull complete
+2025-10-01T14:57:24.558Z INFO  - 81114daeece3 Extracting 3MB / 46MB
+2025-10-01T14:57:24.668Z INFO  - 81114daeece3 Extracting 4MB / 46MB
+2025-10-01T14:57:24.780Z INFO  - 81114daeece3 Extracting 6MB / 46MB
+2025-10-01T14:57:24.880Z INFO  - 81114daeece3 Extracting 8MB / 46MB
+2025-10-01T14:57:24.991Z INFO  - 81114daeece3 Extracting 11MB / 46MB
+2025-10-01T14:57:25.341Z INFO  - 81114daeece3 Extracting 20MB / 46MB
+2025-10-01T14:57:25.448Z INFO  - 81114daeece3 Extracting 23MB / 46MB
+2025-10-01T14:57:25.554Z INFO  - 81114daeece3 Extracting 27MB / 46MB
+2025-10-01T14:57:25.777Z INFO  - 81114daeece3 Extracting 33MB / 46MB
+2025-10-01T14:57:25.890Z INFO  - 81114daeece3 Extracting 35MB / 46MB
+2025-10-01T14:57:27.150Z INFO  - 81114daeece3 Extracting 45MB / 46MB
+2025-10-01T14:57:27.298Z INFO  - 81114daeece3 Extracting 45MB / 46MB
+2025-10-01T14:57:27.455Z INFO  - 81114daeece3 Extracting 46MB / 46MB
+2025-10-01T14:57:27.528Z INFO  - 81114daeece3 Pull complete
+2025-10-01T14:57:27.647Z INFO  - 72560126db61 Extracting 3MB / 11MB
+2025-10-01T14:57:27.749Z INFO  - 72560126db61 Extracting 6MB / 11MB
+2025-10-01T14:57:27.852Z INFO  - 72560126db61 Extracting 8MB / 11MB
+2025-10-01T14:57:27.998Z INFO  - 72560126db61 Extracting 8MB / 11MB
+2025-10-01T14:57:28.479Z INFO  - 72560126db61 Extracting 10MB / 11MB
+2025-10-01T14:57:28.563Z INFO  - 72560126db61 Extracting 11MB / 11MB
+2025-10-01T14:57:28.593Z INFO  - 72560126db61 Pull complete
+2025-10-01T14:57:28.711Z INFO  - b4ee02498c51 Extracting 3MB / 16MB
+2025-10-01T14:57:28.919Z INFO  - b4ee02498c51 Extracting 8MB / 16MB
+2025-10-01T14:57:29.186Z INFO  - b4ee02498c51 Extracting 8MB / 16MB
+2025-10-01T14:57:29.346Z INFO  - b4ee02498c51 Extracting 9MB / 16MB
+2025-10-01T14:57:29.461Z INFO  - b4ee02498c51 Extracting 10MB / 16MB
+2025-10-01T14:57:30.384Z INFO  - b4ee02498c51 Extracting 14MB / 16MB
+2025-10-01T14:57:30.487Z INFO  - b4ee02498c51 Extracting 14MB / 16MB
+2025-10-01T14:57:30.698Z INFO  - b4ee02498c51 Extracting 15MB / 16MB
+2025-10-01T14:57:31.882Z INFO  - b4ee02498c51 Extracting 16MB / 16MB
+2025-10-01T14:57:31.882Z INFO  - b4ee02498c51 Pull complete
+2025-10-01T14:57:31.882Z INFO  - 9f7642f5d897 Extracting 126B / 126B
+2025-10-01T14:57:31.882Z INFO  - 9f7642f5d897 Extracting 126B / 126B
+2025-10-01T14:57:31.882Z INFO  - 9f7642f5d897 Pull complete
+2025-10-01T14:57:31.882Z INFO  - 064a93d404d8 Extracting 3MB / 5MB
+2025-10-01T14:57:31.882Z INFO  - 064a93d404d8 Extracting 5MB / 5MB
+2025-10-01T14:57:31.882Z INFO  - 064a93d404d8 Pull complete
+2025-10-01T14:57:31.882Z INFO  - 9078bcfaabdd Extracting 948B / 948B
+2025-10-01T14:57:31.882Z INFO  - 9078bcfaabdd Extracting 948B / 948B
+2025-10-01T14:57:31.882Z INFO  - 9078bcfaabdd Pull complete
+2025-10-01T14:57:31.882Z INFO  - 8367cb93fd79 Extracting 1KB / 1KB
+2025-10-01T14:57:31.882Z INFO  - 8367cb93fd79 Extracting 1KB / 1KB
+2025-10-01T14:57:31.882Z INFO  - 8367cb93fd79 Pull complete
+2025-10-01T14:57:31.882Z INFO  - 432802c32c40 Extracting 139B / 139B
+2025-10-01T14:57:31.882Z INFO  - 432802c32c40 Extracting 139B / 139B
+2025-10-01T14:57:31.882Z INFO  - 432802c32c40 Pull complete
+2025-10-01T14:57:31.927Z INFO  - b5ee41dce4d1 Extracting 544KB / 67MB
+2025-10-01T14:57:32.133Z INFO  - b5ee41dce4d1 Extracting 6MB / 67MB
+2025-10-01T14:57:32.376Z INFO  - b5ee41dce4d1 Extracting 11MB / 67MB
+2025-10-01T14:57:32.491Z INFO  - b5ee41dce4d1 Extracting 12MB / 67MB
+2025-10-01T14:57:33.382Z INFO  - b5ee41dce4d1 Extracting 15MB / 67MB
+2025-10-01T14:57:33.382Z INFO  - b5ee41dce4d1 Extracting 20MB / 67MB
+2025-10-01T14:57:33.382Z INFO  - b5ee41dce4d1 Extracting 27MB / 67MB
+2025-10-01T14:57:34.389Z INFO  - b5ee41dce4d1 Extracting 34MB / 67MB
+2025-10-01T14:57:34.389Z INFO  - b5ee41dce4d1 Extracting 39MB / 67MB
+2025-10-01T14:57:34.389Z INFO  - b5ee41dce4d1 Extracting 40MB / 67MB
+2025-10-01T14:57:34.389Z INFO  - b5ee41dce4d1 Extracting 41MB / 67MB
+2025-10-01T14:57:34.389Z INFO  - b5ee41dce4d1 Extracting 45MB / 67MB
+2025-10-01T14:57:34.389Z INFO  - b5ee41dce4d1 Extracting 47MB / 67MB
+2025-10-01T14:57:34.403Z INFO  - b5ee41dce4d1 Extracting 48MB / 67MB
+2025-10-01T14:57:34.673Z INFO  - b5ee41dce4d1 Extracting 51MB / 67MB
+2025-10-01T14:57:34.780Z INFO  - b5ee41dce4d1 Extracting 53MB / 67MB
+2025-10-01T14:57:35.005Z INFO  - b5ee41dce4d1 Extracting 62MB / 67MB
+2025-10-01T14:57:35.214Z INFO  - b5ee41dce4d1 Extracting 67MB / 67MB
+2025-10-01T14:57:35.789Z INFO  - b5ee41dce4d1 Pull complete
+2025-10-01T14:57:35.791Z INFO  - 299358e274fc Extracting 1KB / 1KB
+2025-10-01T14:57:35.841Z INFO  - 299358e274fc Extracting 1KB / 1KB
+2025-10-01T14:57:35.845Z INFO  - 299358e274fc Pull complete
+2025-10-01T14:57:35.848Z INFO  - a0f687a8a43e Extracting 1KB / 1KB
+2025-10-01T14:57:35.851Z INFO  - a0f687a8a43e Extracting 1KB / 1KB
+2025-10-01T14:57:35.863Z INFO  - a0f687a8a43e Pull complete
+2025-10-01T14:57:35.881Z INFO  - f6668cf6fc4f Extracting 3KB / 3KB
+2025-10-01T14:57:35.888Z INFO  - f6668cf6fc4f Extracting 3KB / 3KB
+2025-10-01T14:57:35.909Z INFO  - f6668cf6fc4f Pull complete
+2025-10-01T14:57:35.912Z INFO  - cab9518eb753 Extracting 151B / 151B
+2025-10-01T14:57:35.916Z INFO  - cab9518eb753 Extracting 151B / 151B
+2025-10-01T14:57:35.938Z INFO  - cab9518eb753 Pull complete
+2025-10-01T14:57:35.939Z INFO  - f9717d513d08 Extracting 13KB / 13KB
+2025-10-01T14:57:35.944Z INFO  - f9717d513d08 Extracting 13KB / 13KB
+2025-10-01T14:57:35.950Z INFO  - f9717d513d08 Pull complete
+2025-10-01T14:57:35.952Z INFO  - 81d0cf6a6204 Extracting 1KB / 1KB
+2025-10-01T14:57:35.974Z INFO  - 81d0cf6a6204 Extracting 1KB / 1KB
+2025-10-01T14:57:35.999Z INFO  - 81d0cf6a6204 Pull complete
+2025-10-01T14:57:36.001Z INFO  - e705a3b12771 Extracting 269B / 269B
+2025-10-01T14:57:36.006Z INFO  - e705a3b12771 Extracting 269B / 269B
+2025-10-01T14:57:36.027Z INFO  - e705a3b12771 Pull complete
+2025-10-01T14:57:36.029Z INFO  - cdcdb6bbda74 Extracting 269B / 269B
+2025-10-01T14:57:36.033Z INFO  - cdcdb6bbda74 Extracting 269B / 269B
+2025-10-01T14:57:36.052Z INFO  - cdcdb6bbda74 Pull complete
+2025-10-01T14:57:36.089Z INFO  - 3c56665f14df Extracting 124B / 124B
+2025-10-01T14:57:36.109Z INFO  - 3c56665f14df Extracting 124B / 124B
+2025-10-01T14:57:36.130Z INFO  - 3c56665f14df Pull complete
+2025-10-01T14:57:36.132Z INFO  - 6076b5261919 Extracting 416B / 416B
+2025-10-01T14:57:36.136Z INFO  - 6076b5261919 Extracting 416B / 416B
+2025-10-01T14:57:36.157Z INFO  - 6076b5261919 Pull complete
+2025-10-01T14:57:36.159Z INFO  - cfb2442eec7a Extracting 1KB / 1KB
+2025-10-01T14:57:36.163Z INFO  - cfb2442eec7a Extracting 1KB / 1KB
+2025-10-01T14:57:36.183Z INFO  - cfb2442eec7a Pull complete
+2025-10-01T14:57:36.289Z INFO  - c7bf2b05e76c Extracting 320KB / 1MB
+2025-10-01T14:57:36.393Z INFO  - c7bf2b05e76c Extracting 992KB / 1MB
+2025-10-01T14:57:36.451Z INFO  - c7bf2b05e76c Extracting 1MB / 1MB
+2025-10-01T14:57:36.475Z INFO  - c7bf2b05e76c Extracting 1MB / 1MB
+2025-10-01T14:57:36.494Z INFO  - c7bf2b05e76c Pull complete
+2025-10-01T14:57:36.496Z INFO  - 9e40ee8f5c7c Extracting 133B / 133B
+2025-10-01T14:57:36.510Z INFO  - 9e40ee8f5c7c Extracting 133B / 133B
+2025-10-01T14:57:36.531Z INFO  - 9e40ee8f5c7c Pull complete
+2025-10-01T14:57:36.594Z INFO  -  Digest: sha256:090c03b4259823f8be151de295b9ef30aeea81cc540a9908f9a57cbe5e893095
+2025-10-01T14:57:36.594Z INFO  -  Status: Image is up to date for mcr.microsoft.com/appsvc/node:20-lts_20250724.2.tuxprod
+2025-10-01T14:57:36.652Z INFO  - Pull Image successful, Time taken: 23 Seconds
+2025-10-01T14:57:36.981Z INFO  - Starting container for site
+2025-10-01T14:57:36.981Z INFO  - docker run -d -p 7920:3003 --name tshla-auth-api_0_1503caab -e WEBSITE_USE_DIAGNOSTIC_SERVER=true -e PORT=3003 -e WEBSITE_SITE_NAME=tshla-auth-api -e WEBSITE_AUTH_ENABLED=False -e WEBSITE_ROLE_INSTANCE_ID=0 -e WEBSITE_HOSTNAME=tshla-auth-api.azurewebsites.net -e WEBSITE_INSTANCE_ID=0a7f999574deca4bd62582ea97de0fa90a88f0309b81207992f608cdcc4a09c1 appsvc/node:20-lts_20250724.2.tuxprod REDACTED
+2025-10-01T14:57:36.981Z INFO  - Logging is not enabled for this container.
+Please use https://aka.ms/linux-diagnostics to enable logging to see container logs here.
+2025-10-01T14:57:40.290Z INFO  - Initiating warmup request to container tshla-auth-api_0_1503caab for site tshla-auth-api
+2025-10-01T14:57:50.430Z ERROR - Container tshla-auth-api_0_1503caab for site tshla-auth-api has exited, failing site start
+2025-10-01T14:57:50.593Z ERROR - Container tshla-auth-api_0_1503caab didn't respond to HTTP pings on port: 3003. Failing site start. See container logs for debugging.
+2025-10-01T14:57:50.677Z INFO  - Stopping site tshla-auth-api because it failed during startup.
+2025-10-01T15:01:17.515Z INFO  - Starting container for site
+2025-10-01T15:01:17.516Z INFO  - docker run -d -p 9493:3003 --name tshla-auth-api_0_feb2fa3b -e WEBSITE_USE_DIAGNOSTIC_SERVER=true -e PORT=3003 -e WEBSITE_SITE_NAME=tshla-auth-api -e WEBSITE_AUTH_ENABLED=False -e WEBSITE_ROLE_INSTANCE_ID=0 -e WEBSITE_HOSTNAME=tshla-auth-api.azurewebsites.net -e WEBSITE_INSTANCE_ID=0a7f999574deca4bd62582ea97de0fa90a88f0309b81207992f608cdcc4a09c1 appsvc/node:20-lts_20250724.2.tuxprod REDACTED
+2025-10-01T15:01:17.517Z INFO  - Logging is not enabled for this container.
+Please use https://aka.ms/linux-diagnostics to enable logging to see container logs here.
+2025-10-01T15:01:18.042Z INFO  - Initiating warmup request to container tshla-auth-api_0_feb2fa3b for site tshla-auth-api
+2025-10-01T15:01:21.107Z ERROR - Container tshla-auth-api_0_feb2fa3b for site tshla-auth-api has exited, failing site start
+2025-10-01T15:01:21.110Z ERROR - Container tshla-auth-api_0_feb2fa3b didn't respond to HTTP pings on port: 3003. Failing site start. See container logs for debugging.
+2025-10-01T15:01:21.113Z INFO  - Stopping site tshla-auth-api because it failed during startup.
+2025-10-01T15:06:17.8849489Z Container start method called.
+2025-10-01T15:06:17.8853149Z Establishing network.
+2025-10-01T15:06:17.8862493Z Pulling image: appsvc/node:20-lts_20250724.2.tuxprod.
+2025-10-01T15:06:19.2882246Z Container is starting.
+2025-10-01T15:06:19.2883653Z Establishing user namespace if not established already.
+2025-10-01T15:06:19.2884906Z Establishing network if not established already.
+2025-10-01T15:06:19.2886185Z Mounting volumes.
+2025-10-01T15:06:19.2887993Z Nested mountpoint 
+2025-10-01T15:06:19.2981523Z Nested mountpoint volatile/logs
+2025-10-01T15:06:19.3015131Z Nested mountpoint 
+2025-10-01T15:06:19.3035654Z Nested mountpoint 
+2025-10-01T15:06:19.3064675Z Nested mountpoint 
+2025-10-01T15:06:19.3886058Z Creating container.
+2025-10-01T15:06:19.3891943Z Creating pipes for streaming container io.
+2025-10-01T15:06:19.3897161Z Creating stdout named pipe at /podr/container/pipe/9dfa37858d10_tshla-auth-api/stdout_e81fb91c05404beba3d3d473f4574568.
+2025-10-01T15:06:19.3906405Z Successfully created stdout named pipe at: /podr/container/pipe/9dfa37858d10_tshla-auth-api/stdout_e81fb91c05404beba3d3d473f4574568.
+2025-10-01T15:06:19.3913462Z Opening named pipe /podr/container/pipe/9dfa37858d10_tshla-auth-api/stdout_e81fb91c05404beba3d3d473f4574568 for reading in non-blocking mode.
+2025-10-01T15:06:19.3915331Z Successfully opened named pipe: /podr/container/pipe/9dfa37858d10_tshla-auth-api/stdout_e81fb91c05404beba3d3d473f4574568.
+2025-10-01T15:06:19.3916704Z Successfully removed non-blocking flag from /podr/container/pipe/9dfa37858d10_tshla-auth-api/stdout_e81fb91c05404beba3d3d473f4574568.
+2025-10-01T15:06:19.3918106Z Creating stderr named pipe at /podr/container/pipe/9dfa37858d10_tshla-auth-api/stderr_fd2a15193f694218ad7be7206500faba.
+2025-10-01T15:06:19.3920014Z Successfully created stderr named pipe at: /podr/container/pipe/9dfa37858d10_tshla-auth-api/stderr_fd2a15193f694218ad7be7206500faba.
+2025-10-01T15:06:19.3931001Z Opening named pipe /podr/container/pipe/9dfa37858d10_tshla-auth-api/stderr_fd2a15193f694218ad7be7206500faba for reading in non-blocking mode.
+2025-10-01T15:06:19.3937986Z Successfully opened named pipe: /podr/container/pipe/9dfa37858d10_tshla-auth-api/stderr_fd2a15193f694218ad7be7206500faba.
+2025-10-01T15:06:19.3939500Z Successfully removed non-blocking flag from /podr/container/pipe/9dfa37858d10_tshla-auth-api/stderr_fd2a15193f694218ad7be7206500faba.
+2025-10-01T15:06:19.3949484Z Creating container with image: appsvc/node:20-lts_20250724.2.tuxprod from registry: mcr.microsoft.com and fully qualified image name: mcr.microsoft.com/appsvc/node:20-lts_20250724.2.tuxprod
+2025-10-01T15:06:19.5350132Z Starting container: 9dfa37858d10_tshla-auth-api.
+2025-10-01T15:06:19.5527725Z Starting watchers and probes.
+2025-10-01T15:06:19.5543645Z Starting metrics collection.
+2025-10-01T15:06:19.5550495Z Container is running.
+2025-10-01T15:06:19.5712710Z Container start method finished after 1685 ms.
+2025-10-01T15:06:22.4794188Z Container has finished running with exit code: 1.
+2025-10-01T15:06:22.4796339Z Container is terminating. Grace period: 5 seconds.
+2025-10-01T15:06:22.4800035Z Stop and delete container. Retry count = 0
+2025-10-01T15:06:22.4801766Z Stopping container: 9dfa37858d10_tshla-auth-api.
+2025-10-01T15:06:22.4933808Z Deleting container: 9dfa37858d10_tshla-auth-api. Retry count = 0
+2025-10-01T15:06:22.5421332Z Container spec TerminationMessagePolicy  path 
+2025-10-01T15:06:22.5423746Z Container is terminated. Total time elapsed: 62 ms.
+2025-10-01T15:06:22.5425141Z Site container: tshla-auth-api terminated during site startup.
+2025-10-01T15:06:22.5427769Z Site startup probe failed after 2.9700593 seconds.
+2025-10-01T15:06:22.5454396Z Failed to start site. Revert by stopping site.
+2025-10-01T15:06:22.5469844Z Site: tshla-auth-api stopped.
+2025-10-01T15:06:23.138Z INFO  - Starting container for site
+2025-10-01T15:06:23.139Z INFO  - docker run -d -p 7122:3003 --name tshla-auth-api_0_c68a59aa -e WEBSITE_USE_DIAGNOSTIC_SERVER=true -e PORT=3003 -e WEBSITE_SITE_NAME=tshla-auth-api -e WEBSITE_AUTH_ENABLED=False -e WEBSITE_ROLE_INSTANCE_ID=0 -e WEBSITE_HOSTNAME=tshla-auth-api.azurewebsites.net -e WEBSITE_INSTANCE_ID=0a7f999574deca4bd62582ea97de0fa90a88f0309b81207992f608cdcc4a09c1 appsvc/node:20-lts_20250724.2.tuxprod REDACTED
+2025-10-01T15:06:23.141Z INFO  - Logging is not enabled for this container.
+Please use https://aka.ms/linux-diagnostics to enable logging to see container logs here.
+2025-10-01T15:06:23.780Z INFO  - Initiating warmup request to container tshla-auth-api_0_c68a59aa for site tshla-auth-api
+2025-10-01T15:06:28.163Z ERROR - Container tshla-auth-api_0_c68a59aa for site tshla-auth-api has exited, failing site start
+2025-10-01T15:06:28.175Z ERROR - Container tshla-auth-api_0_c68a59aa didn't respond to HTTP pings on port: 3003. Failing site start. See container logs for debugging.
+2025-10-01T15:06:28.187Z INFO  - Stopping site tshla-auth-api because it failed during startup.
+2025-10-01T15:11:18.112Z INFO  - Starting container for site
+2025-10-01T15:11:18.113Z INFO  - docker run -d -p 4668:3003 --name tshla-auth-api_0_5cb78c23 -e WEBSITE_USE_DIAGNOSTIC_SERVER=true -e PORT=3003 -e WEBSITE_SITE_NAME=tshla-auth-api -e WEBSITE_AUTH_ENABLED=False -e WEBSITE_ROLE_INSTANCE_ID=0 -e WEBSITE_HOSTNAME=tshla-auth-api.azurewebsites.net -e WEBSITE_INSTANCE_ID=0a7f999574deca4bd62582ea97de0fa90a88f0309b81207992f608cdcc4a09c1 appsvc/node:20-lts_20250724.2.tuxprod REDACTED
+2025-10-01T15:11:18.114Z INFO  - Logging is not enabled for this container.
+Please use https://aka.ms/linux-diagnostics to enable logging to see container logs here.
+2025-10-01T15:11:18.638Z INFO  - Initiating warmup request to container tshla-auth-api_0_5cb78c23 for site tshla-auth-api
+2025-10-01T15:11:21.713Z ERROR - Container tshla-auth-api_0_5cb78c23 for site tshla-auth-api has exited, failing site start
+2025-10-01T15:11:21.720Z ERROR - Container tshla-auth-api_0_5cb78c23 didn't respond to HTTP pings on port: 3003. Failing site start. See container logs for debugging.
+2025-10-01T15:11:21.727Z INFO  - Stopping site tshla-auth-api because it failed during startup.
+2025-10-01T15:16:18.5665252Z Container start method called.
+2025-10-01T15:16:18.5666731Z Establishing network.
+2025-10-01T15:16:18.5671300Z Pulling image: appsvc/node:20-lts_20250724.2.tuxprod.
+2025-10-01T15:16:19.6787778Z Container is starting.
+2025-10-01T15:16:19.6789570Z Establishing user namespace if not established already.
+2025-10-01T15:16:19.6791347Z Establishing network if not established already.
+2025-10-01T15:16:19.6792825Z Mounting volumes.
+2025-10-01T15:16:19.6794825Z Nested mountpoint 
+2025-10-01T15:16:19.6825100Z Nested mountpoint volatile/logs
+2025-10-01T15:16:19.6896118Z Nested mountpoint 
+2025-10-01T15:16:19.6928542Z Nested mountpoint 
+2025-10-01T15:16:19.7029382Z Nested mountpoint 
+2025-10-01T15:16:19.7818432Z Creating container.
+2025-10-01T15:16:19.7822141Z Creating pipes for streaming container io.
+2025-10-01T15:16:19.7828669Z Creating stdout named pipe at /podr/container/pipe/8e7b75e256ee_tshla-auth-api/stdout_547836a25a6449869e5fe7147bf4ff3b.
+2025-10-01T15:16:19.7831662Z Successfully created stdout named pipe at: /podr/container/pipe/8e7b75e256ee_tshla-auth-api/stdout_547836a25a6449869e5fe7147bf4ff3b.
+2025-10-01T15:16:19.7833154Z Opening named pipe /podr/container/pipe/8e7b75e256ee_tshla-auth-api/stdout_547836a25a6449869e5fe7147bf4ff3b for reading in non-blocking mode.
+2025-10-01T15:16:19.7834780Z Successfully opened named pipe: /podr/container/pipe/8e7b75e256ee_tshla-auth-api/stdout_547836a25a6449869e5fe7147bf4ff3b.
+2025-10-01T15:16:19.7841480Z Successfully removed non-blocking flag from /podr/container/pipe/8e7b75e256ee_tshla-auth-api/stdout_547836a25a6449869e5fe7147bf4ff3b.
+2025-10-01T15:16:19.7843251Z Creating stderr named pipe at /podr/container/pipe/8e7b75e256ee_tshla-auth-api/stderr_e19ef497ff4e47e4aba653dcff304841.
+2025-10-01T15:16:19.7845211Z Successfully created stderr named pipe at: /podr/container/pipe/8e7b75e256ee_tshla-auth-api/stderr_e19ef497ff4e47e4aba653dcff304841.
+2025-10-01T15:16:19.7846229Z Opening named pipe /podr/container/pipe/8e7b75e256ee_tshla-auth-api/stderr_e19ef497ff4e47e4aba653dcff304841 for reading in non-blocking mode.
+2025-10-01T15:16:19.7847787Z Successfully opened named pipe: /podr/container/pipe/8e7b75e256ee_tshla-auth-api/stderr_e19ef497ff4e47e4aba653dcff304841.
+2025-10-01T15:16:19.7849066Z Successfully removed non-blocking flag from /podr/container/pipe/8e7b75e256ee_tshla-auth-api/stderr_e19ef497ff4e47e4aba653dcff304841.
+2025-10-01T15:16:19.7850092Z Creating container with image: appsvc/node:20-lts_20250724.2.tuxprod from registry: mcr.microsoft.com and fully qualified image name: mcr.microsoft.com/appsvc/node:20-lts_20250724.2.tuxprod
+2025-10-01T15:16:19.9126660Z Starting container: 8e7b75e256ee_tshla-auth-api.
+2025-10-01T15:16:19.9307317Z Starting watchers and probes.
+2025-10-01T15:16:19.9318659Z Starting metrics collection.
+2025-10-01T15:16:19.9336079Z Container is running.
+2025-10-01T15:16:19.9558781Z Container start method finished after 1389 ms.
+2025-10-01T15:16:23.2765799Z Container has finished running with exit code: 1.
+2025-10-01T15:16:23.2773387Z Container is terminating. Grace period: 5 seconds.
+2025-10-01T15:16:23.2780597Z Stop and delete container. Retry count = 0
+2025-10-01T15:16:23.2784905Z Stopping container: 8e7b75e256ee_tshla-auth-api.
+2025-10-01T15:16:23.2903456Z Deleting container: 8e7b75e256ee_tshla-auth-api. Retry count = 0
+2025-10-01T15:16:23.3445180Z Container spec TerminationMessagePolicy  path 
+2025-10-01T15:16:23.3447204Z Container is terminated. Total time elapsed: 67 ms.
+2025-10-01T15:16:23.3448421Z Site container: tshla-auth-api terminated during site startup.
+2025-10-01T15:16:23.3451085Z Site startup probe failed after 3.3883478 seconds.
+2025-10-01T15:16:23.3478322Z Failed to start site. Revert by stopping site.
+2025-10-01T15:16:23.3487196Z Site: tshla-auth-api stopped.
+2025-10-01T15:16:24.066Z INFO  - Starting container for site
+2025-10-01T15:16:24.067Z INFO  - docker run -d -p 5270:3003 --name tshla-auth-api_0_ebdf7ca1 -e WEBSITE_USE_DIAGNOSTIC_SERVER=true -e PORT=3003 -e WEBSITE_SITE_NAME=tshla-auth-api -e WEBSITE_AUTH_ENABLED=False -e WEBSITE_ROLE_INSTANCE_ID=0 -e WEBSITE_HOSTNAME=tshla-auth-api.azurewebsites.net -e WEBSITE_INSTANCE_ID=0a7f999574deca4bd62582ea97de0fa90a88f0309b81207992f608cdcc4a09c1 appsvc/node:20-lts_20250724.2.tuxprod REDACTED
+2025-10-01T15:16:24.069Z INFO  - Logging is not enabled for this container.
+Please use https://aka.ms/linux-diagnostics to enable logging to see container logs here.
+2025-10-01T15:16:24.647Z INFO  - Initiating warmup request to container tshla-auth-api_0_ebdf7ca1 for site tshla-auth-api
+2025-10-01T15:16:30.803Z ERROR - Container tshla-auth-api_0_ebdf7ca1 for site tshla-auth-api has exited, failing site start
+2025-10-01T15:16:30.810Z ERROR - Container tshla-auth-api_0_ebdf7ca1 didn't respond to HTTP pings on port: 3003. Failing site start. See container logs for debugging.
+2025-10-01T15:16:30.822Z INFO  - Stopping site tshla-auth-api because it failed during startup.
+2025-10-01T15:21:20.461Z INFO  - Starting container for site
+2025-10-01T15:21:20.462Z INFO  - docker run -d -p 6979:3003 --name tshla-auth-api_0_15837fb8 -e WEBSITE_USE_DIAGNOSTIC_SERVER=true -e PORT=3003 -e WEBSITE_SITE_NAME=tshla-auth-api -e WEBSITE_AUTH_ENABLED=False -e WEBSITE_ROLE_INSTANCE_ID=0 -e WEBSITE_HOSTNAME=tshla-auth-api.azurewebsites.net -e WEBSITE_INSTANCE_ID=0a7f999574deca4bd62582ea97de0fa90a88f0309b81207992f608cdcc4a09c1 appsvc/node:20-lts_20250724.2.tuxprod REDACTED
+2025-10-01T15:21:20.463Z INFO  - Logging is not enabled for this container.
+Please use https://aka.ms/linux-diagnostics to enable logging to see container logs here.
+2025-10-01T15:21:20.985Z INFO  - Initiating warmup request to container tshla-auth-api_0_15837fb8 for site tshla-auth-api
+2025-10-01T15:21:24.299Z ERROR - Container tshla-auth-api_0_15837fb8 for site tshla-auth-api has exited, failing site start
+2025-10-01T15:21:24.323Z ERROR - Container tshla-auth-api_0_15837fb8 didn't respond to HTTP pings on port: 3003. Failing site start. See container logs for debugging.
+2025-10-01T15:21:24.354Z INFO  - Stopping site tshla-auth-api because it failed during startup.
+2025-10-01T15:26:19.3744575Z Container start method called.
+2025-10-01T15:26:19.3759248Z Establishing network.
+2025-10-01T15:26:19.3760890Z Pulling image: appsvc/node:20-lts_20250724.2.tuxprod.
+2025-10-01T15:26:20.7593183Z Container is starting.
+2025-10-01T15:26:20.7599637Z Establishing user namespace if not established already.
+2025-10-01T15:26:20.7601855Z Establishing network if not established already.
+2025-10-01T15:26:20.7603858Z Mounting volumes.
+2025-10-01T15:26:20.7606222Z Nested mountpoint 
+2025-10-01T15:26:20.7653395Z Nested mountpoint volatile/logs
+2025-10-01T15:26:20.7728083Z Nested mountpoint 
+2025-10-01T15:26:20.7863346Z Nested mountpoint 
+2025-10-01T15:26:20.7969710Z Nested mountpoint 
+2025-10-01T15:26:20.8569995Z Creating container.
+2025-10-01T15:26:20.8571679Z Creating pipes for streaming container io.
+2025-10-01T15:26:20.8573331Z Creating stdout named pipe at /podr/container/pipe/90edd6816ad7_tshla-auth-api/stdout_e0a3856cfb9048598f6a4c8c3e7ba3ba.
+2025-10-01T15:26:20.8594890Z Successfully created stdout named pipe at: /podr/container/pipe/90edd6816ad7_tshla-auth-api/stdout_e0a3856cfb9048598f6a4c8c3e7ba3ba.
+2025-10-01T15:26:20.8596590Z Opening named pipe /podr/container/pipe/90edd6816ad7_tshla-auth-api/stdout_e0a3856cfb9048598f6a4c8c3e7ba3ba for reading in non-blocking mode.
+2025-10-01T15:26:20.8598552Z Successfully opened named pipe: /podr/container/pipe/90edd6816ad7_tshla-auth-api/stdout_e0a3856cfb9048598f6a4c8c3e7ba3ba.
+2025-10-01T15:26:20.8609466Z Successfully removed non-blocking flag from /podr/container/pipe/90edd6816ad7_tshla-auth-api/stdout_e0a3856cfb9048598f6a4c8c3e7ba3ba.
+2025-10-01T15:26:20.8613559Z Creating stderr named pipe at /podr/container/pipe/90edd6816ad7_tshla-auth-api/stderr_13db0ff17f7c4babb3cca59a3182aa1f.
+2025-10-01T15:26:20.8619288Z Successfully created stderr named pipe at: /podr/container/pipe/90edd6816ad7_tshla-auth-api/stderr_13db0ff17f7c4babb3cca59a3182aa1f.
+2025-10-01T15:26:20.8624393Z Opening named pipe /podr/container/pipe/90edd6816ad7_tshla-auth-api/stderr_13db0ff17f7c4babb3cca59a3182aa1f for reading in non-blocking mode.
+2025-10-01T15:26:20.8626168Z Successfully opened named pipe: /podr/container/pipe/90edd6816ad7_tshla-auth-api/stderr_13db0ff17f7c4babb3cca59a3182aa1f.
+2025-10-01T15:26:20.8627530Z Successfully removed non-blocking flag from /podr/container/pipe/90edd6816ad7_tshla-auth-api/stderr_13db0ff17f7c4babb3cca59a3182aa1f.
+2025-10-01T15:26:20.8628945Z Creating container with image: appsvc/node:20-lts_20250724.2.tuxprod from registry: mcr.microsoft.com and fully qualified image name: mcr.microsoft.com/appsvc/node:20-lts_20250724.2.tuxprod
+2025-10-01T15:26:21.0375829Z Starting container: 90edd6816ad7_tshla-auth-api.
+2025-10-01T15:26:21.0543103Z Starting watchers and probes.
+2025-10-01T15:26:21.0553702Z Starting metrics collection.
+2025-10-01T15:26:21.0555696Z Container is running.
+2025-10-01T15:26:21.0757874Z Container start method finished after 1700 ms.
+2025-10-01T15:26:26.1668470Z Container has finished running with exit code: 1.
+2025-10-01T15:26:26.1670251Z Container is terminating. Grace period: 5 seconds.
+2025-10-01T15:26:26.1673405Z Stop and delete container. Retry count = 0
+2025-10-01T15:26:26.1674727Z Stopping container: 90edd6816ad7_tshla-auth-api.
+2025-10-01T15:26:26.1824988Z Deleting container: 90edd6816ad7_tshla-auth-api. Retry count = 0
+2025-10-01T15:26:26.5928656Z Container spec TerminationMessagePolicy  path 
+2025-10-01T15:26:26.5930748Z Container is terminated. Total time elapsed: 425 ms.
+2025-10-01T15:26:26.5932071Z Site container: tshla-auth-api terminated during site startup.
+2025-10-01T15:26:26.5934487Z Site startup probe failed after 5.5168373 seconds.
+2025-10-01T15:26:26.5970042Z Failed to start site. Revert by stopping site.
+2025-10-01T15:26:26.5976122Z Site: tshla-auth-api stopped.
+2025-10-01T15:31:20.0181964Z Container start method called.
+2025-10-01T15:31:20.0183838Z Establishing network.
+2025-10-01T15:31:20.0185257Z Pulling image: appsvc/node:20-lts_20250724.2.tuxprod.
+2025-10-01T15:31:21.4970208Z Container is starting.
+2025-10-01T15:31:21.4971749Z Establishing user namespace if not established already.
+2025-10-01T15:31:21.4973031Z Establishing network if not established already.
+2025-10-01T15:31:21.4974551Z Mounting volumes.
+2025-10-01T15:31:21.4989007Z Nested mountpoint 
+2025-10-01T15:31:21.5013964Z Nested mountpoint volatile/logs
+2025-10-01T15:31:21.5133435Z Nested mountpoint 
+2025-10-01T15:31:21.5191698Z Nested mountpoint 
+2025-10-01T15:31:21.5269658Z Nested mountpoint 
+2025-10-01T15:31:21.6055444Z Creating container.
+2025-10-01T15:31:21.6057015Z Creating pipes for streaming container io.
+2025-10-01T15:31:21.6058283Z Creating stdout named pipe at /podr/container/pipe/3a71cc9af4b7_tshla-auth-api/stdout_af9033b2f4ed42d6a6d22d2bd9c522f3.
+2025-10-01T15:31:21.6066156Z Successfully created stdout named pipe at: /podr/container/pipe/3a71cc9af4b7_tshla-auth-api/stdout_af9033b2f4ed42d6a6d22d2bd9c522f3.
+2025-10-01T15:31:21.6073107Z Opening named pipe /podr/container/pipe/3a71cc9af4b7_tshla-auth-api/stdout_af9033b2f4ed42d6a6d22d2bd9c522f3 for reading in non-blocking mode.
+2025-10-01T15:31:21.6078866Z Successfully opened named pipe: /podr/container/pipe/3a71cc9af4b7_tshla-auth-api/stdout_af9033b2f4ed42d6a6d22d2bd9c522f3.
+2025-10-01T15:31:21.6083766Z Successfully removed non-blocking flag from /podr/container/pipe/3a71cc9af4b7_tshla-auth-api/stdout_af9033b2f4ed42d6a6d22d2bd9c522f3.
+2025-10-01T15:31:21.6089386Z Creating stderr named pipe at /podr/container/pipe/3a71cc9af4b7_tshla-auth-api/stderr_6835f8e9c6d14432b5ca4e15afe25d2f.
+2025-10-01T15:31:21.6091938Z Successfully created stderr named pipe at: /podr/container/pipe/3a71cc9af4b7_tshla-auth-api/stderr_6835f8e9c6d14432b5ca4e15afe25d2f.
+2025-10-01T15:31:21.6093455Z Opening named pipe /podr/container/pipe/3a71cc9af4b7_tshla-auth-api/stderr_6835f8e9c6d14432b5ca4e15afe25d2f for reading in non-blocking mode.
+2025-10-01T15:31:21.6103203Z Successfully opened named pipe: /podr/container/pipe/3a71cc9af4b7_tshla-auth-api/stderr_6835f8e9c6d14432b5ca4e15afe25d2f.
+2025-10-01T15:31:21.6104719Z Successfully removed non-blocking flag from /podr/container/pipe/3a71cc9af4b7_tshla-auth-api/stderr_6835f8e9c6d14432b5ca4e15afe25d2f.
+2025-10-01T15:31:21.6106031Z Creating container with image: appsvc/node:20-lts_20250724.2.tuxprod from registry: mcr.microsoft.com and fully qualified image name: mcr.microsoft.com/appsvc/node:20-lts_20250724.2.tuxprod
+2025-10-01T15:31:21.7487507Z Starting container: 3a71cc9af4b7_tshla-auth-api.
+2025-10-01T15:31:21.7684554Z Starting watchers and probes.
+2025-10-01T15:31:21.7687682Z Starting metrics collection.
+2025-10-01T15:31:21.7689168Z Container is running.
+2025-10-01T15:31:21.7976148Z Container start method finished after 1778 ms.
+2025-10-01T15:31:25.4744471Z Container has finished running with exit code: 1.
+2025-10-01T15:31:25.4745959Z Container is terminating. Grace period: 5 seconds.
+2025-10-01T15:31:25.4755933Z Stop and delete container. Retry count = 0
+2025-10-01T15:31:25.4757778Z Stopping container: 3a71cc9af4b7_tshla-auth-api.
+2025-10-01T15:31:25.4881050Z Deleting container: 3a71cc9af4b7_tshla-auth-api. Retry count = 0
+2025-10-01T15:31:25.6157866Z Container spec TerminationMessagePolicy  path 
+2025-10-01T15:31:25.6163890Z Container is terminated. Total time elapsed: 141 ms.
+2025-10-01T15:31:25.6165608Z Site container: tshla-auth-api terminated during site startup.
+2025-10-01T15:31:25.6175914Z Site startup probe failed after 3.8172016 seconds.
+2025-10-01T15:31:25.6240230Z Failed to start site. Revert by stopping site.
+2025-10-01T15:31:25.6268038Z Site: tshla-auth-api stopped.
+2025-10-01T15:31:25.8552971Z Site: tshla-auth-api will be blocked for 1 minutes till 10/01/2025 15:32:25
+2025-10-01T15:32:25.8528117Z Site: tshla-auth-api is unblocked.
+2025-10-01T15:36:21.1694801Z Container start method called.
+2025-10-01T15:36:21.1696389Z Establishing network.
+2025-10-01T15:36:21.1697788Z Pulling image: appsvc/node:20-lts_20250724.2.tuxprod.
+2025-10-01T15:36:22.3921708Z Container is starting.
+2025-10-01T15:36:22.3933887Z Establishing user namespace if not established already.
+2025-10-01T15:36:22.3938311Z Establishing network if not established already.
+2025-10-01T15:36:22.3946705Z Mounting volumes.
+2025-10-01T15:36:22.3952557Z Nested mountpoint 
+2025-10-01T15:36:22.3974292Z Nested mountpoint volatile/logs
+2025-10-01T15:36:22.4065106Z Nested mountpoint 
+2025-10-01T15:36:22.4154910Z Nested mountpoint 
+2025-10-01T15:36:22.4291907Z Nested mountpoint 
+2025-10-01T15:36:22.5055762Z Creating container.
+2025-10-01T15:36:22.5057463Z Creating pipes for streaming container io.
+2025-10-01T15:36:22.5059012Z Creating stdout named pipe at /podr/container/pipe/0b12e39f0760_tshla-auth-api/stdout_d845f6b8393745508e3b96d6f0f1977a.
+2025-10-01T15:36:22.5065069Z Successfully created stdout named pipe at: /podr/container/pipe/0b12e39f0760_tshla-auth-api/stdout_d845f6b8393745508e3b96d6f0f1977a.
+2025-10-01T15:36:22.5066529Z Opening named pipe /podr/container/pipe/0b12e39f0760_tshla-auth-api/stdout_d845f6b8393745508e3b96d6f0f1977a for reading in non-blocking mode.
+2025-10-01T15:36:22.5068149Z Successfully opened named pipe: /podr/container/pipe/0b12e39f0760_tshla-auth-api/stdout_d845f6b8393745508e3b96d6f0f1977a.
+2025-10-01T15:36:22.5069507Z Successfully removed non-blocking flag from /podr/container/pipe/0b12e39f0760_tshla-auth-api/stdout_d845f6b8393745508e3b96d6f0f1977a.
+2025-10-01T15:36:22.5071774Z Creating stderr named pipe at /podr/container/pipe/0b12e39f0760_tshla-auth-api/stderr_3cee74b062aa4b1a8cb52136d26a8cf4.
+2025-10-01T15:36:22.5073820Z Successfully created stderr named pipe at: /podr/container/pipe/0b12e39f0760_tshla-auth-api/stderr_3cee74b062aa4b1a8cb52136d26a8cf4.
+2025-10-01T15:36:22.5075209Z Opening named pipe /podr/container/pipe/0b12e39f0760_tshla-auth-api/stderr_3cee74b062aa4b1a8cb52136d26a8cf4 for reading in non-blocking mode.
+2025-10-01T15:36:22.5076751Z Successfully opened named pipe: /podr/container/pipe/0b12e39f0760_tshla-auth-api/stderr_3cee74b062aa4b1a8cb52136d26a8cf4.
+2025-10-01T15:36:22.5078101Z Successfully removed non-blocking flag from /podr/container/pipe/0b12e39f0760_tshla-auth-api/stderr_3cee74b062aa4b1a8cb52136d26a8cf4.
+2025-10-01T15:36:22.5081618Z Creating container with image: appsvc/node:20-lts_20250724.2.tuxprod from registry: mcr.microsoft.com and fully qualified image name: mcr.microsoft.com/appsvc/node:20-lts_20250724.2.tuxprod
+2025-10-01T15:36:22.6339720Z Starting container: 0b12e39f0760_tshla-auth-api.
+2025-10-01T15:36:22.6503780Z Starting watchers and probes.
+2025-10-01T15:36:22.6507151Z Starting metrics collection.
+2025-10-01T15:36:22.6533639Z Container is running.
+2025-10-01T15:36:22.6788296Z Container start method finished after 1508 ms.
+2025-10-01T15:36:26.0946536Z Container has finished running with exit code: 1.
+2025-10-01T15:36:26.0953931Z Container is terminating. Grace period: 5 seconds.
+2025-10-01T15:36:26.0962767Z Stop and delete container. Retry count = 0
+2025-10-01T15:36:26.0965600Z Stopping container: 0b12e39f0760_tshla-auth-api.
+2025-10-01T15:36:26.1084983Z Deleting container: 0b12e39f0760_tshla-auth-api. Retry count = 0
+2025-10-01T15:36:26.1717438Z Container spec TerminationMessagePolicy  path 
+2025-10-01T15:36:26.1729144Z Container is terminated. Total time elapsed: 77 ms.
+2025-10-01T15:36:26.1730363Z Site container: tshla-auth-api terminated during site startup.
+2025-10-01T15:36:26.1739049Z Site startup probe failed after 3.4909042 seconds.
+2025-10-01T15:36:26.1776114Z Failed to start site. Revert by stopping site.
+2025-10-01T15:36:26.1783006Z Site: tshla-auth-api stopped.
+2025-10-01T15:36:26.4634589Z Site: tshla-auth-api will be blocked for 1 minutes till 10/01/2025 15:37:26
+2025-10-01T15:37:26.4655474Z Site: tshla-auth-api is unblocked.
+2025-10-01T15:41:20.0686745Z Container start method called.
+2025-10-01T15:41:20.0713738Z Establishing network.
+2025-10-01T15:41:20.0719829Z Pulling image: appsvc/node:20-lts_20250724.2.tuxprod.
+2025-10-01T15:41:21.3128401Z Container is starting.
+2025-10-01T15:41:21.3130558Z Establishing user namespace if not established already.
+2025-10-01T15:41:21.3132144Z Establishing network if not established already.
+2025-10-01T15:41:21.3133493Z Mounting volumes.
+2025-10-01T15:41:21.3135256Z Nested mountpoint 
+2025-10-01T15:41:21.3159873Z Nested mountpoint volatile/logs
+2025-10-01T15:41:21.3239239Z Nested mountpoint 
+2025-10-01T15:41:21.3431134Z Nested mountpoint 
+2025-10-01T15:41:21.3438781Z Nested mountpoint 
+2025-10-01T15:41:21.4153596Z Creating container.
+2025-10-01T15:41:21.4155209Z Creating pipes for streaming container io.
+2025-10-01T15:41:21.4156605Z Creating stdout named pipe at /podr/container/pipe/083d8f4509ad_tshla-auth-api/stdout_87949edc54b440c4aaed588b6f6373d4.
+2025-10-01T15:41:21.4158998Z Successfully created stdout named pipe at: /podr/container/pipe/083d8f4509ad_tshla-auth-api/stdout_87949edc54b440c4aaed588b6f6373d4.
+2025-10-01T15:41:21.4160240Z Opening named pipe /podr/container/pipe/083d8f4509ad_tshla-auth-api/stdout_87949edc54b440c4aaed588b6f6373d4 for reading in non-blocking mode.
+2025-10-01T15:41:21.4161897Z Successfully opened named pipe: /podr/container/pipe/083d8f4509ad_tshla-auth-api/stdout_87949edc54b440c4aaed588b6f6373d4.
+2025-10-01T15:41:21.4175499Z Successfully removed non-blocking flag from /podr/container/pipe/083d8f4509ad_tshla-auth-api/stdout_87949edc54b440c4aaed588b6f6373d4.
+2025-10-01T15:41:21.4179150Z Creating stderr named pipe at /podr/container/pipe/083d8f4509ad_tshla-auth-api/stderr_1b5906460da84942bbf30a4fd9fb6183.
+2025-10-01T15:41:21.4187087Z Successfully created stderr named pipe at: /podr/container/pipe/083d8f4509ad_tshla-auth-api/stderr_1b5906460da84942bbf30a4fd9fb6183.
+2025-10-01T15:41:21.4189077Z Opening named pipe /podr/container/pipe/083d8f4509ad_tshla-auth-api/stderr_1b5906460da84942bbf30a4fd9fb6183 for reading in non-blocking mode.
+2025-10-01T15:41:21.4190923Z Successfully opened named pipe: /podr/container/pipe/083d8f4509ad_tshla-auth-api/stderr_1b5906460da84942bbf30a4fd9fb6183.
+2025-10-01T15:41:21.4192236Z Successfully removed non-blocking flag from /podr/container/pipe/083d8f4509ad_tshla-auth-api/stderr_1b5906460da84942bbf30a4fd9fb6183.
+2025-10-01T15:41:21.4193694Z Creating container with image: appsvc/node:20-lts_20250724.2.tuxprod from registry: mcr.microsoft.com and fully qualified image name: mcr.microsoft.com/appsvc/node:20-lts_20250724.2.tuxprod
+2025-10-01T15:41:21.5647382Z Starting container: 083d8f4509ad_tshla-auth-api.
+2025-10-01T15:41:21.5822773Z Starting watchers and probes.
+2025-10-01T15:41:21.5840088Z Starting metrics collection.
+2025-10-01T15:41:21.5863263Z Container is running.
+2025-10-01T15:41:21.6203085Z Container start method finished after 1549 ms.
+2025-10-01T15:41:25.6946140Z Container has finished running with exit code: 1.
+2025-10-01T15:41:25.6950046Z Container is terminating. Grace period: 5 seconds.
+2025-10-01T15:41:25.6953693Z Stop and delete container. Retry count = 0
+2025-10-01T15:41:25.6978622Z Stopping container: 083d8f4509ad_tshla-auth-api.
+2025-10-01T15:41:25.7119354Z Deleting container: 083d8f4509ad_tshla-auth-api. Retry count = 0
+2025-10-01T15:41:25.7618313Z Container spec TerminationMessagePolicy  path 
+2025-10-01T15:41:25.7621258Z Container is terminated. Total time elapsed: 66 ms.
+2025-10-01T15:41:25.7622655Z Site container: tshla-auth-api terminated during site startup.
+2025-10-01T15:41:25.7624940Z Site startup probe failed after 4.1379815 seconds.
+2025-10-01T15:41:25.7642976Z Failed to start site. Revert by stopping site.
+2025-10-01T15:41:25.7646646Z Site: tshla-auth-api stopped.
+2025-10-01T15:41:26.0275231Z Site: tshla-auth-api will be blocked for 2 minutes till 10/01/2025 15:43:26
+2025-10-01T15:43:26.0277006Z Site: tshla-auth-api is unblocked.
+2025-10-01T16:13:30.1372790Z Container start method called.
+2025-10-01T16:13:30.1374309Z Establishing network.
+2025-10-01T16:13:30.1375604Z Pulling image: appsvc/node:20-lts_20250724.2.tuxprod.
+2025-10-01T16:13:31.1920795Z Container is starting.
+2025-10-01T16:13:31.1922406Z Establishing user namespace if not established already.
+2025-10-01T16:13:31.1923792Z Establishing network if not established already.
+2025-10-01T16:13:31.1925068Z Mounting volumes.
+2025-10-01T16:13:31.1929119Z Nested mountpoint 
+2025-10-01T16:13:31.1975573Z Nested mountpoint volatile/logs
+2025-10-01T16:13:31.1987925Z Nested mountpoint 
+2025-10-01T16:13:31.2144524Z Nested mountpoint 
+2025-10-01T16:13:31.2268201Z Nested mountpoint 
+2025-10-01T16:13:31.3009045Z Creating container.
+2025-10-01T16:13:31.3017579Z Creating pipes for streaming container io.
+2025-10-01T16:13:31.3025119Z Creating stdout named pipe at /podr/container/pipe/77aa00b9575a_tshla-auth-api/stdout_0225e76f43c04485a3d44642740b024a.
+2025-10-01T16:13:31.3032079Z Successfully created stdout named pipe at: /podr/container/pipe/77aa00b9575a_tshla-auth-api/stdout_0225e76f43c04485a3d44642740b024a.
+2025-10-01T16:13:31.3038870Z Opening named pipe /podr/container/pipe/77aa00b9575a_tshla-auth-api/stdout_0225e76f43c04485a3d44642740b024a for reading in non-blocking mode.
+2025-10-01T16:13:31.3062953Z Successfully opened named pipe: /podr/container/pipe/77aa00b9575a_tshla-auth-api/stdout_0225e76f43c04485a3d44642740b024a.
+2025-10-01T16:13:31.3067230Z Successfully removed non-blocking flag from /podr/container/pipe/77aa00b9575a_tshla-auth-api/stdout_0225e76f43c04485a3d44642740b024a.
+2025-10-01T16:13:31.3076956Z Creating stderr named pipe at /podr/container/pipe/77aa00b9575a_tshla-auth-api/stderr_205fca896182414a8214483ffe12817c.
+2025-10-01T16:13:31.3087287Z Successfully created stderr named pipe at: /podr/container/pipe/77aa00b9575a_tshla-auth-api/stderr_205fca896182414a8214483ffe12817c.
+2025-10-01T16:13:31.3097540Z Opening named pipe /podr/container/pipe/77aa00b9575a_tshla-auth-api/stderr_205fca896182414a8214483ffe12817c for reading in non-blocking mode.
+2025-10-01T16:13:31.3105818Z Successfully opened named pipe: /podr/container/pipe/77aa00b9575a_tshla-auth-api/stderr_205fca896182414a8214483ffe12817c.
+2025-10-01T16:13:31.3107424Z Successfully removed non-blocking flag from /podr/container/pipe/77aa00b9575a_tshla-auth-api/stderr_205fca896182414a8214483ffe12817c.
+2025-10-01T16:13:31.3108960Z Creating container with image: appsvc/node:20-lts_20250724.2.tuxprod from registry: mcr.microsoft.com and fully qualified image name: mcr.microsoft.com/appsvc/node:20-lts_20250724.2.tuxprod
+2025-10-01T16:13:31.4322378Z Starting container: 77aa00b9575a_tshla-auth-api.
+2025-10-01T16:13:31.4457861Z Starting watchers and probes.
+2025-10-01T16:13:31.4480522Z Starting metrics collection.
+2025-10-01T16:13:31.4527254Z Container is running.
+2025-10-01T16:13:31.4756390Z Container start method finished after 1337 ms.
+2025-10-01T16:13:34.3905425Z Container has finished running with exit code: 1.
+2025-10-01T16:13:34.3907314Z Container is terminating. Grace period: 5 seconds.
+2025-10-01T16:13:34.3910596Z Stop and delete container. Retry count = 0
+2025-10-01T16:13:34.3911887Z Stopping container: 77aa00b9575a_tshla-auth-api.
+2025-10-01T16:13:34.4088946Z Deleting container: 77aa00b9575a_tshla-auth-api. Retry count = 0
+2025-10-01T16:13:34.4582847Z Container spec TerminationMessagePolicy  path 
+2025-10-01T16:13:34.4585817Z Container is terminated. Total time elapsed: 67 ms.
+2025-10-01T16:13:34.4587197Z Site container: tshla-auth-api terminated during site startup.
+2025-10-01T16:13:34.4590983Z Site startup probe failed after 2.9813765 seconds.
+2025-10-01T16:13:34.4613535Z Failed to start site. Revert by stopping site.
+2025-10-01T16:13:34.4617705Z Site: tshla-auth-api stopped.
+2025-10-01T16:13:34.7233260Z Site: tshla-auth-api will be blocked for 2 minutes till 10/01/2025 16:15:34
+2025-10-01T16:15:34.7280527Z Site: tshla-auth-api is unblocked.
+2025-10-01T16:46:23.9552169Z Container start method called.
+2025-10-01T16:46:23.9575751Z Establishing network.
+2025-10-01T16:46:23.9577752Z Pulling image: appsvc/node:20-lts_20250724.2.tuxprod.
+2025-10-01T16:46:25.0906220Z Container is starting.
+2025-10-01T16:46:25.0911717Z Establishing user namespace if not established already.
+2025-10-01T16:46:25.0917211Z Establishing network if not established already.
+2025-10-01T16:46:25.0919061Z Mounting volumes.
+2025-10-01T16:46:25.0925072Z Nested mountpoint 
+2025-10-01T16:46:25.0981418Z Nested mountpoint volatile/logs
+2025-10-01T16:46:25.1068241Z Nested mountpoint 
+2025-10-01T16:46:25.1134142Z Nested mountpoint 
+2025-10-01T16:46:25.1251224Z Nested mountpoint 
+2025-10-01T16:46:25.2184934Z Creating container.
+2025-10-01T16:46:25.2186345Z Creating pipes for streaming container io.
+2025-10-01T16:46:25.2187407Z Creating stdout named pipe at /podr/container/pipe/c92f6177c986_tshla-auth-api/stdout_1a15ac021bea4fc48382fe9c118c2c6e.
+2025-10-01T16:46:25.2189431Z Successfully created stdout named pipe at: /podr/container/pipe/c92f6177c986_tshla-auth-api/stdout_1a15ac021bea4fc48382fe9c118c2c6e.
+2025-10-01T16:46:25.2190473Z Opening named pipe /podr/container/pipe/c92f6177c986_tshla-auth-api/stdout_1a15ac021bea4fc48382fe9c118c2c6e for reading in non-blocking mode.
+2025-10-01T16:46:25.2191548Z Successfully opened named pipe: /podr/container/pipe/c92f6177c986_tshla-auth-api/stdout_1a15ac021bea4fc48382fe9c118c2c6e.
+2025-10-01T16:46:25.2192662Z Successfully removed non-blocking flag from /podr/container/pipe/c92f6177c986_tshla-auth-api/stdout_1a15ac021bea4fc48382fe9c118c2c6e.
+2025-10-01T16:46:25.2194188Z Creating stderr named pipe at /podr/container/pipe/c92f6177c986_tshla-auth-api/stderr_f6e7a42ab6f242509bc3b1c89c7067cb.
+2025-10-01T16:46:25.2196164Z Successfully created stderr named pipe at: /podr/container/pipe/c92f6177c986_tshla-auth-api/stderr_f6e7a42ab6f242509bc3b1c89c7067cb.
+2025-10-01T16:46:25.2197439Z Opening named pipe /podr/container/pipe/c92f6177c986_tshla-auth-api/stderr_f6e7a42ab6f242509bc3b1c89c7067cb for reading in non-blocking mode.
+2025-10-01T16:46:25.2199132Z Successfully opened named pipe: /podr/container/pipe/c92f6177c986_tshla-auth-api/stderr_f6e7a42ab6f242509bc3b1c89c7067cb.
+2025-10-01T16:46:25.2200991Z Successfully removed non-blocking flag from /podr/container/pipe/c92f6177c986_tshla-auth-api/stderr_f6e7a42ab6f242509bc3b1c89c7067cb.
+2025-10-01T16:46:25.2202887Z Creating container with image: appsvc/node:20-lts_20250724.2.tuxprod from registry: mcr.microsoft.com and fully qualified image name: mcr.microsoft.com/appsvc/node:20-lts_20250724.2.tuxprod
+2025-10-01T16:46:25.3946043Z Starting container: c92f6177c986_tshla-auth-api.
+2025-10-01T16:46:25.4079252Z Starting watchers and probes.
+2025-10-01T16:46:25.4082431Z Starting metrics collection.
+2025-10-01T16:46:25.4093256Z Container is running.
+2025-10-01T16:46:25.4195956Z Container start method finished after 1463 ms.
+2025-10-01T16:46:30.6645507Z Container has finished running with exit code: 1.
+2025-10-01T16:46:30.6649645Z Container is terminating. Grace period: 5 seconds.
+2025-10-01T16:46:30.6652939Z Stop and delete container. Retry count = 0
+2025-10-01T16:46:30.6654407Z Stopping container: c92f6177c986_tshla-auth-api.
+2025-10-01T16:46:30.6769272Z Deleting container: c92f6177c986_tshla-auth-api. Retry count = 0
+2025-10-01T16:46:31.7338639Z Container spec TerminationMessagePolicy  path 
+2025-10-01T16:46:31.7341484Z Container is terminated. Total time elapsed: 1068 ms.
+2025-10-01T16:46:31.7343084Z Site container: tshla-auth-api terminated during site startup.
+2025-10-01T16:46:31.7345367Z Site startup probe failed after 6.3122772 seconds.
+2025-10-01T16:46:31.7365697Z Failed to start site. Revert by stopping site.
+2025-10-01T16:46:31.7370070Z Site: tshla-auth-api stopped.
+2025-10-01T16:46:31.8762154Z Site: tshla-auth-api will be blocked for 2 minutes till 10/01/2025 16:48:31
+2025-10-01T16:48:31.8774079Z Site: tshla-auth-api is unblocked.
+2025-10-01T17:18:34.4797339Z Container start method called.
+2025-10-01T17:18:34.4799127Z Establishing network.
+2025-10-01T17:18:34.4800576Z Pulling image: appsvc/node:20-lts_20250724.2.tuxprod.
+2025-10-01T17:18:35.5350869Z Container is starting.
+2025-10-01T17:18:35.5352828Z Establishing user namespace if not established already.
+2025-10-01T17:18:35.5356162Z Establishing network if not established already.
+2025-10-01T17:18:35.5361687Z Mounting volumes.
+2025-10-01T17:18:35.5367107Z Nested mountpoint 
+2025-10-01T17:18:35.5436725Z Nested mountpoint volatile/logs
+2025-10-01T17:18:35.5656485Z Nested mountpoint 
+2025-10-01T17:18:35.5739409Z Nested mountpoint 
+2025-10-01T17:18:35.5823396Z Nested mountpoint 
+2025-10-01T17:18:35.6497781Z Creating container.
+2025-10-01T17:18:35.6499417Z Creating pipes for streaming container io.
+2025-10-01T17:18:35.6513618Z Creating stdout named pipe at /podr/container/pipe/375d7e78fed6_tshla-auth-api/stdout_96167ad54ba04d418e4855ea86820c77.
+2025-10-01T17:18:35.6518179Z Successfully created stdout named pipe at: /podr/container/pipe/375d7e78fed6_tshla-auth-api/stdout_96167ad54ba04d418e4855ea86820c77.
+2025-10-01T17:18:35.6522011Z Opening named pipe /podr/container/pipe/375d7e78fed6_tshla-auth-api/stdout_96167ad54ba04d418e4855ea86820c77 for reading in non-blocking mode.
+2025-10-01T17:18:35.6523746Z Successfully opened named pipe: /podr/container/pipe/375d7e78fed6_tshla-auth-api/stdout_96167ad54ba04d418e4855ea86820c77.
+2025-10-01T17:18:35.6528990Z Successfully removed non-blocking flag from /podr/container/pipe/375d7e78fed6_tshla-auth-api/stdout_96167ad54ba04d418e4855ea86820c77.
+2025-10-01T17:18:35.6535250Z Creating stderr named pipe at /podr/container/pipe/375d7e78fed6_tshla-auth-api/stderr_d386db67f3304f8db8687a19f587a7fe.
+2025-10-01T17:18:35.6541837Z Successfully created stderr named pipe at: /podr/container/pipe/375d7e78fed6_tshla-auth-api/stderr_d386db67f3304f8db8687a19f587a7fe.
+2025-10-01T17:18:35.6546884Z Opening named pipe /podr/container/pipe/375d7e78fed6_tshla-auth-api/stderr_d386db67f3304f8db8687a19f587a7fe for reading in non-blocking mode.
+2025-10-01T17:18:35.6550758Z Successfully opened named pipe: /podr/container/pipe/375d7e78fed6_tshla-auth-api/stderr_d386db67f3304f8db8687a19f587a7fe.
+2025-10-01T17:18:35.6555425Z Successfully removed non-blocking flag from /podr/container/pipe/375d7e78fed6_tshla-auth-api/stderr_d386db67f3304f8db8687a19f587a7fe.
+2025-10-01T17:18:35.6558313Z Creating container with image: appsvc/node:20-lts_20250724.2.tuxprod from registry: mcr.microsoft.com and fully qualified image name: mcr.microsoft.com/appsvc/node:20-lts_20250724.2.tuxprod
+2025-10-01T17:18:35.7808871Z Starting container: 375d7e78fed6_tshla-auth-api.
+2025-10-01T17:18:35.7999718Z Starting watchers and probes.
+2025-10-01T17:18:35.8003207Z Starting metrics collection.
+2025-10-01T17:18:35.8004871Z Container is running.
+2025-10-01T17:18:35.8325614Z Container start method finished after 1350 ms.
+2025-10-01T17:18:40.5767170Z Container has finished running with exit code: 1.
+2025-10-01T17:18:40.5769092Z Container is terminating. Grace period: 5 seconds.
+2025-10-01T17:18:40.5785213Z Stop and delete container. Retry count = 0
+2025-10-01T17:18:40.5789947Z Stopping container: 375d7e78fed6_tshla-auth-api.
+2025-10-01T17:18:40.5898312Z Deleting container: 375d7e78fed6_tshla-auth-api. Retry count = 0
+2025-10-01T17:18:41.4039648Z Container spec TerminationMessagePolicy  path 
+2025-10-01T17:18:41.4041680Z Container is terminated. Total time elapsed: 827 ms.
+2025-10-01T17:18:41.4042812Z Site container: tshla-auth-api terminated during site startup.
+2025-10-01T17:18:41.4044990Z Site startup probe failed after 5.5652221 seconds.
+2025-10-01T17:18:41.4078851Z Failed to start site. Revert by stopping site.
+2025-10-01T17:18:41.4084412Z Site: tshla-auth-api stopped.
+2025-10-01T17:18:41.5415484Z Site: tshla-auth-api will be blocked for 2 minutes till 10/01/2025 17:20:41
+2025-10-01T17:20:41.5454866Z Site: tshla-auth-api is unblocked.
+2025-10-01T17:38:52.2502145Z Container start method called.
+2025-10-01T17:38:52.2504802Z Establishing network.
+2025-10-01T17:38:52.2506448Z Pulling image: appsvc/node:20-lts_20250724.2.tuxprod.
+2025-10-01T17:38:53.9069087Z Container is starting.
+2025-10-01T17:38:53.9070660Z Establishing user namespace if not established already.
+2025-10-01T17:38:53.9072005Z Establishing network if not established already.
+2025-10-01T17:38:53.9073354Z Mounting volumes.
+2025-10-01T17:38:53.9075264Z Nested mountpoint 
+2025-10-01T17:38:53.9108936Z Nested mountpoint volatile/logs
+2025-10-01T17:38:53.9208937Z Nested mountpoint 
+2025-10-01T17:38:53.9265828Z Nested mountpoint 
+2025-10-01T17:38:53.9280860Z Nested mountpoint 
+2025-10-01T17:38:54.0423761Z Creating container.
+2025-10-01T17:38:54.0425264Z Creating pipes for streaming container io.
+2025-10-01T17:38:54.0426471Z Creating stdout named pipe at /podr/container/pipe/03aee29ae54b_tshla-auth-api/stdout_af918fd40f584354b505c2a85c3d80b7.
+2025-10-01T17:38:54.0428733Z Successfully created stdout named pipe at: /podr/container/pipe/03aee29ae54b_tshla-auth-api/stdout_af918fd40f584354b505c2a85c3d80b7.
+2025-10-01T17:38:54.0429833Z Opening named pipe /podr/container/pipe/03aee29ae54b_tshla-auth-api/stdout_af918fd40f584354b505c2a85c3d80b7 for reading in non-blocking mode.
+2025-10-01T17:38:54.0431327Z Successfully opened named pipe: /podr/container/pipe/03aee29ae54b_tshla-auth-api/stdout_af918fd40f584354b505c2a85c3d80b7.
+2025-10-01T17:38:54.0432440Z Successfully removed non-blocking flag from /podr/container/pipe/03aee29ae54b_tshla-auth-api/stdout_af918fd40f584354b505c2a85c3d80b7.
+2025-10-01T17:38:54.0433474Z Creating stderr named pipe at /podr/container/pipe/03aee29ae54b_tshla-auth-api/stderr_7770c58bb4e246e8bcc417515bd4596e.
+2025-10-01T17:38:54.0435024Z Successfully created stderr named pipe at: /podr/container/pipe/03aee29ae54b_tshla-auth-api/stderr_7770c58bb4e246e8bcc417515bd4596e.
+2025-10-01T17:38:54.0436066Z Opening named pipe /podr/container/pipe/03aee29ae54b_tshla-auth-api/stderr_7770c58bb4e246e8bcc417515bd4596e for reading in non-blocking mode.
+2025-10-01T17:38:54.0437402Z Successfully opened named pipe: /podr/container/pipe/03aee29ae54b_tshla-auth-api/stderr_7770c58bb4e246e8bcc417515bd4596e.
+2025-10-01T17:38:54.0457465Z Successfully removed non-blocking flag from /podr/container/pipe/03aee29ae54b_tshla-auth-api/stderr_7770c58bb4e246e8bcc417515bd4596e.
+2025-10-01T17:38:54.0459443Z Creating container with image: appsvc/node:20-lts_20250724.2.tuxprod from registry: mcr.microsoft.com and fully qualified image name: mcr.microsoft.com/appsvc/node:20-lts_20250724.2.tuxprod
+2025-10-01T17:38:54.1958837Z Starting container: 03aee29ae54b_tshla-auth-api.
+2025-10-01T17:38:54.2106987Z Starting watchers and probes.
+2025-10-01T17:38:54.2116718Z Starting metrics collection.
+2025-10-01T17:38:54.2118609Z Container is running.
+2025-10-01T17:38:54.7323187Z Container start method finished after 2481 ms.
+2025-10-01T17:38:58.2628121Z Container has finished running with exit code: 1.
+2025-10-01T17:38:58.2630011Z Container is terminating. Grace period: 5 seconds.
+2025-10-01T17:38:58.2633001Z Stop and delete container. Retry count = 0
+2025-10-01T17:38:58.2634116Z Stopping container: 03aee29ae54b_tshla-auth-api.
+2025-10-01T17:38:58.2753718Z Deleting container: 03aee29ae54b_tshla-auth-api. Retry count = 0
+2025-10-01T17:38:59.1289340Z Container spec TerminationMessagePolicy  path 
+2025-10-01T17:38:59.1294201Z Container is terminated. Total time elapsed: 866 ms.
+2025-10-01T17:38:59.1295336Z Site container: tshla-auth-api terminated during site startup.
+2025-10-01T17:38:59.1297080Z Site startup probe failed after 4.3966828 seconds.
+2025-10-01T17:38:59.1347499Z Failed to start site. Revert by stopping site.
+2025-10-01T17:38:59.1356899Z Site: tshla-auth-api stopped.
+2025-10-01T17:38:59.3009345Z Site: tshla-auth-api will be blocked for 2 minutes till 10/01/2025 17:40:59
+2025-10-01T17:40:59.3016048Z Site: tshla-auth-api is unblocked.
+2025-10-01T17:43:16.7557139Z Container start method called.
+2025-10-01T17:43:16.7558409Z Establishing network.
+2025-10-01T17:43:16.7559630Z Pulling image: appsvc/node:20-lts_20250724.2.tuxprod.
+2025-10-01T17:43:18.0086335Z Container is starting.
+2025-10-01T17:43:18.0090137Z Establishing user namespace if not established already.
+2025-10-01T17:43:18.0092220Z Establishing network if not established already.
+2025-10-01T17:43:18.0095622Z Mounting volumes.
+2025-10-01T17:43:18.0102414Z Nested mountpoint 
+2025-10-01T17:43:18.0126643Z Nested mountpoint volatile/logs
+2025-10-01T17:43:18.0260467Z Nested mountpoint 
+2025-10-01T17:43:18.0304883Z Nested mountpoint 
+2025-10-01T17:43:18.0312477Z Nested mountpoint 
+2025-10-01T17:43:18.1279352Z Creating container.
+2025-10-01T17:43:18.1280820Z Creating pipes for streaming container io.
+2025-10-01T17:43:18.1282152Z Creating stdout named pipe at /podr/container/pipe/0f498bb8f29a_tshla-auth-api/stdout_1f5157020e1645feb780fa86aa58cb9c.
+2025-10-01T17:43:18.1284450Z Successfully created stdout named pipe at: /podr/container/pipe/0f498bb8f29a_tshla-auth-api/stdout_1f5157020e1645feb780fa86aa58cb9c.
+2025-10-01T17:43:18.1285667Z Opening named pipe /podr/container/pipe/0f498bb8f29a_tshla-auth-api/stdout_1f5157020e1645feb780fa86aa58cb9c for reading in non-blocking mode.
+2025-10-01T17:43:18.1287301Z Successfully opened named pipe: /podr/container/pipe/0f498bb8f29a_tshla-auth-api/stdout_1f5157020e1645feb780fa86aa58cb9c.
+2025-10-01T17:43:18.1288711Z Successfully removed non-blocking flag from /podr/container/pipe/0f498bb8f29a_tshla-auth-api/stdout_1f5157020e1645feb780fa86aa58cb9c.
+2025-10-01T17:43:18.1290127Z Creating stderr named pipe at /podr/container/pipe/0f498bb8f29a_tshla-auth-api/stderr_4cb1ff07056148bcbb587ad38b04b0df.
+2025-10-01T17:43:18.1292126Z Successfully created stderr named pipe at: /podr/container/pipe/0f498bb8f29a_tshla-auth-api/stderr_4cb1ff07056148bcbb587ad38b04b0df.
+2025-10-01T17:43:18.1293412Z Opening named pipe /podr/container/pipe/0f498bb8f29a_tshla-auth-api/stderr_4cb1ff07056148bcbb587ad38b04b0df for reading in non-blocking mode.
+2025-10-01T17:43:18.1294681Z Successfully opened named pipe: /podr/container/pipe/0f498bb8f29a_tshla-auth-api/stderr_4cb1ff07056148bcbb587ad38b04b0df.
+2025-10-01T17:43:18.1295971Z Successfully removed non-blocking flag from /podr/container/pipe/0f498bb8f29a_tshla-auth-api/stderr_4cb1ff07056148bcbb587ad38b04b0df.
+2025-10-01T17:43:18.1314945Z Creating container with image: appsvc/node:20-lts_20250724.2.tuxprod from registry: mcr.microsoft.com and fully qualified image name: mcr.microsoft.com/appsvc/node:20-lts_20250724.2.tuxprod
+2025-10-01T17:43:18.2608765Z Starting container: 0f498bb8f29a_tshla-auth-api.
+2025-10-01T17:43:18.2744391Z Starting watchers and probes.
+2025-10-01T17:43:18.2747422Z Starting metrics collection.
+2025-10-01T17:43:18.2783823Z Container is running.
+2025-10-01T17:43:18.2983571Z Container start method finished after 1542 ms.
+2025-10-01T17:43:22.5257068Z Container has finished running with exit code: 1.
+2025-10-01T17:43:22.5258605Z Container is terminating. Grace period: 5 seconds.
+2025-10-01T17:43:22.5264648Z Stop and delete container. Retry count = 0
+2025-10-01T17:43:22.5266120Z Stopping container: 0f498bb8f29a_tshla-auth-api.
+2025-10-01T17:43:22.5384619Z Deleting container: 0f498bb8f29a_tshla-auth-api. Retry count = 0
+2025-10-01T17:43:23.3820215Z Container spec TerminationMessagePolicy  path 
+2025-10-01T17:43:23.3822475Z Container is terminated. Total time elapsed: 856 ms.
+2025-10-01T17:43:23.3834271Z Site container: tshla-auth-api terminated during site startup.
+2025-10-01T17:43:23.3837061Z Site startup probe failed after 5.084662 seconds.
+2025-10-01T17:43:23.3856512Z Failed to start site. Revert by stopping site.
+2025-10-01T17:43:23.3860764Z Site: tshla-auth-api stopped.
+2025-10-01T17:44:35.8788403Z Container start method called.
+2025-10-01T17:44:35.8831164Z Establishing network.
+2025-10-01T17:44:35.8834152Z Pulling image: appsvc/node:20-lts_20250724.2.tuxprod.
+2025-10-01T17:44:36.9672252Z Container is starting.
+2025-10-01T17:44:36.9683354Z Establishing user namespace if not established already.
+2025-10-01T17:44:36.9688461Z Establishing network if not established already.
+2025-10-01T17:44:36.9693084Z Mounting volumes.
+2025-10-01T17:44:36.9704843Z Nested mountpoint 
+2025-10-01T17:44:36.9728922Z Nested mountpoint volatile/logs
+2025-10-01T17:44:36.9835387Z Nested mountpoint 
+2025-10-01T17:44:36.9843424Z Nested mountpoint 
+2025-10-01T17:44:36.9851587Z Nested mountpoint 
+2025-10-01T17:44:37.1165210Z Creating container.
+2025-10-01T17:44:37.1166800Z Creating pipes for streaming container io.
+2025-10-01T17:44:37.1168249Z Creating stdout named pipe at /podr/container/pipe/44fff27fdf09_tshla-auth-api/stdout_60c2f5b774844271b1dbea6de86a973b.
+2025-10-01T17:44:37.1170815Z Successfully created stdout named pipe at: /podr/container/pipe/44fff27fdf09_tshla-auth-api/stdout_60c2f5b774844271b1dbea6de86a973b.
+2025-10-01T17:44:37.1172128Z Opening named pipe /podr/container/pipe/44fff27fdf09_tshla-auth-api/stdout_60c2f5b774844271b1dbea6de86a973b for reading in non-blocking mode.
+2025-10-01T17:44:37.1173762Z Successfully opened named pipe: /podr/container/pipe/44fff27fdf09_tshla-auth-api/stdout_60c2f5b774844271b1dbea6de86a973b.
+2025-10-01T17:44:37.1175156Z Successfully removed non-blocking flag from /podr/container/pipe/44fff27fdf09_tshla-auth-api/stdout_60c2f5b774844271b1dbea6de86a973b.
+2025-10-01T17:44:37.1176485Z Creating stderr named pipe at /podr/container/pipe/44fff27fdf09_tshla-auth-api/stderr_cf483653e46f4cfeb7d5449bf688d958.
+2025-10-01T17:44:37.1178387Z Successfully created stderr named pipe at: /podr/container/pipe/44fff27fdf09_tshla-auth-api/stderr_cf483653e46f4cfeb7d5449bf688d958.
+2025-10-01T17:44:37.1179684Z Opening named pipe /podr/container/pipe/44fff27fdf09_tshla-auth-api/stderr_cf483653e46f4cfeb7d5449bf688d958 for reading in non-blocking mode.
+2025-10-01T17:44:37.1205082Z Successfully opened named pipe: /podr/container/pipe/44fff27fdf09_tshla-auth-api/stderr_cf483653e46f4cfeb7d5449bf688d958.
+2025-10-01T17:44:37.1210410Z Successfully removed non-blocking flag from /podr/container/pipe/44fff27fdf09_tshla-auth-api/stderr_cf483653e46f4cfeb7d5449bf688d958.
+2025-10-01T17:44:37.1218432Z Creating container with image: appsvc/node:20-lts_20250724.2.tuxprod from registry: mcr.microsoft.com and fully qualified image name: mcr.microsoft.com/appsvc/node:20-lts_20250724.2.tuxprod
+2025-10-01T17:44:37.2574629Z Starting container: 44fff27fdf09_tshla-auth-api.
+2025-10-01T17:44:37.2758151Z Starting watchers and probes.
+2025-10-01T17:44:37.2761071Z Starting metrics collection.
+2025-10-01T17:44:37.2767611Z Container is running.
+2025-10-01T17:44:37.3162074Z Container start method finished after 1434 ms.
+2025-10-01T17:44:41.3325699Z Container has finished running with exit code: 1.
+2025-10-01T17:44:41.3327556Z Container is terminating. Grace period: 5 seconds.
+2025-10-01T17:44:41.3334774Z Stop and delete container. Retry count = 0
+2025-10-01T17:44:41.3336422Z Stopping container: 44fff27fdf09_tshla-auth-api.
+2025-10-01T17:44:41.3494999Z Deleting container: 44fff27fdf09_tshla-auth-api. Retry count = 0
+2025-10-01T17:44:42.3942980Z Container spec TerminationMessagePolicy  path 
+2025-10-01T17:44:42.3947818Z Container is terminated. Total time elapsed: 1061 ms.
+2025-10-01T17:44:42.3951285Z Site container: tshla-auth-api terminated during site startup.
+2025-10-01T17:44:42.3957478Z Site startup probe failed after 5.0737065 seconds.
+2025-10-01T17:44:42.4041249Z Failed to start site. Revert by stopping site.
+2025-10-01T17:44:42.4051742Z Site: tshla-auth-api stopped.
+2025-10-01T17:47:24.6183973Z Container start method called.
+2025-10-01T17:47:24.6185748Z Establishing network.
+2025-10-01T17:47:24.6187196Z Pulling image: appsvc/node:20-lts_20250724.2.tuxprod.
+2025-10-01T17:47:25.8717135Z Container is starting.
+2025-10-01T17:47:25.8718743Z Establishing user namespace if not established already.
+2025-10-01T17:47:25.8719882Z Establishing network if not established already.
+2025-10-01T17:47:25.8721291Z Mounting volumes.
+2025-10-01T17:47:25.8745853Z Nested mountpoint 
+2025-10-01T17:47:25.8762346Z Nested mountpoint volatile/logs
+2025-10-01T17:47:25.8868572Z Nested mountpoint 
+2025-10-01T17:47:25.8875612Z Nested mountpoint 
+2025-10-01T17:47:25.9065032Z Nested mountpoint 
+2025-10-01T17:47:25.9849590Z Creating container.
+2025-10-01T17:47:25.9851006Z Creating pipes for streaming container io.
+2025-10-01T17:47:25.9852149Z Creating stdout named pipe at /podr/container/pipe/4ae6e01dcd66_tshla-auth-api/stdout_777f38dfb6ae45a3a2999f83a4836573.
+2025-10-01T17:47:25.9873744Z Successfully created stdout named pipe at: /podr/container/pipe/4ae6e01dcd66_tshla-auth-api/stdout_777f38dfb6ae45a3a2999f83a4836573.
+2025-10-01T17:47:25.9875203Z Opening named pipe /podr/container/pipe/4ae6e01dcd66_tshla-auth-api/stdout_777f38dfb6ae45a3a2999f83a4836573 for reading in non-blocking mode.
+2025-10-01T17:47:25.9876831Z Successfully opened named pipe: /podr/container/pipe/4ae6e01dcd66_tshla-auth-api/stdout_777f38dfb6ae45a3a2999f83a4836573.
+2025-10-01T17:47:25.9878217Z Successfully removed non-blocking flag from /podr/container/pipe/4ae6e01dcd66_tshla-auth-api/stdout_777f38dfb6ae45a3a2999f83a4836573.
+2025-10-01T17:47:25.9879486Z Creating stderr named pipe at /podr/container/pipe/4ae6e01dcd66_tshla-auth-api/stderr_03ec5e9766d54bfa97a322e39f030797.
+2025-10-01T17:47:25.9881301Z Successfully created stderr named pipe at: /podr/container/pipe/4ae6e01dcd66_tshla-auth-api/stderr_03ec5e9766d54bfa97a322e39f030797.
+2025-10-01T17:47:25.9882413Z Opening named pipe /podr/container/pipe/4ae6e01dcd66_tshla-auth-api/stderr_03ec5e9766d54bfa97a322e39f030797 for reading in non-blocking mode.
+2025-10-01T17:47:25.9883671Z Successfully opened named pipe: /podr/container/pipe/4ae6e01dcd66_tshla-auth-api/stderr_03ec5e9766d54bfa97a322e39f030797.
+2025-10-01T17:47:25.9884693Z Successfully removed non-blocking flag from /podr/container/pipe/4ae6e01dcd66_tshla-auth-api/stderr_03ec5e9766d54bfa97a322e39f030797.
+2025-10-01T17:47:25.9885867Z Creating container with image: appsvc/node:20-lts_20250724.2.tuxprod from registry: mcr.microsoft.com and fully qualified image name: mcr.microsoft.com/appsvc/node:20-lts_20250724.2.tuxprod
+2025-10-01T17:47:26.1642924Z Starting container: 4ae6e01dcd66_tshla-auth-api.
+2025-10-01T17:47:26.1828954Z Starting watchers and probes.
+2025-10-01T17:47:26.1877111Z Starting metrics collection.
+2025-10-01T17:47:26.1881486Z Container is running.
+2025-10-01T17:47:26.9270771Z Container start method finished after 2308 ms.
+2025-10-01T17:47:30.4407720Z Container has finished running with exit code: 1.
+2025-10-01T17:47:30.4409432Z Container is terminating. Grace period: 5 seconds.
+2025-10-01T17:47:30.4412715Z Stop and delete container. Retry count = 0
+2025-10-01T17:47:30.4413821Z Stopping container: 4ae6e01dcd66_tshla-auth-api.
+2025-10-01T17:47:30.4533918Z Deleting container: 4ae6e01dcd66_tshla-auth-api. Retry count = 0
+2025-10-01T17:47:31.2867898Z Container spec TerminationMessagePolicy  path 
+2025-10-01T17:47:31.2870890Z Container is terminated. Total time elapsed: 845 ms.
+2025-10-01T17:47:31.2873993Z Site container: tshla-auth-api terminated during site startup.
+2025-10-01T17:47:31.2893433Z Site startup probe failed after 4.3605287 seconds.
+2025-10-01T17:47:31.2923031Z Failed to start site. Revert by stopping site.
+2025-10-01T17:47:31.2965727Z Site: tshla-auth-api stopped.

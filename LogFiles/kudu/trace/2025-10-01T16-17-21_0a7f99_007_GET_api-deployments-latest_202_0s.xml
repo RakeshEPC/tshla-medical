@@ -1,0 +1,9 @@
+<step title="Incoming Request" date="2025-10-01T16:17:21.207" instance="0a7f99" url="/api/deployments/latest?deployer=GITHUB_ZIP_DEPLOY&amp;time=2025-10-01_16-17-15Z" method="GET" type="request" pid="821,1,19" Host="tshla-auth-api.scm.azurewebsites.net" User-Agent="GITHUBACTIONS_DeployWebAppToAzure_afb48cf46bb273f8cf0f932507629ca33d4b3ee6a37850bde824a1e7535efcc9" Authorization="Bas..." Content-Type="application/json; charset=utf-8" Cookie="ARRAffinity=0a7f999574deca4bd62582ea97de0fa90a88f0309b81207992f608cdcc4a09c1;Path=/;HttpOnly;Secure;Domain=tshla-auth-api.scm.azurewebsites.net; ARRAffinitySameSite=0a7f999574deca4bd62582ea97de0fa90a88f0309b81207992f608cdcc4a09c1;Path=/;HttpOnly;SameSite=None;Secure;Domain=tshla-auth-api.scm.azurewebsites.net" Content-Length="0" X-ARR-LOG-ID="8b3d4c9f-5392-45c2-a79c-f3e6f57dbbfa" CLIENT-IP="104.209.11.22:39985" X-SITE-DEPLOYMENT-ID="tshla-auth-api" WAS-DEFAULT-HOSTNAME="tshla-auth-api.scm.azurewebsites.net" X-Forwarded-Proto="https" X-AppService-Proto="https" X-Forwarded-TlsVersion="1.3" X-WAWS-Unencoded-URL="/api/deployments/latest?deployer=GITHUB_ZIP_DEPLOY&amp;time=2025-10-01_16-17-15Z" X-Client-IP="104.209.11.22" X-Client-Port="39985" >
+  <step title="Cleanup Xml Logs" date="2025-10-01T16:17:21.225" /><!-- duration: 8ms -->
+  <step title="DeploymentService.GetResult" date="2025-10-01T16:17:21.248" >
+    <step title="DeploymentService.GetLatestDeployment" date="2025-10-01T16:17:21.251" >
+      <step title="DeploymentManager.GetResults" date="2025-10-01T16:17:21.254" /><!-- duration: 204ms -->
+    </step><!-- duration: 210ms -->
+  </step><!-- duration: 220ms -->
+  <step title="Outgoing response" date="2025-10-01T16:17:21.474" type="response" statusCode="202" statusText="Accepted" /><!-- duration: 6ms -->
+</step><!-- duration: 277ms -->

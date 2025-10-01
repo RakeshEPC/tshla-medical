@@ -1,0 +1,20 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "/Users/rakeshpatel/Desktop/tshla-medical/logs/.b1be895f134e6c82f554ad8848d7ffb3a1322b0a-audit.json",
+    "files": [
+        {
+            "date": 1758128122852,
+            "name": "/Users/rakeshpatel/Desktop/tshla-medical/logs/error-2025-09-17.log",
+            "hash": "59ce66e17fd36b6cf0180b8ea53663d32fb2761d29284848ace81f86b0636388"
+        },
+        {
+            "date": 1758201113283,
+            "name": "/Users/rakeshpatel/Desktop/tshla-medical/logs/error-2025-09-18.log",
+            "hash": "a008dbc85f282a664dd1a1e49494b20b94cf10ff5c37f86c00eab16028b169cc"
+        }
+    ],
+    "hashType": "sha256"
+}

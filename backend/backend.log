@@ -1,0 +1,45 @@
+INFO:     Uvicorn running on http://0.0.0.0:9001 (Press CTRL+C to quit)
+INFO:     Started parent process [70650]
+INFO:     Started server process [70665]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Started server process [70668]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Started server process [70667]
+INFO:     Waiting for application startup.
+INFO:     Started server process [70666]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:50427 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55033 - "OPTIONS /api/early-access HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55033 - "POST /api/early-access HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:61820 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61866 - "POST /api/early-access HTTP/1.1" 404 Not Found
+INFO:     Received SIGTERM, exiting.
+INFO:     Terminated child process [70665]
+INFO:     Terminated child process [70666]
+INFO:     Terminated child process [70667]
+INFO:     Terminated child process [70668]
+INFO:     Shutting down
+INFO:     Waiting for child process [70665]
+INFO:     Shutting down
+INFO:     Shutting down
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [70665]
+INFO:     Waiting for child process [70666]
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [70667]
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [70666]
+INFO:     Waiting for child process [70667]
+INFO:     Waiting for child process [70668]
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [70668]
+INFO:     Stopping parent process [70650]

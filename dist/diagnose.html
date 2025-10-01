@@ -1,0 +1,98 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Diagnose React App</title>
+    <style>
+      body {
+        font-family: monospace;
+        padding: 20px;
+      }
+      .error {
+        color: red;
+        font-weight: bold;
+      }
+      .success {
+        color: green;
+      }
+      pre {
+        background: #f0f0f0;
+        padding: 10px;
+        overflow: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>React App Diagnostic</h1>
+    <div id="status"></div>
+    <h2>Console Output:</h2>
+    <pre id="console"></pre>
+
+    <h2>Test Loading App:</h2>
+    <button onclick="testApp()">Load App in Hidden Frame</button>
+    <iframe id="app-frame" style="display: none"></iframe>
+
+    <script>
+      const statusDiv = document.getElementById('status');
+      const consoleDiv = document.getElementById('console');
+
+      // Capture all console messages
+      const originalLog = console.log;
+      const originalError = console.error;
+      const originalWarn = console.warn;
+
+      console.log = function (...args) {
+        consoleDiv.textContent += '[LOG] ' + args.join(' ') + '\n';
+        originalLog.apply(console, args);
+      };
+
+      console.error = function (...args) {
+        consoleDiv.textContent += '[ERROR] ' + args.join(' ') + '\n';
+        originalError.apply(console, args);
+      };
+
+      console.warn = function (...args) {
+        consoleDiv.textContent += '[WARN] ' + args.join(' ') + '\n';
+        originalWarn.apply(console, args);
+      };
+
+      // Add error handler
+      window.addEventListener('error', e => {
+        consoleDiv.textContent +=
+          '[GLOBAL ERROR] ' + e.message + ' at ' + e.filename + ':' + e.lineno + '\n';
+      });
+
+      function testApp() {
+        statusDiv.innerHTML = '<span class="success">Testing app load...</span>';
+        const iframe = document.getElementById('app-frame');
+        iframe.src = 'http://localhost:5173/';
+
+        // Try to access iframe after load
+        iframe.onload = function () {
+          try {
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+            const root = iframeDoc.getElementById('root');
+            if (root && root.innerHTML.trim() === '') {
+              statusDiv.innerHTML =
+                '<span class="error">React app not rendering - root div is empty</span>';
+
+              // Try to get console from iframe
+              if (iframe.contentWindow) {
+                const iframeConsole = iframe.contentWindow.console;
+                consoleDiv.textContent += '\n[IFRAME CONSOLE CHECK]\n';
+              }
+            } else if (root) {
+              statusDiv.innerHTML = '<span class="success">App loaded! Root has content.</span>';
+              consoleDiv.textContent +=
+                '[ROOT CONTENT] ' + root.innerHTML.substring(0, 100) + '...\n';
+            }
+          } catch (e) {
+            consoleDiv.textContent += '[IFRAME ACCESS ERROR] ' + e.message + '\n';
+          }
+        };
+      }
+
+      // Auto-test on load
+      setTimeout(testApp, 1000);
+    </script>
+  </body>
+</html>
