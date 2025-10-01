@@ -83,13 +83,18 @@ class EnvironmentValidator {
     };
 
     // Critical security check: No hardcoded API keys allowed
+    // Only Supabase is required - Azure services are optional (can use OpenAI/Deepgram instead)
     const requiredVars = {
+      VITE_SUPABASE_URL: 'Supabase URL',
+      VITE_SUPABASE_ANON_KEY: 'Supabase anonymous key',
+    };
+
+    // Optional Azure services (fallback to OpenAI/Deepgram if not configured)
+    const optionalAzureVars = {
       VITE_AZURE_OPENAI_ENDPOINT: 'Azure OpenAI endpoint',
       VITE_AZURE_OPENAI_KEY: 'Azure OpenAI API key',
       VITE_AZURE_SPEECH_REGION: 'Azure Speech region',
       VITE_ELEVENLABS_API_KEY: 'ElevenLabs API key',
-      VITE_SUPABASE_URL: 'Supabase URL',
-      VITE_SUPABASE_ANON_KEY: 'Supabase anonymous key',
     };
 
     // Secure authentication credentials (optional but recommended)
@@ -163,20 +168,22 @@ class EnvironmentValidator {
 
     return {
       azureOpenAI: {
-        endpoint: import.meta.env.VITE_AZURE_OPENAI_ENDPOINT,
-        apiKey: import.meta.env.VITE_AZURE_OPENAI_KEY,
+        endpoint: import.meta.env.VITE_AZURE_OPENAI_ENDPOINT || '',
+        apiKey: import.meta.env.VITE_AZURE_OPENAI_KEY || '',
         deployment: import.meta.env.VITE_AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
         apiVersion: import.meta.env.VITE_AZURE_OPENAI_API_VERSION || '2024-02-01',
       },
       azureSpeech: {
-        region: import.meta.env.VITE_AZURE_SPEECH_REGION,
+        region: import.meta.env.VITE_AZURE_SPEECH_REGION || '',
         endpoint:
           import.meta.env.VITE_AZURE_SPEECH_ENDPOINT ||
-          `https://${import.meta.env.VITE_AZURE_SPEECH_REGION}.tts.speech.microsoft.com/`,
+          (import.meta.env.VITE_AZURE_SPEECH_REGION
+            ? `https://${import.meta.env.VITE_AZURE_SPEECH_REGION}.tts.speech.microsoft.com/`
+            : ''),
         apiKey: import.meta.env.VITE_AZURE_SPEECH_KEY || '',
       },
       elevenlabs: {
-        apiKey: import.meta.env.VITE_ELEVENLABS_API_KEY,
+        apiKey: import.meta.env.VITE_ELEVENLABS_API_KEY || '',
       },
       supabase: {
         url: import.meta.env.VITE_SUPABASE_URL,
