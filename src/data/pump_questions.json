@@ -1,0 +1,12 @@
+[
+  { "label": "Control Preference", "help": "0 = fully automated; 10 = hands-on control" },
+  { "label": "Target Adjustability", "help": "0 = fixed target OK; 10 = wants custom targets" },
+  { "label": "App Control", "help": "0 = device only; 10 = strong phone app control" },
+  { "label": "Carb Counting", "help": "0 = prefers estimate; 10 = comfortable counting" },
+  { "label": "Automation Trust", "help": "0 = low trust; 10 = very high trust in algorithms" },
+  { "label": "Tubing Preference", "help": "0 = prefer tubed; 10 = prefer tubeless" },
+  { "label": "Exercise Mode", "help": "0 = rarely need; 10 = often need exercise modes" },
+  { "label": "Visibility", "help": "0 = ultra-discreet; 10 = visibility is fine" },
+  { "label": "Clinic Support", "help": "0 = low need; 10 = strong local support needed" },
+  { "label": "CGM Use", "help": "0 = not using CGM; 10 = active daily CGM use" }
+]

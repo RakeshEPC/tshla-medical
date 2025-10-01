@@ -12,6 +12,7 @@ RUN npm ci --only=production
 
 # Copy application files
 COPY enhanced-schedule-notes-api.js ./
+COPY logger.js ./
 COPY services/ ./services/
 COPY utils/ ./utils/
 

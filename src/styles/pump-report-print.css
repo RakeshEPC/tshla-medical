@@ -1,0 +1,527 @@
+/* TSHLA Medical - Pump Report Print Styles */
+
+/* Base Styles for Screen and Print */
+.report-container {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  line-height: 1.6;
+  color: #333;
+  background: #fff;
+  margin: 0;
+  padding: 0;
+}
+
+.report-content {
+  max-width: 8.5in;
+  margin: 0 auto;
+  padding: 20px;
+  background: white;
+}
+
+/* Print Controls - Hidden when printing */
+.print-controls {
+  background: #f8f9fa;
+  padding: 15px 20px;
+  border-bottom: 1px solid #e9ecef;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.print-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.back-button, .print-button, .save-button, .action-button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.back-button {
+  background: #6c757d;
+  color: white;
+}
+
+.back-button:hover {
+  background: #5a6268;
+}
+
+.print-button {
+  background: #2563eb;
+  color: white;
+}
+
+.print-button:hover {
+  background: #1d4ed8;
+}
+
+.save-button {
+  background: #059669;
+  color: white;
+}
+
+.save-button:hover {
+  background: #047857;
+}
+
+.action-button {
+  background: #2563eb;
+  color: white;
+  padding: 12px 24px;
+  font-size: 16px;
+}
+
+.action-button:hover {
+  background: #1d4ed8;
+}
+
+/* Loading and Error States */
+.loading-message, .error-message {
+  text-align: center;
+  padding: 60px 20px;
+}
+
+.error-message h2 {
+  color: #dc3545;
+  margin-bottom: 15px;
+}
+
+/* Header Section */
+.report-header {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: white;
+  padding: 30px 40px;
+  margin: -20px -20px 30px -20px;
+  border-radius: 0;
+}
+
+.header-content h1 {
+  font-size: 28px;
+  font-weight: bold;
+  margin: 0 0 8px 0;
+  text-align: center;
+}
+
+.header-content h2 {
+  font-size: 16px;
+  font-weight: normal;
+  margin: 0 0 8px 0;
+  text-align: center;
+  opacity: 0.9;
+}
+
+.report-date {
+  text-align: center;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+/* Section Styling */
+.section-title {
+  color: #2563eb;
+  font-size: 18px;
+  font-weight: bold;
+  margin: 30px 0 15px 0;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.benefits-title {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  color: white;
+  padding: 15px 20px;
+  margin: 30px -20px 15px -20px;
+  border-radius: 0;
+  border-bottom: none;
+  text-align: center;
+}
+
+/* Preferences Section */
+.preferences-section {
+  margin-bottom: 25px;
+}
+
+.preferences-group {
+  margin-bottom: 20px;
+}
+
+.preferences-group h3 {
+  color: #374151;
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+.preferences-list {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+
+.preferences-list li {
+  padding: 4px 0 4px 20px;
+  position: relative;
+  font-size: 13px;
+}
+
+.preferences-list li::before {
+  content: "•";
+  color: #059669;
+  font-weight: bold;
+  position: absolute;
+  left: 0;
+}
+
+/* Recommendation Section */
+.recommendation-section {
+  margin-bottom: 25px;
+}
+
+.top-recommendation {
+  background: #f8fafc;
+  padding: 20px;
+  border-radius: 8px;
+  border-left: 4px solid #2563eb;
+  margin-bottom: 20px;
+}
+
+.pump-name {
+  color: #059669;
+  font-size: 22px;
+  font-weight: bold;
+  margin: 0 0 8px 0;
+}
+
+.match-score {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 15px;
+}
+
+.reasons-group h4 {
+  color: #2563eb;
+  font-size: 14px;
+  font-weight: bold;
+  margin: 15px 0 8px 0;
+}
+
+.reasons-list {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+
+.reasons-list li {
+  padding: 3px 0 3px 20px;
+  position: relative;
+  font-size: 13px;
+}
+
+.reasons-list li::before {
+  content: "•";
+  color: #2563eb;
+  font-weight: bold;
+  position: absolute;
+  left: 0;
+}
+
+/* Alternatives */
+.alternatives-section {
+  margin-top: 20px;
+}
+
+.alternatives-section h4 {
+  color: #2563eb;
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 12px;
+}
+
+.alternative-item {
+  background: #f1f5f9;
+  padding: 12px;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.alternative-item strong {
+  color: #374151;
+}
+
+.alternative-item p {
+  margin: 4px 0 0 0;
+  color: #6b7280;
+}
+
+/* Q&A Sections */
+.qa-section {
+  margin-bottom: 25px;
+}
+
+.qa-item {
+  margin-bottom: 15px;
+  background: #f9fafb;
+  padding: 15px;
+  border-radius: 6px;
+}
+
+.question {
+  font-size: 13px;
+  margin-bottom: 8px;
+  color: #374151;
+}
+
+.answer {
+  font-size: 13px;
+  color: #6b7280;
+  padding-left: 10px;
+}
+
+.question strong, .answer strong {
+  color: #2563eb;
+}
+
+/* Benefits Section */
+.benefits-section {
+  margin-bottom: 25px;
+}
+
+.benefits-list {
+  list-style: none;
+  padding-left: 0;
+  margin: 0 0 25px 0;
+}
+
+.benefit-item {
+  padding: 8px 0 8px 25px;
+  position: relative;
+  font-size: 14px;
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+
+.benefit-item::before {
+  content: "•";
+  color: #059669;
+  font-weight: bold;
+  font-size: 16px;
+  position: absolute;
+  left: 0;
+}
+
+.encouragement {
+  text-align: center;
+  background: #f0f9ff;
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid #e0f2fe;
+}
+
+.ready-text {
+  color: #2563eb;
+  font-weight: bold;
+  font-size: 16px;
+  margin: 0 0 8px 0;
+}
+
+.share-text {
+  color: #374151;
+  font-size: 14px;
+  margin: 0;
+}
+
+/* Footer */
+.report-footer {
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.footer-content {
+  text-align: center;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.footer-content p {
+  margin: 4px 0;
+}
+
+/* Page Break Controls */
+.page-break {
+  page-break-before: always;
+  break-before: page;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+/* PRINT STYLES */
+@media print {
+  /* Hide non-print elements */
+  .no-print, .print-controls {
+    display: none !important;
+  }
+
+  /* Reset page margins */
+  @page {
+    margin: 0.75in;
+    size: letter;
+  }
+
+  /* Reset root styles for print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    background: white !important;
+  }
+
+  .report-container {
+    margin: 0;
+    padding: 0;
+    background: white !important;
+  }
+
+  .report-content {
+    margin: 0;
+    padding: 0;
+    max-width: none;
+    background: white !important;
+  }
+
+  /* Header adjustments for print */
+  .report-header {
+    background: #2563eb !important;
+    color: white !important;
+    margin: 0 0 20px 0;
+    padding: 20px;
+    break-inside: avoid;
+  }
+
+  /* Section spacing for print */
+  .section-title {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  .preferences-section,
+  .recommendation-section,
+  .qa-section,
+  .benefits-section {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  /* Benefits header for print */
+  .benefits-title {
+    background: #059669 !important;
+    color: white !important;
+    margin: 20px 0 15px 0;
+    padding: 12px 15px;
+    break-inside: avoid;
+  }
+
+  /* Improve text contrast for print */
+  .top-recommendation {
+    background: #f8f9fa !important;
+    border-left: 3px solid #333 !important;
+  }
+
+  .qa-item {
+    background: #f5f5f5 !important;
+    border: 1px solid #ddd !important;
+  }
+
+  .encouragement {
+    background: #f0f0f0 !important;
+    border: 1px solid #ccc !important;
+  }
+
+  /* Ensure proper line breaks */
+  .qa-item, .benefit-item, .alternative-item {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Footer always at bottom */
+  .report-footer {
+    break-before: auto;
+    margin-top: 30px;
+  }
+
+  /* Force page breaks where specified */
+  .page-break {
+    page-break-before: always !important;
+    break-before: page !important;
+    display: block !important;
+    height: 0 !important;
+  }
+
+  /* Adjust font sizes for print readability */
+  .header-content h1 {
+    font-size: 24px;
+  }
+
+  .pump-name {
+    font-size: 20px;
+  }
+
+  .section-title {
+    font-size: 16px;
+  }
+
+  .benefits-title {
+    font-size: 16px;
+  }
+}
+
+/* Responsive adjustments for smaller screens */
+@media screen and (max-width: 768px) {
+  .report-content {
+    padding: 15px;
+  }
+
+  .report-header {
+    margin: -15px -15px 20px -15px;
+    padding: 20px 15px;
+  }
+
+  .benefits-title {
+    margin: 20px -15px 15px -15px;
+  }
+
+  .print-controls {
+    flex-direction: column;
+    gap: 10px;
+    align-items: stretch;
+  }
+
+  .print-actions {
+    justify-content: center;
+  }
+
+  .header-content h1 {
+    font-size: 24px;
+  }
+
+  .pump-name {
+    font-size: 20px;
+  }
+}

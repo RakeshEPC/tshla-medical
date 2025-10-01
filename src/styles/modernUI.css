@@ -1,0 +1,496 @@
+/* Modern UI Design System for TSHLA Medical */
+
+/* ====== Design Tokens ====== */
+:root {
+  /* Primary Colors */
+  --primary-blue: #3b82f6;
+  --primary-purple: #8b5cf6;
+  --primary-gradient: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+
+  /* Semantic Colors */
+  --success: #10b981;
+  --success-light: #34d399;
+  --danger: #ef4444;
+  --danger-light: #f87171;
+  --warning: #f59e0b;
+  --info: #06b6d4;
+
+  /* Neutral Colors */
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-400: #9ca3af;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-700: #374151;
+  --gray-800: #1f2937;
+  --gray-900: #111827;
+
+  /* Glass Effect */
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.18);
+  --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+  --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+  --shadow-glow: 0 0 50px rgba(59, 130, 246, 0.5);
+
+  /* Animations */
+  --transition-fast: 150ms ease;
+  --transition-base: 250ms ease;
+  --transition-slow: 350ms ease;
+
+  /* Border Radius */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+  --radius-full: 9999px;
+}
+
+/* ====== Animated Background ====== */
+.animated-gradient-bg {
+  background: linear-gradient(-45deg, #667eea, #764ba2, #f093fb, #f5576c, #4facfe, #00f2fe);
+  background-size: 400% 400%;
+  animation: gradientShift 15s ease infinite;
+}
+
+.subtle-gradient-bg {
+  background: linear-gradient(
+    135deg,
+    #667eea 0%,
+    #764ba2 25%,
+    #f093fb 50%,
+    #4facfe 75%,
+    #00f2fe 100%
+  );
+  background-size: 200% 200%;
+  animation: subtleShift 20s ease infinite;
+}
+
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes subtleShift {
+  0% {
+    background-position: 0% 0%;
+  }
+  50% {
+    background-position: 100% 100%;
+  }
+  100% {
+    background-position: 0% 0%;
+  }
+}
+
+/* ====== Glass Morphism Effects ====== */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+.glass-card-dark {
+  background: rgba(17, 24, 39, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: var(--radius-xl);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.glass-button {
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  transition: all var(--transition-base);
+}
+
+.glass-button:hover {
+  background: rgba(255, 255, 255, 0.35);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+/* ====== Modern Input Styles ====== */
+.modern-input {
+  background: rgba(255, 255, 255, 0.9);
+  border: 2px solid transparent;
+  border-radius: var(--radius-lg);
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  transition: all var(--transition-base);
+  box-shadow: var(--shadow-sm);
+}
+
+.modern-input:focus {
+  outline: none;
+  border-color: var(--primary-blue);
+  background: white;
+  box-shadow:
+    0 0 0 3px rgba(59, 130, 246, 0.1),
+    var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.floating-label-container {
+  position: relative;
+}
+
+.floating-label {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  transition: all var(--transition-base);
+  pointer-events: none;
+  color: var(--gray-500);
+  background: white;
+  padding: 0 0.25rem;
+}
+
+.modern-input:focus ~ .floating-label,
+.modern-input:not(:placeholder-shown) ~ .floating-label {
+  top: 0;
+  font-size: 0.75rem;
+  color: var(--primary-blue);
+}
+
+/* ====== Button Styles ====== */
+.btn-modern {
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius-lg);
+  font-weight: 600;
+  transition: all var(--transition-base);
+  position: relative;
+  overflow: hidden;
+  border: none;
+  cursor: pointer;
+}
+
+.btn-modern::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition:
+    width 0.6s,
+    height 0.6s;
+}
+
+.btn-modern:hover::before {
+  width: 300px;
+  height: 300px;
+}
+
+.btn-primary {
+  background: var(--primary-gradient);
+  color: white;
+  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 25px rgba(59, 130, 246, 0.4);
+}
+
+.btn-success {
+  background: linear-gradient(135deg, var(--success) 0%, var(--success-light) 100%);
+  color: white;
+  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, var(--danger) 0%, var(--danger-light) 100%);
+  color: white;
+  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+}
+
+/* ====== Pulse Animation ====== */
+.pulse-animation {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.pulse-ring {
+  animation: pulseRing 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulseRing {
+  0% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 20px rgba(59, 130, 246, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+  }
+}
+
+/* ====== Recording Button ====== */
+.recording-button {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  position: relative;
+  transition: all var(--transition-base);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.recording-button.active {
+  animation: recordPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes recordPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 20px rgba(239, 68, 68, 0);
+    transform: scale(1.05);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    transform: scale(1);
+  }
+}
+
+/* ====== Card Animations ====== */
+.card-hover {
+  transition: all var(--transition-base);
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-2xl);
+}
+
+/* ====== Loading States ====== */
+.skeleton {
+  animation: skeleton-loading 1.5s linear infinite alternate;
+}
+
+@keyframes skeleton-loading {
+  0% {
+    background-color: hsl(200, 20%, 95%);
+  }
+  100% {
+    background-color: hsl(200, 20%, 85%);
+  }
+}
+
+.spinner {
+  border: 3px solid rgba(59, 130, 246, 0.1);
+  border-radius: 50%;
+  border-top: 3px solid var(--primary-blue);
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* ====== Fade Animations ====== */
+.fade-in {
+  animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.slide-in-right {
+  animation: slideInRight 0.3s ease-out;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* ====== Modern Scrollbar ====== */
+.modern-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.modern-scrollbar::-webkit-scrollbar-track {
+  background: var(--gray-100);
+  border-radius: var(--radius-full);
+}
+
+.modern-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--primary-gradient);
+  border-radius: var(--radius-full);
+}
+
+.modern-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-purple);
+}
+
+/* ====== Glow Effects ====== */
+.glow-blue {
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+}
+
+.glow-purple {
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.5);
+}
+
+.glow-success {
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.5);
+}
+
+/* ====== Text Gradients ====== */
+.text-gradient {
+  background: var(--primary-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ====== Responsive Utilities ====== */
+@media (max-width: 768px) {
+  .glass-card {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  .recording-button {
+    width: 60px;
+    height: 60px;
+  }
+}
+
+/* ====== Blob Animations ====== */
+@keyframes blob {
+  0% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  33% {
+    transform: translate(30px, -50px) scale(1.1);
+  }
+  66% {
+    transform: translate(-20px, 20px) scale(0.9);
+  }
+  100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+}
+
+.animate-blob {
+  animation: blob 7s infinite;
+}
+
+.animation-delay-2000 {
+  animation-delay: 2s;
+}
+
+.animation-delay-4000 {
+  animation-delay: 4s;
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  10%,
+  30%,
+  50%,
+  70%,
+  90% {
+    transform: translateX(-2px);
+  }
+  20%,
+  40%,
+  60%,
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+.animate-shake {
+  animation: shake 0.5s;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+/* ====== Dark Mode Support ====== */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --glass-bg: rgba(17, 24, 39, 0.7);
+    --glass-border: rgba(255, 255, 255, 0.1);
+  }
+}

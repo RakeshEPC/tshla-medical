@@ -1,0 +1,3770 @@
+/**
+ * Standard Templates for All Doctors
+ * These templates are provided by default to all doctors as examples
+ */
+
+import type { DoctorTemplate } from '../services/doctorProfile.service';
+
+export const standardTemplates: Omit<
+  DoctorTemplate,
+  'id' | 'createdAt' | 'updatedAt' | 'usageCount'
+>[] = [
+  {
+    name: 'Comprehensive SOAP Note',
+    description: 'Standard SOAP format for general visits',
+    visitType: 'general',
+    isDefault: true,
+    sections: {
+      chiefComplaint: {
+        title: 'Chief Complaint',
+        aiInstructions:
+          'Extract the primary reason for the visit. Be concise - typically 1-2 sentences describing the main problem or symptom that brought the patient in today.',
+        required: true,
+        order: 1,
+        keywords: ['presents with', 'complains of', 'here for', 'follow-up'],
+        format: 'paragraph',
+        exampleText:
+          'Patient presents with 3-day history of progressive shortness of breath and chest tightness.',
+      },
+      historyOfPresentIllness: {
+        title: 'History of Present Illness',
+        aiInstructions:
+          'Provide a detailed narrative of the current illness including: onset, location, duration, character, aggravating/relieving factors, associated symptoms, and treatments tried. Use chronological order.',
+        required: true,
+        order: 2,
+        keywords: ['started', 'began', 'noticed', 'worse', 'better', 'tried'],
+        format: 'paragraph',
+        exampleText:
+          'The patient reports symptoms began 3 days ago with mild dyspnea on exertion...',
+      },
+      reviewOfSystems: {
+        title: 'Review of Systems',
+        aiInstructions:
+          "Document pertinent positives and negatives for each system reviewed. Group by system (Constitutional, HEENT, Cardiovascular, Respiratory, etc.). Use 'Denies' for negative findings.",
+        required: false,
+        order: 3,
+        keywords: ['denies', 'reports', 'positive for', 'negative for'],
+        format: 'bullets',
+        exampleText:
+          '• Constitutional: Denies fever, chills, weight loss\n• Cardiovascular: Positive for chest tightness, denies palpitations',
+      },
+      pastMedicalHistory: {
+        title: 'Past Medical History',
+        aiInstructions:
+          'List all chronic medical conditions, past surgeries, and significant past illnesses. Include year of diagnosis when mentioned. List each condition on a separate line.',
+        required: true,
+        order: 4,
+        keywords: ['history of', 'diagnosed', 'surgery', 'hospitalization'],
+        format: 'bullets',
+        exampleText:
+          '• Type 2 Diabetes Mellitus (2018)\n• Hypertension (2015)\n• Appendectomy (2010)',
+      },
+      medications: {
+        title: 'Medications',
+        aiInstructions:
+          'List all current medications with dosages, frequency, and route. Include both prescription and OTC medications. Format: Drug name dose, frequency, route.',
+        required: true,
+        order: 5,
+        keywords: ['taking', 'mg', 'daily', 'twice', 'PRN'],
+        format: 'bullets',
+        exampleText:
+          '• Metformin 1000mg, twice daily, PO\n• Lisinopril 10mg, daily, PO\n• Aspirin 81mg, daily, PO',
+      },
+      allergies: {
+        title: 'Allergies',
+        aiInstructions:
+          "List drug allergies and reactions. If no known allergies, state 'NKDA'. Include reaction type if mentioned.",
+        required: true,
+        order: 6,
+        keywords: ['allergic', 'reaction', 'NKDA', 'intolerance'],
+        format: 'paragraph',
+        exampleText: 'Penicillin (rash), Sulfa drugs (anaphylaxis)',
+      },
+      socialHistory: {
+        title: 'Social History',
+        aiInstructions:
+          'Document tobacco use (pack-years), alcohol use, drug use, occupation, living situation, and exercise habits. Be specific with quantities and duration.',
+        required: false,
+        order: 7,
+        keywords: ['smokes', 'drinks', 'tobacco', 'alcohol', 'drugs', 'works', 'lives'],
+        format: 'paragraph',
+        exampleText:
+          'Former smoker (20 pack-year history, quit 2019). Social alcohol use. Works as accountant. Lives with spouse.',
+      },
+      familyHistory: {
+        title: 'Family History',
+        aiInstructions:
+          'List significant family medical history including relationship and condition. Focus on first-degree relatives and hereditary conditions.',
+        required: false,
+        order: 8,
+        keywords: ['mother', 'father', 'sister', 'brother', 'family'],
+        format: 'bullets',
+        exampleText:
+          '• Father: CAD, MI at age 65\n• Mother: Type 2 DM, HTN\n• Sister: Breast cancer',
+      },
+      physicalExam: {
+        title: 'Physical Examination',
+        aiInstructions:
+          'Document vital signs first, then examination findings by system. Include pertinent positives and negatives. Be specific with measurements and descriptions.',
+        required: true,
+        order: 9,
+        keywords: ['BP', 'HR', 'temp', 'appears', 'examination', 'palpation', 'auscultation'],
+        format: 'paragraph',
+        exampleText:
+          'Vitals: BP 142/88, HR 92, Temp 98.6°F, RR 18, SpO2 96% on RA\nGeneral: Alert, oriented, in mild distress\nHEENT: PERRL, EOMI...',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'List diagnoses being addressed today with ICD-10 codes if available. Number each diagnosis. Include differential diagnoses for new problems.',
+        required: true,
+        order: 10,
+        keywords: ['diagnosis', 'likely', 'suspect', 'consistent with', 'differential'],
+        format: 'numbered',
+        exampleText:
+          '1. Acute bronchitis (J20.9)\n2. Hypertension, uncontrolled (I10)\n3. Type 2 DM, controlled (E11.9)',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Detail treatment plan for each problem in assessment. Include medications (with sig), labs, imaging, referrals, patient education, and follow-up. Number to match assessment.',
+        required: true,
+        order: 11,
+        keywords: ['start', 'continue', 'discontinue', 'order', 'referral', 'follow-up'],
+        format: 'numbered',
+        exampleText:
+          '1. Acute bronchitis:\n   - Start Azithromycin 250mg, 2 tabs day 1, then 1 tab daily x4 days\n   - Albuterol inhaler PRN\n2. HTN:\n   - Increase Lisinopril to 20mg daily',
+      },
+    },
+    generalInstructions:
+      'Create a comprehensive medical note following standard SOAP format. Maintain professional medical terminology throughout. Be thorough but concise.',
+  },
+  {
+    name: 'Diabetes Follow-up',
+    description: 'Comprehensive diabetes management visit template',
+    visitType: 'follow-up',
+    isDefault: false,
+    sections: {
+      chiefComplaint: {
+        title: 'Chief Complaint',
+        aiInstructions: 'State diabetes follow-up visit and any acute concerns',
+        required: true,
+        order: 1,
+        keywords: ['diabetes', 'follow-up', 'glucose', 'A1C'],
+        format: 'paragraph',
+        exampleText: 'Routine diabetes follow-up visit',
+      },
+      glycemicControl: {
+        title: 'Glycemic Control',
+        aiInstructions:
+          "Document current A1C, glucose patterns, time in range if CGM user, hypoglycemia frequency and severity, dawn phenomenon, and any patterns noted. Include patient's self-monitoring frequency.",
+        required: true,
+        order: 2,
+        keywords: ['A1C', 'glucose', 'hypoglycemia', 'hyperglycemia', 'CGM', 'fingersticks'],
+        format: 'bullets',
+        exampleText:
+          '• Current A1C: 7.2% (goal <7%)\n• Average glucose: 150-180 mg/dL\n• Hypoglycemia: 1-2 episodes/week, mild',
+      },
+      diabetesDevices: {
+        title: 'Diabetes Technology',
+        aiInstructions:
+          'Document insulin delivery method (pump/MDI), CGM use, settings, recent adjustments. For pump users: basal rates, I:C ratios, ISF. For MDI: injection technique and timing.',
+        required: false,
+        order: 3,
+        keywords: ['pump', 'CGM', 'Dexcom', 'Libre', 'basal', 'bolus', 'injection'],
+        format: 'paragraph',
+        exampleText:
+          'Using Dexcom G6 CGM with good adherence. Time in range 68%. MDI with Lantus 24 units qHS and Humalog sliding scale.',
+      },
+      complications: {
+        title: 'Complications Screening',
+        aiInstructions:
+          'Review microvascular (retinopathy, nephropathy, neuropathy) and macrovascular complications. Include dates of last screenings and any positive findings.',
+        required: true,
+        order: 4,
+        keywords: [
+          'retinopathy',
+          'nephropathy',
+          'neuropathy',
+          'CAD',
+          'PAD',
+          'feet',
+          'eyes',
+          'kidney',
+        ],
+        format: 'bullets',
+        exampleText:
+          '• Eyes: Last exam 6/2024, no retinopathy\n• Feet: Intact sensation, pulses 2+ bilaterally\n• Kidney: Microalbumin 28 mg/g',
+      },
+      medications: {
+        title: 'Diabetes Medications',
+        aiInstructions:
+          'List all diabetes medications with exact doses and timing. Include insulin types, oral medications, and non-insulin injectables.',
+        required: true,
+        order: 5,
+        keywords: ['metformin', 'insulin', 'GLP-1', 'SGLT2', 'units', 'mg'],
+        format: 'bullets',
+        exampleText:
+          '• Metformin 1000mg BID\n• Lantus 24 units qHS\n• Humalog per sliding scale AC meals',
+      },
+      lifestyleFactors: {
+        title: 'Lifestyle Management',
+        aiInstructions:
+          'Document diet adherence, carb counting ability, exercise routine, weight trends, and any barriers to management.',
+        required: false,
+        order: 6,
+        keywords: ['diet', 'exercise', 'weight', 'carbs', 'activity'],
+        format: 'paragraph',
+        exampleText:
+          'Following carb-controlled diet, counting carbs with meals. Walking 30 min 3x/week. Weight stable.',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Provide assessment of diabetes control and complications. Include type of diabetes with control status.',
+        required: true,
+        order: 7,
+        keywords: ['Type 1', 'Type 2', 'controlled', 'uncontrolled'],
+        format: 'numbered',
+        exampleText:
+          '1. Type 2 DM, partially controlled (E11.65)\n2. Diabetic nephropathy, stage 2 (E11.21)',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Detail medication adjustments, lifestyle recommendations, labs to order, referrals, and follow-up timing. Be specific with insulin adjustments.',
+        required: true,
+        order: 8,
+        keywords: ['adjust', 'increase', 'decrease', 'labs', 'A1C', 'follow-up'],
+        format: 'numbered',
+        exampleText:
+          '1. Increase Lantus to 26 units qHS\n2. Check A1C, CMP, lipids, urine microalbumin\n3. Referral to ophthalmology for annual exam\n4. Follow-up in 3 months',
+      },
+    },
+    generalInstructions:
+      'Focus on comprehensive diabetes management including glycemic control, complication screening, and treatment optimization. Use endocrine-specific terminology.',
+  },
+  {
+    name: 'Quick Progress Note',
+    description: 'Brief follow-up visit documentation',
+    visitType: 'follow-up',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'Combine chief complaint and interval history. Focus on changes since last visit and current symptoms.',
+        required: true,
+        order: 1,
+        keywords: ['since last visit', 'better', 'worse', 'stable'],
+        format: 'paragraph',
+        exampleText:
+          'Patient returns for follow-up of HTN. Reports good medication adherence. No chest pain, SOB, or headaches.',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions: 'Include vital signs and pertinent exam findings only. Be concise.',
+        required: true,
+        order: 2,
+        keywords: ['BP', 'HR', 'exam'],
+        format: 'paragraph',
+        exampleText: 'BP 128/78, HR 72. Heart RRR, no murmurs. Lungs clear.',
+      },
+      assessment: {
+        title: 'Assessment/Plan',
+        aiInstructions: 'Combine assessment and plan. List problems with brief plan for each.',
+        required: true,
+        order: 3,
+        keywords: ['continue', 'stable', 'improved'],
+        format: 'bullets',
+        exampleText:
+          '• HTN - improved, continue current regimen\n• DM - stable, recheck A1C next visit',
+      },
+    },
+    generalInstructions:
+      'Create a concise progress note focusing on interval changes and current management. Appropriate for stable follow-up visits.',
+  },
+  {
+    name: 'Telehealth Visit',
+    description: 'Template optimized for virtual visits',
+    visitType: 'consultation',
+    isDefault: false,
+    sections: {
+      chiefComplaint: {
+        title: 'Reason for Telehealth Visit',
+        aiInstructions: 'Document reason for visit and note that this is a telehealth encounter',
+        required: true,
+        order: 1,
+        keywords: ['telehealth', 'video', 'virtual'],
+        format: 'paragraph',
+        exampleText: 'Telehealth follow-up visit for diabetes management',
+      },
+      subjective: {
+        title: 'History & Symptoms',
+        aiInstructions:
+          'Detailed history as limited exam possible. Include specific questions about symptoms that would normally be examined.',
+        required: true,
+        order: 2,
+        keywords: ['reports', 'describes', 'denies'],
+        format: 'paragraph',
+        exampleText:
+          'Patient reports stable glucose levels ranging 120-160. No visual changes, chest pain, or foot problems.',
+      },
+      virtualExam: {
+        title: 'Virtual Examination',
+        aiInstructions:
+          'Document observable findings via video. Note limitations of virtual exam. Include patient-reported vitals if available.',
+        required: true,
+        order: 3,
+        keywords: ['appears', 'observed', 'video', 'reported'],
+        format: 'paragraph',
+        exampleText:
+          'Via video: Patient appears well, no distress. No obvious edema. Patient reports home BP 135/82, glucose 142.',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions: 'Include note about telehealth limitations if relevant to diagnosis',
+        required: true,
+        order: 4,
+        keywords: ['assessment', 'impression'],
+        format: 'numbered',
+        exampleText:
+          '1. Type 2 DM - stable based on history\n2. HTN - suboptimal control per home readings',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Include when in-person follow-up needed. Note any limitations due to virtual format.',
+        required: true,
+        order: 5,
+        keywords: ['follow-up', 'in-person', 'labs'],
+        format: 'numbered',
+        exampleText:
+          '1. Order labs: A1C, CMP\n2. Increase lisinopril to 20mg daily\n3. In-person visit in 3 months for foot exam',
+      },
+    },
+    generalInstructions:
+      'Document telehealth encounter noting virtual format limitations. Emphasize history and patient-reported data.',
+  },
+  {
+    name: 'New Patient Comprehensive',
+    description: 'Detailed template for new patient visits',
+    visitType: 'new-patient',
+    isDefault: false,
+    sections: {
+      chiefComplaint: {
+        title: 'Chief Complaint',
+        aiInstructions: 'Reason for establishing care and any acute concerns',
+        required: true,
+        order: 1,
+        keywords: ['establish', 'new patient', 'transfer care'],
+        format: 'paragraph',
+        exampleText: 'New patient establishing care, transferring from previous endocrinologist',
+      },
+      historyOfPresentIllness: {
+        title: 'History of Present Illness',
+        aiInstructions:
+          'Detailed history of all active medical problems. Include diagnostic history, previous treatments, and current status.',
+        required: true,
+        order: 2,
+        keywords: ['diagnosed', 'started', 'previously', 'currently'],
+        format: 'paragraph',
+        exampleText: 'Type 2 DM diagnosed 2018, initially managed with metformin...',
+      },
+      reviewOfSystems: {
+        title: 'Complete Review of Systems',
+        aiInstructions:
+          'Comprehensive ROS covering all systems. Document pertinent positives and negatives.',
+        required: true,
+        order: 3,
+        keywords: ['constitutional', 'HEENT', 'cardiovascular', 'respiratory'],
+        format: 'bullets',
+        exampleText:
+          '• Constitutional: No fever, weight stable\n• HEENT: No vision changes\n• Cardiovascular: No chest pain',
+      },
+      pastMedicalHistory: {
+        title: 'Past Medical History',
+        aiInstructions: 'Complete medical history including dates, surgeries, hospitalizations',
+        required: true,
+        order: 4,
+        keywords: ['history', 'surgery', 'hospitalization'],
+        format: 'bullets',
+        exampleText: '• Type 2 DM (2018)\n• HTN (2015)\n• Appendectomy (2005)',
+      },
+      medications: {
+        title: 'Current Medications',
+        aiInstructions:
+          'Complete medication list with doses, frequencies, and indication if not obvious',
+        required: true,
+        order: 5,
+        keywords: ['mg', 'daily', 'for'],
+        format: 'bullets',
+        exampleText: '• Metformin 1000mg BID for diabetes\n• Lisinopril 10mg daily for HTN',
+      },
+      allergies: {
+        title: 'Allergies',
+        aiInstructions: 'Drug allergies with reaction types',
+        required: true,
+        order: 6,
+        keywords: ['allergic', 'reaction'],
+        format: 'paragraph',
+        exampleText: 'NKDA',
+      },
+      socialHistory: {
+        title: 'Social History',
+        aiInstructions:
+          'Detailed social history including occupation, education, substance use, exercise, diet',
+        required: true,
+        order: 7,
+        keywords: ['occupation', 'tobacco', 'alcohol', 'exercise'],
+        format: 'paragraph',
+        exampleText: 'Never smoker, rare alcohol, works as teacher, married with 2 children',
+      },
+      familyHistory: {
+        title: 'Family History',
+        aiInstructions: 'Three-generation family history focusing on hereditary conditions',
+        required: true,
+        order: 8,
+        keywords: ['mother', 'father', 'siblings', 'children'],
+        format: 'bullets',
+        exampleText:
+          '• Mother: DM2, HTN\n• Father: CAD, MI at 62\n• Siblings: none with medical issues',
+      },
+      physicalExam: {
+        title: 'Complete Physical Examination',
+        aiInstructions:
+          'Comprehensive exam with all systems. Include vital signs and detailed findings.',
+        required: true,
+        order: 9,
+        keywords: ['vitals', 'general', 'HEENT', 'cardiac', 'pulmonary'],
+        format: 'paragraph',
+        exampleText:
+          'Vitals: BP 130/80, HR 76, BMI 28\nGeneral: Well-appearing\nHEENT: PERRL, thyroid normal size...',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions: 'Complete problem list with all active diagnoses',
+        required: true,
+        order: 10,
+        keywords: ['diagnosis', 'problem'],
+        format: 'numbered',
+        exampleText: '1. Type 2 DM (E11.9)\n2. Essential HTN (I10)\n3. Obesity (E66.9)',
+      },
+      plan: {
+        title: 'Comprehensive Plan',
+        aiInstructions:
+          'Detailed plan for each problem including diagnostics, treatments, education, preventive care, and follow-up',
+        required: true,
+        order: 11,
+        keywords: ['order', 'continue', 'start', 'education', 'screening'],
+        format: 'numbered',
+        exampleText:
+          '1. DM: Continue metformin, check A1C, refer diabetes education\n2. HTN: Continue lisinopril, home BP log\n3. Preventive: Colonoscopy screening, vaccinations UTD',
+      },
+    },
+    generalInstructions:
+      'Create comprehensive new patient documentation. Be thorough in all sections as this establishes baseline.',
+  },
+  {
+    name: 'Tess - Endocrinology Follow-up',
+    description:
+      'Specialized template for endocrinology follow-up visits with CGM data integration',
+    visitType: 'follow-up',
+    isDefault: false,
+    sections: {
+      chiefComplaint: {
+        title: 'Chief Complaint',
+        aiInstructions:
+          "Start with 'Patient presents to endocrinology for follow-up regarding' followed by conditions using medical abbreviations (T2D, HLD, etc.). Note if no PCP.",
+        required: true,
+        order: 1,
+        keywords: ['presents to endocrinology', 'follow-up regarding', 'No PCP'],
+        format: 'paragraph',
+        exampleText: 'Patient presents to endocrinology for follow-up regarding T2D, HLD.\nNo PCP',
+      },
+      historyOfPresentIllness: {
+        title: 'Diabetes History & Current Status',
+        aiInstructions:
+          "ONLY include information explicitly mentioned in the dictation. Do NOT add historical information not stated. Structure as: 1) Review of DM hx only if mentioned, 2) Ophthalmology exam only if mentioned, 3) Previously tried medications ONLY if specifically mentioned in dictation, 4) Current symptoms and patterns mentioned in visit. If information is not mentioned, state 'not documented' or omit the section entirely. Do NOT invent medication history.",
+        required: true,
+        order: 2,
+        keywords: [
+          'Dx with DM',
+          'complicated by',
+          'Previously tried',
+          'Last ophtho',
+          'At last visit',
+          'Today',
+        ],
+        format: 'paragraph',
+        exampleText:
+          "Review of DM hx: Dx with DM in 2013. DM complicated by denies. Last ophtho was February 2025 at Grand Vision - no DR.\n\nPreviously tried:\nmetformin- didn't help BG\ntrulicity- BG elevated\n\nAt last visit 6/2025, was recommended:\n- continue 24 units tresiba daily",
+      },
+      cgmData: {
+        title: 'CGM/Glucose Monitoring Data',
+        aiInstructions:
+          'Document CGM data in exact format: Device name, Home use indication, Type 2 Diabetes indication, note if >72 hours reviewed, Date Range (M/D-M/D), Average Glucose value, Time percentages (Above/Target/Below), and Interpretation focusing on patterns. Use exact formatting as shown.',
+        required: false,
+        order: 3,
+        keywords: [
+          'Device used',
+          'Eversense',
+          'Dexcom',
+          'Average Glucose',
+          'Time Above Range',
+          'Time in Target',
+          'Interpretation',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'Device used\nEversense\nHome use\n\nIndication\nType 2 Diabetes\nMore than 72 hours of data was reviewed.\n\nDate Range: 8/20-9/2\nAverage Glucose: 174\nTime Above Range: 5 v high, 33 high\nTime in Target Range: 62\nTime Below Range: 0\n\nInterpretation: Infrequent hyperglycemia, most commonly after dinner',
+      },
+      medications: {
+        title: 'Current Medications',
+        aiInstructions:
+          "List medications the patient is currently taking BEFORE any changes made during this visit. When dictation mentions dose increases (e.g., 'increase from 40mg to 80mg'), use the ORIGINAL 40mg dose, not the new 80mg dose. List exact brand names, current doses, and frequencies. Use format: 'medication name dose, formulation frequency'. Include insulin units and pen types.",
+        required: true,
+        order: 4,
+        keywords: ['units', 'mg', 'weekly', 'daily', 'tresiba', 'mounjaro', 'synjardy'],
+        format: 'bullets',
+        exampleText:
+          '• Tresiba FlexTouch U-200: 24 units daily\n• Synjardy XR 12.5mg-1000mg: 2 tablets once daily\n• Mounjaro 15mg: weekly injection',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          "Number each diagnosis. For diabetes: Include 'Type 2 diabetes mellitus', control status ('uncontrolled as evidenced by' with specific A1C), complications status ('complicated by' or 'denies'), and monitoring method. For lipids: Include 'Mixed hyperlipidemia' or specific type, past lipid values with dates, current therapy, and goal status.",
+        required: true,
+        order: 5,
+        keywords: [
+          'Type 2 diabetes',
+          'uncontrolled',
+          'evidenced by',
+          'a1c',
+          'complicated by',
+          'hyperlipidemia',
+          'LDL',
+          'at goal',
+        ],
+        format: 'numbered',
+        exampleText:
+          '1. Type 2 diabetes mellitus -\nuncontrolled as evidenced by most recent a1c 7.3\n- complicated by denies\n- check BG 4 times daily, eversense\n\n2. Mixed hyperlipidemia -\n- 11/2024 ldl 24, tg 125\n- ldl at goal',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'For each diagnosis, list current medications to continue with exact doses, new medications to start, and monitoring instructions. Include: microalbumin date/result, diabetic foot exam date/result, ophthalmology exam date/result, hypoglycemia education status, patient awareness instructions. End with RTC timeframe and required labs. Include full prescription details with sig, quantity, refills, and pharmacy when available. Add ICD-10 codes.',
+        required: true,
+        order: 6,
+        keywords: [
+          'continue',
+          'start',
+          'increase',
+          'microalbumin',
+          'foot exam',
+          'ophthalmology',
+          'RTC',
+          'labs prior',
+          'Qty',
+          'Refills',
+          'Pharmacy',
+        ],
+        format: 'paragraph',
+        exampleText:
+          '1. Type 2 diabetes mellitus -\n- continue 24 units tresiba daily\n- continue synjardy 1000/12.5 mg two tablets once daily\n- continue 15mg mounjaro\n- start repaglinide 0.5mg before dinner\n\n- 11/2024 microalbumin <4\n- 6/2025 Diabetic foot exam wnl\n- ophthalmology exam 2025 no retinopathy\n- Hypoglycemia s/s reviewed\n- patient aware to call with hyperglycemia or hypoglycemia\n\nRTC in 3 months with labs prior\n\nE11.65: Type 2 diabetes mellitus with hyperglycemia\nMounjaro 15 mg/0.5 mL - Inject 15 mg weekly Qty: (2) mL Refills: 2',
+      },
+    },
+    generalInstructions:
+      "Focus on comprehensive medication documentation with exact brand names, doses, and formulations. Always include CGM data interpretation when available. Document all preventive care dates (eye exams, foot exams, microalbumin). Use medical abbreviations appropriately (T2D, HLD, DM, BG). Include pharmacy details and refill counts in prescriptions. Structure assessment with control status and evidence. Note 'denies' for absent complications. Always end with RTC timeframe and required labs.",
+  },
+  {
+    name: 'Nikki - Psychiatry Follow-up',
+    description: 'Comprehensive psychiatric follow-up template with therapy documentation',
+    visitType: 'follow-up',
+    isDefault: false,
+    sections: {
+      reasonForVisit: {
+        title: 'Reason for Visit',
+        aiInstructions:
+          "Start with 'Follow-up:' followed by all psychiatric diagnoses. On new line, state 'Appointment today for medication management follow-up to discuss mental health status and determine any necessary adjustments or changes to treatment regimen.'",
+        required: true,
+        order: 1,
+        keywords: ['Follow-up', 'medication management', 'treatment regimen'],
+        format: 'paragraph',
+        exampleText:
+          'Follow-up: generalized anxiety disorder, Follow-up: mixed bipolar affective disorder, severe, with psychosis\nAppointment today for medication management follow-up to discuss mental health status and determine any necessary adjustments or changes to treatment regimen.',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          "List each psychiatric diagnosis with ICD-10 code and full name. For each diagnosis, describe current symptom status, patient's reported experience, medication response, and any notable changes since last visit. Use patient's own words when possible (e.g., 'period of emptiness', 'feeling overwhelmed').",
+        required: true,
+        order: 2,
+        keywords: [
+          'F33.1',
+          'F41.1',
+          'Major Depressive Disorder',
+          'Anxiety Disorder',
+          'stable mood',
+          'improved',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'F33.1 Major Depressive Disorder, Recurrent Episode, Moderate: Patient reports stable mood with brief period of emptiness following a business trip, which she attributed to fatigue and being overwhelmed. Overall, mood is improved with continuation of medication regimen.\n\nF41.1 Anxiety Disorder: Patient reports reduced anxiety symptoms with current medication management. She denies significant anxiety concerns at this time.',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          "Structure as bulleted list. Include: 1) Continue/adjust each medication with exact dose and frequency, noting any gradual adjustments patient is making, 2) Pharmacy information and refill details, 3) Therapy continuation with therapist name and next appointment if mentioned, 4) Follow-up timeline. Use 'Continue' for unchanged meds, 'Increase' for dose changes.",
+        required: true,
+        order: 3,
+        keywords: [
+          'Continue',
+          'Increase',
+          'mg daily',
+          'refills',
+          'therapy',
+          'Follow-up appointment',
+        ],
+        format: 'bullets',
+        exampleText:
+          '• Continue Abilify 5mg daily. Patient reports taking 2.5mg some days and 5mg other days as she gradually adjusts to the increased dose\n• Continue Lexapro 10mg daily\n• Increase Benztropine from 1mg daily to 1mg twice daily to address ocular side effects\n• Patient was reminded that medication refills have been sent to HEB pharmacy (2 refills each)\n• Continue therapy with Camille\n• Follow-up appointment scheduled in 2 months',
+      },
+      therapyDetails: {
+        title: 'Therapy Details',
+        aiInstructions:
+          'If therapy was provided during visit, document: 1) CPT code and time spent, 2) Problem List with bullet points of key issues discussed, 3) Interventions with INTERVENTION/GOALS/RESPONSE format for each therapeutic approach used.',
+        required: false,
+        order: 4,
+        keywords: ['90833', 'minutes', 'INTERVENTION', 'GOALS', 'RESPONSE', 'Problem List'],
+        format: 'paragraph',
+        exampleText:
+          'Therapy Time Spent:\n90833 - In addition to medication management, 17 minutes was spent on therapy.\n\nProblem List:\n• Mood management - Patient reports overall good mood\n• Anxiety - Patient reports anxiety is well-controlled\n• Medication management\n• Side effects\n\nInterventions:\nINTERVENTION: Supportive Therapy. GOALS: To provide validation and encouragement. RESPONSE: The patient demonstrated positive engagement.',
+      },
+      medications: {
+        title: 'Medication Orders',
+        aiInstructions:
+          "List medications grouped by diagnosis. Format as: diagnosis name in lowercase, then 'CONTINUE' or 'START' or 'INCREASE' followed by generic name, dose, route (PO), and frequency (Q D for daily, BID for twice daily). Use standard abbreviations.",
+        required: true,
+        order: 5,
+        keywords: ['CONTINUE', 'START', 'INCREASE', 'mg PO', 'Q D', 'BID'],
+        format: 'paragraph',
+        exampleText:
+          'Bipolar affective disorder, mixed, severe, with psychotic behavior\nCONTINUE Aripiprazole 5 mg PO Q D\nCONTINUE Benztropine 1 mg PO BID\n\ngeneralized anxiety disorder\nCONTINUE Escitalopram 10 mg PO Q D',
+      },
+      patientInstructions: {
+        title: 'Patient Instructions & Discussion',
+        aiInstructions:
+          'Document all patient education provided. Include: medication instructions, side effect discussions, risk/benefit review, emergency instructions, substance use warnings, and any psychoeducation provided. Use bullet points or structured paragraphs.',
+        required: true,
+        order: 6,
+        keywords: [
+          'Medication instructions',
+          'side effects',
+          'risks and benefits',
+          'call 911',
+          'compliance',
+          'psychoeducation',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'Medication instructions provided.\n- Discussed medication side effects, therapeutic expectations, and potential interactions\n- Discussed the risks and benefits of the overall treatment plan\n- Pt advised to call the office if symptoms worsen\n- Pt encouraged to call 911 in the event of an emergent issue\n- Pt notified of risks in using illegal substances with medications\n\nThe risk and benefits of medication versus untreated Mental Illness were discussed. Pt informed that routine labs are ordered to monitor for side effects.\nDiscussed importance of compliance and risk of withdrawal.\n\nPt provided with psychoeducation regarding:\n- Risks/benefits/alternatives of psychotropic medication\n- Heat risks of psychotropic medication\n- Mental illness and available resources\n- Exercise and healthy nutrition',
+      },
+      followUp: {
+        title: 'Follow-Up',
+        aiInstructions:
+          "Document scheduled follow-up appointments with exact dates. Format as 'Established patient scheduled on MM-DD-YYYY' for each appointment.",
+        required: true,
+        order: 7,
+        keywords: ['Established patient', 'scheduled on'],
+        format: 'paragraph',
+        exampleText:
+          'Established patient scheduled on 09-04-2025\nEstablished patient scheduled on 11-18-2025',
+      },
+    },
+    generalInstructions:
+      "Focus on comprehensive psychiatric documentation with emphasis on patient's subjective experience and medication response. Always use ICD-10 codes with full diagnosis names. Document therapy interventions using INTERVENTION/GOALS/RESPONSE format. Include detailed patient education and risk discussions. Use patient's own words when describing symptoms. Document all medication adjustments with rationale. Include pharmacy details and refill information. Always end with scheduled follow-up dates.",
+  },
+  {
+    name: 'Vanessa - Nutrition Consultation',
+    description:
+      'Comprehensive template for registered dietitian nutrition consultations with diabetes and weight management focus',
+    visitType: 'consultation',
+    isDefault: false,
+    sections: {
+      reasonForConsult: {
+        title: 'Reason for Consultation',
+        aiInstructions:
+          "Extract the primary reason for nutrition consultation. Format as 'Patient seen for [reason]'. Include relevant diagnoses being addressed (T2DM, hyperlipidemia, weight management, etc.).",
+        required: true,
+        order: 1,
+        keywords: [
+          'nutrition consultation',
+          'weight management',
+          'hyperlipidemia',
+          'T2DM',
+          'diabetes',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'Patient seen for initial nutrition consultation for weight management and hyperlipidemia',
+      },
+      medicalHistory: {
+        title: 'Past Medical History',
+        aiInstructions:
+          "List all relevant medical conditions with onset dates when available. Format as 'PMHx significant for [conditions]'. Include psychiatric conditions, metabolic disorders, GI issues, sleep disorders, and hormonal conditions. Note CPAP use for OSA.",
+        required: true,
+        order: 2,
+        keywords: [
+          'PMHx',
+          'depression',
+          'anxiety',
+          'T2DM',
+          'PCOS',
+          'HLD',
+          'OSA',
+          'CPAP',
+          'gallstone',
+          'menopause',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'PMHx significant for major depression, anxiety disorder, HLD, T2DM, PCOS, Hypercalcemia, gallstone, elevated liver enzymes, menopause, Obstructive sleep apnea on CPAP',
+      },
+      weightHistory: {
+        title: 'Weight & Medication History',
+        aiInstructions:
+          "Document weight loss attempts, current weight loss medications (especially GLP-1 agonists like Mounjaro/Ozempic), dose history, duration of use, and response to therapy. Include patient's emotional relationship with food and body image concerns.",
+        required: true,
+        order: 3,
+        keywords: [
+          'Mounjaro',
+          'Ozempic',
+          'weight loss',
+          'dietary attempts',
+          'body image',
+          'guilt',
+          'shame',
+          'PCOS',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'Reports longstanding difficulty losing weight despite multiple dietary attempts (including liquid diets) and ongoing use of Mounjaro for >1 year (10 mg for past 2 months, previously 5 mg). Notes lack of significant weight loss on therapy.',
+      },
+      gastrointestinal: {
+        title: 'GI Symptoms & Food Sensitivities',
+        aiInstructions:
+          'Document GI symptoms including bloating, diarrhea, nausea, constipation. Note frequency and triggers (eating out, specific foods). Include any taste changes, COVID-related symptoms, and food cravings.',
+        required: true,
+        order: 4,
+        keywords: [
+          'bloating',
+          'diarrhea',
+          'nausea',
+          'constipation',
+          'COVID',
+          'taste',
+          'craves',
+          'fruit',
+          'dairy',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'Patient c/o bloating with eating out, occasional diarrhea (1x/week), and intermittent nausea (1x every 2 weeks). Reports prior COVID infection with loss of taste; sense of taste has fully returned. Craves fruit and dairy.',
+      },
+      currentActivity: {
+        title: 'Physical Activity Status',
+        aiInstructions:
+          "Document current activity level, past exercise history, barriers to exercise, and patient's goals/preferences for physical activity. Note any discontinued activities and reasons.",
+        required: true,
+        order: 5,
+        keywords: [
+          'activity',
+          'exercise',
+          'treadmill',
+          'yoga',
+          'walking',
+          'sedentary',
+          'structured',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'Currently not engaging in structured physical activity. Past activity includes treadmill walking, yoga (discontinued ~2 years ago). States desire to increase physical activity but has not found a preferred routine.',
+      },
+      functionalMedicine: {
+        title: 'Functional Medicine & Hormone Management',
+        aiInstructions:
+          'Document if patient is followed by functional medicine provider. Include hormone replacement therapy (progesterone, estradiol), inflammatory markers, and any alternative medicine approaches.',
+        required: false,
+        order: 6,
+        keywords: [
+          'functional medicine',
+          'hormone',
+          'progesterone',
+          'estradiol',
+          'inflammation',
+          'Lyme',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'Patient is followed by a functional medicine provider for hormone management and internal inflammation concerns (on progesterone and estradiol patch; reports Lyme antibody positivity)',
+      },
+      laboratoryData: {
+        title: 'Laboratory Data',
+        aiInstructions:
+          "List relevant labs with values and dates. Focus on metabolic panel: A1C, glucose, lipid panel (triglycerides, LDL, HDL), liver enzymes, and any other pertinent values. Use format: 'Parameter value (date if available)'",
+        required: true,
+        order: 7,
+        keywords: ['Labs', 'A1C', 'glucose', 'triglycerides', 'LDL', 'HDL', 'cholesterol', 'liver'],
+        format: 'paragraph',
+        exampleText: 'Labs: Triglycerides 224, Glucose 102, A1C 5.8',
+      },
+      currentMedications: {
+        title: 'Current Medications',
+        aiInstructions:
+          'List all diabetes and metabolic medications with exact doses. Include GLP-1 agonists (Mounjaro, Ozempic), SGLT2 inhibitors (Synjardy, Jardiance), metformin, and any lipid medications. Note dose changes.',
+        required: true,
+        order: 8,
+        keywords: ['Medications', 'Mounjaro', 'Synjardy', 'metformin', 'statin', 'mg', 'units'],
+        format: 'bullets',
+        exampleText: '• Mounjaro 10 mg weekly\n• Synjardy 12.5/1000mg twice daily',
+      },
+      supplements: {
+        title: 'Supplement Use',
+        aiInstructions:
+          'List all supplements, vitamins, and alternative medicines. Include dosing if mentioned and indication (e.g., PRN, for sleep, for inflammation).',
+        required: false,
+        order: 9,
+        keywords: [
+          'Supplement',
+          'curcumin',
+          'naltrexone',
+          'enzymes',
+          'magnesium',
+          'vitamin',
+          'PRN',
+        ],
+        format: 'bullets',
+        exampleText:
+          '• Curcumin for inflammation\n• Low-dose naltrexone\n• Digestive enzymes PRN\n• Magnesium for sleep',
+      },
+      anthropometrics: {
+        title: 'Anthropometric Data',
+        aiInstructions:
+          "Document current weight in pounds, BMI, and any weight changes. Include height if mentioned. Format: 'Weight: X lb, BMI: X, Weight change: X lb over X timeframe'",
+        required: true,
+        order: 10,
+        keywords: ['Weight', 'BMI', 'pounds', 'lb', 'kg', 'height'],
+        format: 'paragraph',
+        exampleText: 'Current Weight: 208.8 lb\nBMI: 33.9',
+      },
+      dietaryRecall: {
+        title: 'Dietary Recall / Intake Patterns',
+        aiInstructions:
+          'Document detailed food intake including meals per day, eating patterns (grazing vs structured), and specific foods for each meal. Include restaurant names and frequency of eating out. Format each meal category separately.',
+        required: true,
+        order: 11,
+        keywords: [
+          'Breakfast',
+          'Lunch',
+          'Dinner',
+          'Snacks',
+          'meals per day',
+          'grazing',
+          'dining out',
+        ],
+        format: 'paragraph',
+        exampleText:
+          "Meals per day: Typically 2-3 meals, with grazing/snacking pattern\n\nBreakfast: Protein shake, or bagel with cream cheese\n\nLunch: 50% dining out (Raising Cane's, Jason's Deli), 50% packed lunches\n\nDinner: Inconsistent; cheese and crackers, fruit\n\nSnacks: Fruit, cheese and crackers, cottage cheese, nuts",
+      },
+      nutritionDiagnosis: {
+        title: 'Nutrition Diagnosis',
+        aiInstructions:
+          'Write PES statements (Problem, Etiology, Signs/Symptoms) for nutrition diagnoses. Use standard nutrition diagnostic terminology. Include anthropometric data, lab values, and dietary intake as evidence.',
+        required: true,
+        order: 12,
+        keywords: [
+          'inadequate',
+          'excessive',
+          'intake',
+          'related to',
+          'evidenced by',
+          'BMI',
+          'pattern',
+        ],
+        format: 'bullets',
+        exampleText:
+          '• Inadequate energy intake related to irregular meal patterns and as evidenced by dietary recall, BMI of 33.9, elevated triglycerides (224 mg/dL), and A1C of 5.8%\n• Overweight/obesity related to inconsistent meal patterns, as evidenced by BMI of 33.9',
+      },
+      mnt: {
+        title: 'Medical Nutrition Therapy (MNT) Plan',
+        aiInstructions:
+          'List specific, measurable nutrition interventions. Include meal planning goals, macronutrient targets, meal frequency, portion control strategies, and physical activity recommendations. Be specific with frequencies and quantities.',
+        required: true,
+        order: 13,
+        keywords: [
+          'Prepare',
+          'Increase',
+          'protein',
+          'omega-3',
+          'fiber',
+          'vegetables',
+          'meal',
+          'snack',
+        ],
+        format: 'bullets',
+        exampleText:
+          '• Prepare dinner at home at least 3 times per week, making 2 servings each time\n• Increase protein intake by incorporating a protein source at each meal and snack\n• Include omega-3-rich foods and increase fiber intake\n• Establish consistent eating pattern with 3 meals and 1-2 snacks at least 3 days per week\n• Begin structured physical activity with walking 2x per week for 20 minutes',
+      },
+      nutritionEducation: {
+        title: 'Nutrition Education Provided',
+        aiInstructions:
+          'Document all education topics covered. Include Plate Method, carbohydrate counting, heart-healthy diet principles, fiber benefits, portion control, and behavior change strategies. Format as bullets starting with action verbs (Reviewed, Discussed, Educated, Emphasized).',
+        required: true,
+        order: 14,
+        keywords: [
+          'Reviewed',
+          'Discussed',
+          'Educated',
+          'Plate Method',
+          'carbohydrate',
+          'fiber',
+          'portion',
+        ],
+        format: 'bullets',
+        exampleText:
+          '• Reviewed the Plate Method to support balanced meal planning\n• Emphasized importance of positive reinforcement and realistic expectations\n• Reviewed meal patterns and role of carbohydrates, protein, and fats\n• Educated on role of fiber in blood lipid control and glycemic management',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'List diagnoses with ICD-10 codes. Include onset dates when available. Format each as numbered item with code at the end.',
+        required: true,
+        order: 15,
+        keywords: [
+          'E11',
+          'E78',
+          'R63',
+          'Type 2 diabetes',
+          'hyperlipidemia',
+          'weight gain',
+          'obesity',
+        ],
+        format: 'numbered',
+        exampleText:
+          '1. Type 2 diabetes mellitus with hyperglycemia - Onset: 03/18/2016 (E11.65)\n2. Mixed hyperlipidemia - Onset: 04/03/2017 (E78.2)\n3. Abnormal weight gain - Onset: 08/19/2025 (R63.5)',
+      },
+      timeSpent: {
+        title: 'Time Spent & Follow-up',
+        aiInstructions:
+          "Document total time spent with patient and services provided. Include follow-up interval. Use exact format for billing: 'Spent a total of X minutes with patient providing medical nutrition therapy...'",
+        required: true,
+        order: 16,
+        keywords: [
+          'minutes',
+          'spent',
+          'medical nutrition therapy',
+          'assessment',
+          'follow up',
+          'months',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'Spent a total of 60 minutes with patient providing medical nutrition therapy. This included comprehensive nutrition assessment, review of relevant labs and medical history, dietary recall and analysis, nutrition education and development of individualized nutrition care plan.\n\nFollow up in 1 month',
+      },
+      returnVisits: {
+        title: 'Return to Office',
+        aiInstructions:
+          'List all scheduled follow-up appointments with provider names, credentials, visit type (virtual/in-person), location, date and time. Format each on separate line.',
+        required: false,
+        order: 17,
+        keywords: ['Return', 'follow-up', 'appointment', 'scheduled', 'PMHNP', 'RD', 'MD'],
+        format: 'paragraph',
+        exampleText:
+          'Ogechi Nebeolisa, PMHNP for Privia Virtual Visit at GC_EPC_Katy Office on 09/05/2025 at 11:20 AM\nCindy Laverde, RD for Privia Virtual Visit at GC_EPC_Katy Office on 09/22/2025 at 11:00 AM',
+      },
+    },
+    generalInstructions:
+      'Create a comprehensive nutrition consultation note following registered dietitian documentation standards. Focus on detailed dietary assessment, nutrition diagnoses using PES statements, specific MNT interventions, and thorough education documentation. Include all anthropometric data, relevant labs, and medication history especially GLP-1 agonists. Document time spent for billing purposes. Maintain professional nutritionist terminology throughout.',
+  },
+  {
+    name: 'Radha - Complex Diabetes Management',
+    description:
+      'Comprehensive template for endocrinology PA managing complex diabetes cases with multiple comorbidities',
+    visitType: 'follow-up',
+    isDefault: false,
+    sections: {
+      presentingConcern: {
+        title: 'Presenting Concern',
+        aiInstructions:
+          'Document age, reason for visit (establish care, follow-up), and primary diagnosis. Include initial diagnosis date and type (Type 1, Type 2, unknown type). Note any recent hospitalizations or ER visits for glucose issues.',
+        required: true,
+        order: 1,
+        keywords: [
+          'presents',
+          'establish care',
+          'diabetes',
+          'diagnosis',
+          'ER',
+          'hospitalized',
+          'unreadable',
+        ],
+        format: 'paragraph',
+        exampleText:
+          '80 y/o who presents to establish care for diabetes. Initial diagnosis/type: Unknown type, dx 6.2024. Last week went to ER for sugars that were unreadable.',
+      },
+      relevantMedicalHistory: {
+        title: 'Relevant Medical History',
+        aiInstructions:
+          'Document significant medical conditions affecting diabetes management. Include cancer history with treatment details (infusions, chemotherapy), pancreatic abnormalities, and monitoring schedules. Note treating specialists.',
+        required: true,
+        order: 2,
+        keywords: [
+          'melanoma',
+          'infusion',
+          'MDACC',
+          'pancreas',
+          'extension',
+          'oncologist',
+          'dermatology',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'Receiving infusions for melanoma, last infusion at MDACC in March. Small extension on pancreas that MDACC is monitoring, repeat in March. Oncologist: Dr. Wong, Michael',
+      },
+      diabetesHistory: {
+        title: 'Diabetes History & Family History',
+        aiInstructions:
+          'Document prediabetes history, family history of diabetes (specify Type 1 or Type 2, include GAD antibody status if known). Note any autoimmune markers if tested.',
+        required: true,
+        order: 3,
+        keywords: [
+          'prediabetes',
+          'family history',
+          'fhx',
+          'Type 1',
+          'Type 2',
+          'GAD',
+          'son',
+          'daughter',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'No previous history of prediabetes/diabetes. Fhx: son recently diagnosed with Type 1 diabetes (GAD+)',
+      },
+      currentMedications: {
+        title: 'Current Diabetes Medications',
+        aiInstructions:
+          'List all current diabetes medications with exact doses and timing. Include basal insulin (Lantus, Toujeo), bolus insulin (Lispro, Humalog), oral medications, and GLP-1 agonists. Note any recent dose adjustments.',
+        required: true,
+        order: 4,
+        keywords: [
+          'Lantus',
+          'Toujeo',
+          'Lispro',
+          'units',
+          'Ozempic',
+          'Pioglitazone',
+          'TID',
+          'qd',
+          'weekly',
+        ],
+        format: 'bullets',
+        exampleText:
+          '• Toujeo 18 units in PM\n• Lispro 6 units TID\n• Pioglitazone 30 mg qd\n• Ozempic 0.5 mg weekly',
+      },
+      previousMedications: {
+        title: 'Previous Medications Tried',
+        aiInstructions:
+          'List medications that were discontinued and reason for discontinuation (ineffective, side effects, rash, etc.).',
+        required: false,
+        order: 5,
+        keywords: ['previous', 'discontinued', 'rash', 'side effect', 'Januvia', 'tried'],
+        format: 'bullets',
+        exampleText: '• Januvia: discontinued due to rash',
+      },
+      glucoseMonitoring: {
+        title: 'Blood Glucose Monitoring',
+        aiInstructions:
+          'Document current glucose readings (fasting, pre-meal, post-meal). Include patterns, timing of highs/lows. Note any recent hypoglycemic episodes with details about timing and cause.',
+        required: true,
+        order: 6,
+        keywords: ['BG', 'meter', 'fasting', 'glucose', 'low', 'high', 'hypoglycemia', 'episodes'],
+        format: 'paragraph',
+        exampleText:
+          'BG meter: fasting >200\nTwo episodes of low blood sugars - on second episode, took shot and waited too long before eating',
+      },
+      diabetesComplications: {
+        title: 'Complications Screening',
+        aiInstructions:
+          'Document status of diabetic complications screening: retinopathy (eye exam date/results), neuropathy (symptoms, exam findings), nephropathy (microalbumin, CMP results). Note what needs to be done.',
+        required: true,
+        order: 7,
+        keywords: [
+          'Retinopathy',
+          'Neuropathy',
+          'Nephropathy',
+          'eye exam',
+          'microalbumin',
+          'CMP',
+          'need',
+        ],
+        format: 'bullets',
+        exampleText:
+          '• Diabetic Retinopathy: need to get exam done\n• Diabetic Neuropathy: Need to update\n• Diabetic Nephropathy: Need to check CMP',
+      },
+      currentVisitHistory: {
+        title: 'Current Visit History',
+        aiInstructions:
+          'Document chronological visit notes with dates. Include symptoms, weight changes, medication adjustments, compliance concerns, and patient-reported issues. Format as date: findings for each visit.',
+        required: true,
+        order: 8,
+        keywords: [
+          'Current visit',
+          'weight loss',
+          'compliance',
+          'denies',
+          'swollen',
+          'rash',
+          'prednisone',
+        ],
+        format: 'paragraph',
+        exampleText:
+          '7.2024: Per wife, losing weight, lost appetite with infusions. Having morning lows, decreased Toujeo dose.\n9.2024: Interested in more pills. Swollen ankles after hurting foot.\n2.2025: High BG levels.\n5.2025: No changes, compliant with medications, denies confusion/nausea.',
+      },
+      dietaryIntake: {
+        title: 'Dietary Intake',
+        aiInstructions:
+          'Document typical meals and eating patterns. Include specific foods for breakfast, lunch, dinner, and snacks. Note any alcohol consumption.',
+        required: false,
+        order: 9,
+        keywords: ['breakfast', 'lunch', 'dinner', 'diet', 'alcohol', 'beer', 'coffee', 'pizza'],
+        format: 'paragraph',
+        exampleText:
+          'Breakfast: fried eggs + bacon + toast + coffee\nLunch: campbell soups\nDinner: pizza, fried chicken\nAlcohol: 1 beer nightly before dinner',
+      },
+      reviewOfSystems: {
+        title: 'Review of Systems',
+        aiInstructions:
+          'Document pertinent ROS findings. Include any symptoms affecting diabetes management (asthma requiring steroids, infections, etc.).',
+        required: false,
+        order: 10,
+        keywords: ['ROS', 'asthma', 'steroid', 'confusion', 'nausea', 'vomiting', 'denies'],
+        format: 'paragraph',
+        exampleText:
+          'Asthma worsening, using steroid inhaler more often. Denies confusion, nausea, vomiting',
+      },
+      laboratoryResults: {
+        title: 'Laboratory Results',
+        aiInstructions:
+          'Document A1C trends with dates, autoantibody results (IA2, GAD, IAA), C-peptide levels, and other relevant labs. Show progression over time.',
+        required: true,
+        order: 11,
+        keywords: ['A1c', 'GAD', 'IA2', 'IAA', 'C-peptide', 'glucose', 'prediabetic'],
+        format: 'paragraph',
+        exampleText:
+          'Most Recent A1c: 12.1 (7.2024) → 7.9 (8.2024)\nPrediabetic 4.2024, A1c 6.2\nIA2, GAD, IAA negative, C-peptide 0.68',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Provide numbered assessment with ICD-10 codes. For diabetes: specify type, control status (controlled/uncontrolled), diagnosis date, and most recent A1C. Include compliance concerns and clinical reasoning. Add other diagnoses as separate numbered items.',
+        required: true,
+        order: 12,
+        keywords: [
+          'Uncontrolled',
+          'Type 2 diabetes',
+          'improving',
+          'concerned',
+          'compliance',
+          'E11.65',
+          'Z85',
+        ],
+        format: 'numbered',
+        exampleText:
+          '1. Uncontrolled type 2 diabetes mellitus - Uncontrolled, dx: 6.2024 but improving; Most Recent A1c: 7.9 (8.2024). Concerned patient not taking insulin as prescribed. (E11.65)\n2. History of Malignant melanoma - monitored by MDACC (Z85.89)',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Detail medication adjustments with specific doses and sliding scales. Include GLP-1 counseling with side effects and contraindications. Add lifestyle modifications, monitoring instructions, referrals, and follow-up timing. Include prescription details with quantity and refills.',
+        required: true,
+        order: 13,
+        keywords: [
+          'Increase',
+          'Continue',
+          'units',
+          'sliding scale',
+          'GLP-1',
+          'pancreatitis',
+          'thyroid cancer',
+        ],
+        format: 'numbered',
+        exampleText:
+          '1. Increase Toujeo 18 units qd to 22 units qd\n2. Continue Lispro 6 units with meals\n   100-150: no additional units\n   151-200: +1 units\n   201-250: +2 units\n3. Continue Pioglitazone 30 mg qd (no h/o CHF)\n4. Increase Ozempic 0.5 mg to 1 mg weekly\n   - Discussed nausea, constipation, acid reflux\n   - Discussed risk of pancreatitis and thyroid cancer warning',
+      },
+      glucoseGoals: {
+        title: 'Glucose Goals & Targets',
+        aiInstructions:
+          'Document specific BG targets for fasting, pre-meal, and post-meal. Include A1C goal and hypoglycemia threshold.',
+        required: true,
+        order: 14,
+        keywords: ['Fasting', 'pre-meal', 'post-meal', 'goals', 'A1c', 'hypoglycemia', '<70'],
+        format: 'bullets',
+        exampleText:
+          '• Fasting: <120\n• Pre-meal: <140\n• 2 hours post-meal: <180\n• A1C goal: ~7%\n• Hypoglycemia: BG <70',
+      },
+      patientEducation: {
+        title: 'Patient Education',
+        aiInstructions:
+          'Document all education provided including diet counseling, exercise recommendations, BG monitoring frequency, hypoglycemia management, compliance counseling, and complications education. Use bullet format with specific recommendations.',
+        required: true,
+        order: 15,
+        keywords: [
+          'Diet',
+          'Exercise',
+          'Check BG',
+          'QID',
+          'compliance',
+          'complications',
+          'retinopathy',
+        ],
+        format: 'bullets',
+        exampleText:
+          '• Recommended low carb diet\n• Exercise: 150 mins aerobic/week\n• Check BG QID - fasting, pre-meals, 2hr post-prandial\n• Hypoglycemia management discussed in detail\n• Counseled on compliance with meds, appointments, diet\n• Counseled on complications: retinopathy, neuropathy, nephropathy, CAD, stroke',
+      },
+      prescriptions: {
+        title: 'Prescriptions',
+        aiInstructions:
+          'List all prescriptions written with complete sig, quantity, refills, and pharmacy. Include both medications and lab orders.',
+        required: true,
+        order: 16,
+        keywords: ['Qty', 'Refills', 'Pharmacy', 'CVS', 'tablet', 'mg', 'subcutaneous', 'oral'],
+        format: 'paragraph',
+        exampleText:
+          'Pioglitazone 30 mg tablet - Take 1 tablet every day by oral route for 90 days. Qty: (90) tablet Refills: 1 Pharmacy: CVS #3573\n\nOzempic 1 mg/dose (4 mg/3 mL) pen - Inject 1 mg weekly subcutaneous for 90 days. Qty: (3) 3 mL syringe Refills: 1\n\nLabs: HEMOGLOBIN A1C, COMP. METABOLIC PANEL, LIPID PANEL',
+      },
+      followUp: {
+        title: 'Follow-up Plan',
+        aiInstructions:
+          'Document follow-up timing, specific instructions for urgent issues, and contingency plans. Include referrals to other providers or services.',
+        required: true,
+        order: 17,
+        keywords: ['Return', 'follow-up', 'referral', 'ER', 'if not controlled', 'weeks', 'months'],
+        format: 'paragraph',
+        exampleText:
+          'If BG not in range in 1 week, refer to physician. Advised if sugar not going down to go to ER. Repeat A1c every 3 months.\n\nReturn to Office: RADHA BERNANDER, PA at GC_EPC_Katy Office on 09/03/2025 at 01:00 PM',
+      },
+    },
+    generalInstructions:
+      'Create a comprehensive diabetes management note for complex cases with multiple comorbidities. Focus on medication titration, sliding scale adjustments, and compliance concerns. Document cancer history and its impact on diabetes management. Include detailed A1C trends, autoantibody results when relevant, and clear escalation plans. Always include GLP-1 counseling documentation with contraindications. Maintain PA/NP documentation standards with supervising physician referral criteria.',
+  },
+  {
+    name: 'Elina - Comprehensive Diabetes Follow-up',
+    description:
+      'Detailed endocrinology template for uncontrolled Type 2 DM with multiple comorbidities and insulin management',
+    visitType: 'follow-up',
+    isDefault: false,
+    sections: {
+      patientIntroduction: {
+        title: 'Patient Introduction',
+        aiInstructions:
+          'Document patient demographics (age/gender), reason for follow-up, diabetes control status. Include any care transitions (new PCP, moving from different state, changing providers).',
+        required: true,
+        order: 1,
+        keywords: ['f/up', 'uncontrolled', 'type 2 DM', 'Seattle', 'Endocrine', 'PCP', 'Texas'],
+        format: 'paragraph',
+        exampleText:
+          '64 M f/up for uncontrolled type 2 DM. Was in Seattle seeing Endocrine for Diabetes. After moving to Texas, has not been to Endocrine. Will have new PCP now.',
+      },
+      diabetesEducation: {
+        title: 'Diabetes Education & Self-Management',
+        aiInstructions:
+          'Document any diabetes education received, self-monitoring practices, and lifestyle changes made. Include hospital education programs, meter use, and dietary changes.',
+        required: false,
+        order: 2,
+        keywords: [
+          'diabetes educator',
+          'memorial hermann',
+          'diet',
+          'recording',
+          'meter',
+          'checks sugars',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'Has been to diabetes educator at Memorial Hermann Hospital, has changed diet and recording sugars. Checks sugars with meter.',
+      },
+      pastMedicalHistory: {
+        title: 'Past Medical History',
+        aiInstructions:
+          'List all medical conditions including Type 2 DM, cardiovascular conditions (HLP, A-Fib), complications (neuropathy, retinopathy), and other conditions. Use standard abbreviations.',
+        required: true,
+        order: 3,
+        keywords: ['PMH', 'Type 2 DM', 'HLP', 'A Fib', 'neuropathy', 'vitamin D', 'deficiency'],
+        format: 'paragraph',
+        exampleText: 'PMH: Type 2 DM, HLP, vit D deficiency, A Fib, diabetic neuropathy',
+      },
+      pastSurgicalHistory: {
+        title: 'Past Surgical History',
+        aiInstructions:
+          'List all surgeries with years when available. Include eye surgeries for diabetic complications, colonoscopies, and other procedures.',
+        required: false,
+        order: 4,
+        keywords: [
+          'PSH',
+          'cholecystectomy',
+          'hernia',
+          'surgery',
+          'colonoscopy',
+          'laser',
+          'eye bleeding',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'PSH: cholecystectomy 2015, Hernia surgery 1997, right knee surgery 1973, colonoscopy-normal, laser surgery for eye bleeding',
+      },
+      familyHistory: {
+        title: 'Family History',
+        aiInstructions:
+          'Document family history of diabetes, cardiovascular disease, and other relevant conditions. Include cause of death if mentioned.',
+        required: true,
+        order: 5,
+        keywords: ['FH', 'parents', 'diabetes', 'A fib', 'MI', 'died'],
+        format: 'paragraph',
+        exampleText: 'FH: both parents had diabetes, mom had A fib, dad died of MI',
+      },
+      socialHistory: {
+        title: 'Social History',
+        aiInstructions:
+          'Document smoking status (current/former/never), alcohol use, drug use, and occupation. Include relevant lifestyle factors.',
+        required: true,
+        order: 6,
+        keywords: ['SH', 'smoking', 'alcohol', 'drugs', 'former smoker', 'occupation', 'inspector'],
+        format: 'paragraph',
+        exampleText: 'SH: Denies smoking/excess alcohol/drugs. Former smoker. Was food inspector',
+      },
+      diabetesDiagnosis: {
+        title: 'Diabetes Diagnosis & Previous Medications',
+        aiInstructions:
+          'Document age at diagnosis, years since diagnosis, and any previous diabetes medications that were discontinued or recalled.',
+        required: true,
+        order: 7,
+        keywords: ['DIAGNOSIS', 'DM', 'years', 'age', 'PREVIOUS MEDS', 'recalled', 'discontinued'],
+        format: 'paragraph',
+        exampleText:
+          'DIAGNOSIS of DM II: 28 years of age\nPREVIOUS MEDS: does not remember name of medicine, was recalled',
+      },
+      bloodGlucoseRecord: {
+        title: 'Blood Glucose Record',
+        aiInstructions:
+          'Document glucose monitoring patterns and specific readings. Include fasting, pre-meal, post-meal values with times. Note any patterns or trends. Include hypoglycemia occurrences.',
+        required: true,
+        order: 8,
+        keywords: [
+          'BLOOD GLUCOSE',
+          'fasting',
+          'post breakfast',
+          'pre lunch',
+          'post lunch',
+          'dinner',
+          'bedtime',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'BLOOD GLUCOSE RECORD: usually checks after meals\nFasting: [values]\nPost breakfast: 205, 218, 164, 191, 185, 187\nPost lunch: 150, 140, 183, 134, 215, 256\nPost dinner: 174, 214, 133, 179, 207, 153',
+      },
+      dietHistory: {
+        title: 'Diet History',
+        aiInstructions:
+          'Document detailed dietary intake for all meals and snacks. Include specific foods, portions, and timing. List breakfast, lunch, dinner, and all snacks separately.',
+        required: true,
+        order: 9,
+        keywords: [
+          'DIET HISTORY',
+          'Breakfast',
+          'Lunch',
+          'Dinner',
+          'snacks',
+          'bedtime',
+          'graham crackers',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'Breakfast 8 AM: two slices toast with cinnamon, tea with milk/artificial sweetener, egg, hot dog link\nLunch 1-2 PM: 2 oz meatloaf with cup of rice\nDaytime snacks: graham crackers, saltine crackers with cheese\nDinner 8 PM: 4 cheese enchiladas, vegetables, beef spaghetti\nBedtime snacks: popcorn, cracker with cheese',
+      },
+      exercise: {
+        title: 'Exercise',
+        aiInstructions:
+          'Document current exercise routine including type, frequency, duration. Include strength training, cardio, walking ability, and use of assistive devices.',
+        required: true,
+        order: 10,
+        keywords: [
+          'EXERCISE',
+          'strength training',
+          'stationary bike',
+          'walking',
+          'weights',
+          'crunches',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'EXERCISE: strength training exercise, stationary bike, weights after lunch, walks in morning',
+      },
+      diabetesComplications: {
+        title: 'Diabetes Complications',
+        aiInstructions:
+          'List all diabetes complications with + for present, - for absent. Include CAD/Stroke, Neuropathy, Nephropathy, Foot ulcer/PVD, Retinopathy (with last exam date), Sexual problems (ED), and Musculoskeletal complications.',
+        required: true,
+        order: 11,
+        keywords: [
+          'COMPLICATIONS',
+          'CAD',
+          'Neuropathy',
+          'Nephropathy',
+          'Retinopathy',
+          'ED',
+          'foot ulcer',
+        ],
+        format: 'paragraph',
+        exampleText:
+          '- CAD/Stroke\n+ Neuropathy\n- Nephropathy\n- Foot ulcer/PVD\n+ Retinopathy, Last ophthalmology exam 2023\n+ Sexual problems, ED\n+ Musculoskeletal complications: back pain, shoulder pain',
+      },
+      laboratoryValues: {
+        title: 'Laboratory Values',
+        aiInstructions:
+          'Document all lab results with dates. Include lipid panel (T chol, HDL, TG, LDL), A1C with trends, CMP (glucose, creatinine, LFTs), CBC, and microalbuminuria. Show progression over multiple dates.',
+        required: true,
+        order: 12,
+        keywords: [
+          'LABS',
+          'A1c',
+          'T chol',
+          'HDL',
+          'TG',
+          'LDL',
+          'glucose',
+          'creatinine',
+          'microalbuminuria',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'LABS 12/4/2024: T chol 110, HDL 46, TG 165, LDL 40, A1c 8.5\nCMP: glucose 231, creatinine 1, LFTs normal\n\n2/11/2025: A1c 9.4, glucose 227\nT chol 118, HDL 45, TG 136, LDL 51',
+      },
+      visitProgressNotes: {
+        title: 'Visit Progress Notes',
+        aiInstructions:
+          'Document chronological visit notes with dates. Include weight changes, medication changes, side effects, symptoms, and patient-reported outcomes. Format as date followed by bullet points of key findings.',
+        required: true,
+        order: 13,
+        keywords: [
+          'Patient reports',
+          'sugars',
+          'portion control',
+          'weight loss',
+          'side effect',
+          'mounjaro',
+        ],
+        format: 'paragraph',
+        exampleText:
+          '2/17/2025:\n- High sugars reported\n- Portion control efforts\n- Lost 15 lb in 2 months\n- Walking better, no back pain\n\n3/31/2025:\n- Sugars improved with Mounjaro 5mg\n- Lost 5 lb in one month\n- Still using Levemir, not started Tresiba',
+      },
+      currentMedications: {
+        title: 'Current Medications',
+        aiInstructions:
+          'List all current medications organized by category. First list general meds, then DM MEDS separately. Include exact doses, frequencies, and routes. For insulin, specify units and timing.',
+        required: true,
+        order: 14,
+        keywords: [
+          'MEDS',
+          'DM MEDS',
+          'Gabapentin',
+          'Losartan',
+          'Eliquis',
+          'Levemir',
+          'Humalog',
+          'Jardiance',
+          'Mounjaro',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'MEDS:\nGabapentin 300 mg BID\nLosartan 100 mg daily\nEliquis 5 mg BID\nMetoprolol 50 mg BID\n\nDM MEDS:\nLevemir 22 units AM and 22 units PM\nHumalog 27 units before breakfast, 13 before lunch, 28 before dinner\nJardiance 25 mg daily\nMounjaro 5 mg weekly',
+      },
+      physicalExam: {
+        title: 'Physical Exam',
+        aiInstructions:
+          'Document pertinent physical exam findings by system. Include HEENT, Thyroid, Heart, Lungs, Extremities, Neuro, Psych, Derm, and Musculoskeletal findings.',
+        required: true,
+        order: 15,
+        keywords: [
+          'Physical Exam',
+          'HEENT',
+          'Heart',
+          'Lungs',
+          'Extremities',
+          'Neuro',
+          'DTRs',
+          'edema',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'HEENT: EOMI, no oral lesions\nHeart: Regular rate and rhythm\nLungs: Normal respiratory rate, no wheezes\nExtremities: Pulses normal, no edema\nNeuro: No gross sensory defect, DTRs normal',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'List all diagnoses with ICD-10 codes. Start with primary diabetes diagnosis including control status. Add all comorbidities as numbered items. Include brief management notes for each.',
+        required: true,
+        order: 16,
+        keywords: [
+          'Assessment',
+          'Uncontrolled type 2 diabetes',
+          'E11.65',
+          'E66.01',
+          'E78.2',
+          'I48.20',
+        ],
+        format: 'numbered',
+        exampleText:
+          '1. Uncontrolled type 2 diabetes mellitus (E11.65)\n2. Vitamin D deficiency (E55.9)\n3. Morbid obesity - on Mounjaro (E66.01)\n4. Mixed hyperlipidemia - on Repatha, LDL 59 (E78.2)\n5. Chronic atrial fibrillation - on Eliquis (I48.20)',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Detail management plan for each diagnosis. Include medication changes with rationale, monitoring parameters, lifestyle recommendations, and follow-up timing. Note any medications patient declined or previous failures.',
+        required: true,
+        order: 17,
+        keywords: [
+          'PLAN',
+          'increase',
+          'continue',
+          'metformin',
+          'declined',
+          'Quest labs',
+          'F/up',
+          'months',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'Was on metformin in past, discontinued as not working. Patient does not want metformin now.\n- Increase Mounjaro to 7.5 mg weekly\n- Continue Jardiance 25 mg daily\n- SBP on low side, advised discussing with PCP/cardiologist\n- Patient prefers Quest labs\n- Replace vitamin D\n- F/up 3 months',
+      },
+      prescriptions: {
+        title: 'Prescriptions',
+        aiInstructions:
+          'List all prescriptions with complete sig including dose, route, frequency, quantity, refills, and pharmacy. Group by diagnosis if applicable.',
+        required: true,
+        order: 18,
+        keywords: ['mg', 'tablet', 'injector', 'subcutaneous', 'Qty', 'Refills', 'Pharmacy', 'HEB'],
+        format: 'paragraph',
+        exampleText:
+          'Mounjaro 7.5 mg/0.5 mL subcutaneous pen - Inject 7.5 mg weekly subcutaneous. Qty: (4) 0.5 mL syringe Refills: 4 Pharmacy: HEB PHARMACY\n\nJardiance 25 mg tablet - Take 1 tablet daily oral. Qty: (90) tablet Refills: 2\n\nErgocalciferol 50,000 unit capsule - Take 1 capsule weekly oral. Qty: (8) capsule Refills: 0',
+      },
+      returnVisit: {
+        title: 'Return to Office',
+        aiInstructions:
+          'Document scheduled follow-up appointment with provider name, credentials, visit type, location, date and time.',
+        required: true,
+        order: 19,
+        keywords: ['Return', 'Office', 'MD', 'Established Patient', 'AM', 'PM'],
+        format: 'paragraph',
+        exampleText:
+          'Elina Shakya, MD for Established Patient at GC_EPC_Katy Office on 09/03/2025 at 09:15 AM',
+      },
+    },
+    generalInstructions:
+      'Create a comprehensive endocrinology follow-up note for uncontrolled Type 2 diabetes with multiple comorbidities. Focus on detailed glucose monitoring patterns, complex insulin regimens with specific unit dosing, GLP-1 agonist management, and dietary assessment. Document all diabetes complications systematically. Include chronological visit progress notes showing medication adjustments and patient responses. Always note previous medication failures and patient preferences. Maintain detailed physical exam documentation and complete prescription information with pharmacy details.',
+  },
+  {
+    name: 'Shannon - Complex T1DM with Frequent Hypoglycemia',
+    description:
+      'Comprehensive Type 1 diabetes management with pump therapy, frequent hypoglycemia, and multiple comorbidities',
+    visitType: 'diabetes_type1_complex',
+    isDefault: false,
+    sections: {
+      presentingConditions: {
+        title: 'Presenting Conditions',
+        aiInstructions:
+          'List all conditions patient presents with today including diabetes type, cardiovascular conditions, metabolic disorders, and deficiencies. Include age, gender, and brief descriptor.',
+        required: true,
+        order: 1,
+        keywords: [
+          'presents for',
+          'T1DM',
+          'T2DM',
+          'hyperlipidemia',
+          'htn',
+          'def',
+          'yo female',
+          'yo male',
+        ],
+        format: 'paragraph',
+        exampleText: '66 yo female presents for t1dm, hyperlipidemia, htn, vit d def.',
+      },
+      diabetesStatus: {
+        title: 'Type 1 Diabetes Status',
+        aiInstructions:
+          'Document current pump model, CGM status, and immediate concerns about glucose control. Note if having frequent hypoglycemia or hyperglycemia. Brief statement about overall stability.',
+        required: true,
+        order: 2,
+        keywords: [
+          'pump',
+          '670',
+          '770',
+          '780',
+          'stable',
+          'frequent',
+          'hypoglycemia',
+          'hyperglycemia',
+          'CGM',
+        ],
+        format: 'paragraph',
+        exampleText: 'T1DM:\non 670 pump,\nstable, is having frequent mild hypoglycemia',
+      },
+      hypertensionStatus: {
+        title: 'Hypertension Status',
+        aiInstructions:
+          'Current BP control status and medications with doses. Note if improved, stable, or worsening. Include specific medication names and doses.',
+        required: true,
+        order: 3,
+        keywords: [
+          'htn',
+          'bp',
+          'improved',
+          'benicar',
+          'hctz',
+          'olmesartan',
+          'metoprolol',
+          'stable',
+        ],
+        format: 'paragraph',
+        exampleText: 'htn: bp now improved on benicar 40 and hctz 25. stable.',
+      },
+      mentalHealthStatus: {
+        title: 'Depression/Mental Health',
+        aiInstructions:
+          'Document current psychiatric medications with doses, mental status, and specifically note presence or absence of suicidal ideation. Include stability assessment.',
+        required: true,
+        order: 4,
+        keywords: [
+          'depression',
+          'duloxetine',
+          'denies',
+          'suicidal ideation',
+          'stable',
+          'doing well',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'depression: doing well on duloxetine 60mg +20 mg q d. denies suicidal ideation, stable.',
+      },
+      vitaminDeficiencies: {
+        title: 'Vitamin Deficiencies',
+        aiInstructions:
+          'Document vitamin D and B12 status, current supplementation or lack thereof, and stability.',
+        required: true,
+        order: 5,
+        keywords: ['vit d def', 'cobalamin', 'B12', 'not taking', 'stable', 'mcg'],
+        format: 'paragraph',
+        exampleText: 'vit d def: not taking any at this time. stable.',
+      },
+      lipidManagement: {
+        title: 'Hyperlipidemia Management',
+        aiInstructions:
+          'Current statin therapy, efficacy assessment, medication changes, and additional lipid medications like Vascepa. Note if current therapy is adequate or changes needed.',
+        required: true,
+        order: 6,
+        keywords: [
+          'hyperlipidemia',
+          'atorva',
+          'rosuvastatin',
+          'vascepa',
+          'not efficacious',
+          'worsening',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'hyperlipidemia:\natorva 40 not efficacious enough\nnow on rosuvastatin 40 and vascepa 0.5 g ii po bid worsening',
+      },
+      assessmentPlan: {
+        title: 'Assessment / Plan',
+        aiInstructions:
+          'Start with weight change and glucagon use summary. Then detailed T1DM management including A1c history, CGM downloads with percentages, pump settings with exact basal rates by time periods, bolus adjustments, and patient education about hypoglycemia risks.',
+        required: true,
+        order: 7,
+        keywords: [
+          'Assessment',
+          'Plan',
+          'down',
+          'lbs',
+          'gvok',
+          'A1c',
+          'CGM download',
+          'in range',
+          'high',
+          'low',
+          'very low',
+          'basal',
+          'bolus',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'Assessment / Plan\ndown 2 lbs\nhas required gvok 3 x since last visit.\n\nT1DM:\nlast a1c 5.6, 5.2, 5.5, 5.4, 5.4, 5.4, 5.3, 5.5, 5.1, 5.4, 5.5, 4.9 (8/24), 4.3 (12/24), 4.8 (2/25), 4.9 (6/25)\nmedtronic 700 (4/24)\ncgm download 2/27/25: in range 44, high 1, low 21, very low 34',
+      },
+      pumpManagement: {
+        title: 'Pump and Insulin Management',
+        aiInstructions:
+          'Detailed pump settings including all basal rates by time periods (format as 0000-0330 0.025), bolus strategies, MDI if applicable, carb ratios, and specific adjustments made. Include patient behavior notes about self-adjustments and education provided.',
+        required: true,
+        order: 8,
+        keywords: [
+          'basal',
+          'bolus',
+          'units',
+          'reduce',
+          'CR',
+          '0000',
+          'medtronic',
+          'closed loop',
+          'MDI',
+          'injecting',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'now on medtronic closed loop, only uses pump for basal. she boluses with mdi and she boluses too much.\nInjecting 18-20 rapid acting. will reduce by 2 units each time.\npt continues to increase basal adjustments after we decrease.\n0000-0330 0.025\n0330-0630 0.125> 0.10\n630-3:30 pm 2.65> 2.20\n330 pm -8 pm 1.45> 1.20\n8 pm -0000 0.125>0.75\n-CR 9',
+      },
+      diabetesMonitoring: {
+        title: 'Diabetes Monitoring Requirements',
+        aiInstructions:
+          'Document CGM medical necessity statement, testing frequency, glucagon availability, and pump adjustment rationale. Include any shortage discussions or supply issues.',
+        required: true,
+        order: 9,
+        keywords: [
+          'CGM',
+          'medically necessary',
+          'glucagon',
+          'testing',
+          'times daily',
+          'pump',
+          'adjust',
+          'gvoke',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'Patient is currently on CGMs, and it is medically necessary for the patient to be on due glycemic episodes and low/high blood glucose readings.\n-refill glucagon 12/24\nPatient is testing 6 times daily.\nPatient is on insulin pump and patient will adjust insulin accordingly due to his/her glucose numbers.',
+      },
+      hypertensionManagement: {
+        title: 'Hypertension Management Details',
+        aiInstructions:
+          'Current antihypertensive regimen with specific doses and timing, medication intolerances, sensitivity issues, and BP goal status.',
+        required: true,
+        order: 10,
+        keywords: [
+          'olmesartan',
+          'metoprolol',
+          'bid',
+          "can't tolerate",
+          'hctz',
+          'sensitive',
+          'bp at goal',
+        ],
+        format: 'paragraph',
+        exampleText:
+          "htn: now taking olmesartan 40 po q d and metoprolol 50 bid.\ncan't tolerate hctz\nshe is very sensitive to htn meds.\nbp at goal",
+      },
+      lipidDetails: {
+        title: 'Lipid Management Details',
+        aiInstructions:
+          'Detailed lipid medication regimen with reasons for changes, efficacy assessments, and compliance issues. Include specific doses and frequencies.',
+        required: true,
+        order: 11,
+        keywords: [
+          'rosuvastatin',
+          'vascepa',
+          'not taking consistently',
+          'will begin',
+          'not efficacious',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'hyperlipidemia:\natorva 40 not efficacious enough, now on rosuvastatin 40 and vascepa 0.5 g 4 po bid. (not taking vascepa consistently, will begin doing so).',
+      },
+      liverFunction: {
+        title: 'Liver Function Monitoring',
+        aiInstructions:
+          'Document elevated liver enzymes with specific values and dates, recommendations for lifestyle modifications, and follow-up plans with PCP or GI.',
+        required: false,
+        order: 12,
+        keywords: [
+          'elevated lfts',
+          'ast',
+          'alt',
+          'avoid etoh',
+          'tylenol',
+          'exercise',
+          'diet',
+          'fu with pcp',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'elevated lfts: avoid etoh, tylenol.\nast 66 alt 51 (1/24), fu with pcp or gi\ninc exercise, improve diet.\n-ast nl alt 41 4/24\n-ast 39 alt 35 (8/24), improving, cont to fu with pcp.',
+      },
+      thyroidFunction: {
+        title: 'Thyroid Function',
+        aiInstructions:
+          'Document thyroid function test results with dates, TPO antibody status, and monitoring plan. Note if euthyroid or requires treatment.',
+        required: false,
+        order: 13,
+        keywords: ['abnl tfts', 'tsh', 'tpo', 'neg', 'euthyroid', 'monitor'],
+        format: 'paragraph',
+        exampleText:
+          "abnl tfts: hasn't been issue in long time.\nprev neg tpo\ntsh 4.55 (4/24)\n7/24: tpo neg\n8/24: tsh 2.1, euthyroid, cont to monitor.",
+      },
+      weightManagement: {
+        title: 'Weight Management',
+        aiInstructions:
+          'Document current weight loss medications (Qsymia, Mounjaro, Ozempic, etc.), current dose, efficacy, patient requests for dose adjustments, and any discontinued medications.',
+        required: false,
+        order: 14,
+        keywords: [
+          'obesity',
+          'qsymia',
+          'doing well',
+          'eating less',
+          'increase dose',
+          'zepbound',
+          'd/c',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'obesity: started qsymia 1/25. doing well, eating less.\ntaking 7.5-46, she wants to increase dose.\n-6/25: wants a further inc. will send in.',
+      },
+      vitaminB12: {
+        title: 'Vitamin B12 Status',
+        aiInstructions:
+          'Document B12 levels with specific values, goal levels, and current supplementation dose.',
+        required: false,
+        order: 15,
+        keywords: ['cobalamin def', 'B12', 'mcg', 'goal', 'otc'],
+        format: 'paragraph',
+        exampleText:
+          'cobalamin def: 370s, review goal >400\nbegin 500 mcg B12 q d otc.\n754 (8/24), cont otc 500 mcg.',
+      },
+      diagnosesList: {
+        title: 'Problem List with ICD-10 Codes',
+        aiInstructions:
+          'Numbered list of all diagnoses with ICD-10 codes. Include primary diabetes diagnosis with complications, cardiovascular conditions, metabolic disorders, obesity classification, and psychiatric conditions. Note any special monitoring like eye exams.',
+        required: true,
+        order: 16,
+        keywords: [
+          'E10.65',
+          'E78.2',
+          'I10',
+          'F32.1',
+          'E53.8',
+          'E16.2',
+          'Z68',
+          'hypoglycemia',
+          'diabetes mellitus',
+          'BMI',
+        ],
+        format: 'numbered',
+        exampleText:
+          '1. Mixed hyperlipidemia\nE78.2: Mixed hyperlipidemia\n2. Thyroid function tests abnormal\nR94.6: Abnormal results of thyroid function studies\n3. Hypertensive disorder\nI10: Essential (primary) hypertension\n4. Uncontrolled type 1 diabetes mellitus - frequent hypoglycemia\nE10.65: Type 1 diabetes mellitus with hyperglycemia\n5. Hypoglycemia\nE16.2: Hypoglycemia, unspecified',
+      },
+      labOrders: {
+        title: 'Laboratory Orders',
+        aiInstructions:
+          'List all labs ordered including metabolic panels, A1c, lipid panels, thyroid tests, vitamin levels, and urine studies. Include specific test names and codes when provided.',
+        required: true,
+        order: 17,
+        keywords: ['LIPID SCREEN', 'CMP', 'HBA1C', 'TSH', 'ALBUMIN/CREATININE', 'VITAMIN B12'],
+        format: 'bullets',
+        exampleText:
+          '• LIPID SCREEN (CORONARY RISK I) (PH0115)\n• CMP (COMPREHENSIVE METABOLIC PANEL) (PH0113)\n• HBA1C (HEMOGLOBIN A1C), BLOOD\n• TSH, SERUM OR PLASMA\n• ALBUMIN/CREATININE RATIO, URINE\n• VITAMIN B12 (PH0169)',
+      },
+      prescriptions: {
+        title: 'Prescriptions',
+        aiInstructions:
+          'List all prescriptions with complete sig including medication name, strength, formulation, directions, quantity, refills, and pharmacy. Include emergency medications like glucagon.',
+        required: true,
+        order: 18,
+        keywords: [
+          'Gvoke',
+          'HypoPen',
+          'Qsymia',
+          'mg',
+          'capsule',
+          'subcutaneous',
+          'Qty',
+          'Refills',
+          'CVS',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'Gvoke HypoPen 2-Pack 1 mg/0.2 mL subcutaneous auto-injector - Inject as directed prn hypoglycemia Qty: (2) 0.2 mL syringe Refills: 1 Pharmacy: CVS/PHARMACY #4397\n\nQsymia 15 mg-92 mg capsule, extended release - Take 1 capsule(s) every day by oral route. Qty: (30) capsule Refills: 0 Pharmacy: CVS/PHARMACY #4397',
+      },
+      followUp: {
+        title: 'Return to Office',
+        aiInstructions:
+          'Document follow-up timing and any specific instructions for return visits.',
+        required: true,
+        order: 19,
+        keywords: ['Return', 'Office', 'needed', 'months', 'weeks'],
+        format: 'paragraph',
+        exampleText: 'Return to Office\nPatient will return to the office as needed.',
+      },
+    },
+    generalInstructions:
+      'Create a comprehensive Type 1 diabetes management note focusing on complex pump therapy, frequent hypoglycemia episodes, and multiple comorbidities. Document exact pump settings with time-specific basal rates (format: 0000-0330 0.025), MDI bolus adjustments, and CGM data with percentages for in-range, high, low, and very low readings. Include chronological A1c values with dates, detailed medication intolerances, and specific patient behaviors regarding insulin self-adjustments. Note all emergency glucagon use. Document complete management of comorbidities including HTN sensitivity, statin changes for inefficacy, weight management medications, liver enzyme monitoring, and vitamin deficiencies. Always include patient education about hypoglycemia risks and strict instructions not to self-adjust basal rates.',
+  },
+  {
+    name: 'Veena - T2DM with CKD and HTN',
+    description:
+      'Type 2 diabetes management with chronic kidney disease, hypertension, and post-stroke care',
+    visitType: 'diabetes_ckd',
+    isDefault: false,
+    sections: {
+      hpi: {
+        title: 'HPI',
+        aiInstructions:
+          'Document follow-up conditions, current diabetes medications (GLP-1 agonists, SGLT2 inhibitors), side effects, glucose monitoring device status, and glucose patterns. Include any new symptoms or concerns.',
+        required: true,
+        order: 1,
+        keywords: [
+          'f.u',
+          'dm2',
+          'htn',
+          'hyperlipidemia',
+          'headaches',
+          'stroke',
+          'ozempic',
+          'jardiance',
+          'libre',
+          'sugars high',
+          'GI s/e',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'f.u dm2, htn, hyperlipidemia. Has had headaches since stroke in jan. She cant see neurologist till sept. Is on ozempic .5 mg, no GI s/e. On jardiance 25 mg qd. Thinks is getting pimples due to that. Is on libre. Sugars high post lunch, dinner sometimes. Not any insulin',
+      },
+      ros: {
+        title: 'ROS',
+        aiInstructions:
+          'Document review of systems with emphasis on weight changes and any additional symptoms beyond HPI.',
+        required: true,
+        order: 2,
+        keywords: ['Additionally reports', 'lost', 'pounds', 'headaches', 'ROS'],
+        format: 'paragraph',
+        exampleText: 'Additionally reports:\nlost 3 pounds\nheadaches\n\nROS as noted in the HPI',
+      },
+      diabetesAssessment: {
+        title: 'Type 2 Diabetes Assessment',
+        aiInstructions:
+          'Document diabetes control with A1c comparison, note kidney-related medication contraindications, current regimen changes, and insulin status. Include specific medication dose adjustments.',
+        required: true,
+        order: 3,
+        keywords: [
+          'Uncontrolled',
+          'A1c',
+          'metformin',
+          'kidneys',
+          'ozempic',
+          'jardiance',
+          'increase',
+          'insulin',
+        ],
+        format: 'paragraph',
+        exampleText:
+          '1. Uncontrolled type 2 diabetes mellitus with hyperglycemia\nHBA1c 6.9 down from 7.6 uncontrolled. Doing better now. No metformin due to the kidneys. Cont ozempic and jardiance 25 mg. INcrease ozempic 1 mg to help weight and sugars. Off of insulin which is good',
+      },
+      glp1Education: {
+        title: 'GLP-1 Agonist Education',
+        aiInstructions:
+          'Document patient education provided about GLP-1 injection technique, mechanism of action, common GI side effects, and rare serious side effects including pancreatitis and thyroid concerns.',
+        required: true,
+        order: 4,
+        keywords: [
+          'GLP1',
+          'injection',
+          'mechanism',
+          'GI issues',
+          'nausea',
+          'pancreatitis',
+          'thyroid Ca',
+          'rat studies',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'Patient instructed on how to use the GLP1 injection. Explained the mechanism of action and potential side effects such as GI issues like nausea. Also counseled about remote side effects like pancreatitis and rare thyroid Ca found in rat studies.',
+      },
+      sglt2Education: {
+        title: 'SGLT2 Inhibitor Education',
+        aiInstructions:
+          'Document education about SGLT2 inhibitor mechanism, side effects including increased urination, UTI/fungal infection risk, and potential benefits for weight and blood pressure.',
+        required: true,
+        order: 5,
+        keywords: ['SGLT2', 'inhibitor', 'urination', 'UTI', 'fungal infection', 'weight', 'bp'],
+        format: 'paragraph',
+        exampleText:
+          'Explained how SGLT2 inhibitor medicines works. Explained side effects such as increased urination and increased risk of UTI and genital fungal infection. Also counseled that it may also help patient reduce weight and reduce bp.',
+      },
+      lifestyleEducation: {
+        title: 'Diet and Exercise Counseling',
+        aiInstructions:
+          'Comprehensive lifestyle counseling including glucose monitoring, target ranges, low-carb diet specifics, foods to avoid, exercise recommendations, and diabetes complications education.',
+        required: true,
+        order: 6,
+        keywords: [
+          'diet',
+          'exercise',
+          'check sugars',
+          'targets',
+          'low carb',
+          'bread',
+          'pasta',
+          'activity',
+          'compliance',
+          'complications',
+          'retinopathy',
+          'neuropathy',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'Patient instructed on diet and exercise and need to check sugars regularly. Discussed targets for blood sugars. Counseled about eating low carb meals and avoid foods such as bread, pasta, pizza or anything made out of white flour. INstructed to start reading labels. Counseled to do at least light to moderate activity consistently at least 4-5 times min 30 min each time. Counseled about compliance with meds, appts and diet. Counseled on complications due to high sugars such as retinopathy, neuropathy, nephropathy, CAD, stroke.',
+      },
+      diabetesPrescriptions: {
+        title: 'Diabetes Medications',
+        aiInstructions:
+          'List diabetes medications with complete sig, ICD-10 code, and lab orders for A1c and metabolic panel.',
+        required: true,
+        order: 7,
+        keywords: [
+          'E11.65',
+          'Ozempic',
+          'mg/dose',
+          'subcutaneous',
+          'Jardiance',
+          'tablet',
+          'HBA1C',
+          'CMP',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'E11.65: Type 2 diabetes mellitus with hyperglycemia\nOzempic 1 mg/dose (4 mg/3 mL) subcutaneous pen injector - Inject 1 mg every week by subcutaneous route. Qty: (3) 3 mL syringe Refills: 0 Pharmacy: CVS/PHARMACY #7038\nHEMOGLOBIN A1C (PH0147)\nCMP (COMPREHENSIVE METABOLIC PANEL) (PH0113)\nJardiance 25 mg tablet - Take 1 tablet(s) every day by oral route. Qty: (90) tablet Refills: 1',
+      },
+      renalFunction: {
+        title: 'Renal Function Assessment',
+        aiInstructions:
+          'Document creatinine, GFR, CKD stage, and nephrology follow-up status. Include any changes from prior measurements.',
+        required: true,
+        order: 8,
+        keywords: ['creatinine', 'GFR', 'nephrologist', 'CKD', 'stage'],
+        format: 'paragraph',
+        exampleText:
+          '2. Increase in serum creatinine from prior measurement\ncreat 1.2 GFR 49 She sees nephrologist.\nR79.89: Other specified abnormal findings of blood chemistry',
+      },
+      vascularStatus: {
+        title: 'Vascular Disease',
+        aiInstructions: 'Document peripheral artery disease status with ICD-10 code.',
+        required: false,
+        order: 9,
+        keywords: ['PAD', 'peripheral artery disease', 'I73.9'],
+        format: 'paragraph',
+        exampleText:
+          '3. PAD (peripheral artery disease)\nI73.9: Peripheral vascular disease, unspecified',
+      },
+      hypertensionManagement: {
+        title: 'Hypertension Management',
+        aiInstructions:
+          'Document current BP status, medications with doses, and any medication adjustments made.',
+        required: true,
+        order: 10,
+        keywords: ['bp high', 'metoprolol', 'enalapril', 'increase', 'I10'],
+        format: 'paragraph',
+        exampleText:
+          '4. Benign essential hypertension\nbp high today. Is on metoprolol 25 mg er. Increase enalapril 10 mg qd\nI10: Essential (primary) hypertension',
+      },
+      ckdStaging: {
+        title: 'Chronic Kidney Disease',
+        aiInstructions:
+          'Document CKD stage with specific classification, creatinine value, and specialist involvement.',
+        required: true,
+        order: 11,
+        keywords: ['chronic renal', 'stage 3a', 'nephrologist', 'creat', 'N18'],
+        format: 'paragraph',
+        exampleText:
+          '5. Chronic renal impairment, stage 3a\nshe is seeing a nephrologist. creat 1.6\nN18.31: Chronic kidney disease, stage 3a',
+      },
+      lipidManagement: {
+        title: 'Lipid Management',
+        aiInstructions: 'Document hyperlipidemia status and order for lipid panel.',
+        required: true,
+        order: 12,
+        keywords: ['hyperlipidemia', 'check flp', 'E78.2', 'LIPID SCREEN'],
+        format: 'paragraph',
+        exampleText:
+          '6. Mixed hyperlipidemia\ncheck flp\nE78.2: Mixed hyperlipidemia\nLIPID SCREEN (CORONARY RISK I) (PH0115)',
+      },
+      discussionNotes: {
+        title: 'Discussion Notes',
+        aiInstructions: 'Brief notes on proteinuria status and return timeline.',
+        required: false,
+        order: 13,
+        keywords: ['proteinuria', 'rtc', 'mo'],
+        format: 'paragraph',
+        exampleText: 'no proteinuria\nrtc 3 mo',
+      },
+      returnVisit: {
+        title: 'Return to Office',
+        aiInstructions:
+          'Document scheduled follow-up with provider name, visit type, location, date and time.',
+        required: true,
+        order: 14,
+        keywords: ['Return', 'Office', 'Established Patient', 'AM', 'PM'],
+        format: 'paragraph',
+        exampleText:
+          'Veena Watwe for Established Patient at GC_EPC_Huffmeister Office on 09/03/2025 at 09:00 AM',
+      },
+    },
+    generalInstructions:
+      'Create a focused diabetes follow-up note for Type 2 diabetes with chronic kidney disease. Emphasize medication adjustments based on renal function, particularly avoiding metformin. Document GLP-1 agonist and SGLT2 inhibitor use with detailed patient education about mechanisms and side effects. Include comprehensive lifestyle counseling with specific dietary restrictions and exercise recommendations. Track A1c improvements, weight changes, and glucose patterns from continuous monitoring. Document all comorbidities including hypertension management, CKD staging with nephrology involvement, and post-stroke symptoms. Always include diabetes complication education and adherence counseling.',
+  },
+  {
+    name: 'Ghislaine - Psychiatric Medication Management',
+    description:
+      'Comprehensive psychiatric evaluation for depression, anxiety, and panic disorder with medication management',
+    visitType: 'psychiatry',
+    isDefault: false,
+    sections: {
+      chiefComplaint: {
+        title: 'Chief Complaint',
+        aiInstructions: 'Brief statement of primary reason for psychiatric visit.',
+        required: true,
+        order: 1,
+        keywords: ['Medication management', 'depression', 'anxiety'],
+        format: 'paragraph',
+        exampleText: 'Chief Complaint:\nMedication management for depression and anxiety',
+      },
+      intervalHistory: {
+        title: 'Interval History',
+        aiInstructions:
+          'Detailed psychiatric symptom progression including anxiety manifestations, mood symptoms, panic attack frequency, sleep disturbances, medication compliance, and psychosocial stressors. Include specific triggers and timeline.',
+        required: true,
+        order: 2,
+        keywords: [
+          'anxiety symptoms',
+          'shaking',
+          'tremors',
+          'sunset',
+          'sadness',
+          'crying',
+          'panic attacks',
+          'nightmares',
+          'jaw clenching',
+          'stressors',
+          'compliant',
+        ],
+        format: 'paragraph',
+        exampleText:
+          "Patient reports an increase in anxiety symptoms with return of shaking/tremors, particularly at sunset. Expresses constantly feeling like 'something bad is going to happen'.\nShe also reports significant sadness, frequent crying, and has been experiencing multiple panic attacks per week (approximately 3). She was previously doing well on her medications but has felt worse for the past 2 weeks due to significant external stressors.\nSleep: Patient reports having nightmares, sleep disturbance with jaw clenching/teeth grinding during sleep and waking up with tears.",
+      },
+      medicationSchedule: {
+        title: 'Medication Timing and Compliance',
+        aiInstructions:
+          'Document specific medication scheduling strategies patient uses to manage side effects, compliance status, and any medication issues.',
+        required: true,
+        order: 3,
+        keywords: [
+          'compliant',
+          'schedule',
+          'Bupropion',
+          'Trintellix',
+          'drowsiness',
+          'first',
+          'later',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'The patient is compliant with medications, noting she follows a specific schedule for Bupropion first, then taking Trintellix later to avoid excessive drowsiness.',
+      },
+      psychosocialStressors: {
+        title: 'Psychosocial Stressors',
+        aiInstructions:
+          'Document specific life stressors including family health issues, work stress, and acute medical emergencies. Note which stressors are primary triggers for symptom exacerbation.',
+        required: true,
+        order: 4,
+        keywords: [
+          'stress',
+          'work',
+          'mother',
+          'emergency room',
+          'daughter',
+          'allergic reactions',
+          'trigger',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'Psychosocial Stressors: Patient reports significant stress from work, her ill mother, and multiple emergency room visits with her daughter who experienced severe allergic reactions, high blood pressure episodes, and a yeast infection. These recent events with her daughter appear to be the main trigger for her anxiety exacerbation.',
+      },
+      safetyAssessment: {
+        title: 'Safety Assessment',
+        aiInstructions:
+          'Document presence or absence of suicidal ideation, homicidal ideation, and psychotic symptoms.',
+        required: true,
+        order: 5,
+        keywords: ['Denies', 'suicidal', 'homicidal', 'ideation', 'psychotic symptoms'],
+        format: 'paragraph',
+        exampleText: 'Denies suicidal or homicidal ideation, no psychotic symptoms.',
+      },
+      therapyStatus: {
+        title: 'Psychotherapy Status',
+        aiInstructions: 'Document current therapy involvement and effectiveness.',
+        required: false,
+        order: 6,
+        keywords: ['psychologist', 'therapy', "doesn't work", 'distress'],
+        format: 'paragraph',
+        exampleText:
+          "The patient continues to see her psychologist but notes that sometimes therapy 'doesn't work' for her current level of distress.",
+      },
+      currentMedications: {
+        title: 'Current Medications',
+        aiInstructions:
+          'List all psychiatric medications with doses and note which are being taken or not taken. Include non-psychiatric medications.',
+        required: true,
+        order: 7,
+        keywords: ['Wellbutrin', 'Trintellix', 'Trazodone', 'mg', 'not taking', 'sedation'],
+        format: 'paragraph',
+        exampleText:
+          'Current Medications:\nWellbutrin XL 150mg\nTrintellix 20mg\nTrazodone 12.5 mg (not taking due to excessive sedation)\n\nother meds:\nTizanidine, Ubrelvy, omeprazole',
+      },
+      previousTrials: {
+        title: 'Previous Medication Trials',
+        aiInstructions: 'List previously tried psychiatric medications.',
+        required: false,
+        order: 8,
+        keywords: ['previous', 'trials', 'Prozac', 'Effexor', 'Zaleplon'],
+        format: 'paragraph',
+        exampleText: 'previous psych med trials: Prozac, Effexor, Zaleplon',
+      },
+      mentalStatusExam: {
+        title: 'Mental Status Exam',
+        aiInstructions:
+          'Complete MSE including appearance, behavior, motor activity with specific abnormalities, speech, mood (quoted), affect, thought process/content, orientation, attention, memory, insight, and judgment.',
+        required: true,
+        order: 9,
+        keywords: [
+          'MSE',
+          'well-groomed',
+          'distressed',
+          'tearful',
+          'tremors',
+          'speech',
+          'mood',
+          'affect',
+          'thought',
+          'oriented',
+          'memory',
+          'insight',
+          'judgment',
+        ],
+        format: 'paragraph',
+        exampleText:
+          "MSE: Appears stated age, well-groomed and appropriately dressed with good hygiene\nBehavior: distressed and tearful during the session.\nMotor Activity: Bilat arm tremors w extension\nSpeech: clear, normal rate, rhythm, and volume.\nMood: 'very sad'\nAffect: Tearful and anxious\nThought Process: linear, logical and goal-directed.\nThought Content: Preoccupied with anxiety and worry about her daughter's health issues.\nSensorium/Orientation: Alert, oriented x4\nAttention/Concentration: sustained\nMemory: intact for immediate, recent, and remote recalls.\nInsight: Partial\nJudgment: Good",
+      },
+      assessmentSummary: {
+        title: 'Assessment Summary',
+        aiInstructions:
+          'Comprehensive assessment including demographics, employment/family status, psychiatric history abbreviations (MDD-R, GAD), and current presentation summary.',
+        required: true,
+        order: 10,
+        keywords: [
+          'year-old',
+          'female',
+          'employed',
+          'married',
+          'MDD-R',
+          'GAD',
+          'panic attacks',
+          'insomnia',
+          'presentation',
+        ],
+        format: 'paragraph',
+        exampleText:
+          'This is a 48-year-old female, employed, married with children, with a psychiatric history of MDD-R, GAD with panic attacks, and insomnia presenting today for a follow up visit.\n\nHer presentation is most suggestive of: MDD, GAD with panic attacks, insomnia\n\nPatient reports increased anxiety and mood symptoms due to acute external life stressors.',
+      },
+      treatmentPlan: {
+        title: 'Treatment Plan',
+        aiInstructions:
+          'Specific medication decisions including continuations, discontinuations, dose changes, timing adjustments, and follow-up schedule.',
+        required: true,
+        order: 11,
+        keywords: ['Continue', 'D/C', 'convert', 'PM dosing', 'FU', 'weeks'],
+        format: 'bullets',
+        exampleText:
+          'Plan:\n- Continue Wellbutrin XL 150mg for mood and fatigue.\n- Continue Trintellix 20mg - convert to PM dosing to mitigate daytime fatigue.\n- D/C Trazodone (not taking)\n- FU in 2 weeks.',
+      },
+      suicideRiskAssessment: {
+        title: 'Suicide Risk Assessment',
+        aiInstructions:
+          'Comprehensive suicide risk assessment with specific protective factors and risk factors listed. Include acute risk level determination.',
+        required: true,
+        order: 12,
+        keywords: [
+          'Protective factors',
+          'Risk factors',
+          'Acute Risk',
+          'SI',
+          'plan',
+          'intent',
+          'engaged',
+          'orientation',
+        ],
+        format: 'paragraph',
+        exampleText:
+          "Suicide Risk Assessment:\nProtective factors: No active SI, plan, or intent, engaged in care, future orientation with planned weekend visit to sister, maternal role, family attachment, maintaining employment\nRisk factors: Significant anxiety symptoms, sleep disturbance with nightmares, feeling overwhelmed with daughter's medical issues, work stressors\nAcute Risk: Low",
+      },
+      complexityStatement: {
+        title: 'Medical Decision Making',
+        aiInstructions:
+          'Document complexity of medical decision making, specific issues addressed, and interventions performed.',
+        required: true,
+        order: 13,
+        keywords: [
+          'complex medical decision-making',
+          'psychiatric concerns',
+          'suicide risk assessment',
+          'medication review',
+        ],
+        format: 'paragraph',
+        exampleText:
+          "Today's session involved complex medical decision-making addressing multiple psychiatric concerns. Patient presented with increased anxiety symptoms including physical manifestations (shaking, jaw clenching), tearfulness, and sleep disturbance. Reviewed medication regimen and timing issues between Trintellix and Bupropion. Conducted thorough suicide risk assessment indicating low acute risk.",
+      },
+      therapyRecap: {
+        title: 'Therapy Recap',
+        aiInstructions:
+          'Document time spent, therapeutic techniques used with specific examples, current prognosis, and necessity for continuing treatment.',
+        required: true,
+        order: 14,
+        keywords: [
+          'Time spent',
+          'mins',
+          'Supportive therapy',
+          'Validation',
+          'Psychoeducation',
+          'Behavioral interventions',
+          'prognosis',
+          'necessity',
+        ],
+        format: 'paragraph',
+        exampleText:
+          "Therapy Recap:\nTime spent: 17 mins\nTherapeutic techniques used:\n• Supportive therapy - provided emotional support during patient's disclosure about daughter's health emergencies\n• Validation - acknowledged patient's legitimate concerns\n• Psychoeducation - discussed connection between stressful life events and anxiety symptoms\n• Behavioral interventions - identified need for self-care activities\nCurrent prognosis: Guarded - patient experiencing significant anxiety symptoms despite medication management\nNecessity for continuing treatment: Ongoing treatment necessary to address anxiety symptoms and develop coping strategies",
+      },
+      diagnoses: {
+        title: 'Diagnoses with ICD-10 Codes',
+        aiInstructions:
+          'Numbered list of psychiatric diagnoses with ICD-10 codes and associated prescriptions.',
+        required: true,
+        order: 15,
+        keywords: [
+          'F41.1',
+          'F33.1',
+          'F41.0',
+          'F51.04',
+          'anxiety disorder',
+          'depressive disorder',
+          'panic',
+          'insomnia',
+        ],
+        format: 'numbered',
+        exampleText:
+          '1. Generalized anxiety disorder\nF41.1: Generalized anxiety disorder\nTrintellix 20 mg tablet - Take 1 tablet(s) every day by oral route. Qty: (30) tablet Refills: 0\n\n2. Moderate episode of recurrent major depressive disorder\nF33.1: Major depressive disorder, recurrent, moderate\nWellbutrin XL 150 mg 24 hr tablet, extended release - Take 1 tablet(s) every day by oral route. Qty: (30) tablet\n\n3. Panic attacks\nF41.0: Panic disorder [episodic paroxysmal anxiety]\n\n4. Chronic insomnia\nF51.04: Psychophysiologic insomnia',
+      },
+      followUp: {
+        title: 'Return to Office',
+        aiInstructions:
+          'Document scheduled follow-up with provider name, credentials (PMHNP), location, date and time.',
+        required: true,
+        order: 16,
+        keywords: ['Return', 'PMHNP', 'Established Patient', 'Office', 'AM'],
+        format: 'paragraph',
+        exampleText:
+          'Return to Office\nGhislaine Tonye, PMHNP for Established Patient at GC_EPC_Huffmeister Office on 09/09/2025 at 10:00 AM',
+      },
+    },
+    generalInstructions:
+      'Create a comprehensive psychiatric medication management note with detailed mental status examination and suicide risk assessment. Document anxiety physical manifestations (tremors, jaw clenching), panic attack frequency, and sleep disturbances in detail. Include specific medication timing strategies patient uses to manage side effects. Thoroughly document psychosocial stressors and their relationship to symptom exacerbation. Always include complete suicide risk assessment with protective and risk factors. Document therapeutic techniques used during session and time spent. Include all psychiatric diagnoses with ICD-10 codes and complete medication prescriptions. Note previous medication trials and reasons for discontinuation. Emphasize the connection between life stressors and symptom changes.',
+  },
+
+  // ========== BACKEND SPECIALTY TEMPLATES ==========
+  // The following templates were imported from backend/api/templates/library/route.ts
+  // These provide comprehensive specialty coverage for Endocrinology, Primary Care, and Sports Medicine
+
+  // ---------- ENDOCRINOLOGY SPECIALTY TEMPLATES (10) ----------
+  {
+    name: 'Endo - Diabetes Comprehensive',
+    description: 'Comprehensive diabetes management template',
+    visitType: 'follow-up',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for diabetes follow-up. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['glucose', 'diabetes', 'HbA1c', 'insulin', 'hypoglycemia'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['BP', 'weight', 'BMI', 'glucose', 'labs'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['diabetes', 'glycemic control'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['medication', 'follow-up', 'labs'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on diabetes management, glycemic control, and medication adjustments.',
+  },
+  {
+    name: 'Endo - Thyroid Hypothyroidism',
+    description: 'Hypothyroidism management template',
+    visitType: 'follow-up',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for hypothyroidism. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['fatigue', 'weight gain', 'cold intolerance', 'thyroid'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['TSH', 'T4', 'vital signs'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['hypothyroidism', 'thyroid function'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['levothyroxine', 'TSH', 'follow-up'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on thyroid hormone replacement therapy and symptom management.',
+  },
+  {
+    name: 'Endo - Thyroid Hyperthyroidism',
+    description: 'Hyperthyroidism/thyrotoxicosis management template',
+    visitType: 'follow-up',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for hyperthyroidism/thyrotoxicosis. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['palpitations', 'weight loss', 'heat intolerance', 'tremor'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['TSH', 'T3', 'T4', 'heart rate'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['hyperthyroidism', 'thyrotoxicosis'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['methimazole', 'propranolol', 'RAI'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on antithyroid medications, symptom control, and monitoring.',
+  },
+  {
+    name: 'Endo - Thyroid Nodule',
+    description: 'Thyroid nodule evaluation template',
+    visitType: 'consultation',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for thyroid nodule. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['nodule', 'neck mass', 'swallowing', 'voice changes'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['ultrasound', 'palpation', 'lymph nodes'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['thyroid nodule', 'FNA', 'malignancy risk'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['FNA biopsy', 'ultrasound', 'TSH'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on nodule characterization, biopsy decisions, and follow-up plan.',
+  },
+  {
+    name: 'Endo - Osteoporosis',
+    description: 'Osteoporosis management template',
+    visitType: 'follow-up',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for osteoporosis. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['fracture', 'bone pain', 'height loss', 'calcium'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['DEXA', 'T-score', 'height', 'spine'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['osteoporosis', 'fracture risk'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['bisphosphonate', 'calcium', 'vitamin D', 'DEXA'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on bone health, fracture prevention, and medication management.',
+  },
+  {
+    name: 'Endo - Hyperparathyroidism',
+    description: 'Hyperparathyroidism management template',
+    visitType: 'follow-up',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for hyperparathyroidism. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['kidney stones', 'bone pain', 'fatigue', 'depression'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['calcium', 'PTH', 'phosphorus', 'vitamin D'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['hyperparathyroidism', 'hypercalcemia'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['parathyroidectomy', 'imaging', 'labs'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on calcium management and surgical evaluation.',
+  },
+  {
+    name: 'Endo - Hypercalcemia',
+    description: 'Hypercalcemia evaluation template',
+    visitType: 'consultation',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for hypercalcemia. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['confusion', 'kidney stones', 'bone pain', 'nausea'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['calcium', 'albumin', 'PTH', 'phosphorus'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['hypercalcemia', 'etiology'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['hydration', 'bisphosphonate', 'workup'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on identifying etiology and managing acute hypercalcemia.',
+  },
+  {
+    name: 'Endo - Adrenal Insufficiency',
+    description: 'Adrenal insufficiency management template',
+    visitType: 'follow-up',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for adrenal insufficiency. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['fatigue', 'weight loss', 'hypotension', 'stress'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['blood pressure', 'cortisol', 'ACTH', 'electrolytes'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['adrenal insufficiency', 'Addison\'s'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['hydrocortisone', 'stress dosing', 'education'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on hormone replacement therapy and stress management education.',
+  },
+  {
+    name: 'Endo - PCOS',
+    description: 'Polycystic ovarian syndrome management template',
+    visitType: 'follow-up',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for polycystic ovarian syndrome. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['irregular periods', 'hirsutism', 'weight gain', 'acne'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['BMI', 'hirsutism score', 'acne', 'ultrasound'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['PCOS', 'insulin resistance', 'hyperandrogenism'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['metformin', 'OCPs', 'lifestyle', 'labs'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on metabolic and reproductive manifestations of PCOS.',
+  },
+  {
+    name: 'Endo - Male Hypogonadism',
+    description: 'Male hypogonadism management template',
+    visitType: 'follow-up',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for male hypogonadism. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['libido', 'fatigue', 'erectile dysfunction', 'mood'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['testosterone', 'LH', 'FSH', 'PSA'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['hypogonadism', 'testosterone deficiency'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['testosterone', 'monitoring', 'PSA'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on testosterone replacement therapy and monitoring.',
+  },
+
+  // ---------- PRIMARY CARE SPECIALTY TEMPLATES (10) ----------
+  {
+    name: 'Primary Care - Hypertension',
+    description: 'Hypertension management in primary care',
+    visitType: 'follow-up',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for hypertension. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['blood pressure', 'headache', 'chest pain', 'compliance'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['BP', 'heart rate', 'cardiovascular exam'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['hypertension', 'cardiovascular risk'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['ACE inhibitor', 'lifestyle', 'monitoring'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on blood pressure control and cardiovascular risk reduction.',
+  },
+  {
+    name: 'Primary Care - Hyperlipidemia',
+    description: 'Cholesterol management in primary care',
+    visitType: 'follow-up',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for hyperlipidemia. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['diet', 'exercise', 'family history', 'compliance'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['cholesterol', 'LDL', 'HDL', 'triglycerides'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['hyperlipidemia', 'cardiovascular risk'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['statin', 'diet', 'exercise', 'recheck'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on lipid management and cardiovascular risk stratification.',
+  },
+  {
+    name: 'Primary Care - Diabetes',
+    description: 'Diabetes management in primary care setting',
+    visitType: 'follow-up',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for diabetes in primary care. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['glucose', 'polyuria', 'polydipsia', 'compliance'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['HbA1c', 'glucose', 'feet exam', 'eye exam'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['diabetes', 'glycemic control'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['metformin', 'lifestyle', 'monitoring', 'screening'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on glycemic control and diabetes complications screening.',
+  },
+  {
+    name: 'Primary Care - Obesity',
+    description: 'Weight management in primary care',
+    visitType: 'follow-up',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for obesity/weight management. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['weight', 'diet', 'exercise', 'motivation'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['BMI', 'weight', 'waist circumference'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['obesity', 'metabolic syndrome'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['diet', 'exercise', 'counseling', 'referral'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on sustainable weight loss strategies and lifestyle modification.',
+  },
+  {
+    name: 'Primary Care - UTI',
+    description: 'Urinary tract infection management',
+    visitType: 'general',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for urinary tract infection. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['dysuria', 'frequency', 'urgency', 'suprapubic pain'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['urinalysis', 'nitrites', 'leukocyte esterase', 'CVA tenderness'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['UTI', 'cystitis', 'pyelonephritis'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['antibiotic', 'culture', 'hydration', 'follow-up'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on appropriate antibiotic selection and symptom management.',
+  },
+  {
+    name: 'Primary Care - URI',
+    description: 'Upper respiratory infection management',
+    visitType: 'general',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for upper respiratory infection. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['cough', 'congestion', 'sore throat', 'fever'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['throat', 'lymph nodes', 'ears', 'lungs'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['viral URI', 'sinusitis', 'pharyngitis'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['supportive care', 'symptomatic treatment', 'return precautions'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on symptom management and appropriate use of antibiotics.',
+  },
+  {
+    name: 'Primary Care - Back Pain',
+    description: 'Mechanical low back pain management',
+    visitType: 'general',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for mechanical low back pain. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['back pain', 'radiation', 'numbness', 'weakness'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['range of motion', 'straight leg raise', 'reflexes', 'strength'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['mechanical back pain', 'radiculopathy', 'muscle strain'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['NSAIDs', 'physical therapy', 'activity modification'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on conservative management and red flag screening.',
+  },
+  {
+    name: 'Primary Care - Annual Wellness',
+    description: 'Annual wellness visit template',
+    visitType: 'general',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for annual wellness. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['review of systems', 'health maintenance', 'screening'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['vital signs', 'physical exam', 'screening tests'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['health maintenance', 'prevention'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['screening', 'immunizations', 'lifestyle counseling'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on preventive care and health maintenance.',
+  },
+  {
+    name: 'Primary Care - Depression',
+    description: 'Depression screening and management',
+    visitType: 'consultation',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for depression screening/management. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['mood', 'sleep', 'appetite', 'energy', 'suicidal ideation'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['mental status', 'PHQ-9', 'appearance', 'affect'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['depression', 'suicide risk'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['antidepressant', 'therapy', 'safety plan', 'follow-up'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on depression screening, safety assessment, and treatment planning.',
+  },
+  {
+    name: 'Primary Care - Asthma',
+    description: 'Asthma management in primary care',
+    visitType: 'follow-up',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for asthma. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['wheezing', 'shortness of breath', 'cough', 'triggers'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['peak flow', 'oxygen saturation', 'lungs', 'wheezing'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['asthma', 'control', 'exacerbation'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['inhaler', 'controller', 'rescue', 'action plan'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on asthma control assessment and inhaler technique.',
+  },
+
+  // ---------- SPORTS MEDICINE SPECIALTY TEMPLATES (10) ----------
+  {
+    name: 'Sports Med - Shoulder Impingement',
+    description: 'Shoulder impingement syndrome management',
+    visitType: 'consultation',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for shoulder impingement. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['shoulder pain', 'overhead activity', 'night pain', 'weakness'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['range of motion', 'impingement tests', 'strength', 'MRI'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['impingement syndrome', 'rotator cuff'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['physical therapy', 'NSAIDs', 'activity modification'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on shoulder mechanics and conservative management.',
+  },
+  {
+    name: 'Sports Med - Rotator Cuff Tendinopathy',
+    description: 'Rotator cuff tendinopathy management',
+    visitType: 'consultation',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for rotator cuff tendinopathy. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['shoulder pain', 'weakness', 'overhead activities', 'night pain'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['strength testing', 'special tests', 'ultrasound', 'MRI'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['rotator cuff tendinopathy', 'tear'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['physical therapy', 'injections', 'surgery'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on rotator cuff strengthening and load management.',
+  },
+  {
+    name: 'Sports Med - Lateral Epicondylitis',
+    description: 'Tennis elbow management',
+    visitType: 'consultation',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for lateral epicondylitis. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['elbow pain', 'gripping', 'lifting', 'tennis'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['lateral epicondyle', 'grip strength', 'Mill\'s test'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['lateral epicondylitis', 'tennis elbow'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['counterforce brace', 'eccentric exercises', 'activity modification'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on activity modification and progressive loading.',
+  },
+  {
+    name: 'Sports Med - Medial Epicondylitis',
+    description: 'Golfer\'s elbow management',
+    visitType: 'consultation',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for medial epicondylitis. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['elbow pain', 'gripping', 'golf', 'medial'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['medial epicondyle', 'flexor tendons', 'ulnar nerve'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['medial epicondylitis', 'golfer\'s elbow'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['eccentric exercises', 'activity modification', 'brace'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on flexor tendon rehabilitation and grip modification.',
+  },
+  {
+    name: 'Sports Med - ACL Tear',
+    description: 'ACL tear management (non-op or post-op)',
+    visitType: 'consultation',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for ACL tear non-op or post-op. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['knee instability', 'giving way', 'swelling', 'surgery'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['Lachman test', 'pivot shift', 'swelling', 'MRI'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['ACL tear', 'knee instability'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['physical therapy', 'surgery', 'return to sport'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on stability assessment and return to sport planning.',
+  },
+  {
+    name: 'Sports Med - Meniscal Injury',
+    description: 'Meniscal injury management',
+    visitType: 'consultation',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for meniscal injury. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['knee pain', 'locking', 'catching', 'swelling'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['McMurray test', 'joint line tenderness', 'range of motion'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['meniscal tear', 'knee pain'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['MRI', 'physical therapy', 'arthroscopy'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on mechanical symptoms and surgical candidacy.',
+  },
+  {
+    name: 'Sports Med - Patellofemoral Pain',
+    description: 'Patellofemoral pain syndrome management',
+    visitType: 'consultation',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for patellofemoral pain. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['anterior knee pain', 'stairs', 'sitting', 'running'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['patella tracking', 'Q-angle', 'quadriceps strength'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['patellofemoral pain syndrome'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['quadriceps strengthening', 'activity modification', 'taping'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on biomechanical assessment and quadriceps strengthening.',
+  },
+  {
+    name: 'Sports Med - Achilles Tendinopathy',
+    description: 'Achilles tendinopathy management',
+    visitType: 'consultation',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for achilles tendinopathy. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['heel pain', 'morning stiffness', 'running', 'achilles'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['achilles tendon', 'swelling', 'calf raise', 'ultrasound'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['achilles tendinopathy', 'tendonosis'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['eccentric exercises', 'heel lift', 'load management'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on progressive loading and eccentric strengthening.',
+  },
+  {
+    name: 'Sports Med - Plantar Fasciitis',
+    description: 'Plantar fasciitis management',
+    visitType: 'consultation',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for plantar fasciitis. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['heel pain', 'first steps', 'morning', 'arch'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['heel tenderness', 'dorsiflexion', 'arch height'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['plantar fasciitis', 'heel pain'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['stretching', 'orthotics', 'night splint', 'injection'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on stretching program and biomechanical factors.',
+  },
+  {
+    name: 'Sports Med - Concussion',
+    description: 'Concussion management and return to play',
+    visitType: 'consultation',
+    isDefault: false,
+    sections: {
+      subjective: {
+        title: 'Subjective',
+        aiInstructions:
+          'SOAP-only. Generate a concise clinical note for concussion. Subjective: capture HPI + key symptoms exactly as discussed; do not invent.',
+        required: true,
+        order: 1,
+        keywords: ['head injury', 'headache', 'dizziness', 'confusion', 'memory'],
+        format: 'paragraph',
+      },
+      objective: {
+        title: 'Objective',
+        aiInstructions:
+          'Objective: only include vitals/labs/imaging that the provider mentioned. Do not fabricate data.',
+        required: true,
+        order: 2,
+        keywords: ['neurological exam', 'SCAT5', 'balance', 'cognitive testing'],
+        format: 'paragraph',
+      },
+      assessment: {
+        title: 'Assessment',
+        aiInstructions:
+          'Assessment: list the problems with the provider\'s clinical reasoning as stated.',
+        required: true,
+        order: 3,
+        keywords: ['concussion', 'mild TBI', 'post-concussion syndrome'],
+        format: 'numbered',
+      },
+      plan: {
+        title: 'Plan',
+        aiInstructions:
+          'Plan: clear action steps, med changes, orders, and explicit follow-up timing, using concise bullets.',
+        required: true,
+        order: 4,
+        keywords: ['rest', 'gradual return', 'cognitive testing', 'clearance'],
+        format: 'bullets',
+      },
+    },
+    generalInstructions: 'Focus on symptom monitoring and graduated return to play protocol.',
+  },
+];
+
+/**
+ * Get default templates for a new doctor
+ */
+export function getDefaultTemplatesForDoctor(doctorId: string): DoctorTemplate[] {
+  return standardTemplates.map((template, index) => ({
+    ...template,
+    id: `standard_${doctorId}_${index}_${Date.now()}`,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    usageCount: 0,
+  }));
+}

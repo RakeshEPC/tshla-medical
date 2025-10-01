@@ -1,0 +1,415 @@
+/* QuickNote Modern Styles - Fun and Interactive */
+
+/* ====== Notification Animations ====== */
+.notification-slide-in {
+  animation: slideInFromRight 0.5s ease-out;
+}
+
+@keyframes slideInFromRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.notification-bounce {
+  animation: bounceIn 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+@keyframes bounceIn {
+  0% {
+    transform: scale(0.3) translateX(100%);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.05) translateX(0);
+  }
+  70% {
+    transform: scale(0.9) translateX(0);
+  }
+  100% {
+    transform: scale(1) translateX(0);
+    opacity: 1;
+  }
+}
+
+/* ====== Fun Recording Animations ====== */
+.recording-pulse {
+  position: relative;
+}
+
+.recording-pulse::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.3);
+  transform: translate(-50%, -50%);
+  animation: recordingPulse 1.5s infinite;
+}
+
+@keyframes recordingPulse {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.8);
+    opacity: 0;
+  }
+}
+
+/* ====== Floating Elements ====== */
+.float-animation {
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* ====== Typewriter Effect ====== */
+.typewriter {
+  overflow: hidden;
+  white-space: nowrap;
+  animation:
+    typewriter 2s steps(40, end),
+    blinkCursor 1s step-end infinite;
+}
+
+@keyframes typewriter {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+@keyframes blinkCursor {
+  50% {
+    border-right-color: transparent;
+  }
+}
+
+/* ====== Progress Animations ====== */
+.progress-circle {
+  position: relative;
+  width: 60px;
+  height: 60px;
+}
+
+.progress-circle::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 4px solid rgba(59, 130, 246, 0.2);
+  border-top-color: #3b82f6;
+  animation: progressSpin 1s linear infinite;
+}
+
+@keyframes progressSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ====== Success Animations ====== */
+.success-checkmark {
+  animation: successPop 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+@keyframes successPop {
+  0% {
+    transform: scale(0) rotate(0deg);
+  }
+  50% {
+    transform: scale(1.2) rotate(180deg);
+  }
+  100% {
+    transform: scale(1) rotate(360deg);
+  }
+}
+
+/* ====== Interactive Hover Effects ====== */
+.hover-lift {
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.hover-lift:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+}
+
+/* ====== Particle Effects ====== */
+.particle-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.particle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: linear-gradient(45deg, #3b82f6, #8b5cf6);
+  border-radius: 50%;
+  animation: floatUp 3s linear infinite;
+}
+
+.particle:nth-child(1) {
+  left: 10%;
+  animation-delay: -0.5s;
+}
+.particle:nth-child(2) {
+  left: 20%;
+  animation-delay: -1s;
+}
+.particle:nth-child(3) {
+  left: 30%;
+  animation-delay: -1.5s;
+}
+.particle:nth-child(4) {
+  left: 40%;
+  animation-delay: -2s;
+}
+.particle:nth-child(5) {
+  left: 50%;
+  animation-delay: -2.5s;
+}
+.particle:nth-child(6) {
+  left: 60%;
+  animation-delay: -0.8s;
+}
+.particle:nth-child(7) {
+  left: 70%;
+  animation-delay: -1.2s;
+}
+.particle:nth-child(8) {
+  left: 80%;
+  animation-delay: -1.8s;
+}
+.particle:nth-child(9) {
+  left: 90%;
+  animation-delay: -2.2s;
+}
+
+@keyframes floatUp {
+  0% {
+    transform: translateY(100vh) scale(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-100px) scale(1);
+    opacity: 0;
+  }
+}
+
+/* ====== Word Count Animation ====== */
+.word-counter {
+  transition: all 0.3s ease;
+}
+
+.word-counter.updating {
+  animation: wordCountPulse 0.5s ease;
+}
+
+@keyframes wordCountPulse {
+  0% {
+    transform: scale(1);
+    color: inherit;
+  }
+  50% {
+    transform: scale(1.1);
+    color: #3b82f6;
+  }
+  100% {
+    transform: scale(1);
+    color: inherit;
+  }
+}
+
+/* ====== Microphone Visualization ====== */
+.mic-visualizer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 30px;
+}
+
+.mic-bar {
+  width: 3px;
+  background: linear-gradient(to top, #3b82f6, #8b5cf6);
+  border-radius: 2px;
+  animation: micVisualize 0.6s ease-in-out infinite alternate;
+}
+
+.mic-bar:nth-child(1) {
+  animation-delay: -0.1s;
+}
+.mic-bar:nth-child(2) {
+  animation-delay: -0.2s;
+}
+.mic-bar:nth-child(3) {
+  animation-delay: -0.3s;
+}
+.mic-bar:nth-child(4) {
+  animation-delay: -0.4s;
+}
+.mic-bar:nth-child(5) {
+  animation-delay: -0.5s;
+}
+
+@keyframes micVisualize {
+  0% {
+    height: 4px;
+  }
+  100% {
+    height: 25px;
+  }
+}
+
+/* ====== Theme Transitions ====== */
+.theme-transition {
+  transition: all 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* ====== Loading Shimmer ====== */
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.5) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* ====== Fun Emoji Reactions ====== */
+.emoji-reaction {
+  position: fixed;
+  font-size: 2rem;
+  pointer-events: none;
+  z-index: 1000;
+  animation: emojiFloat 2s ease-out forwards;
+}
+
+@keyframes emojiFloat {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-100px) scale(1.5);
+    opacity: 0;
+  }
+}
+
+/* ====== Responsive Magic ====== */
+@media (max-width: 768px) {
+  .glass-card {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  .recording-button {
+    width: 60px;
+    height: 60px;
+  }
+
+  .particle {
+    display: none; /* Hide particles on mobile for performance */
+  }
+}
+
+/* ====== Easter Egg Animations ====== */
+.konami-activated {
+  animation: rainbowBackground 2s ease-in-out;
+}
+
+@keyframes rainbowBackground {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* ====== Voice Wave Animation ====== */
+.voice-wave {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.voice-wave span {
+  display: block;
+  width: 3px;
+  height: 20px;
+  background: linear-gradient(to top, #3b82f6, #8b5cf6);
+  border-radius: 1px;
+  animation: voiceWave 1.2s ease-in-out infinite;
+}
+
+.voice-wave span:nth-child(1) {
+  animation-delay: -0.1s;
+}
+.voice-wave span:nth-child(2) {
+  animation-delay: -0.2s;
+}
+.voice-wave span:nth-child(3) {
+  animation-delay: -0.3s;
+}
+.voice-wave span:nth-child(4) {
+  animation-delay: -0.4s;
+}
+.voice-wave span:nth-child(5) {
+  animation-delay: -0.5s;
+}
+
+@keyframes voiceWave {
+  0%,
+  100% {
+    height: 4px;
+  }
+  50% {
+    height: 20px;
+  }
+}

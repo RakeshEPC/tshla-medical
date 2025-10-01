@@ -1,4 +1,3 @@
-import { logError, logWarn, logInfo, logDebug } from '../src/services/logger.service';
 /**
  * Enhanced Schedule and Notes API Server
  * Comprehensive API for provider schedules and dictated notes
@@ -72,10 +71,10 @@ async function initializeDatabase() {
     connection.release();
     dbConnected = true;
     logger.database('Connection established', true);
-    logInfo('App', '$1', $2);
+    logger.info('App', 'Database initialized successfully');
   } catch (error) {
     logger.database('Connection failed, using fallback mode', false, error);
-    logWarn('App', '$1', $2);
+    logger.warn('App', 'Database connection failed, switching to fallback mode');
     dbConnected = false;
   }
 }
@@ -116,7 +115,7 @@ app.get('/health', async (req, res) => {
       connection.release();
       healthStatus.database = 'connected';
     } catch (error) {
-      logWarn('App', '$1', $2);
+      logger.warn('API', 'Database operation warning', { error });
       dbConnected = false;
       healthStatus.database = 'fallback-mode';
       healthStatus.fallbackReason = error.message;
@@ -165,7 +164,7 @@ app.get('/api/providers/:providerId/schedule', async (req, res) => {
       count: rows.length,
     });
   } catch (error) {
-    logError('App', '$1', $2);
+    logger.error('API', error.message, { error });
     res.status(500).json({
       success: false,
       error: 'Failed to fetch provider schedule',
@@ -226,7 +225,7 @@ app.post('/api/appointments', async (req, res) => {
         );
         appointmentId = result.insertId;
       } catch (dbError) {
-        logWarn('App', '$1', $2);
+        logger.warn('API', 'Database operation warning', { error });
         dbConnected = false; // Switch to fallback mode
       }
     }
@@ -260,7 +259,7 @@ app.post('/api/appointments', async (req, res) => {
         source_system: 'tshla-dictation',
       });
 
-      logInfo('App', '$1', $2);
+      logger.info('API', 'Operation successful');
     }
 
     res.json({
@@ -270,7 +269,7 @@ app.post('/api/appointments', async (req, res) => {
       storage: dbConnected ? 'database' : 'memory',
     });
   } catch (error) {
-    logError('App', '$1', $2);
+    logger.error('API', error.message, { error });
     res.status(500).json({
       success: false,
       error: 'Failed to create appointment',
@@ -312,7 +311,7 @@ app.put('/api/appointments/:appointmentId', async (req, res) => {
       message: 'Appointment updated successfully',
     });
   } catch (error) {
-    logError('App', '$1', $2);
+    logger.error('API', error.message, { error });
     res.status(500).json({
       success: false,
       error: 'Failed to update appointment',
@@ -335,7 +334,7 @@ app.get('/api/schedule/today', async (req, res) => {
       date: new Date().toISOString().split('T')[0],
     });
   } catch (error) {
-    logError('App', '$1', $2);
+    logger.error('API', error.message, { error });
     res.status(500).json({
       success: false,
       error: "Failed to fetch today's schedule",
@@ -385,7 +384,7 @@ app.get('/api/simple/schedule/:providerId/:date', async (req, res) => {
           isPlaceholder: !row.patient_name || row.patient_name.includes('Patient @'),
         }));
       } catch (dbError) {
-        logWarn('App', '$1', $2);
+        logger.warn('API', 'Database operation warning', { error });
         dbConnected = false;
       }
     }
@@ -414,7 +413,7 @@ app.get('/api/simple/schedule/:providerId/:date', async (req, res) => {
       storage: dbConnected ? 'database' : 'memory',
     });
   } catch (error) {
-    logError('App', '$1', $2);
+    logger.error('API', error.message, { error });
     res.status(500).json({
       success: false,
       error: 'Failed to fetch schedule',
@@ -504,7 +503,7 @@ app.post('/api/simple/appointment', async (req, res) => {
         });
         return;
       } catch (dbError) {
-        logWarn('App', '$1', $2);
+        logger.warn('API', 'Database operation warning', { error });
         dbConnected = false;
       }
     }
@@ -526,7 +525,7 @@ app.post('/api/simple/appointment', async (req, res) => {
 
     fallbackStorage.appointments.set(appointmentId, appointment);
 
-    logDebug('App', '$1', $2);
+    logger.debug('API', 'Debug information');
 
     res.json({
       success: true,
@@ -536,7 +535,7 @@ app.post('/api/simple/appointment', async (req, res) => {
       note: 'This appointment will be synced to database when connection is restored',
     });
   } catch (error) {
-    logError('App', '$1', $2);
+    logger.error('API', error.message, { error });
     res.status(500).json({
       success: false,
       error: 'Failed to save appointment',
@@ -581,7 +580,7 @@ app.put('/api/simple/appointment/:appointmentId', async (req, res) => {
       message: 'Appointment updated successfully',
     });
   } catch (error) {
-    logError('App', '$1', $2);
+    logger.error('API', error.message, { error });
     res.status(500).json({
       success: false,
       error: 'Failed to update appointment',
@@ -614,7 +613,7 @@ app.delete('/api/simple/appointment/:appointmentId', async (req, res) => {
       message: 'Appointment deleted successfully',
     });
   } catch (error) {
-    logError('App', '$1', $2);
+    logger.error('API', error.message, { error });
     res.status(500).json({
       success: false,
       error: 'Failed to delete appointment',
@@ -668,7 +667,7 @@ app.post('/api/simple/note', async (req, res) => {
       message: 'Note saved successfully',
     });
   } catch (error) {
-    logError('App', '$1', $2);
+    logger.error('API', error.message, { error });
     res.status(500).json({
       success: false,
       error: 'Failed to save note',
@@ -707,7 +706,7 @@ app.get('/api/simple/notes/:providerId', async (req, res) => {
       notes: rows,
     });
   } catch (error) {
-    logError('App', '$1', $2);
+    logger.error('API', error.message, { error });
     res.status(500).json({
       success: false,
       error: 'Failed to fetch notes',
@@ -859,7 +858,7 @@ app.post('/api/dictated-notes', async (req, res) => {
       message: 'Dictated note saved successfully',
     });
   } catch (error) {
-    logError('App', '$1', $2);
+    logger.error('API', error.message, { error });
     res.status(500).json({
       success: false,
       error: 'Failed to save dictated note',
@@ -905,7 +904,7 @@ app.get('/api/providers/:providerId/notes', async (req, res) => {
       count: rows.length,
     });
   } catch (error) {
-    logError('App', '$1', $2);
+    logger.error('API', error.message, { error });
     res.status(500).json({
       success: false,
       error: 'Failed to fetch provider notes',
@@ -960,7 +959,7 @@ app.get('/api/notes/:noteId', async (req, res) => {
       comments: commentRows,
     });
   } catch (error) {
-    logError('App', '$1', $2);
+    logger.error('API', error.message, { error });
     res.status(500).json({
       success: false,
       error: 'Failed to fetch note details',
@@ -1038,7 +1037,7 @@ app.put('/api/notes/:noteId', async (req, res) => {
       version: nextVersion,
     });
   } catch (error) {
-    logError('App', '$1', $2);
+    logger.error('API', error.message, { error });
     res.status(500).json({
       success: false,
       error: 'Failed to update note',
@@ -1096,7 +1095,7 @@ app.get('/api/notes/search', async (req, res) => {
       count: rows.length,
     });
   } catch (error) {
-    logError('App', '$1', $2);
+    logger.error('API', error.message, { error });
     res.status(500).json({
       success: false,
       error: 'Failed to search notes',
@@ -1152,7 +1151,7 @@ app.get('/api/providers/:providerId/analytics', async (req, res) => {
       },
     });
   } catch (error) {
-    logError('App', '$1', $2);
+    logger.error('API', error.message, { error });
     res.status(500).json({
       success: false,
       error: 'Failed to fetch provider analytics',
@@ -1163,76 +1162,60 @@ app.get('/api/providers/:providerId/analytics', async (req, res) => {
 
 // Global error handlers for uncaught exceptions
 process.on('uncaughtException', error => {
-  logger.error('💥 Uncaught Exception', { error: error.message, stack: error.stack });
-  logError('App', '$1', $2);
-  logError('App', $1, { error: $2 });
+  logger.error('SYSTEM', 'Uncaught Exception', { error: error.message, stack: error.stack });
   // Log error but don't exit - let PM2/supervisor handle restart if needed
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  logger.error('💥 Unhandled Promise Rejection', { reason, promise });
-  logError('App', '$1', $2);
-  logError('App', '$1', $2);
+  logger.error('SYSTEM', 'Unhandled Promise Rejection', { reason: String(reason) });
   // Log error but don't exit - let PM2/supervisor handle restart if needed
 });
 
 // Graceful shutdown handler
 process.on('SIGTERM', async () => {
-  logDebug('App', '$1', $2);
+  logger.info('SYSTEM', 'Received SIGTERM, shutting down gracefully');
   try {
     if (pool) {
       await pool.end();
-      logInfo('App', '$1', $2);
+      logger.info('SYSTEM', 'Database pool closed successfully');
     }
     process.exit(0);
   } catch (error) {
-    logError('App', '$1', $2);
+    logger.error('SYSTEM', 'Error during shutdown', { error });
     process.exit(1);
   }
 });
 
 process.on('SIGINT', async () => {
-  logDebug('App', '$1', $2);
+  logger.info('SYSTEM', 'Received SIGINT, shutting down gracefully');
   try {
     if (pool) {
       await pool.end();
-      logInfo('App', '$1', $2);
+      logger.info('SYSTEM', 'Database pool closed successfully');
     }
     process.exit(0);
   } catch (error) {
-    logError('App', '$1', $2);
+    logger.error('SYSTEM', 'Error during shutdown', { error });
     process.exit(1);
   }
 });
 
 // Start server
 const server = app.listen(PORT, () => {
-  logDebug('App', '$1', $2);
-  logDebug('App', 'Debug output', { data: $1 });
-  logDebug('App', '$1', $2);
-  logDebug('App', '$1', $2);
-  logDebug('App', '$1', $2);
-  logDebug('App', '$1', $2);
-  logDebug('App', '$1', $2);
-  logDebug('App', 'Debug output', { data: $1 });
-  logDebug('App', '$1', $2);
-  logDebug('App', '$1', $2);
-  logDebug('App', '$1', $2);
-  logDebug('App', '$1', $2);
-  logDebug('App', '$1', $2);
-  logDebug('App', '$1', $2);
-  logDebug('App', 'Debug output', { data: $1 });
-  logDebug('App', '$1', $2);
-  logDebug('App', '$1', $2);
-  logDebug('App', 'Debug output', { data: $1 });
-  logInfo('App', '$1', $2);
+  console.log('\n' + '='.repeat(80));
+  console.log(`🏥 TSHLA Enhanced Schedule & Notes API Server`);
+  console.log(`📍 Port: ${PORT}`);
+  console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`💾 Database: ${dbConfig.host}/${dbConfig.database}`);
+  console.log('='.repeat(80) + '\n');
+  logger.info('SERVER', `Schedule API listening on port ${PORT}`);
 });
 
 // Handle server errors
 server.on('error', error => {
-  logError('App', '$1', $2);
+  logger.error('SERVER', 'Server error occurred', { error: error.message, code: error.code });
   if (error.code === 'EADDRINUSE') {
-    logError('App', '$1', $2);
+    logger.error('SERVER', `Port ${PORT} is already in use`, { error });
     process.exit(1);
   }
 });
