@@ -1,0 +1,93 @@
+name: Deploy Pump API to Azure
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'server/pump-report-api.js'
+      - 'server/services/**'
+      - 'server/utils/**'
+      - 'server/package.json'
+      - '.github/workflows/deploy-pump-api.yml'
+  workflow_dispatch:
+
+env:
+  AZURE_WEBAPP_NAME: tshla-pump-api
+  NODE_VERSION: '20.x'
+  WORKING_DIRECTORY: './server'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: ${{ env.WORKING_DIRECTORY }}/package.json
+
+    - name: Install dependencies
+      working-directory: ${{ env.WORKING_DIRECTORY }}
+      run: |
+        npm ci --only=production
+
+    - name: Create deployment package
+      working-directory: ${{ env.WORKING_DIRECTORY }}
+      run: |
+        mkdir -p deploy
+        cp pump-report-api.js deploy/
+        cp package.json deploy/
+        cp -r node_modules deploy/
+        if [ -d "services" ]; then cp -r services deploy/; fi
+        if [ -d "utils" ]; then cp -r utils deploy/; fi
+
+    - name: Create web.config for Azure
+      working-directory: ${{ env.WORKING_DIRECTORY }}/deploy
+      run: |
+        cat > web.config << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <configuration>
+          <system.webServer>
+            <handlers>
+              <add name="iisnode" path="pump-report-api.js" verb="*" modules="iisnode"/>
+            </handlers>
+            <rewrite>
+              <rules>
+                <rule name="NodeInspector" patternSyntax="ECMAScript" stopProcessing="true">
+                  <match url="^pump-report-api.js\/debug[\/]?" />
+                </rule>
+                <rule name="StaticContent">
+                  <action type="Rewrite" url="public{REQUEST_URI}"/>
+                </rule>
+                <rule name="DynamicContent">
+                  <conditions>
+                    <add input="{REQUEST_FILENAME}" matchType="IsFile" negate="True"/>
+                  </conditions>
+                  <action type="Rewrite" url="pump-report-api.js"/>
+                </rule>
+              </rules>
+            </rewrite>
+            <security>
+              <requestFiltering>
+                <hiddenSegments>
+                  <remove segment="bin"/>
+                </hiddenSegments>
+              </requestFiltering>
+            </security>
+            <httpErrors existingResponse="PassThrough" />
+          </system.webServer>
+        </configuration>
+        EOF
+
+    - name: Deploy to Azure Web App
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        publish-profile: ${{ secrets.AZURE_PUMP_API_PUBLISH_PROFILE }}
+        package: ${{ env.WORKING_DIRECTORY }}/deploy
