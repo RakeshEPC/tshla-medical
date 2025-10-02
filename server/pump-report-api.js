@@ -36,18 +36,9 @@ app.use(
     credentials: true,
   })
 );
-// Enhanced JSON parsing with validation
+// JSON parsing middleware
 app.use(express.json({
-  limit: '10mb',
-  verify: (req, res, buf) => {
-    try {
-      JSON.parse(buf.toString());
-    } catch (e) {
-      const error = new Error('Invalid JSON format');
-      error.type = 'entity.parse.failed';
-      throw error;
-    }
-  }
+  limit: '10mb'
 }));
 
 // Database configuration - Local MySQL
@@ -69,7 +60,7 @@ const dbConfig = {
 
 // Validate required environment variables
 function validateDatabaseConfig() {
-  const required = ['host', 'user', 'password', 'database'];
+  const required = ['host', 'user', 'database'];
   const missing = required.filter(key => !dbConfig[key]);
 
   if (missing.length > 0) {
@@ -78,12 +69,12 @@ function validateDatabaseConfig() {
     missing.forEach(key => {
       const envVar = key === 'host' ? 'DB_HOST'
                    : key === 'user' ? 'DB_USER'
-                   : key === 'password' ? 'DB_PASSWORD'
                    : 'DB_DATABASE';
       console.error(`  ${envVar}`);
     });
     return false;
   }
+  // Password is optional (can be empty for local development)
   return true;
 }
 
@@ -220,7 +211,31 @@ const checkConfigStatus = (req, res, next) => {
   next();
 };
 
-// ====== HEALTH CHECK ENDPOINT ======
+// ====== ROOT & HEALTH CHECK ENDPOINTS ======
+
+/**
+ * Root endpoint
+ * GET /
+ */
+app.get('/', (req, res) => {
+  res.json({
+    service: 'TSHLA Pump Report API',
+    version: '1.0.0',
+    status: 'running',
+    endpoints: {
+      health: '/api/health',
+      auth: {
+        register: 'POST /api/auth/register',
+        login: 'POST /api/auth/login',
+        checkAccess: 'GET /api/auth/check-access'
+      },
+      pump: {
+        assessments: 'GET /api/pump-assessments/list',
+        recommend: 'POST /api/pumpdrive/recommend'
+      }
+    }
+  });
+});
 
 /**
  * Health check endpoint
