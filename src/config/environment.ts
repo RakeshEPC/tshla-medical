@@ -18,16 +18,6 @@ export interface EnvironmentConfig {
     apiKey: string;
   };
 
-  // External APIs
-  elevenlabs: {
-    apiKey: string;
-  };
-  supabase: {
-    url: string;
-    anonKey: string;
-    serviceRoleKey?: string;
-  };
-
   // Database (RDS/MySQL)
   database: {
     host: string;
@@ -93,18 +83,16 @@ class EnvironmentValidator {
     };
 
     // Critical security check: No hardcoded API keys allowed
-    // Only Supabase is required - Azure services are optional (can use OpenAI/Deepgram instead)
-    const requiredVars = {
-      VITE_SUPABASE_URL: 'Supabase URL',
-      VITE_SUPABASE_ANON_KEY: 'Supabase anonymous key',
+    // All external services are optional - app primarily uses MySQL database for authentication
+    const requiredVars: Record<string, string> = {
+      // No required external service vars - MySQL is primary database
     };
 
-    // Optional Azure services (fallback to OpenAI/Deepgram if not configured)
-    const optionalAzureVars = {
-      VITE_AZURE_OPENAI_ENDPOINT: 'Azure OpenAI endpoint',
-      VITE_AZURE_OPENAI_KEY: 'Azure OpenAI API key',
-      VITE_AZURE_SPEECH_REGION: 'Azure Speech region',
-      VITE_ELEVENLABS_API_KEY: 'ElevenLabs API key',
+    // Optional external services - all are optional
+    const optionalVars = {
+      VITE_AZURE_OPENAI_ENDPOINT: 'Azure OpenAI endpoint (optional)',
+      VITE_AZURE_OPENAI_KEY: 'Azure OpenAI API key (optional)',
+      VITE_AZURE_SPEECH_REGION: 'Azure Speech region (optional)',
     };
 
     // Secure authentication credentials (optional but recommended)
@@ -121,7 +109,7 @@ class EnvironmentValidator {
     }
 
     // Validate URL formats
-    const urlVars = ['VITE_AZURE_OPENAI_ENDPOINT', 'VITE_SUPABASE_URL'];
+    const urlVars = ['VITE_AZURE_OPENAI_ENDPOINT'];
     urlVars.forEach(envVar => {
       const value = import.meta.env[envVar];
       if (value && !isValidUrl(value)) {
@@ -130,19 +118,20 @@ class EnvironmentValidator {
     });
 
     // Validate API key formats (security check against placeholder values)
-    const apiKeyVars = ['VITE_AZURE_OPENAI_KEY', 'VITE_ELEVENLABS_API_KEY'];
+    const apiKeyVars = ['VITE_AZURE_OPENAI_KEY'];
     apiKeyVars.forEach(envVar => {
       const value = import.meta.env[envVar];
       if (value) {
         if (value.length < 10) {
-          errors.push(`${envVar} appears to be a placeholder (too short)`);
+          console.warn(`⚠️  ${envVar} appears to be a placeholder (too short) - feature may not work`);
         }
         if (
           value.includes('placeholder') ||
           value.includes('example') ||
+          value.includes('your_') ||
           value.includes('change-this')
         ) {
-          errors.push(`${envVar} contains placeholder text - use real API key`);
+          console.warn(`⚠️  ${envVar} contains placeholder text - feature may not work`);
         }
       }
     });
@@ -191,14 +180,6 @@ class EnvironmentValidator {
             ? `https://${import.meta.env.VITE_AZURE_SPEECH_REGION}.tts.speech.microsoft.com/`
             : ''),
         apiKey: import.meta.env.VITE_AZURE_SPEECH_KEY || '',
-      },
-      elevenlabs: {
-        apiKey: import.meta.env.VITE_ELEVENLABS_API_KEY || '',
-      },
-      supabase: {
-        url: import.meta.env.VITE_SUPABASE_URL,
-        anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-        serviceRoleKey: import.meta.env.SUPABASE_SERVICE_ROLE_KEY,
       },
       database: {
         host: import.meta.env.VITE_RDS_HOST || '',

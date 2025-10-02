@@ -32,10 +32,7 @@ const AccountVerification = lazy(() => import('./pages/AccountVerification'));
 const PracticeSetup = lazy(() => import('./pages/PracticeSetup'));
 const MedicalStaffRegister = lazy(() => import('./pages/MedicalStaffRegister'));
 
-// Doctor Dashboards (group related dashboards)
-const DoctorDashboard = lazy(() => import('./pages/DoctorDashboard'));
-const DoctorDashboardDB = lazy(() => import('./pages/DoctorDashboardDB'));
-const DoctorDashboardModern = lazy(() => import('./pages/DoctorDashboardModern'));
+// Doctor Dashboard (unified implementation)
 const DoctorDashboardUnified = lazy(() => import('./pages/DoctorDashboardUnified'));
 
 // Staff Management
@@ -90,7 +87,7 @@ const PatientPortal = lazy(() => import('./pages/PatientPortal'));
 function App() {
   return (
     <AuthProvider>
-      <Router>
+      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <div className="App">
           <Suspense fallback={<LoadingSpinner />}>
             <Routes>
@@ -133,13 +130,14 @@ function App() {
                 }
               />
 
-              {/* ===== DOCTOR DASHBOARDS ===== */}
+              {/* ===== DOCTOR DASHBOARD ===== */}
+              {/* All dashboard routes now use the unified implementation */}
               <Route
                 path="/dashboard"
                 element={
                   <ProtectedRoute>
                     <Suspense fallback={<LoadingSpinner />}>
-                      <DoctorDashboard />
+                      <DoctorDashboardUnified />
                     </Suspense>
                   </ProtectedRoute>
                 }
@@ -149,7 +147,7 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <Suspense fallback={<LoadingSpinner />}>
-                      <DoctorDashboardDB />
+                      <DoctorDashboardUnified />
                     </Suspense>
                   </ProtectedRoute>
                 }
@@ -159,7 +157,7 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <Suspense fallback={<LoadingSpinner />}>
-                      <DoctorDashboardModern />
+                      <DoctorDashboardUnified />
                     </Suspense>
                   </ProtectedRoute>
                 }

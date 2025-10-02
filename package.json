@@ -30,7 +30,8 @@
     "server:pm2:restart": "pm2 restart tshla-api",
     "server:pm2:delete": "pm2 delete tshla-api",
     "server:health": "node server/healthcheck.js",
-    "server:production": "pm2 start ecosystem.config.js --env production"
+    "server:production": "pm2 start ecosystem.config.js --env production",
+    "db:seed:pump": "node server/scripts/seed-pump-users.js"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.899.0",
