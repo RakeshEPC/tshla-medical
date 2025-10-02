@@ -272,13 +272,15 @@ const validator = new EnvironmentValidator();
 // TODO: Re-enable HIPAA validation once environment variables are properly configured
 // validator.validateHipaaCompliance();
 
-// Export validated configuration
-export const config = validator.getConfig();
+// Get configuration object
+const configObject = validator.getConfig();
 
-// Export environment helpers (must be separate to avoid circular reference)
-const env = config.app.environment;
-export const isProduction = env === 'production';
-export const isDevelopment = env === 'development';
+// Export validated configuration
+export const config = configObject;
+
+// Export environment helpers (computed from local variable to avoid initialization issues)
+export const isProduction = configObject.app.environment === 'production';
+export const isDevelopment = configObject.app.environment === 'development';
 
 // Export for testing
 export const validateEnvironment = () => {

@@ -16484,3 +16484,37 @@ Error: bind EADDRINUSE null:3002
     at process.emit (node:events:519:35)
     at emit (node:internal/child_process:949:14)
     at process.processTicksAndRejections (node:internal/process/task_queues:91:21)
+2025-10-01T19:14:49: Stripe not initialized - missing secret key
+2025-10-01T19:14:49: Pump Report API: Warning - Using default/empty database password
+2025-10-01T19:14:49: Pump Report API: Environment validation failed!
+2025-10-01T19:14:49:   - Missing required environment variable: DB_PASSWORD
+2025-10-01T19:14:49: Pump Report API: Starting in degraded mode with invalid configuration
+2025-10-01T19:17:10: Ignoring invalid configuration option passed to Connection: acquireTimeout. This is currently a warning, but in future versions of MySQL2, an error will be thrown if you pass an invalid configuration option to a Connection
+2025-10-01T19:17:10: Ignoring invalid configuration option passed to Connection: timeout. This is currently a warning, but in future versions of MySQL2, an error will be thrown if you pass an invalid configuration option to a Connection
+2025-10-01T19:17:10: Ignoring invalid configuration option passed to Connection: reconnect. This is currently a warning, but in future versions of MySQL2, an error will be thrown if you pass an invalid configuration option to a Connection
+2025-10-01T19:47:05: PumpDrive API Error: AWS Bedrock not configured
+2025-10-01T19:47:05: (node:15041) NOTE: The AWS SDK for JavaScript (v2) is in maintenance mode.
+ SDK releases are limited to address critical bug fixes and security issues only.
+
+Please migrate your code to use AWS SDK for JavaScript (v3).
+For more information, check the blog post at https://a.co/cUPnyil
+(Use `node --trace-warnings ...` to show where the warning was created)
+2025-10-01T19:59:20: PumpDrive API Error: AWS Bedrock not configured
+2025-10-01T20:05:30: PumpDrive API Error: AWS Bedrock not configured
+2025-10-01T20:09:53: PumpDrive API Error: AWS Bedrock not configured
+2025-10-01T20:10:31: PumpDrive API Error: AWS Bedrock not configured
+2025-10-01T20:10:39: PumpDrive API Error: AWS Bedrock not configured
+2025-10-01T20:11:49: Stripe not initialized - missing secret key
+2025-10-01T20:11:49: Pump Report API: Warning - Using default/empty database password
+2025-10-01T20:11:49: Pump Report API: Environment validation failed!
+2025-10-01T20:11:49:   - Missing required environment variable: DB_PASSWORD
+2025-10-01T20:11:49: Pump Report API: Starting in degraded mode with invalid configuration
+2025-10-01T20:11:58: PumpDrive API Error: Cannot read properties of undefined (reading 'name')
+2025-10-01T20:12:32: Stripe not initialized - missing secret key
+2025-10-01T20:12:32: Pump Report API: Warning - Using default/empty database password
+2025-10-01T20:12:32: Pump Report API: Environment validation failed!
+2025-10-01T20:12:32:   - Missing required environment variable: DB_PASSWORD
+2025-10-01T20:12:32: Pump Report API: Starting in degraded mode with invalid configuration
+2025-10-01T20:34:39: Ignoring invalid configuration option passed to Connection: acquireTimeout. This is currently a warning, but in future versions of MySQL2, an error will be thrown if you pass an invalid configuration option to a Connection
+2025-10-01T20:34:39: Ignoring invalid configuration option passed to Connection: timeout. This is currently a warning, but in future versions of MySQL2, an error will be thrown if you pass an invalid configuration option to a Connection
+2025-10-01T20:34:39: Ignoring invalid configuration option passed to Connection: reconnect. This is currently a warning, but in future versions of MySQL2, an error will be thrown if you pass an invalid configuration option to a Connection

@@ -13125,3 +13125,451 @@
 2025-09-23T12:45:01: Pump Report API: Database connection released back to pool
 2025-09-23T12:45:01: Pump Report API: Database connected successfully on attempt 1
 2025-09-23T12:45:01: App Placeholder message
+2025-10-01T19:14:49: Pump Report API: Starting server...
+2025-10-01T19:14:49: Pump Report API: Validating environment configuration...
+2025-10-01T19:14:49: Pump Report API: Environment configuration valid
+2025-10-01T19:14:49: Pump Report API: Initializing database connection...
+2025-10-01T19:14:49: Pump Report API: Unified database service connected successfully on attempt 1
+2025-10-01T19:14:49: App Placeholder message
+2025-10-01T19:14:49: Pump Report API: Server running on port 3005
+2025-10-01T19:14:49: Pump Report API: Environment: development
+2025-10-01T19:14:49: Pump Report API: All systems operational
+2025-10-01T19:14:49: Pump Report API: ✅ Authentication system ready
+2025-10-01T19:14:49: Pump Report API: ✅ Database connected
+2025-10-01T19:14:49: Pump Report API: Starting database connection monitoring...
+2025-10-01T19:17:10: Unified Database Service: Initializing connection pool...
+2025-10-01T19:17:10: Connecting to: localhost:3306/tshla_medical_local
+2025-10-01T19:17:10: SSL enabled: No
+2025-10-01T19:17:10: Unified Database Service: New connection established as id 61
+2025-10-01T19:17:10: Unified Database Service: Connection 61 acquired
+2025-10-01T19:17:10: Unified Database Service: Connection 61 released
+2025-10-01T19:17:10: Unified Database Service: Database connection test successful
+2025-10-01T19:17:10: Unified Database Service: Successfully initialized
+2025-10-01T19:17:10: Unified Database Service: Connection 61 acquired
+2025-10-01T19:17:10: Unified Database Service: Connection 61 released
+2025-10-01T19:17:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:17:19: Unified Database Service: Connection 61 released
+2025-10-01T19:17:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:17:49: Unified Database Service: Connection 61 released
+2025-10-01T19:18:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:18:19: Unified Database Service: Connection 61 released
+2025-10-01T19:18:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:18:49: Unified Database Service: Connection 61 released
+2025-10-01T19:19:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:19:19: Unified Database Service: Connection 61 released
+2025-10-01T19:19:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:19:49: Unified Database Service: Connection 61 released
+2025-10-01T19:20:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:20:19: Unified Database Service: Connection 61 released
+2025-10-01T19:20:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:20:49: Unified Database Service: Connection 61 released
+2025-10-01T19:21:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:21:19: Unified Database Service: Connection 61 released
+2025-10-01T19:21:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:21:49: Unified Database Service: Connection 61 released
+2025-10-01T19:22:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:22:19: Unified Database Service: Connection 61 released
+2025-10-01T19:22:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:22:49: Unified Database Service: Connection 61 released
+2025-10-01T19:23:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:23:19: Unified Database Service: Connection 61 released
+2025-10-01T19:23:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:23:49: Unified Database Service: Connection 61 released
+2025-10-01T19:24:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:24:19: Unified Database Service: Connection 61 released
+2025-10-01T19:24:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:24:49: Unified Database Service: Connection 61 released
+2025-10-01T19:25:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:25:19: Unified Database Service: Connection 61 released
+2025-10-01T19:25:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:25:49: Unified Database Service: Connection 61 released
+2025-10-01T19:26:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:26:19: Unified Database Service: Connection 61 released
+2025-10-01T19:26:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:26:49: Unified Database Service: Connection 61 released
+2025-10-01T19:27:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:27:19: Unified Database Service: Connection 61 released
+2025-10-01T19:27:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:27:49: Unified Database Service: Connection 61 released
+2025-10-01T19:28:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:28:19: Unified Database Service: Connection 61 released
+2025-10-01T19:28:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:28:49: Unified Database Service: Connection 61 released
+2025-10-01T19:29:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:29:19: Unified Database Service: Connection 61 released
+2025-10-01T19:29:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:29:49: Unified Database Service: Connection 61 released
+2025-10-01T19:30:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:30:19: Unified Database Service: Connection 61 released
+2025-10-01T19:30:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:30:49: Unified Database Service: Connection 61 released
+2025-10-01T19:31:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:31:19: Unified Database Service: Connection 61 released
+2025-10-01T19:31:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:31:49: Unified Database Service: Connection 61 released
+2025-10-01T19:32:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:32:19: Unified Database Service: Connection 61 released
+2025-10-01T19:32:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:32:49: Unified Database Service: Connection 61 released
+2025-10-01T19:33:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:33:19: Unified Database Service: Connection 61 released
+2025-10-01T19:33:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:33:49: Unified Database Service: Connection 61 released
+2025-10-01T19:34:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:34:19: Unified Database Service: Connection 61 released
+2025-10-01T19:34:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:34:49: Unified Database Service: Connection 61 released
+2025-10-01T19:35:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:35:19: Unified Database Service: Connection 61 released
+2025-10-01T19:35:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:35:49: Unified Database Service: Connection 61 released
+2025-10-01T19:36:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:36:19: Unified Database Service: Connection 61 released
+2025-10-01T19:36:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:36:49: Unified Database Service: Connection 61 released
+2025-10-01T19:37:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:37:19: Unified Database Service: Connection 61 released
+2025-10-01T19:37:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:37:49: Unified Database Service: Connection 61 released
+2025-10-01T19:38:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:38:19: Unified Database Service: Connection 61 released
+2025-10-01T19:38:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:38:49: Unified Database Service: Connection 61 released
+2025-10-01T19:39:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:39:19: Unified Database Service: Connection 61 released
+2025-10-01T19:39:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:39:49: Unified Database Service: Connection 61 released
+2025-10-01T19:40:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:40:19: Unified Database Service: Connection 61 released
+2025-10-01T19:40:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:40:49: Unified Database Service: Connection 61 released
+2025-10-01T19:41:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:41:19: Unified Database Service: Connection 61 released
+2025-10-01T19:41:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:41:49: Unified Database Service: Connection 61 released
+2025-10-01T19:42:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:42:19: Unified Database Service: Connection 61 released
+2025-10-01T19:42:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:42:49: Unified Database Service: Connection 61 released
+2025-10-01T19:43:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:43:19: Unified Database Service: Connection 61 released
+2025-10-01T19:43:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:43:49: Unified Database Service: Connection 61 released
+2025-10-01T19:44:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:44:19: Unified Database Service: Connection 61 released
+2025-10-01T19:44:48: Unified Database Service: Connection 61 acquired
+2025-10-01T19:44:48: Unified Database Service: Connection 61 released
+2025-10-01T19:44:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:44:49: Unified Database Service: Connection 61 released
+2025-10-01T19:45:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:45:19: Unified Database Service: Connection 61 released
+2025-10-01T19:45:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:45:49: Unified Database Service: Connection 61 released
+2025-10-01T19:46:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:46:19: Unified Database Service: Connection 61 released
+2025-10-01T19:46:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:46:49: Unified Database Service: Connection 61 released
+2025-10-01T19:47:05: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T19:47:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:47:19: Unified Database Service: Connection 61 released
+2025-10-01T19:47:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:47:49: Unified Database Service: Connection 61 released
+2025-10-01T19:48:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:48:19: Unified Database Service: Connection 61 released
+2025-10-01T19:48:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:48:49: Unified Database Service: Connection 61 released
+2025-10-01T19:49:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:49:19: Unified Database Service: Connection 61 released
+2025-10-01T19:49:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:49:49: Unified Database Service: Connection 61 released
+2025-10-01T19:50:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:50:19: Unified Database Service: Connection 61 released
+2025-10-01T19:50:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:50:49: Unified Database Service: Connection 61 released
+2025-10-01T19:51:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:51:19: Unified Database Service: Connection 61 released
+2025-10-01T19:51:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:51:49: Unified Database Service: Connection 61 released
+2025-10-01T19:52:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:52:19: Unified Database Service: Connection 61 released
+2025-10-01T19:52:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:52:49: Unified Database Service: Connection 61 released
+2025-10-01T19:52:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:52:49: Unified Database Service: Connection 61 released
+2025-10-01T19:53:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:53:19: Unified Database Service: Connection 61 released
+2025-10-01T19:53:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:53:49: Unified Database Service: Connection 61 released
+2025-10-01T19:54:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:54:19: Unified Database Service: Connection 61 released
+2025-10-01T19:54:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:54:49: Unified Database Service: Connection 61 released
+2025-10-01T19:55:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:55:19: Unified Database Service: Connection 61 released
+2025-10-01T19:55:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:55:49: Unified Database Service: Connection 61 released
+2025-10-01T19:56:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:56:19: Unified Database Service: Connection 61 released
+2025-10-01T19:56:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:56:49: Unified Database Service: Connection 61 released
+2025-10-01T19:57:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:57:19: Unified Database Service: Connection 61 released
+2025-10-01T19:57:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:57:49: Unified Database Service: Connection 61 released
+2025-10-01T19:58:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:58:19: Unified Database Service: Connection 61 released
+2025-10-01T19:58:28: Unified Database Service: Connection 61 acquired
+2025-10-01T19:58:29: Unified Database Service: Connection 61 released
+2025-10-01T19:58:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:58:49: Unified Database Service: Connection 61 released
+2025-10-01T19:59:19: Unified Database Service: Connection 61 acquired
+2025-10-01T19:59:19: Unified Database Service: Connection 61 released
+2025-10-01T19:59:20: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T19:59:49: Unified Database Service: Connection 61 acquired
+2025-10-01T19:59:49: Unified Database Service: Connection 61 released
+2025-10-01T20:00:19: Unified Database Service: Connection 61 acquired
+2025-10-01T20:00:19: Unified Database Service: Connection 61 released
+2025-10-01T20:00:49: Unified Database Service: Connection 61 acquired
+2025-10-01T20:00:49: Unified Database Service: Connection 61 released
+2025-10-01T20:01:19: Unified Database Service: Connection 61 acquired
+2025-10-01T20:01:19: Unified Database Service: Connection 61 released
+2025-10-01T20:01:49: Unified Database Service: Connection 61 acquired
+2025-10-01T20:01:49: Unified Database Service: Connection 61 released
+2025-10-01T20:02:19: Unified Database Service: Connection 61 acquired
+2025-10-01T20:02:19: Unified Database Service: Connection 61 released
+2025-10-01T20:02:49: Unified Database Service: Connection 61 acquired
+2025-10-01T20:02:49: Unified Database Service: Connection 61 released
+2025-10-01T20:03:19: Unified Database Service: Connection 61 acquired
+2025-10-01T20:03:19: Unified Database Service: Connection 61 released
+2025-10-01T20:03:49: Unified Database Service: Connection 61 acquired
+2025-10-01T20:03:49: Unified Database Service: Connection 61 released
+2025-10-01T20:04:19: Unified Database Service: Connection 61 acquired
+2025-10-01T20:04:19: Unified Database Service: Connection 61 released
+2025-10-01T20:04:49: Unified Database Service: Connection 61 acquired
+2025-10-01T20:04:49: Unified Database Service: Connection 61 released
+2025-10-01T20:04:54: Unified Database Service: Connection 61 acquired
+2025-10-01T20:04:54: Unified Database Service: Connection 61 released
+2025-10-01T20:05:19: Unified Database Service: Connection 61 acquired
+2025-10-01T20:05:19: Unified Database Service: Connection 61 released
+2025-10-01T20:05:30: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T20:05:49: Unified Database Service: Connection 61 acquired
+2025-10-01T20:05:49: Unified Database Service: Connection 61 released
+2025-10-01T20:06:19: Unified Database Service: Connection 61 acquired
+2025-10-01T20:06:19: Unified Database Service: Connection 61 released
+2025-10-01T20:06:49: Unified Database Service: Connection 61 acquired
+2025-10-01T20:06:49: Unified Database Service: Connection 61 released
+2025-10-01T20:07:19: Unified Database Service: Connection 61 acquired
+2025-10-01T20:07:19: Unified Database Service: Connection 61 released
+2025-10-01T20:07:49: Unified Database Service: Connection 61 acquired
+2025-10-01T20:07:49: Unified Database Service: Connection 61 released
+2025-10-01T20:08:19: Unified Database Service: Connection 61 acquired
+2025-10-01T20:08:19: Unified Database Service: Connection 61 released
+2025-10-01T20:08:49: Unified Database Service: Connection 61 acquired
+2025-10-01T20:08:49: Unified Database Service: Connection 61 released
+2025-10-01T20:09:19: Unified Database Service: Connection 61 acquired
+2025-10-01T20:09:19: Unified Database Service: Connection 61 released
+2025-10-01T20:09:49: Unified Database Service: Connection 61 acquired
+2025-10-01T20:09:49: Unified Database Service: Connection 61 released
+2025-10-01T20:09:53: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T20:10:19: Unified Database Service: Connection 61 acquired
+2025-10-01T20:10:19: Unified Database Service: Connection 61 released
+2025-10-01T20:10:31: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T20:10:39: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T20:10:49: Unified Database Service: Connection 61 acquired
+2025-10-01T20:10:49: Unified Database Service: Connection 61 released
+2025-10-01T20:11:19: Unified Database Service: Connection 61 acquired
+2025-10-01T20:11:19: Unified Database Service: Connection 61 released
+2025-10-01T20:11:49: Unified Database Service: Connection 61 acquired
+2025-10-01T20:11:49: Unified Database Service: Connection 61 released
+2025-10-01T20:11:49: Pump Report API: Starting server...
+2025-10-01T20:11:49: Pump Report API: Validating environment configuration...
+2025-10-01T20:11:49: Pump Report API: Environment configuration valid
+2025-10-01T20:11:49: Pump Report API: Initializing database connection...
+2025-10-01T20:11:49: Pump Report API: Unified database service connected successfully on attempt 1
+2025-10-01T20:11:49: App Placeholder message
+2025-10-01T20:11:49: Pump Report API: Server running on port 3005
+2025-10-01T20:11:49: Pump Report API: Environment: development
+2025-10-01T20:11:49: Pump Report API: All systems operational
+2025-10-01T20:11:49: Pump Report API: ✅ Authentication system ready
+2025-10-01T20:11:49: Pump Report API: ✅ Database connected
+2025-10-01T20:11:49: Pump Report API: Starting database connection monitoring...
+2025-10-01T20:11:58: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T20:11:58: AWS Bedrock not configured - using rule-based recommendations
+2025-10-01T20:12:32: Pump Report API: Starting server...
+2025-10-01T20:12:32: Pump Report API: Validating environment configuration...
+2025-10-01T20:12:32: Pump Report API: Environment configuration valid
+2025-10-01T20:12:32: Pump Report API: Initializing database connection...
+2025-10-01T20:12:32: Pump Report API: Unified database service connected successfully on attempt 1
+2025-10-01T20:12:32: App Placeholder message
+2025-10-01T20:12:32: Pump Report API: Server running on port 3005
+2025-10-01T20:12:32: Pump Report API: Environment: development
+2025-10-01T20:12:32: Pump Report API: All systems operational
+2025-10-01T20:12:32: Pump Report API: ✅ Authentication system ready
+2025-10-01T20:12:32: Pump Report API: ✅ Database connected
+2025-10-01T20:12:32: Pump Report API: Starting database connection monitoring...
+2025-10-01T20:12:34: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T20:12:34: AWS Bedrock not configured - using rule-based recommendations
+2025-10-01T20:13:06: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T20:13:06: AWS Bedrock not configured - using rule-based recommendations
+2025-10-01T20:16:02: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T20:16:02: AWS Bedrock not configured - using rule-based recommendations
+2025-10-01T20:16:41: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T20:16:41: AWS Bedrock not configured - using rule-based recommendations
+2025-10-01T20:23:48: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T20:23:48: AWS Bedrock not configured - using rule-based recommendations
+2025-10-01T20:23:49: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T20:23:49: AWS Bedrock not configured - using rule-based recommendations
+2025-10-01T20:23:49: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T20:23:49: AWS Bedrock not configured - using rule-based recommendations
+2025-10-01T20:23:49: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T20:23:49: AWS Bedrock not configured - using rule-based recommendations
+2025-10-01T20:23:53: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T20:23:53: AWS Bedrock not configured - using rule-based recommendations
+2025-10-01T20:23:55: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T20:23:55: AWS Bedrock not configured - using rule-based recommendations
+2025-10-01T20:23:55: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T20:23:55: AWS Bedrock not configured - using rule-based recommendations
+2025-10-01T20:23:55: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T20:23:55: AWS Bedrock not configured - using rule-based recommendations
+2025-10-01T20:23:58: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T20:23:58: AWS Bedrock not configured - using rule-based recommendations
+2025-10-01T20:24:00: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T20:24:00: AWS Bedrock not configured - using rule-based recommendations
+2025-10-01T20:24:00: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T20:24:00: AWS Bedrock not configured - using rule-based recommendations
+2025-10-01T20:24:00: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T20:24:00: AWS Bedrock not configured - using rule-based recommendations
+2025-10-01T20:26:05: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T20:26:05: AWS Bedrock not configured - using rule-based recommendations
+2025-10-01T20:28:32: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T20:28:32: AWS Bedrock not configured - using rule-based recommendations
+2025-10-01T20:28:39: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T20:28:39: AWS Bedrock not configured - using rule-based recommendations
+2025-10-01T20:29:41: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T20:29:41: AWS Bedrock not configured - using rule-based recommendations
+2025-10-01T20:34:39: Unified Database Service: Initializing connection pool...
+2025-10-01T20:34:39: Connecting to: localhost:3306/tshla_medical_local
+2025-10-01T20:34:39: SSL enabled: No
+2025-10-01T20:34:39: Unified Database Service: New connection established as id 62
+2025-10-01T20:34:39: Unified Database Service: Connection 62 acquired
+2025-10-01T20:34:39: Unified Database Service: Connection 62 released
+2025-10-01T20:34:39: Unified Database Service: Database connection test successful
+2025-10-01T20:34:39: Unified Database Service: Successfully initialized
+2025-10-01T20:34:39: Unified Database Service: Connection 62 acquired
+2025-10-01T20:34:40: Unified Database Service: Connection 62 released
+2025-10-01T20:35:02: Unified Database Service: Connection 62 acquired
+2025-10-01T20:35:02: Unified Database Service: Connection 62 released
+2025-10-01T20:35:11: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T20:35:11: AWS Bedrock not configured - using rule-based recommendations
+2025-10-01T20:35:32: Unified Database Service: Connection 62 acquired
+2025-10-01T20:35:32: Unified Database Service: Connection 62 released
+2025-10-01T20:36:02: Unified Database Service: Connection 62 acquired
+2025-10-01T20:36:02: Unified Database Service: Connection 62 released
+2025-10-01T20:36:32: Unified Database Service: Connection 62 acquired
+2025-10-01T20:36:32: Unified Database Service: Connection 62 released
+2025-10-01T20:37:02: Unified Database Service: Connection 62 acquired
+2025-10-01T20:37:02: Unified Database Service: Connection 62 released
+2025-10-01T20:37:32: Unified Database Service: Connection 62 acquired
+2025-10-01T20:37:32: Unified Database Service: Connection 62 released
+2025-10-01T20:38:02: Unified Database Service: Connection 62 acquired
+2025-10-01T20:38:02: Unified Database Service: Connection 62 released
+2025-10-01T20:38:32: Unified Database Service: Connection 62 acquired
+2025-10-01T20:38:32: Unified Database Service: Connection 62 released
+2025-10-01T20:39:02: Unified Database Service: Connection 62 acquired
+2025-10-01T20:39:02: Unified Database Service: Connection 62 released
+2025-10-01T20:39:32: Unified Database Service: Connection 62 acquired
+2025-10-01T20:39:32: Unified Database Service: Connection 62 released
+2025-10-01T20:39:44: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T20:39:44: AWS Bedrock not configured - using rule-based recommendations
+2025-10-01T20:39:46: PumpDrive API: Received recommendation request {
+  hasData: true,
+  dataKeys: [ 'sliders', 'features', 'freeText', 'clarifying' ]
+}
+2025-10-01T20:39:46: AWS Bedrock not configured - using rule-based recommendations
