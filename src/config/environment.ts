@@ -64,6 +64,16 @@ export interface EnvironmentConfig {
   };
 }
 
+// Helper function for URL validation (must be outside class to avoid circular dependency)
+function isValidUrl(string: string): boolean {
+  try {
+    new URL(string);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 class EnvironmentValidator {
   private config: EnvironmentConfig;
 
@@ -114,7 +124,7 @@ class EnvironmentValidator {
     const urlVars = ['VITE_AZURE_OPENAI_ENDPOINT', 'VITE_SUPABASE_URL'];
     urlVars.forEach(envVar => {
       const value = import.meta.env[envVar];
-      if (value && !this.isValidUrl(value)) {
+      if (value && !isValidUrl(value)) {
         errors.push(`Invalid URL format for ${envVar}: ${value}`);
       }
     });
@@ -222,15 +232,6 @@ class EnvironmentValidator {
     };
   }
 
-  private isValidUrl(string: string): boolean {
-    try {
-      new URL(string);
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
   private getEnvironment(): 'development' | 'staging' | 'production' {
     const env = import.meta.env.MODE;
     if (env === 'production') return 'production';
@@ -273,8 +274,11 @@ const validator = new EnvironmentValidator();
 
 // Export validated configuration
 export const config = validator.getConfig();
-export const isProduction = config.app.environment === 'production';
-export const isDevelopment = config.app.environment === 'development';
+
+// Export environment helpers (must be separate to avoid circular reference)
+const env = config.app.environment;
+export const isProduction = env === 'production';
+export const isDevelopment = env === 'development';
 
 // Export for testing
 export const validateEnvironment = () => {
