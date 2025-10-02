@@ -108,7 +108,7 @@ const PumpDriveUnified: React.FC = () => {
 
   // Clarifying questions state
   const [clarifyingQuestions, setClarifyingQuestions] = useState<string[]>([]);
-  const [clarifyingAnswers, setClarifyingAnswers] = useState<Record<string, string>>({});
+  const [clarifyingAnswers, setClarifyingAnswers] = useState<string[]>([]);
   
   // Load saved data on mount
   useEffect(() => {
@@ -122,7 +122,7 @@ const PumpDriveUnified: React.FC = () => {
     }
 
     // Load feature data
-    const savedFeatures = sessionStorage.getItem('pumpDriveSelectedFeatures');
+    const savedFeatures = sessionStorage.getItem('selectedPumpFeatures');
     if (savedFeatures) {
       setSelectedFeatures(JSON.parse(savedFeatures));
       completedStepsToAdd.push('features');
@@ -170,7 +170,7 @@ const PumpDriveUnified: React.FC = () => {
   };
 
   const completeFeatures = () => {
-    sessionStorage.setItem('pumpDriveSelectedFeatures', JSON.stringify(selectedFeatures));
+    sessionStorage.setItem('selectedPumpFeatures', JSON.stringify(selectedFeatures));
     if (!completedSteps.includes('features')) {
       setCompletedSteps(prev => [...prev, 'features']);
     }
@@ -302,9 +302,30 @@ const PumpDriveUnified: React.FC = () => {
     try {
       setIsProcessing(true);
       console.log('💾 Saving clarifying answers:', clarifyingAnswers);
+      console.log('💾 Clarifying questions:', clarifyingQuestions);
 
-      // Save clarifying responses to sessionStorage
-      sessionStorage.setItem('pumpDriveClarifyingResponses', JSON.stringify(clarifyingAnswers));
+      // Convert array of answers to object keyed by question
+      const responsesObject: Record<string, string> = {};
+
+      if (clarifyingQuestions.length > 0) {
+        clarifyingQuestions.forEach((question, index) => {
+          responsesObject[question] = clarifyingAnswers[index] || '';
+        });
+      } else {
+        // Fallback: try to get questions from sessionStorage
+        const savedQuestions = sessionStorage.getItem('pumpDriveClarifyingQuestions');
+        if (savedQuestions) {
+          const questions = JSON.parse(savedQuestions);
+          questions.forEach((question: string, index: number) => {
+            responsesObject[question] = clarifyingAnswers[index] || '';
+          });
+        }
+      }
+
+      console.log('💾 Responses object:', responsesObject);
+
+      // Save clarifying responses to sessionStorage as object
+      sessionStorage.setItem('pumpDriveClarifyingResponses', JSON.stringify(responsesObject));
 
       // Mark clarify step as complete
       if (!completedSteps.includes('clarify')) {

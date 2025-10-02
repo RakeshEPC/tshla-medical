@@ -562,7 +562,44 @@ export default function PumpDriveResults() {
     );
   }
 
-  const { topRecommendation, alternatives, decisionSummary, detailedAnalysis } = recommendation;
+  // Safety check: ensure recommendation exists before destructuring
+  if (!recommendation) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-100 flex items-center justify-center p-6">
+        <div className="bg-white rounded-xl shadow-lg p-8 max-w-md text-center">
+          <div className="text-6xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-4">No Recommendation Available</h2>
+          <p className="text-gray-600 mb-6">
+            We couldn't load your pump recommendation. This usually happens if you haven't completed the assessment yet.
+          </p>
+          <button
+            onClick={() => navigate('/pumpdrive/assessment')}
+            className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+          >
+            Start Assessment
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const {
+    topRecommendation = {
+      name: 'Unknown',
+      score: 0,
+      explanation: '',
+      keyFeatures: [],
+      pros: [],
+      cons: []
+    },
+    alternatives = [],
+    decisionSummary = {
+      userPriorities: [],
+      keyFactors: [],
+      confidence: 0
+    },
+    detailedAnalysis = ''
+  } = recommendation || {};
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-100 p-6">
@@ -822,30 +859,40 @@ export default function PumpDriveResults() {
             <span className="mr-2">🔄</span> Other Strong Options
           </h3>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {alternatives.map((alt, index) => (
-                <div
-                  key={index}
-                  className="border rounded-lg p-4 hover:border-blue-300 transition-colors"
-                >
-                  <div className="flex justify-between items-start mb-3">
-                    <h4 className="font-semibold text-gray-800">{alt.name}</h4>
-                    <span className="bg-gray-100 px-2 py-1 rounded text-sm text-gray-600">
-                      {alt.score}% Match
-                    </span>
+              {alternatives.map((alt, index) => {
+                // Ensure alt has all required properties with defaults
+                const safeAlt = {
+                  name: alt?.name || 'Unknown Pump',
+                  score: alt?.score || 0,
+                  explanation: alt?.explanation || 'No explanation available',
+                  keyFeatures: alt?.keyFeatures || []
+                };
+
+                return (
+                  <div
+                    key={index}
+                    className="border rounded-lg p-4 hover:border-blue-300 transition-colors"
+                  >
+                    <div className="flex justify-between items-start mb-3">
+                      <h4 className="font-semibold text-gray-800">{safeAlt.name}</h4>
+                      <span className="bg-gray-100 px-2 py-1 rounded text-sm text-gray-600">
+                        {safeAlt.score}% Match
+                      </span>
+                    </div>
+                    <p className="text-gray-600 text-sm mb-3">{safeAlt.explanation}</p>
+                    <div>
+                      <h5 className="text-xs font-medium text-gray-700 mb-2">Key Features:</h5>
+                      <ul className="space-y-1">
+                        {safeAlt.keyFeatures.slice(0, 3).map((feature, i) => (
+                          <li key={i} className="text-xs text-gray-600">
+                            • {feature}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
-                  <p className="text-gray-600 text-sm mb-3">{alt.explanation}</p>
-                  <div>
-                    <h5 className="text-xs font-medium text-gray-700 mb-2">Key Features:</h5>
-                    <ul className="space-y-1">
-                      {alt.keyFeatures.slice(0, 3).map((feature, i) => (
-                        <li key={i} className="text-xs text-gray-600">
-                          • {feature}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
         </div>
 

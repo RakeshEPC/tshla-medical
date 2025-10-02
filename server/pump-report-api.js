@@ -1781,27 +1781,34 @@ app.post('/api/pumpdrive/recommend', async (req, res) => {
     // Generate pump recommendations using AWS Bedrock
     const recommendations = await generatePumpRecommendations(requestData);
 
-    // Return recommendations in expected format
-    const formattedResponse = {
-      overallTop: [
-        {
-          pumpId: convertPumpNameToId(recommendations.topChoice.name),
-          pumpName: recommendations.topChoice.name,
-          score: recommendations.topChoice.score,
-          reasons: recommendations.topChoice.reasons
-        }
-      ],
-      alternatives: recommendations.alternatives.map(alt => ({
-        pumpId: convertPumpNameToId(alt.name),
-        pumpName: alt.name,
-        score: alt.score,
-        reasons: alt.reasons
-      })),
-      keyFactors: recommendations.keyFactors,
-      personalizedInsights: recommendations.personalizedInsights,
-      success: true,
-      timestamp: new Date().toISOString()
-    };
+    // Handle both formats (topChoice from AI, overallTop from rule-based)
+    let formattedResponse;
+    if (recommendations.overallTop) {
+      // Rule-based format - already correct
+      formattedResponse = recommendations;
+    } else if (recommendations.topChoice) {
+      // AI format - convert to expected format
+      formattedResponse = {
+        overallTop: [
+          {
+            pumpId: convertPumpNameToId(recommendations.topChoice.name),
+            pumpName: recommendations.topChoice.name,
+            score: recommendations.topChoice.score,
+            reasons: recommendations.topChoice.reasons
+          }
+        ],
+        alternatives: recommendations.alternatives.map(alt => ({
+          pumpId: convertPumpNameToId(alt.name),
+          pumpName: alt.name,
+          score: alt.score,
+          reasons: alt.reasons
+        })),
+        keyFactors: recommendations.keyFactors,
+        personalizedInsights: recommendations.personalizedInsights,
+        success: true,
+        timestamp: new Date().toISOString()
+      };
+    }
 
     res.json(formattedResponse);
 
@@ -1816,15 +1823,114 @@ app.post('/api/pumpdrive/recommend', async (req, res) => {
 });
 
 /**
+ * Generate rule-based pump recommendations (fallback when AI not available)
+ */
+function generateRuleBasedRecommendations(userData) {
+  const sliders = userData.sliders || {};
+  const freeText = userData.freeText?.currentSituation || '';
+  const features = userData.features || [];
+
+  // Analyze user preferences
+  const wantsSimplicity = (sliders.simplicity || 5) >= 6;
+  const wantsDiscretion = (sliders.discreteness || 5) >= 6;
+  const isActive = (sliders.activity || 5) >= 6;
+  const lowTechComfort = (sliders.techComfort || 5) <= 4;
+
+  const prefersSmall = freeText.toLowerCase().includes('small') || freeText.toLowerCase().includes('discrete');
+  const prefersTubeless = freeText.toLowerCase().includes('tubeless') || freeText.toLowerCase().includes('patch');
+
+  // Scoring logic
+  let scores = {
+    'Omnipod 5': 70,
+    'Tandem t:slim X2': 70,
+    'Medtronic 780G': 70,
+    'Tandem Mobi': 70
+  };
+
+  // Boost Omnipod 5 for tubeless preference and simplicity
+  if (prefersTubeless || wantsDiscretion) scores['Omnipod 5'] += 15;
+  if (wantsSimplicity && lowTechComfort) scores['Omnipod 5'] += 10;
+
+  // Boost Mobi for small size preference
+  if (prefersSmall) scores['Tandem Mobi'] += 20;
+  if (wantsDiscretion) scores['Tandem Mobi'] += 10;
+
+  // Boost t:slim for tech-savvy users
+  if (sliders.techComfort >= 7) scores['Tandem t:slim X2'] += 15;
+  if (isActive) scores['Tandem t:slim X2'] += 5;
+
+  // Boost Medtronic for automation preference
+  if (sliders.techComfort >= 6 && sliders.timeDedication <= 4) scores['Medtronic 780G'] += 15;
+
+  // Sort by score
+  const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+
+  const topChoice = sorted[0];
+  const alternatives = sorted.slice(1, 3);
+
+  // Generate reasons based on scores
+  const reasons = {
+    'Omnipod 5': [
+      'Tubeless design offers maximum discretion',
+      'Simple pod system - no tubing to manage',
+      'Automated insulin delivery with Dexcom G6/G7',
+      'Waterproof and swim-friendly'
+    ],
+    'Tandem Mobi': [
+      'Smallest pump available - ultra-discreet',
+      'Fits in small pockets easily',
+      'Control IQ technology for automated delivery',
+      'Bluetooth connectivity to smartphone'
+    ],
+    'Tandem t:slim X2': [
+      'Advanced Control IQ technology',
+      'Color touchscreen for easy navigation',
+      'Rechargeable battery - no disposables',
+      'Excellent for active lifestyles'
+    ],
+    'Medtronic 780G': [
+      'SmartGuard auto mode with advanced automation',
+      'Proven reliability and accuracy',
+      'Large insulin reservoir',
+      'Comprehensive diabetes management system'
+    ]
+  };
+
+  const keyFactors = [];
+  if (wantsSimplicity) keyFactors.push('Ease of use and simplicity');
+  if (wantsDiscretion) keyFactors.push('Small size and discretion');
+  if (isActive) keyFactors.push('Active lifestyle compatibility');
+  if (sliders.techComfort >= 6) keyFactors.push('Advanced technology features');
+  if (prefersSmall) keyFactors.push('Compact design preference');
+
+  return {
+    overallTop: [{
+      pumpName: topChoice[0],
+      score: topChoice[1],
+      reasons: reasons[topChoice[0]]
+    }],
+    alternatives: alternatives.map(([name, score]) => ({
+      pumpName: name,
+      score: score,
+      reasons: reasons[name]
+    })),
+    keyFactors: keyFactors.length > 0 ? keyFactors : ['Your lifestyle preferences', 'Ease of use', 'Technology comfort level'],
+    personalizedInsights: `Based on your preferences${prefersSmall ? ' for a smaller pump' : ''}${prefersTubeless ? ' and tubeless design' : ''}, the ${topChoice[0]} is an excellent match at ${topChoice[1]}% compatibility. ${reasons[topChoice[0]][0]}. This pump ${wantsSimplicity ? 'offers simplicity and ease of use' : 'provides advanced features'} while meeting your ${wantsDiscretion ? 'discretion' : 'lifestyle'} needs.`
+  };
+}
+
+/**
  * Generate pump recommendations using AWS Bedrock
  */
 async function generatePumpRecommendations(userData) {
+  // Fallback to rule-based recommendations if AWS Bedrock not configured
+  if (!process.env.VITE_AWS_ACCESS_KEY_ID || !process.env.VITE_AWS_SECRET_ACCESS_KEY) {
+    console.log('AWS Bedrock not configured - using rule-based recommendations');
+    return generateRuleBasedRecommendations(userData);
+  }
+
   // Use AWS Bedrock via existing service
   const AWS = require('aws-sdk');
-
-  if (!process.env.VITE_AWS_ACCESS_KEY_ID || !process.env.VITE_AWS_SECRET_ACCESS_KEY) {
-    throw new Error('AWS Bedrock not configured');
-  }
 
   // Create user profile from request data
   const userProfile = createUserProfile(userData);
