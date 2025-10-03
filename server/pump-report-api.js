@@ -1723,6 +1723,178 @@ app.get('/api/health', async (req, res) => {
 });
 
 /**
+ * ADMIN: Get all PumpDrive users with their pump selections
+ * GET /api/admin/pumpdrive-users
+ */
+app.get('/api/admin/pumpdrive-users', async (req, res) => {
+  try {
+    // TODO: Add admin authentication check here
+    // For now, anyone can access (will add auth in next step)
+
+    const connection = await unifiedDatabase.getConnection();
+
+    const query = `
+      SELECT
+        u.id,
+        u.username,
+        u.email,
+        u.first_name,
+        u.last_name,
+        u.phone_number,
+        u.current_payment_status,
+        u.created_at,
+        u.last_login,
+        u.login_count,
+        u.is_active,
+        u.email_verified,
+        r.id as report_id,
+        r.payment_status as report_payment_status,
+        r.payment_amount,
+        r.payment_date,
+        r.recommendations,
+        r.created_at as report_created_at
+      FROM pump_users u
+      LEFT JOIN pump_reports r ON u.id = r.user_id
+      ORDER BY u.created_at DESC
+    `;
+
+    const [users] = await connection.execute(query);
+    connection.release();
+
+    // Parse JSON recommendations
+    const usersWithParsedData = users.map(user => ({
+      ...user,
+      recommendations: user.recommendations ? JSON.parse(user.recommendations) : null,
+      primary_pump: user.recommendations ?
+        JSON.parse(user.recommendations)[0]?.name || null : null,
+      secondary_pump: user.recommendations && JSON.parse(user.recommendations)[1] ?
+        JSON.parse(user.recommendations)[1].name : null,
+      full_name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'N/A'
+    }));
+
+    res.json({
+      success: true,
+      count: usersWithParsedData.length,
+      users: usersWithParsedData,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Admin API Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch users',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * ADMIN: Get user statistics
+ * GET /api/admin/pumpdrive-stats
+ */
+app.get('/api/admin/pumpdrive-stats', async (req, res) => {
+  try {
+    const connection = await unifiedDatabase.getConnection();
+
+    const [stats] = await connection.execute(`
+      SELECT
+        COUNT(DISTINCT u.id) as total_users,
+        COUNT(DISTINCT CASE WHEN u.current_payment_status = 'active' THEN u.id END) as paid_users,
+        COUNT(DISTINCT r.id) as total_reports,
+        COUNT(DISTINCT CASE WHEN r.payment_status = 'paid' THEN r.user_id END) as users_with_paid_reports,
+        COUNT(DISTINCT CASE WHEN u.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR) THEN u.id END) as new_users_24h,
+        COUNT(DISTINCT CASE WHEN r.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR) THEN r.id END) as new_reports_24h
+      FROM pump_users u
+      LEFT JOIN pump_reports r ON u.id = r.user_id
+    `);
+
+    connection.release();
+
+    res.json({
+      success: true,
+      stats: stats[0],
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Admin Stats Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch stats',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * ADMIN: Export users to CSV
+ * GET /api/admin/pumpdrive-users/export
+ */
+app.get('/api/admin/pumpdrive-users/export', async (req, res) => {
+  try {
+    const connection = await unifiedDatabase.getConnection();
+
+    const [users] = await connection.execute(`
+      SELECT
+        u.id,
+        u.username,
+        u.email,
+        CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) as full_name,
+        u.phone_number,
+        u.current_payment_status,
+        u.created_at,
+        u.last_login,
+        u.login_count,
+        r.recommendations
+      FROM pump_users u
+      LEFT JOIN pump_reports r ON u.id = r.user_id
+      ORDER BY u.created_at DESC
+    `);
+
+    connection.release();
+
+    // Convert to CSV
+    const csvHeader = 'ID,Username,Email,Full Name,Phone,Payment Status,Primary Pump,Secondary Pump,Created Date,Last Login,Login Count\n';
+    const csvRows = users.map(user => {
+      const recommendations = user.recommendations ? JSON.parse(user.recommendations) : [];
+      const primaryPump = recommendations[0]?.name || 'None';
+      const secondaryPump = recommendations[1]?.name || 'None';
+      const createdDate = user.created_at ? new Date(user.created_at).toISOString().split('T')[0] : 'N/A';
+      const lastLogin = user.last_login ? new Date(user.last_login).toISOString().split('T')[0] : 'Never';
+
+      return [
+        user.id,
+        `"${user.username || ''}"`,
+        `"${user.email || ''}"`,
+        `"${user.full_name || ''}"`,
+        `"${user.phone_number || ''}"`,
+        user.current_payment_status || 'pending',
+        `"${primaryPump}"`,
+        `"${secondaryPump}"`,
+        createdDate,
+        lastLogin,
+        user.login_count || 0
+      ].join(',');
+    }).join('\n');
+
+    const csv = csvHeader + csvRows;
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename=pumpdrive-users-${new Date().toISOString().split('T')[0]}.csv`);
+    res.send(csv);
+
+  } catch (error) {
+    console.error('CSV Export Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to export CSV',
+      message: error.message
+    });
+  }
+});
+
+/**
  * API info endpoint
  * GET /api/info
  */
@@ -1732,6 +1904,11 @@ app.get('/api/info', (req, res) => {
     version: '1.0.0',
     description: 'API for pump recommendation reports with Stripe payments and provider delivery',
     endpoints: {
+      admin: [
+        'GET /api/admin/pumpdrive-users',
+        'GET /api/admin/pumpdrive-stats',
+        'GET /api/admin/pumpdrive-users/export',
+      ],
       stripe: [
         'POST /api/stripe/create-pump-report-session',
         'GET /api/stripe/verify-payment/:sessionId',

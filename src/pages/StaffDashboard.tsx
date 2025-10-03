@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import DoctorDashboard from './DoctorDashboard';
+import DoctorDashboardUnified from './DoctorDashboardUnified';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
 
 /**
@@ -64,7 +64,7 @@ export default function StaffDashboard() {
       )}
 
       {/* Render the doctor dashboard for all roles (for now) */}
-      <DoctorDashboard />
+      <DoctorDashboardUnified />
 
       {/* Role-specific feature hints */}
       {user?.role === 'dietician' && (

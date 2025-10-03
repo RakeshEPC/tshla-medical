@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# This script queries the database through Azure Cloud Shell
+# You need to run this in Azure Portal Cloud Shell
+
+echo "Copy and paste this into Azure Cloud Shell:"
+echo "=============================================="
+echo ""
+echo "mysql -h tshla-mysql-prod.mysql.database.azure.com \\"
+echo "      -u tshlaadmin \\"
+echo "      -p'TshlaSecure2025!' \\"
+echo "      -D tshla_medical \\"
+echo "      --ssl-mode=REQUIRED \\"
+echo "      -e \""
+echo "SELECT "
+echo "  u.id,"
+echo "  u.username,"
+echo "  u.email,"
+echo "  CONCAT(u.first_name, ' ', u.last_name) as name,"
+echo "  u.phone_number,"
+echo "  CONCAT(a.pump_manufacturer, ' ', a.pump_name) as primary_pump,"
+echo "  CONCAT(ROUND(a.confidence_score), '%') as confidence,"
+echo "  CONCAT(a.secondary_manufacturer, ' ', a.secondary_recommendation) as secondary_pump,"
+echo "  IF(u.has_paid, 'YES', 'NO') as paid"
+echo "FROM pump_users u"
+echo "LEFT JOIN pump_assessments a ON u.id = a.user_id"
+echo "ORDER BY u.created_at DESC;"
+echo "\""
+echo ""
+echo "=============================================="

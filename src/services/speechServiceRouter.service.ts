@@ -9,12 +9,12 @@
 import { deepgramSDKService } from './deepgramSDK.service';
 import { deepgramAdapter } from './deepgramAdapter.service';
 
-// Azure Speech Services (backup - quota limited)
-import { azureSpeechStreamingFixed } from './azureSpeechStreamingFixed.service';
-import { azureSpeechDictation } from './azureSpeechDictation.service';
-import { azureSpeechConversation } from './azureSpeechConversation.service';
-import { azureSpeechAmbientService } from './azureSpeechAmbient.service';
-import { azureSpeechSimple } from './azureSpeechSimple.service';
+// Azure Speech Services (backup - quota limited, currently archived)
+// import { azureSpeechStreamingFixed } from './azureSpeechStreamingFixed.service';
+// import { azureSpeechDictation } from './azureSpeechDictation.service';
+// import { azureSpeechConversation } from './azureSpeechConversation.service';
+// import { azureSpeechAmbientService } from './azureSpeechAmbient.service';
+// import { azureSpeechSimple } from './azureSpeechSimple.service';
 import { logError, logWarn, logInfo, logDebug } from './logger.service';
 
 // AWS Transcribe Services (fallback)
