@@ -305,11 +305,9 @@ function App() {
               <Route
                 path="/admin/*"
                 element={
-                  <ProtectedRoute>
-                    <Suspense fallback={<LoadingSpinner />}>
-                      <AdminBundle />
-                    </Suspense>
-                  </ProtectedRoute>
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <AdminBundle />
+                  </Suspense>
                 }
               />
 

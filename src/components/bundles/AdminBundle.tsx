@@ -1,9 +1,11 @@
 /**
  * Admin Bundle - Lazy loaded administrative features
+ * Protected by AdminRoute - requires admin role
  */
 
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
+import AdminRoute from '../AdminRoute';
 
 const AdminLoader = () => (
   <div className="min-h-screen bg-gradient-to-br from-gray-50 to-slate-100 flex items-center justify-center">
@@ -21,15 +23,17 @@ const PumpDriveUserDashboard = lazy(() => import('../../pages/admin/PumpDriveUse
 
 export default function AdminBundle() {
   return (
-    <Suspense fallback={<AdminLoader />}>
-      <Routes>
-        <Route index element={<Navigate to="/admin/accounts" replace />} />
-        <Route path="account-creation" element={<AdminAccountCreation />} />
-        <Route path="accounts" element={<AdminAccountManagement />} />
-        <Route path="quick-setup" element={<QuickAccountSetup />} />
-        <Route path="pumpdrive-users" element={<PumpDriveUserDashboard />} />
-        <Route path="*" element={<Navigate to="/admin/accounts" replace />} />
-      </Routes>
-    </Suspense>
+    <AdminRoute>
+      <Suspense fallback={<AdminLoader />}>
+        <Routes>
+          <Route index element={<Navigate to="/admin/accounts" replace />} />
+          <Route path="account-creation" element={<AdminAccountCreation />} />
+          <Route path="accounts" element={<AdminAccountManagement />} />
+          <Route path="quick-setup" element={<QuickAccountSetup />} />
+          <Route path="pumpdrive-users" element={<PumpDriveUserDashboard />} />
+          <Route path="*" element={<Navigate to="/admin/accounts" replace />} />
+        </Routes>
+      </Suspense>
+    </AdminRoute>
   );
 }

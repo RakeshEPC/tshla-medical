@@ -56,7 +56,12 @@ export default function PumpDriveUserDashboard() {
 
   const fetchUsers = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/admin/pumpdrive-users`);
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`${API_BASE_URL}/api/admin/pumpdrive-users`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
 
@@ -74,7 +79,12 @@ export default function PumpDriveUserDashboard() {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/admin/pumpdrive-stats`);
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`${API_BASE_URL}/api/admin/pumpdrive-stats`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
 
@@ -93,7 +103,28 @@ export default function PumpDriveUserDashboard() {
   };
 
   const handleExportCSV = () => {
-    window.open(`${API_BASE_URL}/api/admin/pumpdrive-users/export`, '_blank');
+    const token = localStorage.getItem('auth_token');
+    // Create a temporary link with authorization header via fetch
+    fetch(`${API_BASE_URL}/api/admin/pumpdrive-users/export`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+      .then(response => response.blob())
+      .then(blob => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `pumpdrive-users-${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      })
+      .catch(err => {
+        console.error('Export failed:', err);
+        setError('Failed to export CSV. Please try again.');
+      });
   };
 
   const handleRefresh = () => {
