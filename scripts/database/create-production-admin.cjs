@@ -8,10 +8,10 @@ const bcrypt = require('bcryptjs');
 
 async function createProductionAdmin() {
   const dbConfig = {
-    host: 'tshla-mysql-staging.mysql.database.azure.com',
+    host: 'tshla-mysql-prod.mysql.database.azure.com',
     user: 'tshlaadmin',
     password: 'TshlaSecure2025!',
-    database: 'tshla_medical_staging',
+    database: 'tshla_medical',
     ssl: {
       rejectUnauthorized: false
     }

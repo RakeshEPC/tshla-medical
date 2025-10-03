@@ -16518,3 +16518,148 @@ For more information, check the blog post at https://a.co/cUPnyil
 2025-10-01T20:34:39: Ignoring invalid configuration option passed to Connection: acquireTimeout. This is currently a warning, but in future versions of MySQL2, an error will be thrown if you pass an invalid configuration option to a Connection
 2025-10-01T20:34:39: Ignoring invalid configuration option passed to Connection: timeout. This is currently a warning, but in future versions of MySQL2, an error will be thrown if you pass an invalid configuration option to a Connection
 2025-10-01T20:34:39: Ignoring invalid configuration option passed to Connection: reconnect. This is currently a warning, but in future versions of MySQL2, an error will be thrown if you pass an invalid configuration option to a Connection
+2025-10-02T21:00:10: Stripe not initialized - missing secret key
+2025-10-02T21:00:10: Pump Report API: Warning - Using default/empty database password
+2025-10-02T21:00:10: Pump Report API: Environment validation failed!
+2025-10-02T21:00:10:   - Missing required environment variable: DB_PASSWORD
+2025-10-02T21:00:10: Pump Report API: Starting in degraded mode with invalid configuration
+2025-10-02T21:03:32: Stripe not initialized - missing secret key
+2025-10-02T21:03:32: Pump Report API: Warning - Using default/empty database password
+2025-10-02T21:03:32: Pump Report API: Environment validation failed!
+2025-10-02T21:03:32:   - Missing required environment variable: DB_PASSWORD
+2025-10-02T21:03:32: Pump Report API: Starting in degraded mode with invalid configuration
+2025-10-02T21:14:54: Ignoring invalid configuration option passed to Connection: acquireTimeout. This is currently a warning, but in future versions of MySQL2, an error will be thrown if you pass an invalid configuration option to a Connection
+2025-10-02T21:14:54: Ignoring invalid configuration option passed to Connection: timeout. This is currently a warning, but in future versions of MySQL2, an error will be thrown if you pass an invalid configuration option to a Connection
+2025-10-02T21:14:54: Ignoring invalid configuration option passed to Connection: reconnect. This is currently a warning, but in future versions of MySQL2, an error will be thrown if you pass an invalid configuration option to a Connection
+2025-10-03T06:57:43: Admin API Error: Error: Table 'tshla_medical_local.pump_reports' doesn't exist
+    at PromisePoolConnection.execute (/Users/rakeshpatel/Desktop/tshla-medical/server/node_modules/mysql2/lib/promise/connection.js:47:22)
+    at /Users/rakeshpatel/Desktop/tshla-medical/server/pump-report-api.js:1774:38
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5) {
+  code: 'ER_NO_SUCH_TABLE',
+  errno: 1146,
+  sql: '\n' +
+    '      SELECT\n' +
+    '        u.id,\n' +
+    '        u.username,\n' +
+    '        u.email,\n' +
+    '        u.first_name,\n' +
+    '        u.last_name,\n' +
+    '        u.phone_number,\n' +
+    '        u.current_payment_status,\n' +
+    '        u.created_at,\n' +
+    '        u.last_login,\n' +
+    '        u.login_count,\n' +
+    '        u.is_active,\n' +
+    '        u.email_verified,\n' +
+    '        r.id as report_id,\n' +
+    '        r.payment_status as report_payment_status,\n' +
+    '        r.payment_amount,\n' +
+    '        r.payment_date,\n' +
+    '        r.recommendations,\n' +
+    '        r.created_at as report_created_at\n' +
+    '      FROM pump_users u\n' +
+    '      LEFT JOIN pump_reports r ON u.id = r.user_id\n' +
+    '      ORDER BY u.created_at DESC\n' +
+    '    ',
+  sqlState: '42S02',
+  sqlMessage: "Table 'tshla_medical_local.pump_reports' doesn't exist"
+}
+2025-10-03T06:58:22: Admin API Error: Error: Unknown column 'u.email_verified' in 'field list'
+    at PromisePoolConnection.execute (/Users/rakeshpatel/Desktop/tshla-medical/server/node_modules/mysql2/lib/promise/connection.js:47:22)
+    at /Users/rakeshpatel/Desktop/tshla-medical/server/pump-report-api.js:1774:38
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5) {
+  code: 'ER_BAD_FIELD_ERROR',
+  errno: 1054,
+  sql: '\n' +
+    '      SELECT\n' +
+    '        u.id,\n' +
+    '        u.username,\n' +
+    '        u.email,\n' +
+    '        u.first_name,\n' +
+    '        u.last_name,\n' +
+    '        u.phone_number,\n' +
+    '        u.current_payment_status,\n' +
+    '        u.created_at,\n' +
+    '        u.last_login,\n' +
+    '        u.login_count,\n' +
+    '        u.is_active,\n' +
+    '        u.email_verified,\n' +
+    '        r.id as report_id,\n' +
+    '        r.payment_status as report_payment_status,\n' +
+    '        r.payment_amount,\n' +
+    '        r.payment_date,\n' +
+    '        r.recommendations,\n' +
+    '        r.created_at as report_created_at\n' +
+    '      FROM pump_users u\n' +
+    '      LEFT JOIN pump_reports r ON u.id = r.user_id\n' +
+    '      ORDER BY u.created_at DESC\n' +
+    '    ',
+  sqlState: '42S22',
+  sqlMessage: "Unknown column 'u.email_verified' in 'field list'"
+}
+2025-10-03T06:58:28: Admin API Error: Error: Unknown column 'u.email_verified' in 'field list'
+    at PromisePoolConnection.execute (/Users/rakeshpatel/Desktop/tshla-medical/server/node_modules/mysql2/lib/promise/connection.js:47:22)
+    at /Users/rakeshpatel/Desktop/tshla-medical/server/pump-report-api.js:1774:38
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5) {
+  code: 'ER_BAD_FIELD_ERROR',
+  errno: 1054,
+  sql: '\n' +
+    '      SELECT\n' +
+    '        u.id,\n' +
+    '        u.username,\n' +
+    '        u.email,\n' +
+    '        u.first_name,\n' +
+    '        u.last_name,\n' +
+    '        u.phone_number,\n' +
+    '        u.current_payment_status,\n' +
+    '        u.created_at,\n' +
+    '        u.last_login,\n' +
+    '        u.login_count,\n' +
+    '        u.is_active,\n' +
+    '        u.email_verified,\n' +
+    '        r.id as report_id,\n' +
+    '        r.payment_status as report_payment_status,\n' +
+    '        r.payment_amount,\n' +
+    '        r.payment_date,\n' +
+    '        r.recommendations,\n' +
+    '        r.created_at as report_created_at\n' +
+    '      FROM pump_users u\n' +
+    '      LEFT JOIN pump_reports r ON u.id = r.user_id\n' +
+    '      ORDER BY u.created_at DESC\n' +
+    '    ',
+  sqlState: '42S22',
+  sqlMessage: "Unknown column 'u.email_verified' in 'field list'"
+}
+2025-10-03T06:58:36: Admin API Error: Error: Unknown column 'u.email_verified' in 'field list'
+    at PromisePoolConnection.execute (/Users/rakeshpatel/Desktop/tshla-medical/server/node_modules/mysql2/lib/promise/connection.js:47:22)
+    at /Users/rakeshpatel/Desktop/tshla-medical/server/pump-report-api.js:1774:38
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5) {
+  code: 'ER_BAD_FIELD_ERROR',
+  errno: 1054,
+  sql: '\n' +
+    '      SELECT\n' +
+    '        u.id,\n' +
+    '        u.username,\n' +
+    '        u.email,\n' +
+    '        u.first_name,\n' +
+    '        u.last_name,\n' +
+    '        u.phone_number,\n' +
+    '        u.current_payment_status,\n' +
+    '        u.created_at,\n' +
+    '        u.last_login,\n' +
+    '        u.login_count,\n' +
+    '        u.is_active,\n' +
+    '        u.email_verified,\n' +
+    '        r.id as report_id,\n' +
+    '        r.payment_status as report_payment_status,\n' +
+    '        r.payment_amount,\n' +
+    '        r.payment_date,\n' +
+    '        r.recommendations,\n' +
+    '        r.created_at as report_created_at\n' +
+    '      FROM pump_users u\n' +
+    '      LEFT JOIN pump_reports r ON u.id = r.user_id\n' +
+    '      ORDER BY u.created_at DESC\n' +
+    '    ',
+  sqlState: '42S22',
+  sqlMessage: "Unknown column 'u.email_verified' in 'field list'"
+}
