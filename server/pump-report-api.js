@@ -477,8 +477,11 @@ app.post('/api/auth/register', checkDatabaseStatus, async (req, res) => {
         });
       }
 
+      //Determine if user should be admin (for specific emails only)
+      const isAdmin = ['rakesh@tshla.ai', 'admin@tshla.ai'].includes(email.toLowerCase());
+
       const token = jwt.sign(
-        { userId, email, username, isResearchParticipant, role: 'admin' },
+        { userId, email, username, isResearchParticipant, role: isAdmin ? 'admin' : 'user' },
         jwtSecret,
         { expiresIn: '24h' }
       );
@@ -550,7 +553,7 @@ app.post('/api/auth/login', async (req, res) => {
     try {
       const [users] = await connection.execute(
         `SELECT id, email, username, password_hash, first_name, last_name, phone_number,
-                current_payment_status, is_research_participant, is_active
+                current_payment_status, is_research_participant, is_active, is_admin
          FROM pump_users WHERE email = ?`,
         [email]
       );
@@ -594,7 +597,7 @@ app.post('/api/auth/login', async (req, res) => {
           email: user.email,
           username: user.username,
           isResearchParticipant: user.is_research_participant,
-          role: 'admin'
+          role: user.is_admin ? 'admin' : 'user'
         },
         jwtSecret,
         { expiresIn: '24h' }

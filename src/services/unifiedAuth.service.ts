@@ -134,18 +134,27 @@ class UnifiedAuthService {
         const token = pumpResult.token;
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
+        // Decode JWT to extract role from token
+        let userRole = 'user'; // default role
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          userRole = payload.role || 'user';
+        } catch (e) {
+          console.warn('Failed to decode JWT token:', e);
+        }
+
         const user: AuthUser = {
           id: pumpResult.user.id.toString(),
           email: pumpResult.user.email,
-          name: `${pumpResult.user.firstName || ''} ${pumpResult.user.lastName || ''}`.trim(),
-          role: 'admin', // PumpDrive users get admin role for pump system
+          name: `${pumpResult.user.firstName || ''} ${pumpResult.user.lastName ||''}`.trim(),
+          role: userRole, // Role from JWT token (admin only for specific users)
           accessType: 'pumpdrive',
         };
 
         this.saveSession(token, user, expiresAt);
 
         // Set PumpDrive specific flags for admin users
-        if (email === 'rakesh@tshla.ai') {
+        if (userRole === 'admin') {
           localStorage.setItem('pumpdrive_access', 'unlimited');
           localStorage.setItem('admin_access', 'true');
           localStorage.setItem('admin_email', email);
