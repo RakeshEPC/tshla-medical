@@ -16,6 +16,7 @@ export default defineConfig({
   build: {
     sourcemap: true,
     rollupOptions: {
+      external: ['microsoft-cognitiveservices-speech-sdk'],
       output: {
         manualChunks: undefined,
       },
