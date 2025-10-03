@@ -478,7 +478,7 @@ app.post('/api/auth/register', checkDatabaseStatus, async (req, res) => {
       }
 
       const token = jwt.sign(
-        { userId, email, username, isResearchParticipant },
+        { userId, email, username, isResearchParticipant, role: 'admin' },
         jwtSecret,
         { expiresIn: '24h' }
       );
@@ -593,7 +593,8 @@ app.post('/api/auth/login', async (req, res) => {
           userId: user.id,
           email: user.email,
           username: user.username,
-          isResearchParticipant: user.is_research_participant
+          isResearchParticipant: user.is_research_participant,
+          role: 'admin'
         },
         jwtSecret,
         { expiresIn: '24h' }
