@@ -18,6 +18,7 @@ import {
   Search,
   Bell,
   Home,
+  Shield,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { unifiedAuthService } from '../../services/unifiedAuth.service';
@@ -261,6 +262,20 @@ export default function DoctorNavBar({
                       <Settings className="w-4 h-4 text-gray-500" />
                       <span className="text-sm">Settings</span>
                     </button>
+
+                    {/* Admin Dashboard - Only show for admin users */}
+                    {currentUser?.role === 'admin' && (
+                      <button
+                        onClick={() => {
+                          navigate('/admin/accounts');
+                          setShowUserMenu(false);
+                        }}
+                        className="w-full flex items-center space-x-2 p-2 rounded hover:bg-blue-50 text-left text-blue-600"
+                      >
+                        <Shield className="w-4 h-4" />
+                        <span className="text-sm">Admin Dashboard</span>
+                      </button>
+                    )}
 
                     <hr className="my-2" />
 

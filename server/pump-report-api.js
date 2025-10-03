@@ -1957,14 +1957,26 @@ app.get('/api/info', (req, res) => {
  * Process pump recommendations using AWS Bedrock
  * POST /api/pumpdrive/recommend
  */
-app.post('/api/pumpdrive/recommend', async (req, res) => {
+app.post('/api/pumpdrive/recommend', verifyToken, async (req, res) => {
+  const connection = await pool.getConnection();
+
   try {
     console.log('PumpDrive API: Received recommendation request', {
       hasData: !!req.body,
-      dataKeys: Object.keys(req.body || {})
+      dataKeys: Object.keys(req.body || {}),
+      userId: req.user?.userId
     });
 
     const requestData = req.body;
+    const userId = req.user?.userId;
+
+    // Require authentication
+    if (!userId) {
+      return res.status(401).json({
+        error: 'Authentication required',
+        message: 'You must be logged in to get pump recommendations'
+      });
+    }
 
     // Basic validation
     if (!requestData || typeof requestData !== 'object') {
@@ -2006,6 +2018,38 @@ app.post('/api/pumpdrive/recommend', async (req, res) => {
       };
     }
 
+    // Save to pump_reports table
+    const primaryPump = formattedResponse.overallTop?.[0]?.pumpName ||
+                        formattedResponse.topRecommendation?.name ||
+                        'Unknown';
+    const secondaryPump = formattedResponse.alternatives?.[0]?.pumpName ||
+                         formattedResponse.alternatives?.[0]?.name ||
+                         null;
+
+    const [insertResult] = await connection.execute(
+      `INSERT INTO pump_reports
+       (user_id, report_data, questionnaire_responses, recommendations, primary_pump, secondary_pump)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        userId,
+        JSON.stringify(requestData),
+        JSON.stringify(requestData.questionnaire || {}),
+        JSON.stringify(formattedResponse),
+        primaryPump,
+        secondaryPump
+      ]
+    );
+
+    console.log('Pump report saved:', {
+      reportId: insertResult.insertId,
+      userId,
+      primaryPump,
+      secondaryPump
+    });
+
+    // Add report ID to response
+    formattedResponse.reportId = insertResult.insertId;
+
     res.json(formattedResponse);
 
   } catch (error) {
@@ -2015,6 +2059,8 @@ app.post('/api/pumpdrive/recommend', async (req, res) => {
       message: error.message,
       details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
+  } finally {
+    connection.release();
   }
 });
 

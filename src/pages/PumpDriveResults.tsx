@@ -212,9 +212,19 @@ export default function PumpDriveResults() {
           };
 
           const apiUrl = import.meta.env.VITE_PUMP_API_URL || 'http://localhost:3001';
+
+          // Get auth token for authenticated request
+          const token = localStorage.getItem('token');
+          const headers: Record<string, string> = {
+            'Content-Type': 'application/json'
+          };
+          if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+          }
+
           const response = await fetch(`${apiUrl}/api/pumpdrive/recommend`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify(userData),
           });
 
