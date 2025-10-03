@@ -186,6 +186,21 @@ const verifyToken = (req, res, next) => {
   }
 };
 
+// Admin role verification middleware
+const requireAdmin = (req, res, next) => {
+  // First verify the token
+  verifyToken(req, res, () => {
+    // Check if user has admin role
+    if (!req.user || req.user.role !== 'admin') {
+      return res.status(403).json({
+        error: 'Admin access required',
+        message: 'You do not have permission to access this resource'
+      });
+    }
+    next();
+  });
+};
+
 // Database status checking middleware
 const checkDatabaseStatus = (req, res, next) => {
   if (!req.app.locals.dbConnected) {
@@ -1725,12 +1740,10 @@ app.get('/api/health', async (req, res) => {
 /**
  * ADMIN: Get all PumpDrive users with their pump selections
  * GET /api/admin/pumpdrive-users
+ * Requires admin authentication
  */
-app.get('/api/admin/pumpdrive-users', async (req, res) => {
+app.get('/api/admin/pumpdrive-users', requireAdmin, async (req, res) => {
   try {
-    // TODO: Add admin authentication check here
-    // For now, anyone can access (will add auth in next step)
-
     const connection = await unifiedDatabase.getConnection();
 
     const query = `
@@ -1792,8 +1805,9 @@ app.get('/api/admin/pumpdrive-users', async (req, res) => {
 /**
  * ADMIN: Get user statistics
  * GET /api/admin/pumpdrive-stats
+ * Requires admin authentication
  */
-app.get('/api/admin/pumpdrive-stats', async (req, res) => {
+app.get('/api/admin/pumpdrive-stats', requireAdmin, async (req, res) => {
   try {
     const connection = await unifiedDatabase.getConnection();
 
@@ -1830,8 +1844,9 @@ app.get('/api/admin/pumpdrive-stats', async (req, res) => {
 /**
  * ADMIN: Export users to CSV
  * GET /api/admin/pumpdrive-users/export
+ * Requires admin authentication
  */
-app.get('/api/admin/pumpdrive-users/export', async (req, res) => {
+app.get('/api/admin/pumpdrive-users/export', requireAdmin, async (req, res) => {
   try {
     const connection = await unifiedDatabase.getConnection();
 
