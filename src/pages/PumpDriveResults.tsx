@@ -211,7 +211,7 @@ export default function PumpDriveResults() {
             clarifying: JSON.parse(clarifyingData || '{}')
           };
 
-          const apiUrl = import.meta.env.VITE_PUMP_API_URL || 'http://localhost:3004';
+          const apiUrl = import.meta.env.VITE_PUMP_API_URL || 'http://localhost:3001';
           const response = await fetch(`${apiUrl}/api/pumpdrive/recommend`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
