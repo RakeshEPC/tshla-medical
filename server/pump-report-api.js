@@ -32,7 +32,7 @@ const PORT = process.env.PORT || 3002;
 // Middleware
 app.use(
   cors({
-    origin: ['http://localhost:5173', 'http://localhost:5174', 'https://www.tshla.ai'],
+    origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'https://www.tshla.ai'],
     credentials: true,
   })
 );
@@ -306,6 +306,26 @@ app.get('/api/health', async (req, res) => {
     health.services.stripe = {
       status: 'not_configured',
       configured: false
+    };
+  }
+
+  // Check JWT configuration
+  const crypto = require('crypto');
+  const jwtSecret = process.env.JWT_SECRET;
+  if (jwtSecret && jwtSecret.length >= 32) {
+    // Create hash of JWT secret for verification (first 16 chars)
+    const secretHash = crypto.createHash('sha256').update(jwtSecret).digest('hex').substring(0, 16);
+    health.services.jwt = {
+      status: 'configured',
+      configured: true,
+      secretHash: secretHash // For cross-API verification
+    };
+  } else {
+    overallStatus = 'degraded';
+    health.services.jwt = {
+      status: 'misconfigured',
+      configured: false,
+      error: 'JWT secret missing or too short'
     };
   }
 
@@ -1913,6 +1933,509 @@ app.get('/api/admin/pumpdrive-users/export', requireAdmin, async (req, res) => {
   }
 });
 
+// ============================================================================
+// PUMP COMPARISON DATA MANAGEMENT ENDPOINTS
+// ============================================================================
+
+/**
+ * ADMIN: Get all pump comparison dimensions (23 dimensions)
+ * GET /api/admin/pump-comparison-data
+ * Requires admin authentication
+ */
+app.get('/api/admin/pump-comparison-data', requireAdmin, async (req, res) => {
+  try {
+    const connection = await unifiedDatabase.getConnection();
+
+    const [dimensions] = await connection.execute(`
+      SELECT
+        id,
+        dimension_number,
+        dimension_name,
+        dimension_description,
+        importance_scale,
+        pump_details,
+        category,
+        display_order,
+        is_active,
+        created_at,
+        updated_at
+      FROM pump_comparison_data
+      WHERE is_active = true
+      ORDER BY display_order ASC, dimension_number ASC
+    `);
+
+    connection.release();
+
+    // Parse JSON pump_details for each dimension
+    const parsedDimensions = dimensions.map(dim => ({
+      ...dim,
+      pump_details: typeof dim.pump_details === 'string'
+        ? JSON.parse(dim.pump_details)
+        : dim.pump_details
+    }));
+
+    res.json({
+      success: true,
+      count: parsedDimensions.length,
+      dimensions: parsedDimensions,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error fetching pump comparison data:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch pump comparison data',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * ADMIN: Get a single pump comparison dimension by ID
+ * GET /api/admin/pump-comparison-data/:id
+ * Requires admin authentication
+ */
+app.get('/api/admin/pump-comparison-data/:id', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const connection = await unifiedDatabase.getConnection();
+
+    const [dimensions] = await connection.execute(`
+      SELECT
+        id,
+        dimension_number,
+        dimension_name,
+        dimension_description,
+        importance_scale,
+        pump_details,
+        category,
+        display_order,
+        is_active,
+        created_at,
+        updated_at
+      FROM pump_comparison_data
+      WHERE id = ?
+    `, [id]);
+
+    connection.release();
+
+    if (dimensions.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Dimension not found'
+      });
+    }
+
+    const dimension = {
+      ...dimensions[0],
+      pump_details: typeof dimensions[0].pump_details === 'string'
+        ? JSON.parse(dimensions[0].pump_details)
+        : dimensions[0].pump_details
+    };
+
+    res.json({
+      success: true,
+      dimension,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error fetching pump comparison dimension:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch dimension',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * ADMIN: Update a pump comparison dimension
+ * PUT /api/admin/pump-comparison-data/:id
+ * Requires admin authentication
+ */
+app.put('/api/admin/pump-comparison-data/:id', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      dimension_name,
+      dimension_description,
+      importance_scale,
+      pump_details,
+      category,
+      display_order,
+      is_active
+    } = req.body;
+
+    const connection = await unifiedDatabase.getConnection();
+
+    // Convert pump_details to JSON string if it's an object
+    const pumpDetailsJson = typeof pump_details === 'object'
+      ? JSON.stringify(pump_details)
+      : pump_details;
+
+    const [result] = await connection.execute(`
+      UPDATE pump_comparison_data
+      SET
+        dimension_name = COALESCE(?, dimension_name),
+        dimension_description = COALESCE(?, dimension_description),
+        importance_scale = COALESCE(?, importance_scale),
+        pump_details = COALESCE(?, pump_details),
+        category = COALESCE(?, category),
+        display_order = COALESCE(?, display_order),
+        is_active = COALESCE(?, is_active),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `, [
+      dimension_name,
+      dimension_description,
+      importance_scale,
+      pumpDetailsJson,
+      category,
+      display_order,
+      is_active,
+      id
+    ]);
+
+    connection.release();
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Dimension not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Dimension updated successfully',
+      dimensionId: id,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error updating pump comparison dimension:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update dimension',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * ADMIN: Create a new pump comparison dimension
+ * POST /api/admin/pump-comparison-data
+ * Requires admin authentication
+ */
+app.post('/api/admin/pump-comparison-data', requireAdmin, async (req, res) => {
+  try {
+    const {
+      dimension_number,
+      dimension_name,
+      dimension_description,
+      importance_scale,
+      pump_details,
+      category,
+      display_order
+    } = req.body;
+
+    if (!dimension_number || !dimension_name || !pump_details) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: dimension_number, dimension_name, pump_details'
+      });
+    }
+
+    const connection = await unifiedDatabase.getConnection();
+
+    // Convert pump_details to JSON string if it's an object
+    const pumpDetailsJson = typeof pump_details === 'object'
+      ? JSON.stringify(pump_details)
+      : pump_details;
+
+    const [result] = await connection.execute(`
+      INSERT INTO pump_comparison_data (
+        dimension_number,
+        dimension_name,
+        dimension_description,
+        importance_scale,
+        pump_details,
+        category,
+        display_order,
+        is_active
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, true)
+    `, [
+      dimension_number,
+      dimension_name,
+      dimension_description || null,
+      importance_scale || '1-10',
+      pumpDetailsJson,
+      category || null,
+      display_order || dimension_number
+    ]);
+
+    connection.release();
+
+    res.json({
+      success: true,
+      message: 'Dimension created successfully',
+      dimensionId: result.insertId,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error creating pump comparison dimension:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create dimension',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * ADMIN: Delete a pump comparison dimension (soft delete)
+ * DELETE /api/admin/pump-comparison-data/:id
+ * Requires admin authentication
+ */
+app.delete('/api/admin/pump-comparison-data/:id', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const connection = await unifiedDatabase.getConnection();
+
+    // Soft delete by setting is_active to false
+    const [result] = await connection.execute(`
+      UPDATE pump_comparison_data
+      SET is_active = false, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `, [id]);
+
+    connection.release();
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Dimension not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Dimension deleted successfully',
+      dimensionId: id,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error deleting pump comparison dimension:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete dimension',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * ADMIN: Get all pump manufacturers with contact info
+ * GET /api/admin/pump-manufacturers
+ * Requires admin authentication
+ */
+app.get('/api/admin/pump-manufacturers', requireAdmin, async (req, res) => {
+  try {
+    const connection = await unifiedDatabase.getConnection();
+
+    const [manufacturers] = await connection.execute(`
+      SELECT
+        id,
+        pump_name,
+        manufacturer,
+        website,
+        rep_name,
+        rep_contact,
+        rep_email,
+        support_phone,
+        support_email,
+        notes,
+        is_active,
+        created_at,
+        updated_at
+      FROM pump_manufacturers
+      WHERE is_active = true
+      ORDER BY pump_name ASC
+    `);
+
+    connection.release();
+
+    res.json({
+      success: true,
+      count: manufacturers.length,
+      manufacturers,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error fetching pump manufacturers:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch pump manufacturers',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * ADMIN: Update pump manufacturer/contact info
+ * PUT /api/admin/pump-manufacturers/:id
+ * Requires admin authentication
+ */
+app.put('/api/admin/pump-manufacturers/:id', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      pump_name,
+      manufacturer,
+      website,
+      rep_name,
+      rep_contact,
+      rep_email,
+      support_phone,
+      support_email,
+      notes,
+      is_active
+    } = req.body;
+
+    const connection = await unifiedDatabase.getConnection();
+
+    const [result] = await connection.execute(`
+      UPDATE pump_manufacturers
+      SET
+        pump_name = COALESCE(?, pump_name),
+        manufacturer = COALESCE(?, manufacturer),
+        website = COALESCE(?, website),
+        rep_name = COALESCE(?, rep_name),
+        rep_contact = COALESCE(?, rep_contact),
+        rep_email = COALESCE(?, rep_email),
+        support_phone = COALESCE(?, support_phone),
+        support_email = COALESCE(?, support_email),
+        notes = COALESCE(?, notes),
+        is_active = COALESCE(?, is_active),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `, [
+      pump_name,
+      manufacturer,
+      website,
+      rep_name,
+      rep_contact,
+      rep_email,
+      support_phone,
+      support_email,
+      notes,
+      is_active,
+      id
+    ]);
+
+    connection.release();
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Pump manufacturer not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Pump manufacturer updated successfully',
+      manufacturerId: id,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error updating pump manufacturer:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update pump manufacturer',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * ADMIN: Create new pump manufacturer
+ * POST /api/admin/pump-manufacturers
+ * Requires admin authentication
+ */
+app.post('/api/admin/pump-manufacturers', requireAdmin, async (req, res) => {
+  try {
+    const {
+      pump_name,
+      manufacturer,
+      website,
+      rep_name,
+      rep_contact,
+      rep_email,
+      support_phone,
+      support_email,
+      notes
+    } = req.body;
+
+    if (!pump_name || !manufacturer) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: pump_name, manufacturer'
+      });
+    }
+
+    const connection = await unifiedDatabase.getConnection();
+
+    const [result] = await connection.execute(`
+      INSERT INTO pump_manufacturers (
+        pump_name,
+        manufacturer,
+        website,
+        rep_name,
+        rep_contact,
+        rep_email,
+        support_phone,
+        support_email,
+        notes,
+        is_active
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, true)
+    `, [
+      pump_name,
+      manufacturer,
+      website || null,
+      rep_name || null,
+      rep_contact || null,
+      rep_email || null,
+      support_phone || null,
+      support_email || null,
+      notes || null
+    ]);
+
+    connection.release();
+
+    res.json({
+      success: true,
+      message: 'Pump manufacturer created successfully',
+      manufacturerId: result.insertId,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error creating pump manufacturer:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create pump manufacturer',
+      message: error.message
+    });
+  }
+});
+
 /**
  * API info endpoint
  * GET /api/info
@@ -1927,6 +2450,14 @@ app.get('/api/info', (req, res) => {
         'GET /api/admin/pumpdrive-users',
         'GET /api/admin/pumpdrive-stats',
         'GET /api/admin/pumpdrive-users/export',
+        'GET /api/admin/pump-comparison-data',
+        'GET /api/admin/pump-comparison-data/:id',
+        'POST /api/admin/pump-comparison-data',
+        'PUT /api/admin/pump-comparison-data/:id',
+        'DELETE /api/admin/pump-comparison-data/:id',
+        'GET /api/admin/pump-manufacturers',
+        'POST /api/admin/pump-manufacturers',
+        'PUT /api/admin/pump-manufacturers/:id',
       ],
       stripe: [
         'POST /api/stripe/create-pump-report-session',
@@ -2162,6 +2693,59 @@ function generateRuleBasedRecommendations(userData) {
 }
 
 /**
+ * Fetch pump comparison data from database for AI recommendations
+ */
+async function fetchPumpComparisonData() {
+  try {
+    const connection = await pool.getConnection();
+
+    const [dimensions] = await connection.execute(`
+      SELECT
+        dimension_number,
+        dimension_name,
+        dimension_description,
+        pump_details,
+        category,
+        importance_scale
+      FROM pump_comparison_data
+      WHERE is_active = true
+      ORDER BY display_order ASC, dimension_number ASC
+    `);
+
+    const [manufacturers] = await connection.execute(`
+      SELECT
+        pump_name,
+        manufacturer,
+        website,
+        rep_name,
+        rep_contact,
+        support_phone
+      FROM pump_manufacturers
+      WHERE is_active = true
+      ORDER BY pump_name ASC
+    `);
+
+    connection.release();
+
+    // Parse JSON pump_details
+    const parsedDimensions = dimensions.map(dim => ({
+      ...dim,
+      pump_details: typeof dim.pump_details === 'string'
+        ? JSON.parse(dim.pump_details)
+        : dim.pump_details
+    }));
+
+    return {
+      dimensions: parsedDimensions,
+      manufacturers
+    };
+  } catch (error) {
+    console.error('Error fetching pump comparison data:', error);
+    return null; // Return null if database fetch fails - AI will use fallback
+  }
+}
+
+/**
  * Generate pump recommendations using AWS Bedrock
  */
 async function generatePumpRecommendations(userData) {
@@ -2177,8 +2761,54 @@ async function generatePumpRecommendations(userData) {
   // Create user profile from request data
   const userProfile = createUserProfile(userData);
 
-  // Create pump database information
-  const pumpDetails = createPumpDatabase();
+  // Fetch structured pump comparison data from database
+  const comparisonData = await fetchPumpComparisonData();
+
+  let pumpDetails;
+  let manufacturerContacts = '';
+
+  if (comparisonData) {
+    // Use structured database data
+    console.log('Using structured pump comparison data from database (23 dimensions)');
+
+    // Format dimensions for AI prompt
+    const dimensionsText = comparisonData.dimensions.map(dim => {
+      const pumpInfo = Object.entries(dim.pump_details || {})
+        .map(([pumpName, details]) => {
+          let text = `  - ${pumpName}:\n    ${details.title}\n    ${details.details}`;
+          if (details.pros && details.pros.length > 0) {
+            text += `\n    Pros: ${details.pros.join(', ')}`;
+          }
+          if (details.cons && details.cons.length > 0) {
+            text += `\n    Cons: ${details.cons.join(', ')}`;
+          }
+          return text;
+        })
+        .join('\n');
+
+      return `Dimension #${dim.dimension_number}: ${dim.dimension_name} (${dim.category})
+Description: ${dim.dimension_description}
+Importance: ${dim.importance_scale}
+${pumpInfo}`;
+    }).join('\n\n');
+
+    pumpDetails = `23-DIMENSION PUMP COMPARISON DATABASE:
+
+${dimensionsText}`;
+
+    // Add manufacturer contact information
+    manufacturerContacts = `\n\nMANUFACTURER CONTACT INFORMATION:
+${comparisonData.manufacturers.map(mfr =>
+  `${mfr.pump_name} (${mfr.manufacturer})
+  Website: ${mfr.website || 'N/A'}
+  Representative: ${mfr.rep_name || 'Contact manufacturer'}
+  Support Phone: ${mfr.support_phone || 'N/A'}`
+).join('\n\n')}`;
+  } else {
+    // Fallback to hardcoded pump database
+    console.log('Database fetch failed - using fallback pump database');
+    pumpDetails = createPumpDatabase();
+  }
 
   // Use AWS Bedrock Claude model
   const bedrock = new AWS.BedrockRuntime({
@@ -2187,20 +2817,32 @@ async function generatePumpRecommendations(userData) {
     secretAccessKey: process.env.VITE_AWS_SECRET_ACCESS_KEY
   });
 
-  const prompt = `You are an expert diabetes educator and insulin pump specialist. Based on the following patient responses, provide personalized insulin pump recommendations.
+  const prompt = `You are an expert diabetes educator and insulin pump specialist. Based on the following patient responses and comprehensive 23-dimension pump comparison database, provide personalized insulin pump recommendations.
 
 PATIENT PROFILE:
 ${userProfile}
 
-AVAILABLE INSULIN PUMPS:
-${pumpDetails}
+${pumpDetails}${manufacturerContacts}
 
-Please analyze the patient's needs and provide recommendations in JSON format with:
+INSTRUCTIONS:
+1. Analyze the patient's preferences against ALL 23 dimensions
+2. Consider which dimensions are most important for THIS patient based on their responses
+3. Weigh the pros and cons of each pump for each relevant dimension
+4. Provide evidence-based recommendations citing specific dimensions
+
+Please provide recommendations in JSON format with:
 {
-  "topChoice": {"name": "pump name", "score": 85, "reasons": ["specific reasons"]},
-  "alternatives": [{"name": "pump name", "score": 75, "reasons": ["reasons"]}],
-  "keyFactors": ["factor 1", "factor 2"],
-  "personalizedInsights": "detailed explanation"
+  "topChoice": {
+    "name": "pump name",
+    "score": 85,
+    "reasons": ["specific reasons citing dimensions"]
+  },
+  "alternatives": [
+    {"name": "pump name", "score": 75, "reasons": ["reasons citing dimensions"]}
+  ],
+  "keyFactors": ["dimension categories that mattered most"],
+  "personalizedInsights": "detailed explanation referencing specific dimensions and pump details",
+  "dimensionsConsidered": ["list of dimension numbers that were most relevant to decision"]
 }`;
 
   const params = {
@@ -2209,7 +2851,7 @@ Please analyze the patient's needs and provide recommendations in JSON format wi
     accept: 'application/json',
     body: JSON.stringify({
       anthropic_version: 'bedrock-2023-05-31',
-      max_tokens: 2000,
+      max_tokens: 3000, // Increased for more detailed analysis
       messages: [
         {
           role: 'user',

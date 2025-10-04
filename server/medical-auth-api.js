@@ -20,7 +20,7 @@ const PORT = process.env.PORT || process.env.MEDICAL_AUTH_PORT || 3003;
 // Middleware
 app.use(
   cors({
-    origin: ['http://localhost:5173', 'http://localhost:5174', 'https://www.tshla.ai'],
+    origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'https://www.tshla.ai'],
     credentials: true,
   })
 );
@@ -415,10 +415,14 @@ app.get('/api/medical/health', async (req, res) => {
 
   // Check JWT configuration
   const jwtSecret = process.env.JWT_SECRET || process.env.MEDICAL_JWT_SECRET;
+  const crypto = require('crypto');
   if (jwtSecret && jwtSecret.length >= 32) {
+    // Create hash of JWT secret for verification (first 16 chars)
+    const secretHash = crypto.createHash('sha256').update(jwtSecret).digest('hex').substring(0, 16);
     health.services.jwt = {
       status: 'configured',
-      configured: true
+      configured: true,
+      secretHash: secretHash // For cross-API verification
     };
   } else {
     overallStatus = 'degraded';

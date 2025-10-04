@@ -29,7 +29,11 @@ export default function AuthRedirect() {
           if (token && userData) {
             if (user.role === 'staff' || user.role === 'medical_assistant' || user.role === 'nurse') {
               navigate('/staff', { replace: true });
-            } else if (user.role === 'doctor' || user.role === 'admin') {
+            } else if (user.role === 'admin') {
+              // Admins go to admin panel, NOT doctor dashboard
+              navigate('/admin/accounts', { replace: true });
+            } else if (user.role === 'doctor') {
+              // Doctors go to appointment calendar
               navigate('/dashboard', { replace: true });
             } else if (user.accessType === 'pumpdrive') {
               navigate('/pumpdrive', { replace: true });

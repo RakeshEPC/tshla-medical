@@ -5,8 +5,12 @@ import App from './App.tsx';
 // import App from './AppSimple.tsx'
 import ErrorBoundary from './ErrorBoundary.tsx';
 import { logError, logWarn, logInfo, logDebug } from './services/logger.service';
+import { initializeAuthInterceptor } from './services/authInterceptor';
 
 // Polyfill setup moved to index.html to avoid import issues
+
+// Initialize authentication interceptor for automatic error recovery
+initializeAuthInterceptor();
 
 // Add error handling
 window.addEventListener('error', e => {
