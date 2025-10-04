@@ -20,7 +20,7 @@ const PORT = process.env.PORT || process.env.MEDICAL_AUTH_PORT || 3003;
 // Middleware
 app.use(
   cors({
-    origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'https://www.tshla.ai'],
+    origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'https://www.tshla.ai', 'https://mango-sky-0ba265c0f.1.azurestaticapps.net'],
     credentials: true,
   })
 );
