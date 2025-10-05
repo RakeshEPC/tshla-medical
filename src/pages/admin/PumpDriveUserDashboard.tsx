@@ -211,6 +211,13 @@ export default function PumpDriveUserDashboard() {
               </p>
             </div>
             <div className="flex items-center gap-3">
+              <button
+                onClick={() => window.location.href = '/admin/pump-comparison'}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2"
+              >
+                <TrendingUp className="w-4 h-4" />
+                Pump Database (23 Dimensions)
+              </button>
               <label className="flex items-center gap-2 text-sm text-gray-600">
                 <input
                   type="checkbox"

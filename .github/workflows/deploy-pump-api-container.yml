@@ -32,14 +32,28 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+    - name: Get current revision before deploy
+      id: pre_deploy
+      run: |
+        CURRENT_REVISION=$(az containerapp revision list \
+          --name ${{ env.CONTAINER_APP_NAME }} \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --query "[0].name" -o tsv)
+        echo "current_revision=$CURRENT_REVISION" >> $GITHUB_OUTPUT
+        echo "Current revision: $CURRENT_REVISION"
+
     - name: Build and push Docker image
       working-directory: ./server
       run: |
         # Login to ACR
         az acr login --name tshlaregistry
 
-        # Build and tag image
-        docker build -f Dockerfile.pump -t ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }} .
+        # Build with timestamp to force new revision
+        DEPLOY_TIMESTAMP=$(date +%s)
+        docker build -f Dockerfile.pump \
+          --platform linux/amd64 \
+          --build-arg DEPLOY_TIMESTAMP=$DEPLOY_TIMESTAMP \
+          -t ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }} .
         docker tag ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }} ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest
 
         # Push image to ACR
@@ -53,13 +67,70 @@ jobs:
           --resource-group ${{ env.RESOURCE_GROUP }} \
           --image ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
+    - name: Wait for container startup
+      run: |
+        echo "⏳ Waiting 60 seconds for container to start..."
+        sleep 60
+
+    - name: Verify new revision deployed
+      run: |
+        NEW_REVISION=$(az containerapp revision list \
+          --name ${{ env.CONTAINER_APP_NAME }} \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --query "[0].name" -o tsv)
+
+        echo "Previous revision: ${{ steps.pre_deploy.outputs.current_revision }}"
+        echo "New revision: $NEW_REVISION"
+
+        if [ "$NEW_REVISION" = "${{ steps.pre_deploy.outputs.current_revision }}" ]; then
+          echo "❌ CRITICAL: Azure did not deploy new revision!"
+          echo "   Azure may have cached the old Docker image."
+          echo "   See DEPLOYMENT_FAILURES.md #4"
+          exit 1
+        fi
+
+        echo "✅ New revision deployed successfully"
+
     - name: Verify deployment
       run: |
-        echo "Deployment completed successfully!"
-        echo "Container App URL: https://tshla-pump-api-container.redpebble-e4551b7a.eastus.azurecontainerapps.io"
+        echo "🔍 Validating API deployment..."
 
-        # Wait a moment for deployment to stabilize
-        sleep 10
+        API_URL="https://tshla-pump-api-container.redpebble-e4551b7a.eastus.azurecontainerapps.io"
 
-        # Test the health endpoint
-        curl -f https://tshla-pump-api-container.redpebble-e4551b7a.eastus.azurecontainerapps.io/health || echo "Health check failed - container may still be starting"
+        # Test health endpoint
+        echo "Testing /health endpoint..."
+        HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/health" --max-time 10)
+        if [ "$HEALTH_STATUS" = "200" ]; then
+          echo "✅ Health check: $HEALTH_STATUS"
+        else
+          echo "❌ Health check failed: $HEALTH_STATUS"
+          exit 1
+        fi
+
+        # Test CORS headers
+        echo "Testing CORS headers..."
+        CORS_HEADER=$(curl -s -I -H "Origin: https://mango-sky-0ba265c0f.1.azurestaticapps.net" "$API_URL/health" | grep -i "access-control-allow-origin" || echo "")
+        if [ -z "$CORS_HEADER" ]; then
+          echo "❌ CORS headers missing! Frontend will get errors."
+          exit 1
+        fi
+        echo "✅ CORS configured"
+
+        # Test response is valid JSON
+        echo "Testing JSON response..."
+        RESPONSE=$(curl -s "$API_URL/health" --max-time 10)
+        if echo "$RESPONSE" | jq . > /dev/null 2>&1; then
+          STATUS=$(echo "$RESPONSE" | jq -r '.status')
+          if [ "$STATUS" = "ok" ]; then
+            echo "✅ API responding with valid JSON: {\"status\": \"ok\"}"
+          else
+            echo "⚠️  Unexpected status: $STATUS"
+          fi
+        else
+          echo "❌ Invalid JSON response"
+          exit 1
+        fi
+
+        echo ""
+        echo "✅ All API validation checks passed!"
+        echo "   API URL: $API_URL"

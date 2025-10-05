@@ -1,0 +1,44 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# TSHLA Medical - Pre-Commit Hook
+# Prevents committing broken code
+
+echo "🔍 Running pre-commit validation..."
+echo ""
+
+# Check staticwebapp.config.json location
+if [ ! -f "public/staticwebapp.config.json" ]; then
+  echo "❌ staticwebapp.config.json must be in public/ folder, not root!"
+  echo "   This will cause 404 errors on /admin/* routes in production."
+  echo ""
+  echo "   Fix: mv staticwebapp.config.json public/"
+  echo ""
+  exit 1
+fi
+echo "✅ staticwebapp.config.json in correct location (public/)"
+
+# Check for accidentally committed credentials (exclude dev scripts and docs)
+if git diff --cached -- ':!start-dev.sh' ':!stop-dev.sh' ':!*.md' | grep -i "DB_PASSWORD.*=.*[^'']" | grep -v "DB_PASSWORD=\$" | grep -v 'DB_PASSWORD=""'; then
+  echo "❌ Found hardcoded credentials in staged files!"
+  echo "   Never commit passwords directly in code."
+  echo ""
+  exit 1
+fi
+echo "✅ No hardcoded credentials detected"
+
+# Check TypeScript compiles
+echo ""
+echo "Running TypeScript check..."
+npm run typecheck
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "❌ TypeScript errors found. Fix them before committing."
+  echo ""
+  exit 1
+fi
+
+echo ""
+echo "✅ All pre-commit checks passed!"
+echo "   Proceeding with commit..."
+echo ""

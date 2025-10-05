@@ -31,7 +31,14 @@
     "server:pm2:delete": "pm2 delete tshla-api",
     "server:health": "node server/healthcheck.js",
     "server:production": "pm2 start ecosystem.config.js --env production",
-    "db:seed:pump": "node server/scripts/seed-pump-users.js"
+    "db:seed:pump": "node server/scripts/seed-pump-users.js",
+    "validate:build": "./scripts/validate-build.sh",
+    "validate:deployment": "./scripts/validate-deployment.sh",
+    "validate:apis": "./scripts/validate-api-health.sh",
+    "validate:db:prod": "node scripts/validate-db-prod.js",
+    "validate:cors": "./scripts/validate-api-cors.sh",
+    "validate:all": "npm run validate:build && npm run validate:db:prod && npm run validate:apis && npm run validate:cors && npm run validate:deployment",
+    "prepare": "husky"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.899.0",
@@ -103,6 +110,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^16.3.0",
+    "husky": "^9.1.7",
     "node-fetch": "^3.3.2",
     "postcss": "^8.5.6",
     "prettier": "^3.6.2",

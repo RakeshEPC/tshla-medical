@@ -1,0 +1,39 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# TSHLA Medical - Pre-Push Hook
+# Prevents pushing broken code to GitHub
+
+echo "🔍 Running pre-push validation..."
+echo ""
+
+# Check build can complete
+echo "Testing build..."
+npm run build > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+  echo "❌ Build failed! Fix build errors before pushing."
+  echo ""
+  echo "   Run: npm run build"
+  echo ""
+  exit 1
+fi
+echo "✅ Build completes successfully"
+
+# Run build validation script
+echo ""
+echo "Validating build output..."
+npm run validate:build
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "❌ Build validation failed! Critical files missing."
+  echo ""
+  exit 1
+fi
+
+# Clean up build artifacts (optional, since we just tested)
+rm -rf dist
+
+echo ""
+echo "✅ All pre-push checks passed!"
+echo "   Safe to push to remote..."
+echo ""
