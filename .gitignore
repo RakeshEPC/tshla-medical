@@ -48,3 +48,4 @@ yarn-error.log*
 # Package manager
 package-lock.json.backup
 yarn.lock.backup
+.DS_Store
