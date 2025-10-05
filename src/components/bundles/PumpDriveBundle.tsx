@@ -26,6 +26,7 @@ const PumpDriveUnified = lazy(() => import('../../pages/PumpDriveUnified'));
 const PumpDriveResults = lazy(() => import('../../pages/PumpDriveResults'));
 const PumpDriveHTMLReport = lazy(() => import('../../pages/PumpDriveHTMLReport'));
 const PumpDriveBilling = lazy(() => import('../../pages/PumpDriveBilling'));
+const AssessmentHistory = lazy(() => import('../../pages/pumpdrive/AssessmentHistory'));
 
 // Text-based assessment components (to be implemented)
 // const PumpDriveTextAssessment = lazy(() => import('../../pages/PumpDriveTextAssessment'));
@@ -63,6 +64,11 @@ export default function PumpDriveBundle() {
         <Route path="report/:assessmentId" element={
           <PumpDriveAuthGuard>
             <PumpDriveHTMLReport />
+          </PumpDriveAuthGuard>
+        } />
+        <Route path="history" element={
+          <PumpDriveAuthGuard>
+            <AssessmentHistory />
           </PumpDriveAuthGuard>
         } />
 

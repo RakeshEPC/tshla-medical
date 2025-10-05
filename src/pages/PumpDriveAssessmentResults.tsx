@@ -1,6 +1,20 @@
+/**
+ * @deprecated This component is DEPRECATED
+ * Use PumpDriveResults instead (src/pages/PumpDriveResults.tsx)
+ *
+ * This old results page has been superseded by PumpDriveResults,
+ * which includes database integration, email functionality, and history links.
+ *
+ * Migration: Replace all references to PumpDriveAssessmentResults with PumpDriveResults
+ * See DEPRECATED.md for full migration guide
+ *
+ * This file will be moved to src/legacy/ in Phase 2 and removed in Phase 3
+ */
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { sliderMCPService } from '../services/sliderMCP.service';
+import { logWarn } from '../services/logger.service';
 
 interface AssessmentData {
   sliderValues: Record<string, number>;
@@ -13,6 +27,17 @@ const PumpDriveAssessmentResults: React.FC = () => {
   const navigate = useNavigate();
   const [assessmentData, setAssessmentData] = useState<AssessmentData | null>(null);
   const [isProcessing, setIsProcessing] = useState(true);
+
+  // ⚠️ DEPRECATION WARNING
+  useEffect(() => {
+    logWarn('⚠️ DEPRECATION WARNING: PumpDriveAssessmentResults is DEPRECATED');
+    logWarn('Please use PumpDriveResults instead (src/pages/PumpDriveResults.tsx)');
+    logWarn('This component will be moved to src/legacy/ and eventually removed');
+    logWarn('See DEPRECATED.md for migration guide');
+    console.warn('%c⚠️ DEPRECATED COMPONENT', 'color: orange; font-size: 16px; font-weight: bold');
+    console.warn('%cPumpDriveAssessmentResults is deprecated. Use PumpDriveResults instead.', 'color: orange');
+    console.warn('See DEPRECATED.md for migration guide');
+  }, []);
 
   const handleRetakeAssessment = () => {
     console.log('🔄 User clicked retake assessment - clearing all cache...');

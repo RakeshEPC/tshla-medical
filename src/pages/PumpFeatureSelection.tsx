@@ -1,10 +1,34 @@
-import React, { useState } from 'react';
+/**
+ * @deprecated This component is DEPRECATED
+ * Use PumpDriveUnified instead (src/pages/PumpDriveUnified.tsx)
+ *
+ * This standalone feature selection page has been integrated into PumpDriveUnified.
+ *
+ * Migration: Replace all references to PumpFeatureSelection with PumpDriveUnified
+ * See DEPRECATED.md for full migration guide
+ *
+ * This file will be moved to src/legacy/ in Phase 2 and removed in Phase 3
+ */
+
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PUMP_FEATURES, FEATURE_CATEGORIES, type PumpFeature } from '../data/pumpFeatures';
+import { logWarn } from '../services/logger.service';
 
 const PumpFeatureSelection: React.FC = () => {
   const navigate = useNavigate();
   const [selectedFeatures, setSelectedFeatures] = useState<Set<string>>(new Set());
+
+  // ⚠️ DEPRECATION WARNING
+  useEffect(() => {
+    logWarn('⚠️ DEPRECATION WARNING: PumpFeatureSelection is DEPRECATED');
+    logWarn('Please use PumpDriveUnified instead (src/pages/PumpDriveUnified.tsx)');
+    logWarn('This component will be moved to src/legacy/ and eventually removed');
+    logWarn('See DEPRECATED.md for migration guide');
+    console.warn('%c⚠️ DEPRECATED COMPONENT', 'color: orange; font-size: 16px; font-weight: bold');
+    console.warn('%cPumpFeatureSelection is deprecated. Use PumpDriveUnified instead.', 'color: orange');
+    console.warn('See DEPRECATED.md for migration guide');
+  }, []);
   
   const handleFeatureToggle = (featureId: string) => {
     const newSelected = new Set(selectedFeatures);

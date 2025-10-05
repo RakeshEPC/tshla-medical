@@ -5,6 +5,8 @@ import { pumpDrivePureAI } from '../services/pumpDrivePureAI.service';
 import { pumpDriveAIService } from '../services/pumpDriveAI.service';
 import { pumpAssessmentService, type AssessmentData } from '../services/pumpAssessment.service';
 import { pumpAuthService } from '../services/pumpAuth.service';
+import { assessmentHistoryService, type StoredAssessment } from '../services/assessmentHistory.service';
+import AssessmentDataViewer from '../components/pumpdrive/AssessmentDataViewer';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
 
 interface PumpRecommendation {
@@ -109,6 +111,15 @@ export default function PumpDriveResults() {
     return sessionStorage.getItem('pumpDrivePatientName') || '';
   });
 
+  // New state for database assessment data
+  const [storedAssessment, setStoredAssessment] = useState<StoredAssessment | null>(null);
+  const [showFullDetails, setShowFullDetails] = useState(false);
+  const [loadingStoredData, setLoadingStoredData] = useState(false);
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [providerEmail, setProviderEmail] = useState('');
+  const [patientMessage, setPatientMessage] = useState('');
+  const [emailSending, setEmailSending] = useState(false);
+
   // Function to save assessment to database
   const saveAssessmentToDatabase = async (recommendationData: PumpRecommendation) => {
     try {
@@ -174,6 +185,40 @@ export default function PumpDriveResults() {
   useEffect(() => {
     generateRecommendations();
   }, []);
+
+  // Fetch stored assessment from database when assessment ID becomes available
+  useEffect(() => {
+    const fetchStoredAssessment = async () => {
+      const savedAssessmentId = sessionStorage.getItem('pumpdrive_assessment_id');
+
+      if (savedAssessmentId && !storedAssessment) {
+        setLoadingStoredData(true);
+        try {
+          const data = await assessmentHistoryService.getAssessmentById(parseInt(savedAssessmentId));
+          if (data) {
+            setStoredAssessment(data);
+            logInfo('PumpDriveResults', 'Loaded stored assessment from database', {
+              assessmentId: savedAssessmentId
+            });
+          }
+        } catch (error) {
+          logError('PumpDriveResults', 'Failed to load stored assessment', { error });
+          // Fallback to session storage
+          const sessionData = assessmentHistoryService.getSessionAssessment();
+          if (sessionData) {
+            setStoredAssessment(sessionData as StoredAssessment);
+          }
+        } finally {
+          setLoadingStoredData(false);
+        }
+      }
+    };
+
+    // Only fetch if we have an assessment saved
+    if (assessmentSaved || sessionStorage.getItem('pumpdrive_assessment_id')) {
+      fetchStoredAssessment();
+    }
+  }, [assessmentSaved, assessmentId]);
 
   const generateRecommendations = async () => {
     try {
@@ -505,6 +550,31 @@ export default function PumpDriveResults() {
     sessionStorage.removeItem('pumpDriveClarifyingResponses');
     sessionStorage.removeItem('pumpDriveConversation');
     navigate('/pumpdrive/unified');
+  };
+
+  const handleEmailToProvider = async () => {
+    if (!providerEmail || !assessmentId) {
+      alert('Please enter a provider email address');
+      return;
+    }
+
+    setEmailSending(true);
+    try {
+      await assessmentHistoryService.emailAssessmentToProvider(
+        assessmentId,
+        providerEmail,
+        patientMessage
+      );
+      alert('Assessment sent successfully to your healthcare provider!');
+      setEmailModalOpen(false);
+      setProviderEmail('');
+      setPatientMessage('');
+    } catch (error) {
+      console.error('Failed to send email:', error);
+      alert('Failed to send email. Please try again or contact support.');
+    } finally {
+      setEmailSending(false);
+    }
   };
 
   const handlePrint = () => {
@@ -911,14 +981,82 @@ export default function PumpDriveResults() {
 
 
 
+        {/* View Full Details Section */}
+        {(storedAssessment || assessmentSaved) && (
+          <div className="mb-8">
+            <button
+              onClick={() => setShowFullDetails(!showFullDetails)}
+              className="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-lg rounded-xl shadow-lg hover:shadow-xl transform hover:scale-102 transition-all flex items-center justify-center gap-2"
+            >
+              {showFullDetails ? '📖 Hide' : '📋 View'} Full Assessment Details from Database
+              <span className="text-sm">
+                {showFullDetails ? '▲' : '▼'}
+              </span>
+            </button>
+
+            {showFullDetails && (
+              <div className="mt-6 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 shadow-inner">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-2xl font-bold text-gray-800">
+                    📊 Your Complete Assessment Data
+                  </h2>
+                  {loadingStoredData && (
+                    <div className="animate-spin h-6 w-6 border-2 border-purple-600 border-t-transparent rounded-full"></div>
+                  )}
+                </div>
+
+                {storedAssessment ? (
+                  <AssessmentDataViewer
+                    assessment={storedAssessment}
+                    showFullDetails={true}
+                  />
+                ) : (
+                  <div className="text-center py-8 text-gray-600">
+                    <p>Loading assessment data from database...</p>
+                    {!loadingStoredData && (
+                      <p className="text-sm mt-2">
+                        If data doesn't load, it will use information from your current session.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    <strong>✓ Stored in Database:</strong> Your assessment data has been securely saved.
+                    You can access this information anytime by logging into your account.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Action Buttons */}
         <div className="flex justify-center gap-4 mb-8 flex-wrap">
           <button
             onClick={handlePrint}
             className="px-8 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold text-lg rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
           >
-            🖨️ Print Results
+            🖨️ Print / Save as PDF
           </button>
+
+          {assessmentId && (
+            <button
+              onClick={() => setEmailModalOpen(true)}
+              className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-bold text-lg rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
+            >
+              📧 Email to Provider
+            </button>
+          )}
+
+          <button
+            onClick={() => navigate('/pumpdrive/history')}
+            className="px-8 py-3 bg-gradient-to-r from-purple-600 to-violet-600 text-white font-bold text-lg rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
+          >
+            📚 View Assessment History
+          </button>
+
           <button
             onClick={resetAndStartOver}
             className="px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-lg rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
@@ -926,6 +1064,76 @@ export default function PumpDriveResults() {
             🚀 Start New Assessment
           </button>
         </div>
+
+        {/* Email Modal */}
+        {emailModalOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-gray-800">
+                  📧 Email Results to Provider
+                </h3>
+                <button
+                  onClick={() => setEmailModalOpen(false)}
+                  className="text-gray-500 hover:text-gray-700 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Provider's Email Address *
+                  </label>
+                  <input
+                    type="email"
+                    value={providerEmail}
+                    onChange={(e) => setProviderEmail(e.target.value)}
+                    placeholder="doctor@example.com"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Message to Provider (Optional)
+                  </label>
+                  <textarea
+                    value={patientMessage}
+                    onChange={(e) => setPatientMessage(e.target.value)}
+                    placeholder="Any additional notes for your healthcare provider..."
+                    rows={4}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p className="text-xs text-blue-800">
+                    This will send a comprehensive email containing your assessment results and AI recommendation to your healthcare provider.
+                  </p>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleEmailToProvider}
+                    disabled={emailSending || !providerEmail}
+                    className="flex-1 px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {emailSending ? 'Sending...' : 'Send Email'}
+                  </button>
+                  <button
+                    onClick={() => setEmailModalOpen(false)}
+                    className="px-6 py-3 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

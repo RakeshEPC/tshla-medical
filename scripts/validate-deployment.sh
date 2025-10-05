@@ -48,8 +48,8 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "API Health Checks"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-test_url "$PUMP_API_URL/health" "Pump API Health"
-test_url "$AUTH_API_URL/health" "Auth API Health"
+test_url "$PUMP_API_URL/api/health" "Pump API Health"
+test_url "$AUTH_API_URL/api/medical/health" "Auth API Health"
 test_url "$SCHEDULE_API_URL/health" "Schedule API Health"
 echo ""
 
@@ -59,7 +59,7 @@ echo "CORS Header Checks"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 echo -n "Checking Pump API CORS... "
-CORS_HEADER=$(curl -s -H "Origin: $FRONTEND_URL" -I "$PUMP_API_URL/health" | grep -i "access-control-allow-origin" || echo "")
+CORS_HEADER=$(curl -s -H "Origin: $FRONTEND_URL" -I "$PUMP_API_URL/api/health" | grep -i "access-control-allow-origin" || echo "")
 if [ -z "$CORS_HEADER" ]; then
     echo "❌ No CORS headers found"
     FAILED=$((FAILED + 1))
@@ -68,7 +68,7 @@ else
 fi
 
 echo -n "Checking Auth API CORS... "
-CORS_HEADER=$(curl -s -H "Origin: $FRONTEND_URL" -I "$AUTH_API_URL/health" | grep -i "access-control-allow-origin" || echo "")
+CORS_HEADER=$(curl -s -H "Origin: $FRONTEND_URL" -I "$AUTH_API_URL/api/medical/health" | grep -i "access-control-allow-origin" || echo "")
 if [ -z "$CORS_HEADER" ]; then
     echo "❌ No CORS headers found"
     FAILED=$((FAILED + 1))
@@ -77,22 +77,8 @@ else
 fi
 
 echo ""
-
-# Check staticwebapp.config.json is deployed
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "Configuration File Checks"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-echo -n "Checking staticwebapp.config.json exists... "
-CONFIG_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$FRONTEND_URL/staticwebapp.config.json" --max-time 10)
-if [ "$CONFIG_RESPONSE" = "200" ]; then
-    echo "✅ Found"
-else
-    echo "❌ Missing (404 errors will occur on /admin/* routes)"
-    FAILED=$((FAILED + 1))
-fi
-
-echo ""
+echo "Note: staticwebapp.config.json validation done during build"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # Final result

@@ -1732,6 +1732,317 @@ app.post('/api/pump-assessments/:id/generate-pdf', async (req, res) => {
   }
 });
 
+// ====== NEW ASSESSMENT HISTORY ENDPOINTS ======
+
+/**
+ * Get assessment by ID (with authentication)
+ * GET /api/pumpdrive/assessments/:id
+ */
+app.get('/api/pumpdrive/assessments/:id', verifyToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.userId;
+
+    const connection = await unifiedDatabase.getConnection();
+    try {
+      // Get assessment and verify ownership
+      const [rows] = await connection.execute(
+        `SELECT * FROM pump_assessments WHERE id = ? AND user_id = ?`,
+        [id, userId]
+      );
+
+      if (rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: 'Assessment not found or access denied'
+        });
+      }
+
+      const assessment = rows[0];
+
+      res.json({
+        success: true,
+        assessment: {
+          id: assessment.id,
+          user_id: assessment.user_id,
+          patient_name: assessment.patient_name,
+          slider_values: assessment.slider_values,
+          selected_features: assessment.selected_features,
+          personal_story: assessment.personal_story,
+          challenges: assessment.challenges,
+          priorities: assessment.priorities,
+          clarifying_responses: assessment.clarifying_responses,
+          ai_recommendation: assessment.ai_recommendation,
+          conversation_history: assessment.conversation_history,
+          assessment_flow: assessment.assessment_flow,
+          created_at: assessment.created_at,
+          updated_at: assessment.updated_at
+        }
+      });
+
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Error fetching assessment:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch assessment',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Get all assessments for a specific user
+ * GET /api/pumpdrive/assessments/user/:userId
+ */
+app.get('/api/pumpdrive/assessments/user/:userId', verifyToken, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const requestingUserId = req.user.userId;
+
+    // Only allow users to get their own assessments (or admin can get any)
+    if (parseInt(userId) !== requestingUserId && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied'
+      });
+    }
+
+    const connection = await unifiedDatabase.getConnection();
+    try {
+      const [rows] = await connection.execute(
+        `SELECT
+          id,
+          created_at,
+          ai_recommendation,
+          assessment_flow
+        FROM pump_assessments
+        WHERE user_id = ?
+        ORDER BY created_at DESC`,
+        [userId]
+      );
+
+      // Parse and transform the data
+      const assessments = rows.map(row => {
+        let aiRec = null;
+        try {
+          aiRec = typeof row.ai_recommendation === 'string'
+            ? JSON.parse(row.ai_recommendation)
+            : row.ai_recommendation;
+        } catch (e) {
+          console.error('Failed to parse ai_recommendation:', e);
+        }
+
+        return {
+          id: row.id,
+          created_at: row.created_at,
+          recommended_pump: aiRec?.topChoice?.name || 'Unknown',
+          score: aiRec?.topChoice?.score || 0,
+          assessment_flow: row.assessment_flow,
+          ai_recommendation: aiRec
+        };
+      });
+
+      res.json({
+        success: true,
+        assessments
+      });
+
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Error fetching user assessments:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch user assessments',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Get current authenticated user's assessments
+ * GET /api/pumpdrive/assessments/current-user
+ */
+app.get('/api/pumpdrive/assessments/current-user', verifyToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const connection = await unifiedDatabase.getConnection();
+    try {
+      const [rows] = await connection.execute(
+        `SELECT
+          id,
+          created_at,
+          ai_recommendation,
+          assessment_flow
+        FROM pump_assessments
+        WHERE user_id = ?
+        ORDER BY created_at DESC`,
+        [userId]
+      );
+
+      // Parse and transform the data
+      const assessments = rows.map(row => {
+        let aiRec = null;
+        try {
+          aiRec = typeof row.ai_recommendation === 'string'
+            ? JSON.parse(row.ai_recommendation)
+            : row.ai_recommendation;
+        } catch (e) {
+          console.error('Failed to parse ai_recommendation:', e);
+        }
+
+        return {
+          id: row.id,
+          created_at: row.created_at,
+          recommended_pump: aiRec?.topChoice?.name || 'Unknown',
+          score: aiRec?.topChoice?.score || 0,
+          assessment_flow: row.assessment_flow,
+          ai_recommendation: aiRec
+        };
+      });
+
+      res.json({
+        success: true,
+        assessments
+      });
+
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Error fetching current user assessments:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch assessments',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Email assessment to healthcare provider
+ * POST /api/pumpdrive/assessments/:id/email
+ */
+app.post('/api/pumpdrive/assessments/:id/email', verifyToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { providerEmail, patientMessage } = req.body;
+    const userId = req.user.userId;
+
+    if (!providerEmail) {
+      return res.status(400).json({
+        success: false,
+        error: 'Provider email is required'
+      });
+    }
+
+    const connection = await unifiedDatabase.getConnection();
+    try {
+      // Get assessment and verify ownership
+      const [rows] = await connection.execute(
+        `SELECT * FROM pump_assessments WHERE id = ? AND user_id = ?`,
+        [id, userId]
+      );
+
+      if (rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: 'Assessment not found or access denied'
+        });
+      }
+
+      const assessment = rows[0];
+
+      // Parse AI recommendation
+      let aiRec = null;
+      try {
+        aiRec = typeof assessment.ai_recommendation === 'string'
+          ? JSON.parse(assessment.ai_recommendation)
+          : assessment.ai_recommendation;
+      } catch (e) {
+        console.error('Failed to parse ai_recommendation:', e);
+      }
+
+      // Check if email service is configured
+      if (!emailTransporter) {
+        console.warn('Email service not configured, logging email request');
+        return res.status(503).json({
+          success: false,
+          error: 'Email service not configured',
+          message: 'Please configure SMTP settings to enable email delivery'
+        });
+      }
+
+      // Create email content
+      const recommendedPump = aiRec?.topChoice?.name || 'Unknown';
+      const score = aiRec?.topChoice?.score || 0;
+      const patientName = assessment.patient_name || 'Patient';
+
+      const emailHtml = `
+        <h2>Insulin Pump Assessment Results</h2>
+        <p><strong>Patient:</strong> ${patientName}</p>
+        <p><strong>Assessment Date:</strong> ${new Date(assessment.created_at).toLocaleDateString()}</p>
+        <hr/>
+        <h3>Recommended Pump</h3>
+        <p><strong>${recommendedPump}</strong> (${score}% match)</p>
+        ${aiRec?.topChoice?.reasons ? `
+          <h4>Reasons:</h4>
+          <ul>
+            ${aiRec.topChoice.reasons.map(r => `<li>${r}</li>`).join('')}
+          </ul>
+        ` : ''}
+        ${patientMessage ? `
+          <hr/>
+          <h4>Message from Patient:</h4>
+          <p>${patientMessage}</p>
+        ` : ''}
+        <hr/>
+        <p><em>This assessment was generated by TSHLA Medical's AI-powered pump recommendation system.</em></p>
+        <p><a href="${process.env.VITE_REPORT_BASE_URL || 'https://www.tshla.ai'}/pumpdrive/assessment/${id}">View Full Assessment</a></p>
+      `;
+
+      // Send email
+      await emailTransporter.sendMail({
+        from: process.env.FROM_EMAIL || 'noreply@tshla.ai',
+        to: providerEmail,
+        subject: `Pump Assessment Results for ${patientName}`,
+        html: emailHtml
+      });
+
+      // Log the delivery
+      await connection.execute(
+        `INSERT INTO provider_deliveries
+         (assessment_id, provider_email, delivery_method, delivery_status, delivered_at)
+         VALUES (?, ?, 'email', 'sent', NOW())`,
+        [id, providerEmail]
+      );
+
+      console.log('Assessment emailed successfully:', { assessmentId: id, providerEmail });
+
+      res.json({
+        success: true,
+        message: 'Assessment sent successfully to provider',
+        providerEmail
+      });
+
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Error emailing assessment:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to email assessment',
+      message: error.message
+    });
+  }
+});
+
 // ====== HEALTH CHECK ENDPOINTS ======
 
 /**
@@ -1928,6 +2239,319 @@ app.get('/api/admin/pumpdrive-users/export', requireAdmin, async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to export CSV',
+      message: error.message
+    });
+  }
+});
+
+// ============================================================================
+// PUMPDRIVE ANALYTICS ENDPOINTS (Admin Only)
+// ============================================================================
+
+/**
+ * ADMIN: Get comprehensive analytics for PumpDrive assessments
+ * GET /api/admin/pumpdrive/analytics
+ * Requires admin authentication
+ */
+app.get('/api/admin/pumpdrive/analytics', requireAdmin, async (req, res) => {
+  try {
+    const connection = await unifiedDatabase.getConnection();
+
+    // Get summary stats
+    const [summaryStats] = await connection.execute(`
+      SELECT
+        COUNT(*) as totalAssessments,
+        COUNT(DISTINCT user_id) as totalUsers,
+        AVG(match_score) as avgMatchScore,
+        (COUNT(*) / NULLIF(COUNT(DISTINCT user_id), 0) * 100) as completionRate
+      FROM pump_assessments
+    `);
+
+    // Get pump distribution
+    const [pumpDist] = await connection.execute(`
+      SELECT
+        recommended_pump as pumpName,
+        COUNT(*) as count,
+        (COUNT(*) * 100.0 / (SELECT COUNT(*) FROM pump_assessments)) as percentage,
+        AVG(match_score) as avgScore
+      FROM pump_assessments
+      WHERE recommended_pump IS NOT NULL
+      GROUP BY recommended_pump
+      ORDER BY count DESC
+    `);
+
+    // Get top 5 pumps
+    const topPumps = pumpDist.slice(0, 5);
+
+    // Get assessment trends (last 30 days)
+    const [trends] = await connection.execute(`
+      SELECT
+        DATE(completed_at) as date,
+        COUNT(*) as count
+      FROM pump_assessments
+      WHERE completed_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+      GROUP BY DATE(completed_at)
+      ORDER BY date ASC
+    `);
+
+    // Get flow type statistics
+    const [flowStats] = await connection.execute(`
+      SELECT
+        flow_type as flowType,
+        COUNT(*) as count,
+        (COUNT(*) * 100.0 / (SELECT COUNT(*) FROM pump_assessments)) as percentage,
+        AVG(match_score) as avgScore
+      FROM pump_assessments
+      WHERE flow_type IS NOT NULL
+      GROUP BY flow_type
+      ORDER BY count DESC
+    `);
+
+    // Get user engagement stats
+    const [engagement] = await connection.execute(`
+      SELECT
+        COUNT(DISTINCT u.id) as totalUsers,
+        COUNT(DISTINCT pa.user_id) as completedAssessments,
+        (COUNT(DISTINCT pa.user_id) * 100.0 / NULLIF(COUNT(DISTINCT u.id), 0)) as conversionRate,
+        (COUNT(pa.id) / NULLIF(COUNT(DISTINCT pa.user_id), 0)) as avgAssessmentsPerUser
+      FROM pump_users u
+      LEFT JOIN pump_assessments pa ON u.id = pa.user_id
+    `);
+
+    // Get recent assessments
+    const [recentAssessments] = await connection.execute(`
+      SELECT
+        pa.id,
+        pa.user_id as userId,
+        pu.username,
+        pa.completed_at as completedAt,
+        pa.recommended_pump as recommendedPump,
+        pa.match_score as matchScore,
+        pa.flow_type as flowType
+      FROM pump_assessments pa
+      JOIN pump_users pu ON pa.user_id = pu.id
+      ORDER BY pa.completed_at DESC
+      LIMIT 10
+    `);
+
+    connection.release();
+
+    const analyticsData = {
+      summary: {
+        totalAssessments: summaryStats[0].totalAssessments,
+        totalUsers: summaryStats[0].totalUsers,
+        avgMatchScore: parseFloat(summaryStats[0].avgMatchScore) || 0,
+        completionRate: parseFloat(summaryStats[0].completionRate) || 0,
+        lastUpdated: new Date().toISOString()
+      },
+      pumpDistribution: pumpDist.map(p => ({
+        pumpName: p.pumpName,
+        count: p.count,
+        percentage: parseFloat(p.percentage),
+        avgScore: parseFloat(p.avgScore)
+      })),
+      assessmentTrends: trends.map(t => ({
+        date: t.date,
+        count: t.count
+      })),
+      flowTypeStats: flowStats.map(f => ({
+        flowType: f.flowType,
+        count: f.count,
+        percentage: parseFloat(f.percentage),
+        avgScore: parseFloat(f.avgScore)
+      })),
+      userEngagement: {
+        totalUsers: engagement[0].totalUsers,
+        completedAssessments: engagement[0].completedAssessments,
+        conversionRate: parseFloat(engagement[0].conversionRate) || 0,
+        avgAssessmentsPerUser: parseFloat(engagement[0].avgAssessmentsPerUser) || 0
+      },
+      topPumps: topPumps.map(p => ({
+        pumpName: p.pumpName,
+        count: p.count,
+        percentage: parseFloat(p.percentage),
+        avgScore: parseFloat(p.avgScore)
+      })),
+      recentAssessments: recentAssessments.map(a => ({
+        id: a.id,
+        userId: a.userId,
+        username: a.username,
+        completedAt: a.completedAt,
+        recommendedPump: a.recommendedPump,
+        matchScore: parseFloat(a.matchScore),
+        flowType: a.flowType
+      }))
+    };
+
+    res.json(analyticsData);
+
+  } catch (error) {
+    console.error('Analytics API Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch analytics',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * ADMIN: Get analytics summary
+ * GET /api/admin/pumpdrive/analytics/summary
+ * Requires admin authentication
+ */
+app.get('/api/admin/pumpdrive/analytics/summary', requireAdmin, async (req, res) => {
+  try {
+    const connection = await unifiedDatabase.getConnection();
+
+    const [stats] = await connection.execute(`
+      SELECT
+        COUNT(*) as totalAssessments,
+        COUNT(DISTINCT user_id) as totalUsers,
+        AVG(match_score) as avgMatchScore,
+        (COUNT(*) / NULLIF(COUNT(DISTINCT user_id), 0) * 100) as completionRate
+      FROM pump_assessments
+    `);
+
+    connection.release();
+
+    res.json({
+      totalAssessments: stats[0].totalAssessments,
+      totalUsers: stats[0].totalUsers,
+      avgMatchScore: parseFloat(stats[0].avgMatchScore) || 0,
+      completionRate: parseFloat(stats[0].completionRate) || 0,
+      lastUpdated: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Summary API Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch summary',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * ADMIN: Get pump distribution
+ * GET /api/admin/pumpdrive/analytics/pump-distribution
+ * Requires admin authentication
+ */
+app.get('/api/admin/pumpdrive/analytics/pump-distribution', requireAdmin, async (req, res) => {
+  try {
+    const connection = await unifiedDatabase.getConnection();
+
+    const [distribution] = await connection.execute(`
+      SELECT
+        recommended_pump as pumpName,
+        COUNT(*) as count,
+        (COUNT(*) * 100.0 / (SELECT COUNT(*) FROM pump_assessments)) as percentage,
+        AVG(match_score) as avgScore
+      FROM pump_assessments
+      WHERE recommended_pump IS NOT NULL
+      GROUP BY recommended_pump
+      ORDER BY count DESC
+    `);
+
+    connection.release();
+
+    res.json(distribution.map(d => ({
+      pumpName: d.pumpName,
+      count: d.count,
+      percentage: parseFloat(d.percentage),
+      avgScore: parseFloat(d.avgScore)
+    })));
+
+  } catch (error) {
+    console.error('Distribution API Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch distribution',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * ADMIN: Get assessment trends over time
+ * GET /api/admin/pumpdrive/analytics/trends?days=30
+ * Requires admin authentication
+ */
+app.get('/api/admin/pumpdrive/analytics/trends', requireAdmin, async (req, res) => {
+  try {
+    const days = parseInt(req.query.days) || 30;
+    const connection = await unifiedDatabase.getConnection();
+
+    const [trends] = await connection.execute(`
+      SELECT
+        DATE(completed_at) as date,
+        COUNT(*) as count
+      FROM pump_assessments
+      WHERE completed_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+      GROUP BY DATE(completed_at)
+      ORDER BY date ASC
+    `, [days]);
+
+    connection.release();
+
+    res.json(trends.map(t => ({
+      date: t.date,
+      count: t.count
+    })));
+
+  } catch (error) {
+    console.error('Trends API Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch trends',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * ADMIN: Get recent assessments
+ * GET /api/admin/pumpdrive/analytics/recent?limit=10
+ * Requires admin authentication
+ */
+app.get('/api/admin/pumpdrive/analytics/recent', requireAdmin, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+    const connection = await unifiedDatabase.getConnection();
+
+    const [recent] = await connection.execute(`
+      SELECT
+        pa.id,
+        pa.user_id as userId,
+        pu.username,
+        pa.completed_at as completedAt,
+        pa.recommended_pump as recommendedPump,
+        pa.match_score as matchScore,
+        pa.flow_type as flowType
+      FROM pump_assessments pa
+      JOIN pump_users pu ON pa.user_id = pu.id
+      ORDER BY pa.completed_at DESC
+      LIMIT ?
+    `, [limit]);
+
+    connection.release();
+
+    res.json(recent.map(a => ({
+      id: a.id,
+      userId: a.userId,
+      username: a.username,
+      completedAt: a.completedAt,
+      recommendedPump: a.recommendedPump,
+      matchScore: parseFloat(a.matchScore),
+      flowType: a.flowType
+    })));
+
+  } catch (error) {
+    console.error('Recent Assessments API Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch recent assessments',
       message: error.message
     });
   }

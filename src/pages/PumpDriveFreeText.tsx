@@ -1,6 +1,20 @@
-import React, { useState } from 'react';
+/**
+ * @deprecated This component is DEPRECATED
+ * Use PumpDriveUnified instead (src/pages/PumpDriveUnified.tsx)
+ *
+ * This free-text assessment flow has been superseded by PumpDriveUnified,
+ * which includes conversational AI functionality.
+ *
+ * Migration: Replace all references to PumpDriveFreeText with PumpDriveUnified
+ * See DEPRECATED.md for full migration guide
+ *
+ * This file will be moved to src/legacy/ in Phase 2 and removed in Phase 3
+ */
+
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { freeTextMCPService } from '../services/freeTextMCP.service';
+import { logWarn } from '../services/logger.service';
 
 interface FreeTextData {
   currentSituation: string;
@@ -12,6 +26,17 @@ const PumpDriveFreeText: React.FC = () => {
   const [freeText, setFreeText] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [charCount, setCharCount] = useState(0);
+
+  // ⚠️ DEPRECATION WARNING
+  useEffect(() => {
+    logWarn('⚠️ DEPRECATION WARNING: PumpDriveFreeText is DEPRECATED');
+    logWarn('Please use PumpDriveUnified instead (src/pages/PumpDriveUnified.tsx)');
+    logWarn('This component will be moved to src/legacy/ and eventually removed');
+    logWarn('See DEPRECATED.md for migration guide');
+    console.warn('%c⚠️ DEPRECATED COMPONENT', 'color: orange; font-size: 16px; font-weight: bold');
+    console.warn('%cPumpDriveFreeText is deprecated. Use PumpDriveUnified instead.', 'color: orange');
+    console.warn('See DEPRECATED.md for migration guide');
+  }, []);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const text = e.target.value;

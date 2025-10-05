@@ -21,6 +21,7 @@ const AdminAccountManagement = lazy(() => import('../../pages/AdminAccountManage
 const QuickAccountSetup = lazy(() => import('../../pages/QuickAccountSetup'));
 const PumpDriveUserDashboard = lazy(() => import('../../pages/admin/PumpDriveUserDashboard'));
 const PumpComparisonManager = lazy(() => import('../../pages/admin/PumpComparisonManager'));
+const PumpDriveAnalytics = lazy(() => import('../../pages/admin/PumpDriveAnalytics'));
 
 export default function AdminBundle() {
   return (
@@ -33,6 +34,7 @@ export default function AdminBundle() {
           <Route path="quick-setup" element={<QuickAccountSetup />} />
           <Route path="pumpdrive-users" element={<PumpDriveUserDashboard />} />
           <Route path="pumpdrive-dashboard" element={<PumpDriveUserDashboard />} />
+          <Route path="pumpdrive-analytics" element={<PumpDriveAnalytics />} />
           <Route path="pump-comparison" element={<PumpComparisonManager />} />
           <Route path="*" element={<Navigate to="/admin/accounts" replace />} />
         </Routes>
