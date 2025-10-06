@@ -13,6 +13,7 @@ RUN npm ci --only=production && \
 
 # Copy application files
 COPY pump-report-api.js ./
+COPY pump-recommendation-engine-ai.js ./
 COPY services/ ./services/
 COPY utils/ ./utils/
 
