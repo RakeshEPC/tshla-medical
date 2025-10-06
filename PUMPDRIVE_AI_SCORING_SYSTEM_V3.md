@@ -1261,29 +1261,38 @@ Then follow Week 1 checklist above.
 
 ## 🚀 Deployment History
 
-### Production Deployment - October 6, 2025
+### Production Deployment - October 6, 2025 ✅ SUCCESS
 
-**Deployment Details:**
-- **Commit:** `c958593891da40b60dd221796107ca039498e5e1`
-- **Revision:** `tshla-pump-api-container--0000017`
-- **Image:** `tshlaregistry.azurecr.io/tshla-pump-api:latest`
-- **Digest:** `sha256:6b24b6478b573d480050562658c3a0422ae8ff07073d0c522e03411862d2dd65`
-- **Deployment Time:** 16:30 UTC
-- **Status:** ✅ Active (100% traffic)
+**Final Deployment:**
+- **Commit:** `d94f00eef574a3d6df72e05c4b7c4fb6b18ce6e1`
+- **Revision:** `tshla-pump-api-container--0000020`
+- **Image:** `tshlaregistry.azurecr.io/tshla-pump-api:d94f00eef574a3d6df72e05c4b7c4fb6b18ce6e1`
+- **Deployment Time:** 16:54 UTC
+- **Status:** ✅ Running successfully in production (100% traffic)
 
-**Verification:**
+**Deployment Challenges Resolved:**
+1. **Issue 1 - Missing OpenAI dependency:** Container crashed with "Cannot find module 'openai'"
+   - **Fix:** Added `openai@^6.1.0` to `server/package.json` (commit 9b91b58d)
+
+2. **Issue 2 - Docker layer caching:** npm ci used cached layer without openai
+   - **Fix:** Added `--no-cache` flag to Docker build in GitHub Actions workflow (commit 29231d52)
+
+3. **Issue 3 - Missing AI engine file:** Container crashed with "Cannot find module './pump-recommendation-engine-ai'"
+   - **Fix:** Added `COPY pump-recommendation-engine-ai.js` to Dockerfile.pump (commit d94f00ee)
+
+**Production Verification:**
 ```bash
-# Container started fresh (low uptime)
-curl https://tshla-pump-api-container.redpebble-e4551b7a.eastus.azurecontainerapps.io/api/health
-# Returns uptime: 148s (new container confirmed)
+# Confirm OpenAI initialized
+az containerapp logs show --name tshla-pump-api-container --resource-group tshla-backend-rg
+# Output: "OpenAI initialized with models: { freeText: 'gpt-4o-mini', context7: 'gpt-4o', finalAnalysis: 'gpt-4o' }"
 
-# Image verification
-az acr repository show-tags --name tshlaregistry --repository tshla-pump-api --top 1
-# Confirms: latest = c958593891da40b60dd221796107ca039498e5e1
-
-# Active revision check
+# Check active revision
 az containerapp revision list --name tshla-pump-api-container --resource-group tshla-backend-rg
-# Confirms: 0000017 active with 100% traffic, old 0000010 deactivated
+# Confirms: 0000020 active with 100% traffic, state: Provisioned
+
+# Verify container health
+curl https://tshla-pump-api-container.redpebble-e4551b7a.eastus.azurecontainerapps.io/api/health
+# Returns: status working, uptime confirms new container
 ```
 
 **Implementation Complete:**
@@ -1296,13 +1305,16 @@ az containerapp revision list --name tshla-pump-api-container --resource-group t
 
 **Files Modified:**
 1. `server/pump-report-api.js` - Lines 3307-4043 (V3 implementation)
-2. `PUMPDRIVE_AI_SCORING_SYSTEM_V3.md` - This documentation
-3. `.env` - OpenAI API keys and model config
+2. `server/package.json` - Added openai dependency
+3. `server/Dockerfile.pump` - Added pump-recommendation-engine-ai.js to COPY
+4. `.github/workflows/deploy-pump-api-container.yml` - Added --no-cache flag
+5. `PUMPDRIVE_AI_SCORING_SYSTEM_V3.md` - This documentation
 
-**Old Revisions Deactivated:**
-- `0000010` - Old code (deactivated)
-- `0000015` - Failed deployment attempt
-- `0000016` - Failed deployment attempt
+**Failed Revisions (Learning):**
+- `0000017` - Missing openai in server/package.json
+- `0000018` - Docker cache prevented openai installation
+- `0000019` - Missing pump-recommendation-engine-ai.js file
+- `0000020` - ✅ SUCCESS with all fixes applied
 
 ---
 
