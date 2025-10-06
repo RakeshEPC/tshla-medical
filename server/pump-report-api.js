@@ -3255,12 +3255,33 @@ function generateRuleBasedRecommendations(userData) {
   const prefersSmall = freeText.toLowerCase().includes('small') || freeText.toLowerCase().includes('discrete');
   const prefersTubeless = freeText.toLowerCase().includes('tubeless') || freeText.toLowerCase().includes('patch');
 
-  // Scoring logic
+  // NEW: Weight/lightweight preference
+  const prefersLightweight = freeText.toLowerCase().includes('2 oz') ||
+                            freeText.toLowerCase().includes('2 ounce') ||
+                            freeText.toLowerCase().includes('lightest') ||
+                            freeText.toLowerCase().includes('lightweight') ||
+                            freeText.toLowerCase().includes('light weight');
+
+  // NEW: Water resistance needs
+  const needsWaterResistance = freeText.toLowerCase().includes('swim') ||
+                              freeText.toLowerCase().includes('shower') ||
+                              freeText.toLowerCase().includes('waterproof') ||
+                              freeText.toLowerCase().includes('water resistant') ||
+                              freeText.toLowerCase().includes('submersible');
+
+  // NEW: Carb counting burnout
+  const carbBurnout = freeText.toLowerCase().includes('carb counting') ||
+                     freeText.toLowerCase().includes('no carb') ||
+                     freeText.toLowerCase().includes('carb exhausted');
+
+  // Scoring logic - ALL 6 PUMPS
   let scores = {
     'Omnipod 5': 70,
     'Tandem t:slim X2': 70,
     'Medtronic 780G': 70,
-    'Tandem Mobi': 70
+    'Tandem Mobi': 70,
+    'Beta Bionics iLet': 70,
+    'Twiist': 70
   };
 
   // Boost Omnipod 5 for tubeless preference and simplicity
@@ -3275,8 +3296,21 @@ function generateRuleBasedRecommendations(userData) {
   if (sliders.techComfort >= 7) scores['Tandem t:slim X2'] += 15;
   if (isActive) scores['Tandem t:slim X2'] += 5;
 
-  // Boost Medtronic for automation preference
+  // Boost Medtronic for automation preference and water resistance
   if (sliders.techComfort >= 6 && sliders.timeDedication <= 4) scores['Medtronic 780G'] += 15;
+  if (needsWaterResistance) scores['Medtronic 780G'] += 20;  // 12ft submersible - best waterproofing
+
+  // NEW: Boost Twiist for lightweight preference
+  if (prefersLightweight) scores['Twiist'] += 25;  // Lightest pump at 2 oz
+  if (wantsDiscretion) scores['Twiist'] += 10;     // Very discreet
+
+  // NEW: Boost iLet for carb burnout and simplicity
+  if (carbBurnout) scores['Beta Bionics iLet'] += 25;  // No carb counting required
+  if (wantsSimplicity && lowTechComfort) scores['Beta Bionics iLet'] += 15;
+
+  // Update water resistance for other pumps
+  if (needsWaterResistance) scores['Omnipod 5'] += 18;    // Waterproof pod
+  if (needsWaterResistance) scores['Tandem Mobi'] += 10;  // 8ft water resistant
 
   // Sort by score
   const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
@@ -3306,9 +3340,21 @@ function generateRuleBasedRecommendations(userData) {
     ],
     'Medtronic 780G': [
       'SmartGuard auto mode with advanced automation',
-      'Proven reliability and accuracy',
-      'Large insulin reservoir',
-      'Comprehensive diabetes management system'
+      'Most waterproof pump - submersible to 12 feet',
+      'Large insulin reservoir (300 units)',
+      'Proven reliability and accuracy'
+    ],
+    'Beta Bionics iLet': [
+      'No carb counting required - life-changing simplicity',
+      'Announces meals with simple buttons (breakfast/lunch/dinner)',
+      'Hands-off automation - minimal user interaction',
+      'Only 4 alerts total - quietest pump available'
+    ],
+    'Twiist': [
+      'Lightest pump available at only 2 ounces',
+      'Apple Watch control for discreet bolusing',
+      'Circular design - ultra-compact and modern',
+      'Innovative emoji-based interface'
     ]
   };
 
@@ -3318,6 +3364,21 @@ function generateRuleBasedRecommendations(userData) {
   if (isActive) keyFactors.push('Active lifestyle compatibility');
   if (sliders.techComfort >= 6) keyFactors.push('Advanced technology features');
   if (prefersSmall) keyFactors.push('Compact design preference');
+  if (prefersLightweight) keyFactors.push('Ultra-lightweight preference');
+  if (needsWaterResistance) keyFactors.push('Water resistance for swimming/showering');
+  if (carbBurnout) keyFactors.push('Simplify carb counting');
+
+  // Build personalized insights
+  let insightParts = [];
+  if (prefersLightweight) insightParts.push('lightest weight (2 oz)');
+  if (prefersSmall) insightParts.push('compact size');
+  if (prefersTubeless) insightParts.push('tubeless design');
+  if (needsWaterResistance) insightParts.push('water resistance');
+  if (carbBurnout) insightParts.push('no carb counting');
+
+  const preferenceText = insightParts.length > 0
+    ? ` (especially ${insightParts.join(', ')})`
+    : '';
 
   return {
     overallTop: [{
@@ -3331,7 +3392,7 @@ function generateRuleBasedRecommendations(userData) {
       reasons: reasons[name]
     })),
     keyFactors: keyFactors.length > 0 ? keyFactors : ['Your lifestyle preferences', 'Ease of use', 'Technology comfort level'],
-    personalizedInsights: `Based on your preferences${prefersSmall ? ' for a smaller pump' : ''}${prefersTubeless ? ' and tubeless design' : ''}, the ${topChoice[0]} is an excellent match at ${topChoice[1]}% compatibility. ${reasons[topChoice[0]][0]}. This pump ${wantsSimplicity ? 'offers simplicity and ease of use' : 'provides advanced features'} while meeting your ${wantsDiscretion ? 'discretion' : 'lifestyle'} needs.`
+    personalizedInsights: `Based on your preferences${preferenceText}, we recommend the ${topChoice[0]}. ${reasons[topChoice[0]][0]}. This pump scores ${topChoice[1]}% compatibility with your needs.`
   };
 }
 
