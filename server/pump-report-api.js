@@ -14,8 +14,10 @@ const nodemailer = require('nodemailer');
 const stripe = require('stripe');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const OpenAI = require('openai');
 const unifiedDatabase = require('./services/unified-database.service');
 const DatabaseHelper = require('./utils/dbHelper');
+const pumpEngine = require('./pump-recommendation-engine-ai');
 
 // Initialize Stripe with secret key (if available)
 let stripeInstance = null;
@@ -25,6 +27,20 @@ if (process.env.STRIPE_SECRET_KEY && process.env.STRIPE_SECRET_KEY !== 'sk_test_
 } else {
   console.warn('Stripe not initialized - missing secret key');
 }
+
+// Initialize OpenAI client
+const openai = new OpenAI({
+  apiKey: process.env.VITE_OPENAI_API_KEY
+});
+
+// Model configuration
+const OPENAI_MODELS = {
+  freeText: process.env.VITE_OPENAI_MODEL_STAGE4 || 'gpt-4o-mini',
+  context7: process.env.VITE_OPENAI_MODEL_STAGE5 || 'gpt-4o',
+  finalAnalysis: process.env.VITE_OPENAI_MODEL_STAGE6 || 'gpt-4o'
+};
+
+console.log('OpenAI initialized with models:', OPENAI_MODELS);
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -3373,152 +3389,27 @@ async function fetchPumpComparisonData() {
 }
 
 /**
- * Generate pump recommendations using AWS Bedrock
+ * Generate pump recommendations using OpenAI
  */
 async function generatePumpRecommendations(userData) {
-  // Fallback to rule-based recommendations if AWS Bedrock not configured
-  if (!process.env.VITE_AWS_ACCESS_KEY_ID || !process.env.VITE_AWS_SECRET_ACCESS_KEY) {
-    console.log('AWS Bedrock not configured - using rule-based recommendations');
+  // Check if OpenAI is configured
+  if (!process.env.VITE_OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY === 'your_openai_api_key_here') {
+    console.log('OpenAI not configured - using rule-based recommendations');
     return generateRuleBasedRecommendations(userData);
   }
 
-  // Use AWS Bedrock via existing service
-  const AWS = require('aws-sdk');
-
-  // Create user profile from request data
-  const userProfile = createUserProfile(userData);
-
-  // Fetch structured pump comparison data from database
-  const comparisonData = await fetchPumpComparisonData();
-
-  let pumpDetails;
-  let manufacturerContacts = '';
-
-  if (comparisonData) {
-    // Use structured database data
-    console.log('Using structured pump comparison data from database (23 dimensions)');
-
-    // Format dimensions for AI prompt
-    const dimensionsText = comparisonData.dimensions.map(dim => {
-      const pumpInfo = Object.entries(dim.pump_details || {})
-        .map(([pumpName, details]) => {
-          let text = `  - ${pumpName}:\n    ${details.title}\n    ${details.details}`;
-          if (details.pros && details.pros.length > 0) {
-            text += `\n    Pros: ${details.pros.join(', ')}`;
-          }
-          if (details.cons && details.cons.length > 0) {
-            text += `\n    Cons: ${details.cons.join(', ')}`;
-          }
-          return text;
-        })
-        .join('\n');
-
-      return `Dimension #${dim.dimension_number}: ${dim.dimension_name} (${dim.category})
-Description: ${dim.dimension_description}
-Importance: ${dim.importance_scale}
-${pumpInfo}`;
-    }).join('\n\n');
-
-    pumpDetails = `23-DIMENSION PUMP COMPARISON DATABASE:
-
-${dimensionsText}`;
-
-    // Add manufacturer contact information
-    manufacturerContacts = `\n\nMANUFACTURER CONTACT INFORMATION:
-${comparisonData.manufacturers.map(mfr =>
-  `${mfr.pump_name} (${mfr.manufacturer})
-  Website: ${mfr.website || 'N/A'}
-  Representative: ${mfr.rep_name || 'Contact manufacturer'}
-  Support Phone: ${mfr.support_phone || 'N/A'}`
-).join('\n\n')}`;
-  } else {
-    // Fallback to hardcoded pump database
-    console.log('Database fetch failed - using fallback pump database');
-    pumpDetails = createPumpDatabase();
-  }
-
-  // Use AWS Bedrock Claude model
-  const bedrock = new AWS.BedrockRuntime({
-    region: 'us-east-1',
-    accessKeyId: process.env.VITE_AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.VITE_AWS_SECRET_ACCESS_KEY
-  });
-
-  const prompt = `You are an expert diabetes educator and insulin pump specialist. Based on the following patient responses and comprehensive 23-dimension pump comparison database, provide personalized insulin pump recommendations.
-
-PATIENT PROFILE:
-${userProfile}
-
-${pumpDetails}${manufacturerContacts}
-
-INSTRUCTIONS:
-1. Analyze the patient's preferences against ALL 23 dimensions
-2. Consider which dimensions are most important for THIS patient based on their responses
-3. Weigh the pros and cons of each pump for each relevant dimension
-4. Provide evidence-based recommendations citing specific dimensions
-
-Please provide recommendations in JSON format with:
-{
-  "topChoice": {
-    "name": "pump name",
-    "score": 85,
-    "reasons": ["specific reasons citing dimensions"]
-  },
-  "alternatives": [
-    {"name": "pump name", "score": 75, "reasons": ["reasons citing dimensions"]}
-  ],
-  "keyFactors": ["dimension categories that mattered most"],
-  "personalizedInsights": "detailed explanation referencing specific dimensions and pump details",
-  "dimensionsConsidered": ["list of dimension numbers that were most relevant to decision"]
-}`;
-
-  const params = {
-    modelId: 'anthropic.claude-3-sonnet-20240229-v1:0',
-    contentType: 'application/json',
-    accept: 'application/json',
-    body: JSON.stringify({
-      anthropic_version: 'bedrock-2023-05-31',
-      max_tokens: 3000, // Increased for more detailed analysis
-      messages: [
-        {
-          role: 'user',
-          content: prompt
-        }
-      ]
-    })
-  };
-
-  const response = await bedrock.invokeModel(params).promise();
-
-  const responseBody = JSON.parse(response.body.toString());
-  const aiResponse = responseBody.content[0].text;
-
   try {
-    // Try to extract JSON from markdown code blocks if present
-    let jsonText = aiResponse;
-    const codeBlockMatch = aiResponse.match(/```(?:json)?\s*(.*?)\s*```/s);
-    if (codeBlockMatch) {
-      jsonText = codeBlockMatch[1];
-    }
-
-    return JSON.parse(jsonText);
-  } catch (parseError) {
-    console.warn('Failed to parse AI response as JSON, returning raw response');
-    return {
-      topChoice: {
-        name: "Omnipod 5",
-        score: 80,
-        reasons: ["AI response format error - using fallback recommendation"]
-      },
-      alternatives: [],
-      keyFactors: ["Error in AI response processing"],
-      personalizedInsights: aiResponse
-    };
+    console.log('=== Using OpenAI-Powered Recommendation Engine ===');
+    return await pumpEngine.generatePumpRecommendationsOpenAI(openai, OPENAI_MODELS, userData);
+  } catch (error) {
+    console.error('Error in OpenAI recommendation engine:', error);
+    console.log('Falling back to rule-based recommendations');
+    return generateRuleBasedRecommendations(userData);
   }
 }
 
 /**
- * Create user profile from request data
+ * Create user profile from request data (LEGACY - used for rule-based fallback only)
  */
 function createUserProfile(userData) {
   let profile = 'PATIENT ASSESSMENT DATA:\n';
