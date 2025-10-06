@@ -45,10 +45,32 @@ console.log('OpenAI initialized with models:', OPENAI_MODELS);
 const app = express();
 const PORT = process.env.PORT || 3002;
 
-// Middleware
+// Middleware - CORS with flexible localhost support
 app.use(
   cors({
-    origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'https://www.tshla.ai', 'https://mango-sky-0ba265c0f.1.azurestaticapps.net'],
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, Postman)
+      if (!origin) return callback(null, true);
+
+      // Allow all localhost origins (any port)
+      if (origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1')) {
+        return callback(null, true);
+      }
+
+      // Allow specific production domains
+      const allowedOrigins = [
+        'https://www.tshla.ai',
+        'https://mango-sky-0ba265c0f.1.azurestaticapps.net'
+      ];
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      // Log rejected origins for debugging
+      console.log('CORS: Rejected origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
   })
 );
@@ -199,6 +221,35 @@ const verifyToken = (req, res, next) => {
   } catch (error) {
     console.error('Token verification failed:', error);
     return res.status(403).json({ error: 'Invalid or expired token' });
+  }
+};
+
+// Optional auth middleware - doesn't block if no token
+const optionalAuth = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+
+  if (!token) {
+    // No token provided - continue without user
+    req.user = null;
+    return next();
+  }
+
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret) {
+    console.error('JWT_SECRET environment variable not set');
+    req.user = null;
+    return next();
+  }
+
+  try {
+    const decoded = jwt.verify(token, jwtSecret);
+    req.user = decoded;
+    next();
+  } catch (error) {
+    console.log('Optional auth: Invalid token, continuing without auth');
+    req.user = null;
+    next();
   }
 };
 
@@ -3131,8 +3182,8 @@ app.get('/api/info', (req, res) => {
  * Process pump recommendations using AWS Bedrock
  * POST /api/pumpdrive/recommend
  */
-app.post('/api/pumpdrive/recommend', verifyToken, async (req, res) => {
-  const connection = await pool.getConnection();
+app.post('/api/pumpdrive/recommend', optionalAuth, async (req, res) => {
+  let connection = null;
 
   try {
     console.log('PumpDrive API: Received recommendation request', {
@@ -3144,12 +3195,12 @@ app.post('/api/pumpdrive/recommend', verifyToken, async (req, res) => {
     const requestData = req.body;
     const userId = req.user?.userId;
 
-    // Require authentication
+    // Authentication is optional - log warning if not authenticated
     if (!userId) {
-      return res.status(401).json({
-        error: 'Authentication required',
-        message: 'You must be logged in to get pump recommendations'
-      });
+      console.log('PumpDrive API: ⚠️ Unauthenticated request - will not save to database');
+    } else {
+      // Only get DB connection if user is authenticated
+      connection = await pool.getConnection();
     }
 
     // Basic validation
@@ -3192,37 +3243,41 @@ app.post('/api/pumpdrive/recommend', verifyToken, async (req, res) => {
       };
     }
 
-    // Save to pump_reports table
-    const primaryPump = formattedResponse.overallTop?.[0]?.pumpName ||
-                        formattedResponse.topRecommendation?.name ||
-                        'Unknown';
-    const secondaryPump = formattedResponse.alternatives?.[0]?.pumpName ||
-                         formattedResponse.alternatives?.[0]?.name ||
-                         null;
+    // Save to pump_reports table (only if authenticated)
+    if (userId) {
+      const primaryPump = formattedResponse.overallTop?.[0]?.pumpName ||
+                          formattedResponse.topRecommendation?.name ||
+                          'Unknown';
+      const secondaryPump = formattedResponse.alternatives?.[0]?.pumpName ||
+                           formattedResponse.alternatives?.[0]?.name ||
+                           null;
 
-    const [insertResult] = await connection.execute(
-      `INSERT INTO pump_reports
-       (user_id, report_data, questionnaire_responses, recommendations, primary_pump, secondary_pump)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [
+      const [insertResult] = await connection.execute(
+        `INSERT INTO pump_reports
+         (user_id, report_data, questionnaire_responses, recommendations, primary_pump, secondary_pump)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          userId,
+          JSON.stringify(requestData),
+          JSON.stringify(requestData.questionnaire || {}),
+          JSON.stringify(formattedResponse),
+          primaryPump,
+          secondaryPump
+        ]
+      );
+
+      console.log('Pump report saved:', {
+        reportId: insertResult.insertId,
         userId,
-        JSON.stringify(requestData),
-        JSON.stringify(requestData.questionnaire || {}),
-        JSON.stringify(formattedResponse),
         primaryPump,
         secondaryPump
-      ]
-    );
+      });
 
-    console.log('Pump report saved:', {
-      reportId: insertResult.insertId,
-      userId,
-      primaryPump,
-      secondaryPump
-    });
-
-    // Add report ID to response
-    formattedResponse.reportId = insertResult.insertId;
+      // Add report ID to response
+      formattedResponse.reportId = insertResult.insertId;
+    } else {
+      console.log('Pump report NOT saved (no authentication)');
+    }
 
     res.json(formattedResponse);
 
@@ -3234,87 +3289,778 @@ app.post('/api/pumpdrive/recommend', verifyToken, async (req, res) => {
       details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   } finally {
-    connection.release();
+    if (connection) {
+      connection.release();
+    }
   }
 });
 
 /**
  * Generate rule-based pump recommendations (fallback when AI not available)
  */
-function generateRuleBasedRecommendations(userData) {
-  const sliders = userData.sliders || {};
-  const freeText = userData.freeText?.currentSituation || '';
-  const features = userData.features || [];
+/**
+ * PUMPDRIVE V3.0 SCORING SYSTEM
+ * New AI-powered semantic scoring with 6 stages
+ * See: PUMPDRIVE_AI_SCORING_SYSTEM_V3.md for complete documentation
+ */
 
-  // Analyze user preferences
-  const wantsSimplicity = (sliders.simplicity || 5) >= 6;
-  const wantsDiscretion = (sliders.discreteness || 5) >= 6;
-  const isActive = (sliders.activity || 5) >= 6;
-  const lowTechComfort = (sliders.techComfort || 5) <= 4;
+// ===================================
+// STAGE 1: Initialize Base Scores (30%)
+// ===================================
+function initializeScores() {
+  console.log('[V3] Stage 1: Initializing base scores at 30%');
+  return {
+    'Medtronic 780G': 30,
+    'Tandem t:slim X2': 30,
+    'Tandem Mobi': 30,
+    'Omnipod 5': 30,
+    'Beta Bionics iLet': 30,
+    'Twiist': 30
+  };
+}
 
-  const prefersSmall = freeText.toLowerCase().includes('small') || freeText.toLowerCase().includes('discrete');
-  const prefersTubeless = freeText.toLowerCase().includes('tubeless') || freeText.toLowerCase().includes('patch');
+// ===================================
+// STAGE 2: Apply Slider Adjustments (±12%)
+// ===================================
+function applySliderAdjustments(scores, sliders) {
+  console.log('[V3] Stage 2: Applying slider adjustments');
+  const activity = sliders.activity || 5;
+  const techComfort = sliders.techComfort || 5;
+  const simplicity = sliders.simplicity || 5;
+  const discreteness = sliders.discreteness || 5;
+  const timeDedication = sliders.timeDedication || 5;
 
-  // NEW: Weight/lightweight preference
-  const prefersLightweight = freeText.toLowerCase().includes('2 oz') ||
-                            freeText.toLowerCase().includes('2 ounce') ||
-                            freeText.toLowerCase().includes('lightest') ||
-                            freeText.toLowerCase().includes('lightweight') ||
-                            freeText.toLowerCase().includes('light weight');
+  // Activity Level (1-10)
+  if (activity >= 8) {
+    scores['Tandem t:slim X2'] += 6;
+    scores['Twiist'] += 5;
+    scores['Omnipod 5'] += 4;
+    scores['Tandem Mobi'] += 4;
+    scores['Medtronic 780G'] -= 3;
+    scores['Beta Bionics iLet'] -= 2;
+  } else if (activity >= 5) {
+    scores['Tandem t:slim X2'] += 3;
+    scores['Omnipod 5'] += 2;
+    scores['Twiist'] += 2;
+  } else {
+    scores['Beta Bionics iLet'] += 2;
+    scores['Medtronic 780G'] += 2;
+    scores['Omnipod 5'] += 1;
+  }
 
-  // NEW: Water resistance needs
-  const needsWaterResistance = freeText.toLowerCase().includes('swim') ||
-                              freeText.toLowerCase().includes('shower') ||
-                              freeText.toLowerCase().includes('waterproof') ||
-                              freeText.toLowerCase().includes('water resistant') ||
-                              freeText.toLowerCase().includes('submersible');
+  // Tech Comfort (1-10)
+  if (techComfort <= 3) {
+    scores['Beta Bionics iLet'] += 10;
+    scores['Omnipod 5'] += 8;
+    scores['Tandem t:slim X2'] -= 5;
+    scores['Tandem Mobi'] -= 4;
+    scores['Medtronic 780G'] -= 3;
+    scores['Twiist'] -= 4;
+  } else if (techComfort <= 6) {
+    scores['Medtronic 780G'] += 3;
+    scores['Omnipod 5'] += 2;
+    scores['Beta Bionics iLet'] += 2;
+  } else {
+    scores['Tandem t:slim X2'] += 8;
+    scores['Tandem Mobi'] += 7;
+    scores['Twiist'] += 6;
+    scores['Medtronic 780G'] += 3;
+    scores['Beta Bionics iLet'] -= 4;
+    scores['Omnipod 5'] -= 2;
+  }
 
-  // NEW: Carb counting burnout
-  const carbBurnout = freeText.toLowerCase().includes('carb counting') ||
-                     freeText.toLowerCase().includes('no carb') ||
-                     freeText.toLowerCase().includes('carb exhausted');
+  // Simplicity Preference (1-10)
+  if (simplicity >= 7) {
+    scores['Beta Bionics iLet'] += 12;
+    scores['Omnipod 5'] += 8;
+    scores['Tandem Mobi'] -= 3;
+    scores['Tandem t:slim X2'] -= 4;
+    scores['Medtronic 780G'] -= 2;
+    scores['Twiist'] -= 2;
+  } else if (simplicity >= 4) {
+    scores['Omnipod 5'] += 2;
+    scores['Medtronic 780G'] += 2;
+  } else {
+    scores['Tandem t:slim X2'] += 5;
+    scores['Twiist'] += 4;
+    scores['Tandem Mobi'] += 3;
+    scores['Beta Bionics iLet'] -= 3;
+  }
 
-  // Scoring logic - ALL 6 PUMPS
-  let scores = {
-    'Omnipod 5': 70,
-    'Tandem t:slim X2': 70,
-    'Medtronic 780G': 70,
-    'Tandem Mobi': 70,
-    'Beta Bionics iLet': 70,
-    'Twiist': 70
+  // Discreteness (1-10)
+  if (discreteness >= 7) {
+    scores['Tandem Mobi'] += 12;
+    scores['Omnipod 5'] += 8;
+    scores['Twiist'] += 7;
+    scores['Medtronic 780G'] -= 6;
+    scores['Beta Bionics iLet'] -= 3;
+    scores['Tandem t:slim X2'] -= 2;
+  } else if (discreteness >= 4) {
+    scores['Tandem Mobi'] += 3;
+    scores['Omnipod 5'] += 2;
+  } else {
+    scores['Medtronic 780G'] += 2;
+  }
+
+  // Time Dedication (1-10)
+  if (timeDedication <= 4) {
+    scores['Beta Bionics iLet'] += 10;
+    scores['Omnipod 5'] += 5;
+    scores['Medtronic 780G'] += 3;
+    scores['Tandem t:slim X2'] -= 2;
+    scores['Tandem Mobi'] -= 1;
+    scores['Twiist'] -= 1;
+  } else if (timeDedication >= 8) {
+    scores['Tandem t:slim X2'] += 4;
+    scores['Twiist'] += 3;
+    scores['Tandem Mobi'] += 3;
+    scores['Medtronic 780G'] += 2;
+    scores['Beta Bionics iLet'] -= 5;
+    scores['Omnipod 5'] -= 2;
+  }
+
+  console.log('[V3] Stage 2 complete:', scores);
+  return scores;
+}
+
+// ===================================
+// STAGE 3: Apply Feature Adjustments (±8%)
+// ===================================
+function applyFeatureAdjustments(scores, features) {
+  console.log('[V3] Stage 3: Applying feature adjustments');
+
+  const FEATURE_IMPACT = {
+    'aa-battery-power': {
+      boosts: { 'Medtronic 780G': 8 },
+      penalties: { 'Tandem Mobi': -2, 'Beta Bionics iLet': -2 }
+    },
+    'wireless-charging': {
+      boosts: { 'Tandem Mobi': 6, 'Beta Bionics iLet': 6 },
+      penalties: { 'Medtronic 780G': -1 }
+    },
+    'no-charging-needed': {
+      boosts: { 'Omnipod 5': 10 },
+      penalties: {
+        'Medtronic 780G': -1, 'Tandem t:slim X2': -2,
+        'Tandem Mobi': -2, 'Beta Bionics iLet': -2, 'Twiist': -2
+      }
+    },
+    'ultra-small-size': {
+      boosts: { 'Tandem Mobi': 15 },
+      penalties: { 'Medtronic 780G': -4, 'Beta Bionics iLet': -3 }
+    },
+    'completely-tubeless': {
+      boosts: { 'Omnipod 5': 12 },
+      penalties: {
+        'Medtronic 780G': -1, 'Tandem t:slim X2': -1,
+        'Tandem Mobi': -1, 'Beta Bionics iLet': -1, 'Twiist': -1
+      }
+    },
+    'ultra-lightweight': {
+      boosts: { 'Twiist': 10, 'Tandem Mobi': 4 },
+      penalties: { 'Medtronic 780G': -2 }
+    },
+    'apple-watch-bolusing': {
+      boosts: { 'Twiist': 15 },
+      penalties: { 'Medtronic 780G': -3, 'Beta Bionics iLet': -3 }
+    },
+    'touchscreen-control': {
+      boosts: { 'Tandem t:slim X2': 10, 'Beta Bionics iLet': 2 },
+      penalties: { 'Medtronic 780G': -3, 'Omnipod 5': -1 }
+    },
+    'iphone-only-control': {
+      boosts: { 'Tandem Mobi': 12, 'Twiist': 8 },
+      penalties: { 'Medtronic 780G': -2, 'Beta Bionics iLet': -2 }
+    },
+    'aggressive-control': {
+      boosts: { 'Medtronic 780G': 12, 'Twiist': 6 },
+      penalties: { 'Beta Bionics iLet': -2 }
+    },
+    'no-carb-counting': {
+      boosts: { 'Beta Bionics iLet': 15 },
+      penalties: {
+        'Medtronic 780G': -1, 'Tandem t:slim X2': -1,
+        'Tandem Mobi': -1, 'Omnipod 5': -1, 'Twiist': -1
+      }
+    },
+    'fully-submersible': {
+      boosts: { 'Medtronic 780G': 10, 'Beta Bionics iLet': 6 },
+      penalties: { 'Tandem t:slim X2': -3, 'Twiist': -3 }
+    },
+    'waterproof-pod': {
+      boosts: { 'Omnipod 5': 8, 'Tandem Mobi': 6 },
+      penalties: { 'Tandem t:slim X2': -2, 'Twiist': -2 }
+    },
+    'multiple-cgm-options': {
+      boosts: { 'Tandem t:slim X2': 8, 'Omnipod 5': 6 },
+      penalties: { 'Tandem Mobi': -2 }
+    },
+    'phone-bolusing': {
+      boosts: { 'Tandem Mobi': 8, 'Tandem t:slim X2': 6, 'Twiist': 8 },
+      penalties: { 'Medtronic 780G': -3 }
+    },
+    'dual-control-options': {
+      boosts: { 'Omnipod 5': 8 },
+      penalties: { 'Tandem Mobi': -1 }
+    },
+    'simple-meal-announcements': {
+      boosts: { 'Beta Bionics iLet': 10 },
+      penalties: { 'Tandem t:slim X2': -2, 'Twiist': -2 }
+    },
+    'emoji-bolusing': {
+      boosts: { 'Twiist': 12 },
+      penalties: { 'Medtronic 780G': -2 }
+    },
+    'inductive-charging': {
+      boosts: { 'Beta Bionics iLet': 6 },
+      penalties: {}
+    }
   };
 
-  // Boost Omnipod 5 for tubeless preference and simplicity
-  if (prefersTubeless || wantsDiscretion) scores['Omnipod 5'] += 15;
-  if (wantsSimplicity && lowTechComfort) scores['Omnipod 5'] += 10;
+  features.forEach(feature => {
+    const featureId = feature.id || feature;
+    const impact = FEATURE_IMPACT[featureId];
 
-  // Boost Mobi for small size preference
-  if (prefersSmall) scores['Tandem Mobi'] += 20;
-  if (wantsDiscretion) scores['Tandem Mobi'] += 10;
+    if (impact) {
+      // Apply boosts
+      Object.entries(impact.boosts).forEach(([pump, points]) => {
+        scores[pump] += points;
+      });
+      // Apply penalties
+      Object.entries(impact.penalties).forEach(([pump, points]) => {
+        scores[pump] += points;
+      });
+    }
+  });
 
-  // Boost t:slim for tech-savvy users
-  if (sliders.techComfort >= 7) scores['Tandem t:slim X2'] += 15;
-  if (isActive) scores['Tandem t:slim X2'] += 5;
+  console.log('[V3] Stage 3 complete:', scores);
+  return scores;
+}
 
-  // Boost Medtronic for automation preference and water resistance
-  if (sliders.techComfort >= 6 && sliders.timeDedication <= 4) scores['Medtronic 780G'] += 15;
-  if (needsWaterResistance) scores['Medtronic 780G'] += 20;  // 12ft submersible - best waterproofing
+// ===================================
+// STAGE 4: AI-Powered Free Text Analysis (0-25%)
+// ===================================
+async function analyzeFreeTextWithAI(freeText) {
+  if (!freeText || freeText.trim().length === 0) {
+    console.log('[V3] Stage 4: No free text provided, skipping');
+    return {
+      extractedIntents: [],
+      pumpScores: {
+        'Medtronic 780G': { points: 0, reasoning: 'No free text analysis' },
+        'Tandem t:slim X2': { points: 0, reasoning: 'No free text analysis' },
+        'Tandem Mobi': { points: 0, reasoning: 'No free text analysis' },
+        'Omnipod 5': { points: 0, reasoning: 'No free text analysis' },
+        'Beta Bionics iLet': { points: 0, reasoning: 'No free text analysis' },
+        'Twiist': { points: 0, reasoning: 'No free text analysis' }
+      },
+      dimensionsCovered: [],
+      dimensionsMissing: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23]
+    };
+  }
 
-  // NEW: Boost Twiist for lightweight preference
-  if (prefersLightweight) scores['Twiist'] += 25;  // Lightest pump at 2 oz
-  if (wantsDiscretion) scores['Twiist'] += 10;     // Very discreet
+  console.log('[V3] Stage 4: Analyzing free text with AI semantic understanding');
 
-  // NEW: Boost iLet for carb burnout and simplicity
-  if (carbBurnout) scores['Beta Bionics iLet'] += 25;  // No carb counting required
-  if (wantsSimplicity && lowTechComfort) scores['Beta Bionics iLet'] += 15;
+  const prompt = `You are an expert at understanding patient needs for insulin pumps.
+Extract TRUE INTENTIONS from patient free text, not just keywords.
 
-  // Update water resistance for other pumps
-  if (needsWaterResistance) scores['Omnipod 5'] += 18;    // Waterproof pod
-  if (needsWaterResistance) scores['Tandem Mobi'] += 10;  // 8ft water resistant
+PATIENT'S FREE TEXT:
+"${freeText}"
+
+YOUR TASK:
+1. Extract all relevant needs/desires/pain points (ignore keywords, focus on INTENT)
+2. Map each need to specific pump dimensions (1-23)
+3. Score each pump (0-25 points) based on how well it addresses ALL extracted needs
+4. Provide clear reasoning citing dimensions
+
+23 PUMP DIMENSIONS:
+1. Battery life & power
+2. Phone control & app features
+3. Tubing preference & wear style
+4. Automation behavior & algorithm
+5. CGM compatibility
+6. Target adjustability
+7. Exercise modes & activity support
+8. Manual bolus workflow
+9. Reservoir/pod capacity
+10. Adhesive & site tolerance
+11. Water resistance & swimming
+12. Alerts & alarms customization
+13. User interface design
+14. Data sharing & connectivity
+15. Clinic support & availability
+16. Travel & airport logistics
+17. Pediatric & caregiver features
+18. Visual discretion & size
+19. Ecosystem & accessories
+20. Reliability & occlusion handling
+21. Cost & insurance coverage
+22. On-body comfort & wearability
+23. Support apps & software updates
+
+PUMP STRENGTHS (use this to score):
+
+MEDTRONIC 780G:
+- Dimension 1: AA batteries (swap anywhere)
+- Dimension 4: Most aggressive (100% corrections)
+- Dimension 11: Best submersible (12 feet × 24 hours)
+- Dimension 9: 300 units, 7-day wear
+- Dimension 16: Easy travel (batteries anywhere)
+
+TANDEM T:SLIM X2:
+- Dimension 13: Touchscreen (smartphone-like)
+- Dimension 5: Multiple CGMs (Dexcom, Libre 2+, Libre 3+)
+- Dimension 7: Dedicated exercise mode
+- Dimension 2: Phone bolusing + pump touchscreen
+- Dimension 17: Remote bolus (Tandem Source for caregivers)
+
+TANDEM MOBI:
+- Dimension 18: SMALLEST pump ever made
+- Dimension 2: iPhone-only full app control
+- Dimension 1: Wireless charging
+- Dimension 22: Forget wearing it, ultra-light
+
+OMNIPOD 5:
+- Dimension 3: COMPLETELY TUBELESS
+- Dimension 1: Never charge (integrated battery)
+- Dimension 11: Swim without disconnect
+- Dimension 2: Phone OR controller (iOS/Android)
+- Dimension 10: Multiple wear sites
+
+BETA BIONICS ILET:
+- Dimension 8: NO CARB COUNTING (meal announcements)
+- Dimension 4: Hands-off automation
+- Dimension 12: Minimal alerts (only 4)
+- Dimension 17: Simple for kids
+- Dimension 8: Meal sizes (small/medium/large)
+
+TWIIST:
+- Dimension 19: Apple Watch bolusing (dose from wrist!)
+- Dimension 22: Lightest pump (2 ounces)
+- Dimension 8: Emoji interface (food pics)
+- Dimension 23: Automatic OTA updates
+- Dimension 2: Full Apple integration
+
+SCORING RULES:
+- Perfect fit for stated need: +5 to +8 points per pump
+- Good fit: +3 to +5 points
+- Mentioned but not primary: +1 to +2 points
+- Not relevant: 0 points
+- MAXIMUM total per pump: +25 points
+
+EXAMPLES:
+
+Example 1: "I love to swim and I'm in the pool every day"
+INTENT: Needs excellent water resistance for daily swimming
+DIMENSION: #11 (Water resistance)
+SCORING:
+- Medtronic 780G: +8 (12 feet submersible, best rating)
+- Omnipod 5: +7 (8 feet, no tubes in water)
+- Tandem Mobi: +5 (8 feet, can swim)
+- Beta Bionics iLet: +4 (12 feet but 30 mins only)
+- Tandem t:slim X2: +0 (must disconnect)
+- Twiist: +0 (not submersible)
+
+Example 2: "Carb counting is exhausting"
+INTENT: Burnout on carbs, wants simplified bolusing
+DIMENSION: #8 (Bolus workflow)
+SCORING:
+- Beta Bionics iLet: +8 (NO carb counting)
+- Twiist: +3 (emoji interface simplifies)
+- Omnipod 5: +2 (food library helps)
+- Others: +1 (still require carbs)
+
+Example 3: "I need something for my teenager"
+INTENT: Pediatric use, caregiver needs
+DIMENSIONS: #17 (Pediatric), #2 (Phone control)
+SCORING:
+- Tandem t:slim X2: +8 (remote bolus for parents)
+- Beta Bionics iLet: +7 (simple for kids)
+- Tandem Mobi: +7 (phone control)
+- Omnipod 5: +6 (popular with kids, View app)
+- Medtronic 780G: +4 (caregiver app, no remote bolus)
+- Twiist: +3 (caregiver app coming)
+
+OUTPUT FORMAT (JSON):
+{
+  "extractedIntents": [
+    {
+      "intent": "string describing what patient truly needs",
+      "dimensions": [array of dimension numbers 1-23],
+      "confidence": "high|medium|low",
+      "keywords_detected": ["actual phrases from text"]
+    }
+  ],
+  "pumpScores": {
+    "Medtronic 780G": {
+      "points": 0-25,
+      "reasoning": "string explaining score citing dimensions"
+    },
+    "Tandem t:slim X2": { "points": 0-25, "reasoning": "string" },
+    "Tandem Mobi": { "points": 0-25, "reasoning": "string" },
+    "Omnipod 5": { "points": 0-25, "reasoning": "string" },
+    "Beta Bionics iLet": { "points": 0-25, "reasoning": "string" },
+    "Twiist": { "points": 0-25, "reasoning": "string" }
+  },
+  "dimensionsCovered": [array of dimension numbers that were addressed],
+  "dimensionsMissing": [array of dimension numbers NOT addressed - important for Context 7]
+}
+
+NOW ANALYZE THE PATIENT'S TEXT AND RETURN JSON.`;
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: process.env.VITE_OPENAI_MODEL_STAGE4 || 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: 'Extract patient intent, not keywords. Return valid JSON only.' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.3,
+      max_tokens: 1000,
+      response_format: { type: 'json_object' }
+    });
+
+    const analysis = JSON.parse(response.choices[0].message.content);
+    console.log('[V3] Stage 4 complete:', analysis);
+    return analysis;
+  } catch (error) {
+    console.error('[V3] Stage 4 error:', error);
+    // Return zero scores on error
+    return {
+      extractedIntents: [{ intent: 'Error analyzing text', dimensions: [], confidence: 'low', keywords_detected: [] }],
+      pumpScores: {
+        'Medtronic 780G': { points: 0, reasoning: 'AI error' },
+        'Tandem t:slim X2': { points: 0, reasoning: 'AI error' },
+        'Tandem Mobi': { points: 0, reasoning: 'AI error' },
+        'Omnipod 5': { points: 0, reasoning: 'AI error' },
+        'Beta Bionics iLet': { points: 0, reasoning: 'AI error' },
+        'Twiist': { points: 0, reasoning: 'AI error' }
+      },
+      dimensionsCovered: [],
+      dimensionsMissing: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23]
+    };
+  }
+}
+
+// ===================================
+// STAGE 5: Context 7 Follow-up Question (±5%)
+// ===================================
+async function generateContext7Question(scores, freeTextAnalysis, userData) {
+  console.log('[V3] Stage 5: Checking if Context 7 question needed');
+
+  // Check for close competitors (within 10%)
+  const sortedScores = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+  const topScore = sortedScores[0][1];
+  const closeCompetitors = sortedScores.filter(([_, s]) => topScore - s <= 10);
+
+  if (closeCompetitors.length <= 1) {
+    console.log('[V3] Stage 5: Clear winner, no question needed');
+    return null; // Clear winner
+  }
+
+  console.log('[V3] Stage 5: Close scores detected, generating clarifying question');
+
+  const prompt = `Generate ONE clarifying question to differentiate these pumps.
+
+CLOSE SCORES:
+${closeCompetitors.map(([name, score]) => `${name}: ${score}%`).join('\n')}
+
+DIMENSIONS NOT ADDRESSED:
+${freeTextAnalysis.dimensionsMissing.join(', ')}
+
+PATIENT DATA:
+Sliders: ${JSON.stringify(userData.sliders)}
+Features: ${userData.features?.map(f => f.title || f.id).join(', ')}
+Free Text Intents: ${freeTextAnalysis.extractedIntents.map(i => i.intent).join('; ')}
+
+Generate a multiple-choice question with 3 options that will help decide between these pumps.
+Include boost/penalty values for each option.
+
+OUTPUT (JSON):
+{
+  "question": "Which matters more to you?",
+  "context": "Explanation of why this question helps",
+  "dimension": dimension_number,
+  "options": [
+    {
+      "text": "Option 1 text",
+      "boosts": { "Pump A": 5, "Pump B": -2 }
+    },
+    {
+      "text": "Option 2 text",
+      "boosts": { "Pump B": 5, "Pump A": -2 }
+    },
+    {
+      "text": "Both are important",
+      "boosts": { "Pump A": 2, "Pump B": 2 }
+    }
+  ]
+}`;
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: process.env.VITE_OPENAI_MODEL_STAGE5 || 'gpt-4o',
+      messages: [
+        { role: 'system', content: 'Generate smart clarifying questions. Return valid JSON only.' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.4,
+      max_tokens: 500,
+      response_format: { type: 'json_object' }
+    });
+
+    const question = JSON.parse(response.choices[0].message.content);
+    console.log('[V3] Stage 5 complete:', question);
+    return question;
+  } catch (error) {
+    console.error('[V3] Stage 5 error:', error);
+    return null;
+  }
+}
+
+function applyContext7Boosts(scores, context7Answer, context7Question) {
+  if (!context7Answer || !context7Question) return scores;
+
+  console.log('[V3] Stage 5: Applying Context 7 boosts');
+
+  const selectedOption = context7Question.options[context7Answer];
+  if (selectedOption && selectedOption.boosts) {
+    Object.entries(selectedOption.boosts).forEach(([pump, points]) => {
+      scores[pump] += points;
+    });
+  }
+
+  console.log('[V3] Stage 5 boosts applied:', scores);
+  return scores;
+}
+
+// ===================================
+// STAGE 6: Final AI Analysis with 23 Dimensions (0-20%)
+// ===================================
+async function performFinalAIAnalysis(currentScores, userData, freeTextAnalysis, dimensions) {
+  console.log('[V3] Stage 6: Final AI analysis with 23 dimensions');
+
+  // Format dimensions for prompt
+  const formatDimensions = (dims) => {
+    return dims.map(dim => {
+      const pumpDetails = typeof dim.pump_details === 'string'
+        ? JSON.parse(dim.pump_details)
+        : dim.pump_details;
+
+      return `${dim.dimension_number}. ${dim.dimension_name}: ${dim.dimension_description}
+${Object.entries(pumpDetails).map(([pump, detail]) => `  - ${pump}: ${detail}`).join('\n')}`;
+    }).join('\n\n');
+  };
+
+  const prompt = `Final scoring review with comprehensive 23-dimension analysis.
+
+CURRENT SCORES (after 5 stages):
+${Object.entries(currentScores).map(([name, score]) => `${name}: ${Math.round(score)}%`).join('\n')}
+
+PATIENT PROFILE:
+Sliders: ${JSON.stringify(userData.sliders)}
+Features: ${userData.features?.map(f => f.title || f.id).join(', ')}
+Free Text: "${userData.freeText?.currentSituation || 'Not provided'}"
+Extracted Intents: ${freeTextAnalysis.extractedIntents.map(i => i.intent).join('; ')}
+
+23-DIMENSION DATABASE:
+${formatDimensions(dimensions.dimensions || [])}
+
+YOUR TASK:
+1. Identify the MOST critical dimensions for THIS patient
+2. Assess each pump's alignment across those dimensions
+3. Award 0-20 bonus points per pump based on comprehensive fit
+4. Cite specific dimensions in all reasoning
+5. Explain why top pump is best match
+
+CRITICAL: Base your analysis on:
+- Which dimensions matter most to THIS patient
+- How well each pump excels in those specific dimensions
+- Any dimension gaps the patient hasn't considered but should
+
+OUTPUT (JSON):
+{
+  "finalScores": {
+    "Medtronic 780G": {
+      "score": current_score_plus_bonus,
+      "dimensionBonus": 0-20,
+      "keyDimensions": [numbers],
+      "reasoning": "string citing dimensions"
+    },
+    "Tandem t:slim X2": { ... },
+    "Tandem Mobi": { ... },
+    "Omnipod 5": { ... },
+    "Beta Bionics iLet": { ... },
+    "Twiist": { ... }
+  },
+  "topChoice": {
+    "name": "Pump Name",
+    "finalScore": number,
+    "primaryReasons": [
+      "Dimension X: Specific strength",
+      "Dimension Y: Specific strength",
+      "Dimension Z: Specific strength"
+    ]
+  },
+  "dimensionBreakdown": {
+    "mostRelevant": [
+      { "number": X, "name": "Dimension name", "winner": "Pump" }
+    ]
+  }
+}`;
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: process.env.VITE_OPENAI_MODEL_STAGE6 || 'gpt-4o',
+      messages: [
+        { role: 'system', content: 'Expert diabetes educator analyzing 23 pump dimensions. Return valid JSON only.' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.3,
+      max_tokens: 2000,
+      response_format: { type: 'json_object' }
+    });
+
+    const analysis = JSON.parse(response.choices[0].message.content);
+    console.log('[V3] Stage 6 complete:', analysis);
+    return analysis;
+  } catch (error) {
+    console.error('[V3] Stage 6 error:', error);
+    // Return current scores without bonus
+    return {
+      finalScores: Object.fromEntries(
+        Object.entries(currentScores).map(([pump, score]) => [
+          pump,
+          { score, dimensionBonus: 0, keyDimensions: [], reasoning: 'AI analysis unavailable' }
+        ])
+      ),
+      topChoice: {
+        name: Object.entries(currentScores).sort((a, b) => b[1] - a[1])[0][0],
+        finalScore: Math.round(Object.entries(currentScores).sort((a, b) => b[1] - a[1])[0][1]),
+        primaryReasons: ['Based on slider and feature preferences']
+      },
+      dimensionBreakdown: { mostRelevant: [] }
+    };
+  }
+}
+
+// ===================================
+// MAIN: V3 Orchestrator Function (All 6 Stages)
+// ===================================
+async function generatePumpRecommendationsV3(userData) {
+  console.log('[V3] ====== Starting PumpDrive V3.0 Recommendation Engine ======');
+
+  try {
+    // Stage 1: Initialize base scores (30%)
+    let scores = initializeScores();
+
+    // Stage 2: Apply slider adjustments (±12%)
+    scores = applySliderAdjustments(scores, userData.sliders || {});
+
+    // Stage 3: Apply feature adjustments (±8%)
+    scores = applyFeatureAdjustments(scores, userData.features || []);
+
+    // Stage 4: AI-powered free text analysis (0-25%)
+    const freeTextAnalysis = await analyzeFreeTextWithAI(userData.freeText?.currentSituation || '');
+
+    // Apply free text scores
+    Object.entries(freeTextAnalysis.pumpScores).forEach(([pump, data]) => {
+      scores[pump] += data.points;
+    });
+    console.log('[V3] After Stage 4 (free text):', scores);
+
+    // Stage 5: Context 7 question (±5%)
+    let context7Question = null;
+    if (!userData.context7Answer) {
+      // Generate question if not already answered
+      context7Question = await generateContext7Question(scores, freeTextAnalysis, userData);
+
+      if (context7Question) {
+        // Return question to frontend for user to answer
+        return {
+          needsContext7: true,
+          context7Question: context7Question,
+          currentScores: scores,
+          freeTextAnalysis: freeTextAnalysis
+        };
+      }
+    } else {
+      // Apply user's answer
+      scores = applyContext7Boosts(scores, userData.context7Answer, userData.context7QuestionData);
+    }
+
+    // Stage 6: Final AI analysis with 23 dimensions (0-20%)
+    const dimensions = await fetchPumpComparisonData();
+    const finalAnalysis = await performFinalAIAnalysis(scores, userData, freeTextAnalysis, dimensions);
+
+    // Cap all scores at 100
+    const cappedScores = Object.fromEntries(
+      Object.entries(finalAnalysis.finalScores).map(([pump, data]) => [
+        pump,
+        { ...data, score: Math.min(100, Math.round(data.score)) }
+      ])
+    );
+
+    // Sort and format final result
+    const sorted = Object.entries(cappedScores).sort((a, b) => b[1].score - a[1].score);
+
+    console.log('[V3] ====== V3.0 Recommendation Complete ======');
+    console.log('[V3] Final scores:', sorted.map(([name, data]) => `${name}: ${data.score}%`).join(', '));
+
+    return {
+      overallTop: [{
+        pumpName: sorted[0][0],
+        score: sorted[0][1].score,
+        reasons: finalAnalysis.topChoice.primaryReasons,
+        keyDimensions: sorted[0][1].keyDimensions,
+        reasoning: sorted[0][1].reasoning
+      }],
+      alternatives: sorted.slice(1, 3).map(([name, data]) => ({
+        pumpName: name,
+        score: data.score,
+        reasons: data.reasoning.split('. ').slice(0, 3),
+        keyDimensions: data.keyDimensions
+      })),
+      allPumps: sorted.map(([name, data]) => ({
+        pumpName: name,
+        score: data.score,
+        keyDimensions: data.keyDimensions,
+        reasoning: data.reasoning
+      })),
+      keyFactors: finalAnalysis.dimensionBreakdown.mostRelevant.map(d => d.name),
+      personalizedInsights: `Based on comprehensive analysis across 23 dimensions, we recommend the ${sorted[0][0]}. ${finalAnalysis.topChoice.primaryReasons[0]}. This pump scores ${sorted[0][1].score}% compatibility with your needs.`,
+      scoringVersion: 'V3.0-full',
+      stagesCompleted: ['base', 'sliders', 'features', 'freetext-ai', context7Question ? 'context7' : null, 'final-ai'].filter(Boolean),
+      freeTextAnalysis: freeTextAnalysis,
+      dimensionBreakdown: finalAnalysis.dimensionBreakdown
+    };
+
+  } catch (error) {
+    console.error('[V3] Error in V3 recommendation engine:', error);
+    // Fallback to rule-based
+    console.log('[V3] Falling back to rule-based recommendations');
+    return generateRuleBasedRecommendations(userData);
+  }
+}
+
+// ===================================
+// WRAPPER: Fallback function (Stages 1-3 only)
+// ===================================
+function generateRuleBasedRecommendations(userData) {
+  console.log('[V3] Running fallback mode (Stages 1-3 only)');
+  const sliders = userData.sliders || {};
+  const features = userData.features || [];
+
+  // Stage 1: Base scores
+  let scores = initializeScores();
+
+  // Stage 2: Slider adjustments
+  scores = applySliderAdjustments(scores, sliders);
+
+  // Stage 3: Feature adjustments
+  scores = applyFeatureAdjustments(scores, features);
 
   // Sort by score
   const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
-
   const topChoice = sorted[0];
   const alternatives = sorted.slice(1, 3);
 
@@ -3358,41 +4104,26 @@ function generateRuleBasedRecommendations(userData) {
     ]
   };
 
-  const keyFactors = [];
-  if (wantsSimplicity) keyFactors.push('Ease of use and simplicity');
-  if (wantsDiscretion) keyFactors.push('Small size and discretion');
-  if (isActive) keyFactors.push('Active lifestyle compatibility');
-  if (sliders.techComfort >= 6) keyFactors.push('Advanced technology features');
-  if (prefersSmall) keyFactors.push('Compact design preference');
-  if (prefersLightweight) keyFactors.push('Ultra-lightweight preference');
-  if (needsWaterResistance) keyFactors.push('Water resistance for swimming/showering');
-  if (carbBurnout) keyFactors.push('Simplify carb counting');
-
-  // Build personalized insights
-  let insightParts = [];
-  if (prefersLightweight) insightParts.push('lightest weight (2 oz)');
-  if (prefersSmall) insightParts.push('compact size');
-  if (prefersTubeless) insightParts.push('tubeless design');
-  if (needsWaterResistance) insightParts.push('water resistance');
-  if (carbBurnout) insightParts.push('no carb counting');
-
-  const preferenceText = insightParts.length > 0
-    ? ` (especially ${insightParts.join(', ')})`
-    : '';
-
   return {
     overallTop: [{
       pumpName: topChoice[0],
-      score: topChoice[1],
+      score: Math.round(topChoice[1]),
       reasons: reasons[topChoice[0]]
     }],
     alternatives: alternatives.map(([name, score]) => ({
       pumpName: name,
-      score: score,
+      score: Math.round(score),
       reasons: reasons[name]
     })),
-    keyFactors: keyFactors.length > 0 ? keyFactors : ['Your lifestyle preferences', 'Ease of use', 'Technology comfort level'],
-    personalizedInsights: `Based on your preferences${preferenceText}, we recommend the ${topChoice[0]}. ${reasons[topChoice[0]][0]}. This pump scores ${topChoice[1]}% compatibility with your needs.`
+    keyFactors: [
+      sliders.simplicity >= 7 ? 'Ease of use and simplicity' : null,
+      sliders.discreteness >= 7 ? 'Small size and discretion' : null,
+      sliders.activity >= 6 ? 'Active lifestyle compatibility' : null,
+      sliders.techComfort >= 6 ? 'Advanced technology features' : null
+    ].filter(Boolean),
+    personalizedInsights: `Based on your preferences, we recommend the ${topChoice[0]}. ${reasons[topChoice[0]][0]}. This pump scores ${Math.round(topChoice[1])}% compatibility with your needs.`,
+    scoringVersion: 'V3.0-fallback',
+    stagesCompleted: ['base', 'sliders', 'features']
   };
 }
 
@@ -3455,15 +4186,15 @@ async function fetchPumpComparisonData() {
 async function generatePumpRecommendations(userData) {
   // Check if OpenAI is configured
   if (!process.env.VITE_OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY === 'your_openai_api_key_here') {
-    console.log('OpenAI not configured - using rule-based recommendations');
+    console.log('OpenAI not configured - using rule-based recommendations (V3 fallback)');
     return generateRuleBasedRecommendations(userData);
   }
 
   try {
-    console.log('=== Using OpenAI-Powered Recommendation Engine ===');
-    return await pumpEngine.generatePumpRecommendationsOpenAI(openai, OPENAI_MODELS, userData);
+    console.log('=== Using PumpDrive V3.0 Recommendation Engine ===');
+    return await generatePumpRecommendationsV3(userData);
   } catch (error) {
-    console.error('Error in OpenAI recommendation engine:', error);
+    console.error('Error in V3 recommendation engine:', error);
     console.log('Falling back to rule-based recommendations');
     return generateRuleBasedRecommendations(userData);
   }
