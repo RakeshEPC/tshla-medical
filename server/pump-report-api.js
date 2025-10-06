@@ -573,7 +573,7 @@ app.post('/api/auth/login', async (req, res) => {
     try {
       const [users] = await connection.execute(
         `SELECT id, email, username, password_hash, first_name, last_name, phone_number,
-                current_payment_status, is_research_participant, is_active, is_admin
+                current_payment_status, is_research_participant, is_active
          FROM pump_users WHERE email = ?`,
         [email]
       );
@@ -611,13 +611,16 @@ app.post('/api/auth/login', async (req, res) => {
         });
       }
 
+      // Determine admin role from email (consistent with registration logic)
+      const isAdmin = ['rakesh@tshla.ai', 'admin@tshla.ai'].includes(email.toLowerCase());
+
       const token = jwt.sign(
         {
           userId: user.id,
           email: user.email,
           username: user.username,
           isResearchParticipant: user.is_research_participant,
-          role: user.is_admin ? 'admin' : 'user'
+          role: isAdmin ? 'admin' : 'user'
         },
         jwtSecret,
         { expiresIn: '24h' }

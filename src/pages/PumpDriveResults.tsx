@@ -125,10 +125,19 @@ export default function PumpDriveResults() {
     try {
       logDebug('PumpDriveResults', 'Saving assessment to database', {});
 
+      // Validate recommendation data
+      if (!recommendationData?.topRecommendation?.name) {
+        console.log('⚠️ Cannot save - recommendation data incomplete');
+        logWarn('PumpDriveResults', 'Incomplete recommendation data, skipping save', {});
+        return;
+      }
+
       // Get current user
       const currentUser = pumpAuthService.getUser();
       if (!currentUser) {
         logWarn('PumpDriveResults', 'No authenticated user found, skipping database save', {});
+        // Store in sessionStorage as fallback
+        sessionStorage.setItem('pumpdrive_unsaved_recommendation', JSON.stringify(recommendationData));
         return;
       }
 
@@ -175,10 +184,27 @@ export default function PumpDriveResults() {
 
         // Update session storage to include assessment ID for future reference
         sessionStorage.setItem('pumpdrive_assessment_id', result.assessmentId.toString());
+        // Clear unsaved fallback
+        sessionStorage.removeItem('pumpdrive_unsaved_recommendation');
       }
     } catch (error) {
-      logError('PumpDriveResults', 'Failed to save assessment to database', { error });
-      // Don't block the UI if database save fails
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.log('⚠️ Assessment save failed (non-blocking):', errorMessage);
+      logError('PumpDriveResults', 'Failed to save assessment to database', { error: errorMessage });
+
+      // Check if it's an auth error (401/403)
+      if (errorMessage.includes('401') || errorMessage.includes('403') || errorMessage.includes('Unauthorized')) {
+        console.log('   Reason: Auth error - storing in sessionStorage as fallback');
+        logWarn('PumpDriveResults', 'Authentication error during save - storing locally', {});
+        // Store in sessionStorage as fallback so we don't lose the data
+        sessionStorage.setItem('pumpdrive_unsaved_recommendation', JSON.stringify(recommendationData));
+        // Don't redirect or throw - just continue showing results
+        console.log('   ✅ Results will still be shown to user');
+      } else {
+        console.log('   Reason: Non-auth error - still showing results');
+        // Non-auth error - still don't block UI, just log it
+        logWarn('PumpDriveResults', 'Non-auth error during save - results still shown', { error: errorMessage });
+      }
     }
   };
 
@@ -372,7 +398,43 @@ export default function PumpDriveResults() {
             console.log('PumpDriveResults: Attempting Azure AI fallback via pumpDriveAIService');
             const azureResult = await pumpDriveAIService.processSimplifiedFlow();
             console.log('PumpDriveResults: Azure AI fallback successful:', azureResult);
-            setRecommendation(azureResult);
+            console.log('PumpDriveResults: Azure result type:', typeof azureResult);
+            console.log('PumpDriveResults: Azure result keys:', Object.keys(azureResult));
+            console.log('PumpDriveResults: Azure topRecommendation:', azureResult.topRecommendation);
+
+            // Check if Azure result is already in the correct format
+            if (azureResult.topRecommendation && azureResult.topRecommendation.name) {
+              console.log('✅ Azure result is in correct format, using directly');
+              setRecommendation(azureResult);
+            } else {
+              console.log('⚠️ Azure result needs conversion');
+              // Azure result might be in legacy format, try to convert it
+              const convertedResult: PumpRecommendation = {
+                topRecommendation: {
+                  name: azureResult.topChoice?.name || azureResult.topChoice?.pumpName || 'Omnipod 5',
+                  score: azureResult.topChoice?.score || 85,
+                  explanation: azureResult.personalizedInsights || 'A great insulin pump option for your needs.',
+                  keyFeatures: azureResult.topChoice?.reasons?.slice(0, 3) || ['User-friendly', 'Advanced automation', 'Reliable'],
+                  pros: azureResult.topChoice?.reasons || ['Excellent choice for your lifestyle'],
+                  cons: ['Consult with your healthcare provider'],
+                },
+                alternatives: (azureResult.alternatives || []).map((alt: any, index: number) => ({
+                  name: alt.name || alt.pumpName || `Alternative ${index + 1}`,
+                  score: alt.score || 80,
+                  explanation: alt.reasons?.join('. ') || 'Strong alternative option',
+                  keyFeatures: alt.reasons?.slice(0, 2) || ['Advanced features'],
+                })),
+                decisionSummary: {
+                  userPriorities: azureResult.keyFactors || ['Your key preferences'],
+                  keyFactors: azureResult.keyFactors || [],
+                  confidence: 90,
+                },
+                detailedAnalysis: azureResult.personalizedInsights || '',
+              };
+              console.log('✅ Converted Azure result:', convertedResult);
+              setRecommendation(convertedResult);
+            }
+
             setLoading(false);
 
             // Save assessment to database

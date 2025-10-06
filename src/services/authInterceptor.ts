@@ -40,20 +40,49 @@ export const handleAuthError = (error: any, isRetry = false): Promise<never> => 
   if (status === 401 || status === 403) {
     console.log('Authentication error detected, clearing session and redirecting to login');
 
-    // Clear all auth tokens
-    clearAuthSession();
+    // Determine which auth system we're using based on current path
+    const currentPath = window.location.pathname;
+    const isPumpDrive = currentPath.startsWith('/pumpdrive');
+
+    // IMPORTANT: Don't clear tokens on results/assessment pages
+    // Let the page handle auth errors gracefully without losing user's work
+    const protectedPaths = ['/pumpdrive/results', '/pumpdrive/assessment', '/pumpdrive/report'];
+    const isProtectedPath = protectedPaths.some(path => currentPath.startsWith(path));
+
+    if (isProtectedPath) {
+      console.log('⚠️ Auth error on protected path - NOT clearing tokens, letting page handle it');
+      console.log('   Path:', currentPath);
+      // Just reject the error, don't clear storage or redirect
+      // The individual page components can decide how to handle auth failures
+      return Promise.reject(error);
+    }
+
+    // Clear appropriate auth tokens
+    if (isPumpDrive) {
+      // Clear only PumpDrive tokens, not medical app tokens
+      localStorage.removeItem('pump_auth_token');
+      localStorage.removeItem('pump_user_data');
+      console.log('PumpDrive auth cleared');
+    } else {
+      // Clear all medical app auth tokens
+      clearAuthSession();
+    }
 
     // Show user-friendly message
     const message = 'Your session has expired. Please login again.';
 
     // Store the current path to redirect back after login
-    const currentPath = window.location.pathname;
-    if (currentPath !== '/login' && currentPath !== '/') {
-      sessionStorage.setItem('redirect_after_login', currentPath);
+    if (isPumpDrive) {
+      sessionStorage.setItem('pumpDriveRedirectAfterLogin', currentPath);
+      // Redirect to PumpDrive login
+      window.location.href = `/pumpdrive/login?message=${encodeURIComponent(message)}`;
+    } else {
+      if (currentPath !== '/login' && currentPath !== '/') {
+        sessionStorage.setItem('redirect_after_login', currentPath);
+      }
+      // Redirect to main medical app login
+      window.location.href = `/login?message=${encodeURIComponent(message)}`;
     }
-
-    // Redirect to login with message
-    window.location.href = `/login?message=${encodeURIComponent(message)}`;
   }
 
   return Promise.reject(error);

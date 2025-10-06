@@ -166,12 +166,22 @@ class PumpAuthService {
       }
 
       // Store token and user data
+      console.log('💾 Storing auth data to localStorage...');
       if (result.token) {
+        console.log(`   Storing token with key: "${this.tokenKey}"`);
+        console.log(`   Token preview: ${result.token.substring(0, 30)}...`);
         localStorage.setItem(this.tokenKey, result.token);
+      } else {
+        console.warn('   ⚠️ No token in response!');
       }
       if (result.user) {
+        console.log(`   Storing user with key: "${this.userKey}"`);
+        console.log('   User data:', result.user);
         localStorage.setItem(this.userKey, JSON.stringify(result.user));
+      } else {
+        console.warn('   ⚠️ No user in response!');
       }
+      console.log('✅ Auth data stored successfully');
 
       logInfo('PumpAuth', 'User logged in successfully', {
         userId: result.user?.id,
@@ -265,19 +275,32 @@ class PumpAuthService {
    * Get stored authentication token
    */
   getToken(): string | null {
-    return localStorage.getItem(this.tokenKey);
+    const token = localStorage.getItem(this.tokenKey);
+    console.log(`🔍 pumpAuthService.getToken() called - Looking for key: "${this.tokenKey}"`);
+    console.log(`   Result: ${token ? 'TOKEN FOUND' : 'TOKEN NOT FOUND'}`);
+    if (token) {
+      console.log(`   Token preview: ${token.substring(0, 30)}...`);
+    }
+    return token;
   }
 
   /**
    * Get stored user data
    */
   getUser(): User | null {
+    console.log(`🔍 pumpAuthService.getUser() called - Looking for key: "${this.userKey}"`);
     const userData = localStorage.getItem(this.userKey);
-    if (!userData) return null;
+    if (!userData) {
+      console.log('   Result: USER DATA NOT FOUND');
+      return null;
+    }
 
     try {
-      return JSON.parse(userData);
+      const user = JSON.parse(userData);
+      console.log('   Result: USER DATA FOUND', user);
+      return user;
     } catch (error) {
+      console.warn('   Result: FAILED TO PARSE USER DATA', error);
       logWarn('PumpAuth', 'Failed to parse stored user data', { error });
       return null;
     }

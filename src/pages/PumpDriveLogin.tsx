@@ -41,12 +41,16 @@ export default function PumpDriveLogin() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    console.log('🔍 Login form submitted', { email: formData.email });
+
     const validationErrors = validateForm();
     if (Object.keys(validationErrors).length > 0) {
+      console.log('❌ Validation errors:', validationErrors);
       setErrors(validationErrors);
       return;
     }
 
+    console.log('✅ Validation passed, submitting login...');
     setIsSubmitting(true);
     setErrors({});
 
@@ -56,28 +60,35 @@ export default function PumpDriveLogin() {
         password: formData.password
       };
 
+      console.log('🌐 Calling pumpAuthService.login...');
       const result = await pumpAuthService.login(loginCredentials);
+      console.log('📦 Login result:', result);
 
       if (result.success) {
+        console.log('✅ Login successful!');
         // Login successful, check if there's a redirect path
         const redirectPath = sessionStorage.getItem('pumpDriveRedirectAfterLogin');
         if (redirectPath) {
+          console.log('↪️ Redirecting to saved path:', redirectPath);
           sessionStorage.removeItem('pumpDriveRedirectAfterLogin');
           navigate(redirectPath);
         } else {
+          console.log('↪️ Redirecting to /pumpdrive');
           // Default redirect to PumpDrive assessment
           navigate('/pumpdrive');
         }
       } else {
+        console.log('❌ Login failed:', result.message);
         setErrors({ general: result.message });
       }
     } catch (error) {
-      console.error('Login failed:', error);
+      console.error('❌ Login error:', error);
       setErrors({
         general: error instanceof Error ? error.message : 'Login failed. Please try again.'
       });
     } finally {
       setIsSubmitting(false);
+      console.log('🏁 Login process complete');
     }
   };
 

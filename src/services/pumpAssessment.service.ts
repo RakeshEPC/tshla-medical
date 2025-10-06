@@ -125,6 +125,12 @@ class PumpAssessmentService {
       });
 
       if (!response.ok) {
+        // Handle authentication errors gracefully
+        if (response.status === 401 || response.status === 403) {
+          logWarn('PumpAssessment', 'Authentication error - user may need to login', { status: response.status });
+          throw new Error(`Unauthorized: ${response.status}`);
+        }
+
         const errorData = await response.json();
         throw new Error(errorData.message || `HTTP ${response.status}`);
       }

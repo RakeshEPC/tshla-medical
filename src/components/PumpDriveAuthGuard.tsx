@@ -16,11 +16,22 @@ export default function PumpDriveAuthGuard({ children }: PumpDriveAuthGuardProps
 
   const checkAuthentication = async () => {
     try {
+      console.log('🔐 PumpDriveAuthGuard: Checking authentication...');
+      console.log('📍 Current path:', location.pathname);
+
       // Check if user has valid token and access
       const token = pumpAuthService.getToken();
       const user = pumpAuthService.getUser();
 
+      console.log('🔑 Token exists:', !!token);
+      console.log('👤 User exists:', !!user);
+      if (token) console.log('🔑 Token value (first 20 chars):', token.substring(0, 20) + '...');
+      if (user) console.log('👤 User data:', user);
+
       if (!token || !user) {
+        console.log('❌ Auth check FAILED - Missing token or user');
+        console.log('   Token:', token ? 'EXISTS' : 'MISSING');
+        console.log('   User:', user ? 'EXISTS' : 'MISSING');
         setIsAuthenticated(false);
         return;
       }
@@ -28,9 +39,10 @@ export default function PumpDriveAuthGuard({ children }: PumpDriveAuthGuardProps
       // No access expiry check - users have unlimited access
       // Just verify the token is valid
 
+      console.log('✅ Auth check PASSED - User is authenticated');
       setIsAuthenticated(true);
     } catch (error) {
-      console.error('Authentication check failed:', error);
+      console.error('❌ Authentication check failed:', error);
       setIsAuthenticated(false);
     }
   };
