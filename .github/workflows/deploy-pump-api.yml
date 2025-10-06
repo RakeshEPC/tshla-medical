@@ -1,15 +1,17 @@
 name: Deploy Pump API to Azure
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'server/pump-report-api.js'
-      - 'server/services/**'
-      - 'server/utils/**'
-      - 'server/package.json'
-      - '.github/workflows/deploy-pump-api.yml'
+  # DISABLED: Azure Web App 'tshla-pump-api' doesn't exist
+  # Use deploy-pump-api-container.yml instead for Container Apps deployment
+  # push:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - 'server/pump-report-api.js'
+  #     - 'server/services/**'
+  #     - 'server/utils/**'
+  #     - 'server/package.json'
+  #     - '.github/workflows/deploy-pump-api.yml'
   workflow_dispatch:
 
 env:
@@ -20,6 +22,7 @@ env:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    if: false  # Disabled - Web App doesn't exist, use Container Apps instead
 
     steps:
     - name: Checkout code
