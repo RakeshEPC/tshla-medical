@@ -4,7 +4,7 @@
  * Fallback for AWS Bedrock when unavailable
  */
 
-import { logInfo, logError, logDebug, logPerformance } from './logger.service';
+import { logInfo, logError, logDebug, logPerformance } from '../logger.service';
 
 interface ProcessedNote {
   formattedNote: string;

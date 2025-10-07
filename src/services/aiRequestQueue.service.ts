@@ -4,7 +4,7 @@
  * Ensures system scalability for multiple concurrent users
  */
 
-import { azureAIService } from './azureAI.service';
+import { azureAIService } from './_deprecated/azureAI.service';
 import { logError, logWarn, logInfo, logDebug } from './logger.service';
 
 interface QueuedRequest {

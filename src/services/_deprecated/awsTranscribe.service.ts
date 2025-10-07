@@ -9,7 +9,7 @@ import {
   MedicalContentIdentificationType,
   MedicalTranscriptResultStream
 } from '@aws-sdk/client-transcribe-streaming';
-import { logError, logWarn, logInfo, logDebug } from './logger.service';
+import { logError, logWarn, logInfo, logDebug } from '../logger.service';
 
 export type TranscriptionMode = 'DICTATION' | 'CONVERSATION';
 export type MedicalSpecialty = 'PRIMARYCARE' | 'CARDIOLOGY' | 'NEUROLOGY' | 'ONCOLOGY' | 'RADIOLOGY' | 'UROLOGY';

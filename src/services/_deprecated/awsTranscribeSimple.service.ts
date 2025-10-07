@@ -7,8 +7,8 @@ import {
   TranscribeStreamingClient, 
   StartMedicalStreamTranscriptionCommand 
 } from '@aws-sdk/client-transcribe-streaming';
-import { medicalVocabularyEnhancer } from './medicalVocabularyEnhancer.service';
-import { logError, logWarn, logInfo, logDebug } from './logger.service';
+import { medicalVocabularyEnhancer } from '../medicalVocabularyEnhancer.service';
+import { logError, logWarn, logInfo, logDebug } from '../logger.service';
 
 export class AWSTranscribeSimpleService {
   private client: TranscribeStreamingClient | null = null;

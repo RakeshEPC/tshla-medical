@@ -12,7 +12,7 @@ import {
   Type,
   Specialty
 } from '@aws-sdk/client-transcribe-streaming';
-import { logError, logWarn, logInfo, logDebug } from './logger.service';
+import { logError, logWarn, logInfo, logDebug } from '../logger.service';
 
 export interface TranscriptionResult {
   transcript: string;

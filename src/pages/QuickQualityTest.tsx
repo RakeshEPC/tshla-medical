@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { awsTranscribeSimple } from '../services/awsTranscribeSimple.service';
+import { awsTranscribeSimple } from '../services/_deprecated/awsTranscribeSimple.service';
 import { dictationService } from '../services/dictation.service';
 import { medicalVocabularyEnhancer } from '../services/medicalVocabularyEnhancer.service';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';

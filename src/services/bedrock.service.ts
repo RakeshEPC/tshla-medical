@@ -9,7 +9,7 @@ import type { PatientData } from './patientData.service';
 import { specialtyService } from './specialty.service';
 import type { DoctorTemplate, DoctorSettings } from './doctorProfile.service';
 import { orderExtractionService, type OrderExtractionResult } from './orderExtraction.service';
-import { azureOpenAIService } from './azureOpenAI.service';
+import { azureOpenAIService } from './_deprecated/azureOpenAI.service';
 import { localFallbackService } from './localFallback.service';
 import { logError, logWarn, logInfo, logDebug } from './logger.service';
 

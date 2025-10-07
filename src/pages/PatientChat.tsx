@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { patientService } from '../services/patient.service';
-import { awsTranscribeStreamingFixed as transcribeService } from '../services/awsTranscribeMedicalStreamingFixed.service';
+import { awsTranscribeStreamingFixed as transcribeService } from '../services/_deprecated/awsTranscribeMedicalStreamingFixed.service';
 import type { Patient, ChatMessage } from '../types/patient.types';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
 

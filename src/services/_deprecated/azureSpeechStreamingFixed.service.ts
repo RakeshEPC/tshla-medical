@@ -8,7 +8,7 @@
 
 import * as SpeechSDK from 'microsoft-cognitiveservices-speech-sdk';
 import { azureSpeechConfig } from './azureSpeechConfig.service';
-import { logError, logWarn, logInfo, logDebug } from './logger.service';
+import { logError, logWarn, logInfo, logDebug } from '../logger.service';
 
 export interface TranscriptionResult {
   transcript: string;

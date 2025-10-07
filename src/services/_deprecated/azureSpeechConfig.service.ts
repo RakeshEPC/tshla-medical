@@ -6,7 +6,7 @@
  */
 
 import * as SpeechSDK from 'microsoft-cognitiveservices-speech-sdk';
-import { logError, logWarn, logInfo, logDebug } from './logger.service';
+import { logError, logWarn, logInfo, logDebug } from '../logger.service';
 
 export interface AzureSpeechConfig {
   subscriptionKey: string;

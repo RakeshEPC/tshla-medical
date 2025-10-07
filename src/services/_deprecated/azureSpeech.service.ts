@@ -1,4 +1,4 @@
-import { logError, logWarn, logInfo, logDebug } from './logger.service';
+import { logError, logWarn, logInfo, logDebug } from '../logger.service';
 /**
  * Azure Speech Service - Production Ready
  * Handles common errors and works on both localhost and production

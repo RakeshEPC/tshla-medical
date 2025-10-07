@@ -4,14 +4,14 @@
  */
 
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
-import type { Template } from '../types/template.types';
-import type { PatientData } from './patientData.service';
-import { specialtyService } from './specialty.service';
+import type { Template } from '../../types/template.types';
+import type { PatientData } from '../patientData.service';
+import { specialtyService } from '../specialty.service';
 import type { DoctorTemplate, DoctorSettings } from './doctorProfile.service';
-import { orderExtractionService, type OrderExtractionResult } from './orderExtraction.service';
+import { orderExtractionService, type OrderExtractionResult } from '../orderExtraction.service';
 import { azureOpenAIService } from './azureOpenAI.service';
-import { medicalCorrections } from './medicalCorrections.service';
-import { logError, logWarn, logInfo, logDebug } from './logger.service';
+import { medicalCorrections } from '../medicalCorrections.service';
+import { logError, logWarn, logInfo, logDebug } from '../logger.service';
 
 export interface ProcessedNote {
   formatted: string;
@@ -1346,7 +1346,7 @@ export const azureAIService = new AzureAIService();
  * Migration from OpenAI to Bedrock:
  * 
  * OLD:
- * import { openAIService } from './openai.service';
+ * import { openAIService } from '../openai.service';
  * const result = await openAIService.processMedicalTranscription(...);
  * 
  * NEW:

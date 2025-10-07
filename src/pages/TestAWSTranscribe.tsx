@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { awsTranscribeStreamingFixed } from '../services/awsTranscribeMedicalStreamingFixed.service';
+import { awsTranscribeStreamingFixed } from '../services/_deprecated/awsTranscribeMedicalStreamingFixed.service';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
 
 export default function TestAWSTranscribe() {
