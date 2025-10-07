@@ -17,9 +17,9 @@ import { deepgramAdapter } from './deepgramAdapter.service';
 // import { azureSpeechSimple } from './azureSpeechSimple.service';
 import { logError, logWarn, logInfo, logDebug } from './logger.service';
 
-// AWS Transcribe Services (fallback)
-import { awsTranscribeStreamingFixed } from './awsTranscribeMedicalStreamingFixed.service';
-import { awsTranscribeSimple } from './awsTranscribeSimple.service';
+// AWS Transcribe Services (deprecated - moved to _deprecated/)
+// import { awsTranscribeStreamingFixed } from './_deprecated/awsTranscribeMedicalStreamingFixed.service';
+// import { awsTranscribeSimple } from './_deprecated/awsTranscribeSimple.service';
 
 export interface TranscriptionResult {
   transcript: string;
@@ -57,52 +57,30 @@ export interface SpeechServiceInterface {
 }
 
 class SpeechServiceRouter {
-  private primaryProvider: 'deepgram' | 'aws' | 'azure' = 'deepgram'; // Deepgram primary for cost and reliability
+  private primaryProvider: 'deepgram' = 'deepgram'; // Deepgram only (AWS/Azure deprecated)
 
   constructor() {
-    // Per CLAUDE.md and cost optimization: Deepgram > AWS > Azure
-    const envProvider = import.meta.env.VITE_PRIMARY_STT_PROVIDER;
-
-    if (envProvider === 'aws') {
-      this.primaryProvider = 'aws';
-    } else if (envProvider === 'azure') {
-      this.primaryProvider = 'azure';
-    } else {
-      this.primaryProvider = 'deepgram'; // Default to Deepgram for 83% cost savings
-    }
-
-    logInfo('speechServiceRouter', `Primary STT provider: ${this.primaryProvider}`);
+    // Deepgram is now the only supported STT provider
+    // AWS and Azure services have been moved to _deprecated/
+    this.primaryProvider = 'deepgram';
+    logInfo('speechServiceRouter', 'Primary STT provider: Deepgram (nova-2-medical)');
   }
 
   /**
    * Get the streaming service (main transcription interface)
    */
   getStreamingService(): SpeechServiceInterface {
-    // Priority: Deepgram SDK → Deepgram Adapter → AWS Transcribe (Azure removed due to quota issues)
-    if (this.primaryProvider === 'deepgram' && deepgramSDKService.isConfigured()) {
-      logInfo('speechServiceRouter', 'Using Deepgram SDK for streaming (primary)');
+    // Priority: Deepgram SDK (primary) → Deepgram Adapter (fallback)
+    // AWS and Azure services have been deprecated
+    if (deepgramSDKService.isConfigured()) {
+      logInfo('speechServiceRouter', 'Using Deepgram SDK for streaming');
       return deepgramSDKService;
-    } else if (this.primaryProvider === 'deepgram' && deepgramAdapter.isConfigured()) {
+    } else if (deepgramAdapter.isConfigured()) {
       logInfo('speechServiceRouter', 'Using Deepgram Adapter for streaming (fallback)');
       return deepgramAdapter;
-    } else if (this.primaryProvider === 'aws' && awsTranscribeStreamingFixed.isConfigured()) {
-      logInfo('speechServiceRouter', 'Using AWS Transcribe Medical for streaming');
-      return awsTranscribeStreamingFixed;
     } else {
-      // Fallback logic - prioritize Deepgram, avoid Azure due to quota issues
-      if (deepgramSDKService.isConfigured()) {
-        logWarn('speechServiceRouter', 'Falling back to Deepgram SDK');
-        return deepgramSDKService;
-      } else if (deepgramAdapter.isConfigured()) {
-        logWarn('speechServiceRouter', 'Falling back to Deepgram Adapter');
-        return deepgramAdapter;
-      } else if (awsTranscribeStreamingFixed.isConfigured()) {
-        logWarn('speechServiceRouter', 'Falling back to AWS Transcribe Medical (last resort)');
-        return awsTranscribeStreamingFixed;
-      } else {
-        logError('speechServiceRouter', 'No speech services available - Azure out of credits, check Deepgram/AWS config');
-        throw new Error('No speech transcription services available');
-      }
+      logError('speechServiceRouter', 'No speech services available - check Deepgram configuration');
+      throw new Error('Deepgram transcription service not configured. Please set VITE_DEEPGRAM_API_KEY');
     }
   }
 

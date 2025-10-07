@@ -22,7 +22,6 @@
     "helmet": "^7.0.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
-    "mysql2": "^3.14.4",
     "node-fetch": "^3.3.2",
     "nodemailer": "^6.9.0",
     "openai": "^6.1.0",

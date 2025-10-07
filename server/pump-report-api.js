@@ -9,14 +9,13 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
-const mysql = require('mysql2/promise');
+// MySQL removed - now using Supabase for all database operations
 const nodemailer = require('nodemailer');
 const stripe = require('stripe');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const OpenAI = require('openai');
-const unifiedDatabase = require('./services/unified-database.service');
-const DatabaseHelper = require('./utils/dbHelper');
+// unifiedDatabase service removed - using Supabase directly
 const pumpEngine = require('./pump-recommendation-engine-ai');
 
 // Initialize Stripe with secret key (if available)
@@ -91,100 +90,8 @@ app.use(express.json({
   }
 }));
 
-// Database configuration - Local MySQL
-const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '3306'),
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_DATABASE || 'tshla_medical_local',
-  ssl: process.env.DB_SSL === 'true' ? {
-    rejectUnauthorized: false,
-    require: true,
-  } : false,
-  timezone: 'Z',
-  connectTimeout: 120000, // Increased to 120 seconds
-  enableKeepAlive: true,
-  keepAliveInitialDelay: 10000, // Keep connection alive
-};
-
-// Validate required environment variables
-function validateDatabaseConfig() {
-  const required = ['host', 'user', 'database'];
-  const missing = required.filter(key => !dbConfig[key]);
-
-  if (missing.length > 0) {
-    console.error('Pump Report API: Missing required database configuration:', missing);
-    console.error('Please set the following environment variables:');
-    missing.forEach(key => {
-      const envVar = key === 'host' ? 'DB_HOST'
-                   : key === 'user' ? 'DB_USER'
-                   : 'DB_DATABASE';
-      console.error(`  ${envVar}`);
-    });
-    return false;
-  }
-  // Password is optional (can be empty for local development)
-  return true;
-}
-
-let pool;
-
-// Initialize database connection with improved retry logic
-async function initializeDatabase(maxRetries = 10) {
-  console.log('Pump Report API: Initializing database connection...');
-
-  // Validate configuration first
-  if (!validateDatabaseConfig()) {
-    return false;
-  }
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      pool = mysql.createPool({
-        ...dbConfig,
-        connectionLimit: 5, // Reduced further for stability
-        queueLimit: 10, // Reduced queue size
-        waitForConnections: true,
-        idleTimeout: 60000, // Close idle connections after 60 seconds
-        maxIdle: 5, // Maximum idle connections
-        enableKeepAlive: true,
-        keepAliveInitialDelay: 0
-      });
-
-      // Add connection pool error handling
-      pool.on('error', (err) => {
-        console.error('Pump Report API: Database pool error:', err);
-        if (err.code === 'PROTOCOL_CONNECTION_LOST') {
-          console.log('Pump Report API: Attempting to reconnect...');
-          app.locals.dbConnected = false;
-        }
-      });
-
-      pool.on('connection', () => {
-        console.log('Pump Report API: New database connection established');
-        app.locals.dbConnected = true;
-      });
-
-      console.log(`Pump Report API: Unified database service connected successfully on attempt ${attempt}`);
-      app.locals.dbConnected = true;
-      return true;
-    } catch (error) {
-      const isLastAttempt = attempt === maxRetries;
-      console.error(`Pump Report API: Database connection attempt ${attempt}/${maxRetries} failed:`, error.message);
-
-      if (isLastAttempt) {
-        console.error('Pump Report API: All database connection attempts failed');
-        return false;
-      }
-
-      // Simple 3 second delay between retries
-      console.log(`Pump Report API: Waiting 3 seconds before retry...`);
-      await new Promise(resolve => setTimeout(resolve, 3000));
-    }
-  }
-  return false;
-}
+// Database: Using Supabase (PostgreSQL) - MySQL removed
+// Supabase client initialized above at lines 32-36
 
 // Email transporter configuration (SendGrid)
 let emailTransporter;

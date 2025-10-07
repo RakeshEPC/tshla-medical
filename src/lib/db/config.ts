@@ -1,73 +1,28 @@
 /**
-import { env } from "../config/environment";
-import { logError, logWarn, logInfo, logDebug } from '../../services/logger.service';
  * Database configuration for HIPAA-compliant storage
- * Uses PostgreSQL with encryption and audit logging
+ * MIGRATED TO SUPABASE - PostgreSQL pools removed
+ * Uses Supabase with built-in encryption and audit logging
  */
 
-import { Pool, PoolConfig } from 'pg';
+import { logError, logWarn, logInfo, logDebug } from '../../services/logger.service';
+import { supabase } from '../supabase';
 import { encryptPHI, decryptPHI } from '../security/encryption';
 
-// Database connection configuration
-const dbConfig: PoolConfig = {
-  host: env.DB_HOST || 'localhost',
-  port: parseInt(env.DB_PORT || '5432'),
-  database: env.DB_NAME || 'hipaa_medical',
-  user: env.DB_USER || 'hipaa_user',
-  password: env.DB_PASSWORD || '',
-  max: 20, // Maximum number of clients in the pool
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
-  ssl:
-    env.NODE_ENV === 'production'
-      ? {
-          rejectUnauthorized: true,
-          ca: env.DB_SSL_CA,
-        }
-      : false,
-};
-
-// Create connection pool
-let pool: Pool | null = null;
-
-export function getPool(): Pool {
-  if (!pool) {
-    pool = new Pool(dbConfig);
-
-    // Handle pool errors
-    pool.on('error', err => {
-      logError('App', 'Error message', {});
-    });
-  }
-
-  return pool;
-}
+// Supabase configuration
+// Connection pooling is handled automatically by Supabase
+// No need for manual pool management
 
 /**
- * Database helper functions
+ * Database helper functions - Supabase Edition
  */
 export const db = {
   /**
    * Execute a query with proper error handling
+   * NOTE: For Supabase, use query builder methods instead of raw SQL
    */
   async query(text: string, params?: any[]) {
-    const pool = getPool();
-    const start = Date.now();
-
-    try {
-      const result = await pool.query(text, params);
-      const duration = Date.now() - start;
-
-      // Log slow queries in development
-      if (env.NODE_ENV === 'development' && duration > 1000) {
-        logDebug('App', 'Debug message', {});
-      }
-
-      return result;
-    } catch (error) {
-      logError('App', 'Error message', {});
-      throw error;
-    }
+    logWarn('DbConfig', 'Direct SQL queries deprecated. Use Supabase query builder or RPC functions.');
+    throw new Error('Direct SQL queries not supported with Supabase. Use query builder or RPC.');
   },
 
   /**
@@ -79,51 +34,74 @@ export const db = {
     data: any,
     additionalFields?: Record<string, any>
   ) {
-    const encryptedData = encryptPHI(JSON.stringify(data));
+    try {
+      const encryptedData = encryptPHI(JSON.stringify(data));
 
-    const fields = ['patient_id', 'encrypted_data', ...Object.keys(additionalFields || {})];
-    const values = [patientId, encryptedData, ...Object.values(additionalFields || {})];
-    const placeholders = fields.map((_, i) => `$${i + 1}`).join(', ');
+      const insertData = {
+        patient_id: patientId,
+        encrypted_data: encryptedData,
+        updated_at: new Date().toISOString(),
+        ...additionalFields,
+      };
 
-    const query = `
-      INSERT INTO ${table} (${fields.join(', ')})
-      VALUES (${placeholders})
-      ON CONFLICT (patient_id) 
-      DO UPDATE SET 
-        encrypted_data = EXCLUDED.encrypted_data,
-        updated_at = NOW()
-      RETURNING id
-    `;
+      // Use Supabase upsert (insert or update)
+      const { data: result, error } = await supabase
+        .from(table)
+        .upsert(insertData, {
+          onConflict: 'patient_id',
+        })
+        .select('id')
+        .single();
 
-    const result = await this.query(query, values);
-    return result.rows[0].id;
+      if (error) {
+        logError('DbConfig', 'Failed to store encrypted PHI', { error, table });
+        throw error;
+      }
+
+      return result.id;
+    } catch (error) {
+      logError('DbConfig', 'Error storing encrypted PHI', { error });
+      throw error;
+    }
   },
 
   /**
    * Retrieve and decrypt PHI data
    */
   async retrieveDecryptedPHI(table: string, patientId: string) {
-    const query = `
-      SELECT * FROM ${table}
-      WHERE patient_id = $1
-    `;
+    try {
+      const { data, error } = await supabase
+        .from(table)
+        .select('*')
+        .eq('patient_id', patientId)
+        .single();
 
-    const result = await this.query(query, [patientId]);
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // No rows returned
+          return null;
+        }
+        logError('DbConfig', 'Failed to retrieve PHI', { error, table });
+        throw error;
+      }
 
-    if (result.rows.length === 0) {
-      return null;
+      if (!data) {
+        return null;
+      }
+
+      if (data.encrypted_data) {
+        const decrypted = decryptPHI(data.encrypted_data);
+        return {
+          ...data,
+          data: JSON.parse(decrypted),
+        };
+      }
+
+      return data;
+    } catch (error) {
+      logError('DbConfig', 'Error retrieving PHI', { error });
+      throw error;
     }
-
-    const row = result.rows[0];
-    if (row.encrypted_data) {
-      const decrypted = decryptPHI(row.encrypted_data);
-      return {
-        ...row,
-        data: JSON.parse(decrypted),
-      };
-    }
-
-    return row;
   },
 
   /**
@@ -140,81 +118,128 @@ export const db = {
     details?: any;
     success?: boolean;
   }) {
-    const query = `
-      INSERT INTO audit_logs (
-        user_id, user_role, action, resource_type, resource_id,
-        ip_address, user_agent, details, success
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-    `;
+    try {
+      const { error } = await supabase.from('audit_logs').insert({
+        user_id: auditData.userId,
+        user_role: auditData.userRole,
+        action: auditData.action,
+        resource_type: auditData.resourceType,
+        resource_id: auditData.resourceId || null,
+        ip_address: auditData.ipAddress || null,
+        user_agent: auditData.userAgent || null,
+        details: auditData.details || null,
+        success: auditData.success !== false,
+        created_at: new Date().toISOString(),
+      });
 
-    await this.query(query, [
-      auditData.userId,
-      auditData.userRole,
-      auditData.action,
-      auditData.resourceType,
-      auditData.resourceId || null,
-      auditData.ipAddress || null,
-      auditData.userAgent || null,
-      auditData.details ? JSON.stringify(auditData.details) : null,
-      auditData.success !== false,
-    ]);
+      if (error) {
+        logError('DbConfig', 'Failed to log audit event', { error });
+        throw error;
+      }
+    } catch (error) {
+      logError('DbConfig', 'Error logging audit', { error });
+      throw error;
+    }
   },
 
   /**
    * Clean up expired sessions
    */
   async cleanupExpiredSessions() {
-    const query = `
-      DELETE FROM sessions
-      WHERE expires_at < NOW()
-    `;
+    try {
+      const now = new Date().toISOString();
 
-    const result = await this.query(query);
-    return result.rowCount;
+      const { data, error } = await supabase
+        .from('sessions')
+        .delete()
+        .lt('expires_at', now)
+        .select('id');
+
+      if (error) {
+        logError('DbConfig', 'Failed to cleanup sessions', { error });
+        throw error;
+      }
+
+      return data?.length || 0;
+    } catch (error) {
+      logError('DbConfig', 'Error cleaning up sessions', { error });
+      return 0;
+    }
   },
 
   /**
    * Apply data retention policies
    */
   async applyRetentionPolicies() {
-    const policiesQuery = `
-      SELECT * FROM data_retention
-      WHERE last_cleanup IS NULL 
-      OR last_cleanup < NOW() - INTERVAL '1 day'
-    `;
+    try {
+      const oneDayAgo = new Date();
+      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
 
-    const policies = await this.query(policiesQuery);
+      // Get retention policies
+      const { data: policies, error: fetchError } = await supabase
+        .from('data_retention')
+        .select('*')
+        .or(`last_cleanup.is.null,last_cleanup.lt.${oneDayAgo.toISOString()}`);
 
-    for (const policy of policies.rows) {
-      const deleteQuery = `
-        DELETE FROM ${policy.table_name}
-        WHERE created_at < NOW() - INTERVAL '${policy.retention_days} days'
-      `;
-
-      try {
-        const result = await this.query(deleteQuery);
-
-        // Update last cleanup time
-        await this.query('UPDATE data_retention SET last_cleanup = NOW() WHERE id = $1', [
-          policy.id,
-        ]);
-
-        logDebug('App', 'Debug message', {});
-      } catch (error) {
-        logError('App', 'Error message', {});
+      if (fetchError) {
+        logError('DbConfig', 'Failed to fetch retention policies', { error: fetchError });
+        return;
       }
+
+      if (!policies || policies.length === 0) {
+        return;
+      }
+
+      for (const policy of policies) {
+        try {
+          const retentionDate = new Date();
+          retentionDate.setDate(retentionDate.getDate() - policy.retention_days);
+
+          // Delete old records
+          const { error: deleteError } = await supabase
+            .from(policy.table_name)
+            .delete()
+            .lt('created_at', retentionDate.toISOString());
+
+          if (deleteError) {
+            logError('DbConfig', `Failed to apply retention policy for ${policy.table_name}`, {
+              error: deleteError,
+            });
+            continue;
+          }
+
+          // Update last cleanup time
+          await supabase
+            .from('data_retention')
+            .update({ last_cleanup: new Date().toISOString() })
+            .eq('id', policy.id);
+
+          logDebug('DbConfig', `Retention policy applied for ${policy.table_name}`, {});
+        } catch (error) {
+          logError('DbConfig', `Error applying retention policy for ${policy.table_name}`, {
+            error,
+          });
+        }
+      }
+    } catch (error) {
+      logError('DbConfig', 'Error in retention policy process', { error });
     }
   },
 
   /**
-   * Initialize database with required tables
+   * Initialize database with required checks
    */
   async initialize() {
     try {
-      // Check if database is accessible
-      await this.query('SELECT NOW()');
-      logDebug('App', 'Debug message', {});
+      // Check if Supabase is accessible
+      const { error } = await supabase.from('audit_logs').select('id').limit(1);
+
+      if (error && error.code !== 'PGRST116') {
+        // PGRST116 means no rows, which is fine
+        throw error;
+      }
+
+      logDebug('DbConfig', 'Supabase connection verified', {});
 
       // Run cleanup tasks
       await this.cleanupExpiredSessions();
@@ -222,28 +247,32 @@ export const db = {
       // Schedule retention policy application (run daily)
       setInterval(
         () => {
-          this.applyRetentionPolicies().catch(console.error);
+          this.applyRetentionPolicies().catch(err =>
+            logError('DbConfig', 'Retention policy error', { error: err })
+          );
         },
         24 * 60 * 60 * 1000
       );
 
       return true;
     } catch (error) {
-      logError('App', 'Error message', {});
+      logError('DbConfig', 'Database initialization failed', { error });
       return false;
     }
   },
 
   /**
    * Close database connections
+   * NOTE: Supabase handles connections automatically, no need to close
    */
   async close() {
-    if (pool) {
-      await pool.end();
-      pool = null;
-    }
+    logInfo('DbConfig', 'Supabase connections are managed automatically. No action needed.');
+    // No action needed for Supabase
   },
 };
 
 // Export types for TypeScript
 export type Database = typeof db;
+
+// Export Supabase client for direct usage
+export { supabase };
