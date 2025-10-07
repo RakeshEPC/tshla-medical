@@ -317,35 +317,26 @@ app.get('/api/simple/schedule/:providerId/:date', async (req, res) => {
     if (dbConnected) {
       // Try database first
       try {
-        const [rows] = await pool.execute(
-          `
-          SELECT
-            id,
-            patient_name,
-            patient_phone,
-            patient_mrn,
-            start_time as appointmentTime,
-            status,
-            created_at,
-            updated_at
-          FROM provider_schedules
-          WHERE provider_id = ? AND scheduled_date = ?
-          ORDER BY start_time ASC
-        `,
-          [providerId, date]
-        );
+        const { data: rows, error } = await unifiedSupabase
+          .from('provider_schedules')
+          .select('id, patient_name, patient_phone, patient_mrn, start_time, status, created_at, updated_at')
+          .eq('provider_id', providerId)
+          .eq('scheduled_date', date)
+          .order('start_time', { ascending: true });
 
-        appointments = rows.map(row => ({
+        if (error) throw error;
+
+        appointments = (rows || []).map(row => ({
           id: row.id.toString(),
           name: row.patient_name,
           mrn: row.patient_mrn || `MRN${row.id}`,
-          appointmentTime: convertTo12Hour(row.appointmentTime),
+          appointmentTime: convertTo12Hour(row.start_time),
           status: row.status || 'pending',
           phone: row.patient_phone,
           isPlaceholder: !row.patient_name || row.patient_name.includes('Patient @'),
         }));
       } catch (dbError) {
-        logger.warn('API', 'Database operation warning', { error });
+        logger.warn('API', 'Database operation warning', { error: dbError });
         dbConnected = false;
       }
     }
@@ -436,35 +427,35 @@ app.post('/api/simple/appointment', async (req, res) => {
       try {
         const startTime24h = convertTo24Hour(appointmentTime);
 
-        const [result] = await pool.execute(
-          `
-          INSERT INTO provider_schedules (
-            provider_id, provider_name, patient_name, patient_mrn, patient_phone,
-            scheduled_date, start_time, end_time, status, source_system, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'tshla-dashboard', CURRENT_TIMESTAMP)
-        `,
-          [
-            providerId,
-            providerName,
-            patientName,
-            patientMrn,
-            patientPhone,
-            appointmentDate,
-            startTime24h,
-            startTime24h,
-            status,
-          ]
-        );
+        const { data, error } = await unifiedSupabase
+          .from('provider_schedules')
+          .insert({
+            provider_id: providerId,
+            provider_name: providerName,
+            patient_name: patientName,
+            patient_mrn: patientMrn,
+            patient_phone: patientPhone,
+            scheduled_date: appointmentDate,
+            start_time: startTime24h,
+            end_time: startTime24h,
+            status: status,
+            source_system: 'tshla-dashboard',
+            created_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
 
         res.json({
           success: true,
-          appointmentId: result.insertId,
+          appointmentId: data.id,
           message: 'Appointment saved to database',
           source: 'database',
         });
         return;
       } catch (dbError) {
-        logger.warn('API', 'Database operation warning', { error });
+        logger.warn('API', 'Database operation warning', { error: dbError });
         dbConnected = false;
       }
     }
@@ -511,25 +502,23 @@ app.put('/api/simple/appointment/:appointmentId', async (req, res) => {
     const { appointmentId } = req.params;
     const { patientName, patientMrn, patientPhone, appointmentTime, status } = req.body;
 
-    const [result] = await pool.execute(
-      `
-      UPDATE provider_schedules
-      SET patient_name = ?, patient_mrn = ?, patient_phone = ?,
-          start_time = ?, end_time = ?, status = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `,
-      [
-        patientName,
-        patientMrn,
-        patientPhone,
-        appointmentTime,
-        appointmentTime,
-        status,
-        appointmentId,
-      ]
-    );
+    const { data, error } = await unifiedSupabase
+      .from('provider_schedules')
+      .update({
+        patient_name: patientName,
+        patient_mrn: patientMrn,
+        patient_phone: patientPhone,
+        start_time: appointmentTime,
+        end_time: appointmentTime,
+        status: status,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', appointmentId)
+      .select();
 
-    if (result.affectedRows === 0) {
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
       return res.status(404).json({
         success: false,
         error: 'Appointment not found',
@@ -555,14 +544,15 @@ app.delete('/api/simple/appointment/:appointmentId', async (req, res) => {
   try {
     const { appointmentId } = req.params;
 
-    const [result] = await pool.execute(
-      `
-      DELETE FROM provider_schedules WHERE id = ?
-    `,
-      [appointmentId]
-    );
+    const { data, error } = await unifiedSupabase
+      .from('provider_schedules')
+      .delete()
+      .eq('id', appointmentId)
+      .select();
 
-    if (result.affectedRows === 0) {
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
       return res.status(404).json({
         success: false,
         error: 'Appointment not found',
@@ -600,31 +590,30 @@ app.post('/api/simple/note', async (req, res) => {
     const visitDate = new Date().toISOString().split('T')[0];
     const noteTitle = `${patientName} - ${visitDate}`;
 
-    const [result] = await pool.execute(
-      `
-      INSERT INTO dictated_notes (
-        provider_id, provider_name, patient_name, patient_mrn,
-        visit_date, note_title, raw_transcript, processed_note,
-        recording_mode, status, dictated_at, is_quick_note
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed', CURRENT_TIMESTAMP, ?)
-    `,
-      [
-        providerId,
-        providerName,
-        patientName,
-        patientMrn,
-        visitDate,
-        noteTitle,
-        rawTranscript,
-        aiProcessedNote,
-        recordingMode,
-        isQuickNote,
-      ]
-    );
+    const { data, error } = await unifiedSupabase
+      .from('dictated_notes')
+      .insert({
+        provider_id: providerId,
+        provider_name: providerName,
+        patient_name: patientName,
+        patient_mrn: patientMrn,
+        visit_date: visitDate,
+        note_title: noteTitle,
+        raw_transcript: rawTranscript,
+        processed_note: aiProcessedNote,
+        recording_mode: recordingMode,
+        status: 'completed',
+        dictated_at: new Date().toISOString(),
+        is_quick_note: isQuickNote
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
 
     res.json({
       success: true,
-      noteId: result.insertId,
+      noteId: data.id,
       message: 'Note saved successfully',
     });
   } catch (error) {
@@ -643,28 +632,24 @@ app.get('/api/simple/notes/:providerId', async (req, res) => {
     const { providerId } = req.params;
     const { limit = 20, date } = req.query;
 
-    let query = `
-      SELECT id, patient_name, patient_mrn, visit_date, note_title,
-             raw_transcript, processed_note, recording_mode, is_quick_note,
-             dictated_at, status
-      FROM dictated_notes
-      WHERE provider_id = ?
-    `;
-    const params = [providerId];
+    let query = unifiedSupabase
+      .from('dictated_notes')
+      .select('id, patient_name, patient_mrn, visit_date, note_title, raw_transcript, processed_note, recording_mode, is_quick_note, dictated_at, status')
+      .eq('provider_id', providerId);
 
     if (date) {
-      query += ' AND visit_date = ?';
-      params.push(date);
+      query = query.eq('visit_date', date);
     }
 
-    query += ' ORDER BY dictated_at DESC LIMIT ?';
-    params.push(parseInt(limit));
+    query = query.order('dictated_at', { ascending: false }).limit(parseInt(limit));
 
-    const [rows] = await pool.execute(query, params);
+    const { data: rows, error } = await query;
+
+    if (error) throw error;
 
     res.json({
       success: true,
-      notes: rows,
+      notes: rows || [],
     });
   } catch (error) {
     logger.error('API', error.message, { error });
@@ -713,21 +698,9 @@ app.post('/api/dictated-notes', async (req, res) => {
       status,
     } = req.body;
 
-    const [result] = await pool.execute(
-      `
-      INSERT INTO dictated_notes (
-        provider_id, provider_name, provider_email, provider_specialty,
-        patient_name, patient_phone, patient_email, patient_mrn, patient_dob,
-        appointment_id, visit_date, visit_type, note_title, chief_complaint,
-        raw_transcript, processed_note, ai_summary, clinical_impression,
-        template_id, template_name, template_sections, recording_mode,
-        recording_duration_seconds, ai_model_used, processing_confidence_score,
-        medical_terms_detected, status, dictated_at
-      ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP
-      )
-    `,
-      [
+    const { data: noteData, error: noteError } = await unifiedSupabase
+      .from('dictated_notes')
+      .insert({
         provider_id,
         provider_name,
         provider_email,
@@ -739,7 +712,7 @@ app.post('/api/dictated-notes', async (req, res) => {
         patient_dob,
         appointment_id,
         visit_date,
-        visit_type || 'follow-up',
+        visit_type: visit_type || 'follow-up',
         note_title,
         chief_complaint,
         raw_transcript,
@@ -748,69 +721,70 @@ app.post('/api/dictated-notes', async (req, res) => {
         clinical_impression,
         template_id,
         template_name,
-        JSON.stringify(template_sections),
-        recording_mode || 'dictation',
-        recording_duration_seconds || 0,
+        template_sections: template_sections,
+        recording_mode: recording_mode || 'dictation',
+        recording_duration_seconds: recording_duration_seconds || 0,
         ai_model_used,
         processing_confidence_score,
-        JSON.stringify(medical_terms_detected),
-        status || 'draft',
-      ]
-    );
+        medical_terms_detected,
+        status: status || 'draft',
+        dictated_at: new Date().toISOString()
+      })
+      .select()
+      .single();
 
-    const noteId = result.insertId;
+    if (noteError) throw noteError;
+
+    const noteId = noteData.id;
 
     // Create initial version record
-    await pool.execute(
-      `
-      INSERT INTO note_versions (
-        note_id, version_number, change_type, raw_transcript_version,
-        processed_note_version, ai_summary_version, clinical_impression_version,
-        changed_by_provider_id, changed_by_provider_name, change_description
-      ) VALUES (?, 1, 'created', ?, ?, ?, ?, ?, ?, 'Initial note creation')
-    `,
-      [
-        noteId,
-        raw_transcript,
-        processed_note,
-        ai_summary,
-        clinical_impression,
-        provider_id,
-        provider_name,
-      ]
-    );
+    const { error: versionError } = await unifiedSupabase
+      .from('note_versions')
+      .insert({
+        note_id: noteId,
+        version_number: 1,
+        change_type: 'created',
+        raw_transcript_version: raw_transcript,
+        processed_note_version: processed_note,
+        ai_summary_version: ai_summary,
+        clinical_impression_version: clinical_impression,
+        changed_by_provider_id: provider_id,
+        changed_by_provider_name: provider_name,
+        change_description: 'Initial note creation'
+      });
+
+    if (versionError) throw versionError;
 
     // Link to appointment if provided
     if (appointment_id) {
-      await pool.execute(
-        `
-        INSERT INTO schedule_note_links (
-          appointment_id, note_id, link_type, is_primary_link,
-          linked_by_provider_id, linked_by_provider_name
-        ) VALUES (?, ?, 'primary-note', TRUE, ?, ?)
-      `,
-        [appointment_id, noteId, provider_id, provider_name]
-      );
+      const { error: linkError } = await unifiedSupabase
+        .from('schedule_note_links')
+        .insert({
+          appointment_id,
+          note_id: noteId,
+          link_type: 'primary-note',
+          is_primary_link: true,
+          linked_by_provider_id: provider_id,
+          linked_by_provider_name: provider_name
+        });
+
+      if (linkError) throw linkError;
     }
 
     // Track template usage if provided
     if (template_id) {
-      await pool.execute(
-        `
-        INSERT INTO note_templates_used (
-          note_id, template_id, template_name, sections_used,
-          used_by_provider_id, used_by_provider_name
-        ) VALUES (?, ?, ?, ?, ?, ?)
-      `,
-        [
-          noteId,
+      const { error: templateError } = await unifiedSupabase
+        .from('note_templates_used')
+        .insert({
+          note_id: noteId,
           template_id,
           template_name,
-          JSON.stringify(template_sections),
-          provider_id,
-          provider_name,
-        ]
-      );
+          sections_used: template_sections,
+          used_by_provider_id: provider_id,
+          used_by_provider_name: provider_name
+        });
+
+      if (templateError) throw templateError;
     }
 
     res.json({
@@ -834,35 +808,29 @@ app.get('/api/providers/:providerId/notes', async (req, res) => {
     const { providerId } = req.params;
     const { limit = 50, offset = 0, status, startDate, endDate } = req.query;
 
-    let query = `
-      SELECT
-        id, patient_name, patient_phone, visit_date, visit_type,
-        note_title, chief_complaint, status, template_name,
-        created_at, signed_at, quality_score, requires_review
-      FROM dictated_notes
-      WHERE provider_id = ?
-    `;
-    const params = [providerId];
+    let query = unifiedSupabase
+      .from('dictated_notes')
+      .select('id, patient_name, patient_phone, visit_date, visit_type, note_title, chief_complaint, status, template_name, created_at, signed_at, quality_score, requires_review')
+      .eq('provider_id', providerId);
 
     if (status) {
-      query += ' AND status = ?';
-      params.push(status);
+      query = query.eq('status', status);
     }
 
     if (startDate && endDate) {
-      query += ' AND visit_date BETWEEN ? AND ?';
-      params.push(startDate, endDate);
+      query = query.gte('visit_date', startDate).lte('visit_date', endDate);
     }
 
-    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-    params.push(parseInt(limit), parseInt(offset));
+    query = query.order('created_at', { ascending: false }).range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
 
-    const [rows] = await pool.execute(query, params);
+    const { data: rows, error } = await query;
+
+    if (error) throw error;
 
     res.json({
       success: true,
-      notes: rows,
-      count: rows.length,
+      notes: rows || [],
+      count: rows?.length || 0,
     });
   } catch (error) {
     logger.error('API', error.message, { error });
@@ -879,14 +847,13 @@ app.get('/api/notes/:noteId', async (req, res) => {
   try {
     const { noteId } = req.params;
 
-    const [noteRows] = await pool.execute(
-      `
-      SELECT * FROM dictated_notes WHERE id = ?
-    `,
-      [noteId]
-    );
+    const { data: noteData, error: noteError } = await unifiedSupabase
+      .from('dictated_notes')
+      .select('*')
+      .eq('id', noteId)
+      .single();
 
-    if (noteRows.length === 0) {
+    if (noteError || !noteData) {
       return res.status(404).json({
         success: false,
         error: 'Note not found',
@@ -894,30 +861,28 @@ app.get('/api/notes/:noteId', async (req, res) => {
     }
 
     // Get note versions
-    const [versionRows] = await pool.execute(
-      `
-      SELECT * FROM note_versions
-      WHERE note_id = ?
-      ORDER BY version_number DESC
-    `,
-      [noteId]
-    );
+    const { data: versionRows, error: versionError } = await unifiedSupabase
+      .from('note_versions')
+      .select('*')
+      .eq('note_id', noteId)
+      .order('version_number', { ascending: false });
+
+    if (versionError) throw versionError;
 
     // Get note comments
-    const [commentRows] = await pool.execute(
-      `
-      SELECT * FROM note_comments
-      WHERE note_id = ?
-      ORDER BY created_at DESC
-    `,
-      [noteId]
-    );
+    const { data: commentRows, error: commentError } = await unifiedSupabase
+      .from('note_comments')
+      .select('*')
+      .eq('note_id', noteId)
+      .order('created_at', { ascending: false });
+
+    if (commentError) throw commentError;
 
     res.json({
       success: true,
-      note: noteRows[0],
-      versions: versionRows,
-      comments: commentRows,
+      note: noteData,
+      versions: versionRows || [],
+      comments: commentRows || [],
     });
   } catch (error) {
     logger.error('API', error.message, { error });
@@ -944,27 +909,33 @@ app.put('/api/notes/:noteId', async (req, res) => {
     } = req.body;
 
     // Get current version number
-    const [versionRows] = await pool.execute(
-      `
-      SELECT MAX(version_number) as max_version FROM note_versions WHERE note_id = ?
-    `,
-      [noteId]
-    );
+    const { data: versionData, error: versionQueryError } = await unifiedSupabase
+      .from('note_versions')
+      .select('version_number')
+      .eq('note_id', noteId)
+      .order('version_number', { ascending: false })
+      .limit(1);
 
-    const nextVersion = (versionRows[0].max_version || 0) + 1;
+    if (versionQueryError) throw versionQueryError;
+
+    const nextVersion = (versionData && versionData.length > 0 ? versionData[0].version_number : 0) + 1;
 
     // Update the note
-    const [result] = await pool.execute(
-      `
-      UPDATE dictated_notes
-      SET processed_note = ?, ai_summary = ?, clinical_impression = ?,
-          status = ?, last_edited_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `,
-      [processed_note, ai_summary, clinical_impression, status, noteId]
-    );
+    const { data: updateResult, error: updateError } = await unifiedSupabase
+      .from('dictated_notes')
+      .update({
+        processed_note,
+        ai_summary,
+        clinical_impression,
+        status,
+        last_edited_at: new Date().toISOString()
+      })
+      .eq('id', noteId)
+      .select();
 
-    if (result.affectedRows === 0) {
+    if (updateError) throw updateError;
+
+    if (!updateResult || updateResult.length === 0) {
       return res.status(404).json({
         success: false,
         error: 'Note not found',
@@ -972,25 +943,21 @@ app.put('/api/notes/:noteId', async (req, res) => {
     }
 
     // Create version record
-    await pool.execute(
-      `
-      INSERT INTO note_versions (
-        note_id, version_number, change_type, processed_note_version,
-        ai_summary_version, clinical_impression_version,
-        changed_by_provider_id, changed_by_provider_name, change_description
-      ) VALUES (?, ?, 'edited', ?, ?, ?, ?, ?, ?)
-    `,
-      [
-        noteId,
-        nextVersion,
-        processed_note,
-        ai_summary,
-        clinical_impression,
-        updated_by_provider_id,
-        updated_by_provider_name,
-        change_description,
-      ]
-    );
+    const { error: versionInsertError } = await unifiedSupabase
+      .from('note_versions')
+      .insert({
+        note_id: noteId,
+        version_number: nextVersion,
+        change_type: 'edited',
+        processed_note_version: processed_note,
+        ai_summary_version: ai_summary,
+        clinical_impression_version: clinical_impression,
+        changed_by_provider_id: updated_by_provider_id,
+        changed_by_provider_name: updated_by_provider_name,
+        change_description: change_description
+      });
+
+    if (versionInsertError) throw versionInsertError;
 
     res.json({
       success: true,
@@ -1012,48 +979,39 @@ app.get('/api/notes/search', async (req, res) => {
   try {
     const { query, provider_id, patient_name, date_from, date_to } = req.query;
 
-    let searchQuery = `
-      SELECT
-        id, provider_name, patient_name, patient_phone, visit_date,
-        note_title, chief_complaint, status, created_at
-      FROM dictated_notes
-      WHERE 1=1
-    `;
-    const params = [];
+    let searchQuery = unifiedSupabase
+      .from('dictated_notes')
+      .select('id, provider_name, patient_name, patient_phone, visit_date, note_title, chief_complaint, status, created_at');
 
+    // Note: Full-text search with MATCH AGAINST is MySQL-specific
+    // Supabase uses PostgreSQL which has different full-text search
+    // For now, using simple text search with ilike
     if (query) {
-      searchQuery += ` AND (
-        MATCH(raw_transcript, processed_note, ai_summary) AGAINST (? IN NATURAL LANGUAGE MODE)
-        OR MATCH(chief_complaint, clinical_impression) AGAINST (? IN NATURAL LANGUAGE MODE)
-        OR patient_name LIKE ?
-        OR note_title LIKE ?
-      )`;
-      params.push(query, query, `%${query}%`, `%${query}%`);
+      searchQuery = searchQuery.or(`patient_name.ilike.%${query}%,note_title.ilike.%${query}%,chief_complaint.ilike.%${query}%`);
     }
 
     if (provider_id) {
-      searchQuery += ' AND provider_id = ?';
-      params.push(provider_id);
+      searchQuery = searchQuery.eq('provider_id', provider_id);
     }
 
     if (patient_name) {
-      searchQuery += ' AND patient_name LIKE ?';
-      params.push(`%${patient_name}%`);
+      searchQuery = searchQuery.ilike('patient_name', `%${patient_name}%`);
     }
 
     if (date_from && date_to) {
-      searchQuery += ' AND visit_date BETWEEN ? AND ?';
-      params.push(date_from, date_to);
+      searchQuery = searchQuery.gte('visit_date', date_from).lte('visit_date', date_to);
     }
 
-    searchQuery += ' ORDER BY created_at DESC LIMIT 100';
+    searchQuery = searchQuery.order('created_at', { ascending: false }).limit(100);
 
-    const [rows] = await pool.execute(searchQuery, params);
+    const { data: rows, error } = await searchQuery;
+
+    if (error) throw error;
 
     res.json({
       success: true,
-      results: rows,
-      count: rows.length,
+      results: rows || [],
+      count: rows?.length || 0,
     });
   } catch (error) {
     logger.error('API', error.message, { error });
@@ -1075,39 +1033,56 @@ app.get('/api/providers/:providerId/analytics', async (req, res) => {
     const { providerId } = req.params;
     const { period = 'week' } = req.query;
 
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    const oneMonthAgo = new Date();
+    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+    const today = new Date().toISOString().split('T')[0];
+
     // Get recent notes count
-    const [notesCount] = await pool.execute(
-      `
-      SELECT COUNT(*) as total_notes FROM dictated_notes
-      WHERE provider_id = ? AND created_at >= DATE_SUB(CURDATE(), INTERVAL 1 WEEK)
-    `,
-      [providerId]
-    );
+    const { data: notesData, error: notesError } = await unifiedSupabase
+      .from('dictated_notes')
+      .select('id', { count: 'exact', head: true })
+      .eq('provider_id', providerId)
+      .gte('created_at', oneWeekAgo.toISOString());
+
+    if (notesError) throw notesError;
 
     // Get upcoming appointments
-    const [upcomingCount] = await pool.execute(
-      `
-      SELECT COUNT(*) as upcoming_appointments FROM provider_schedules
-      WHERE provider_id = ? AND scheduled_date >= CURDATE() AND status = 'scheduled'
-    `,
-      [providerId]
-    );
+    const { data: apptData, error: apptError } = await unifiedSupabase
+      .from('provider_schedules')
+      .select('id', { count: 'exact', head: true })
+      .eq('provider_id', providerId)
+      .gte('scheduled_date', today)
+      .eq('status', 'scheduled');
 
-    // Get notes by status
-    const [notesByStatus] = await pool.execute(
-      `
-      SELECT status, COUNT(*) as count FROM dictated_notes
-      WHERE provider_id = ? AND created_at >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH)
-      GROUP BY status
-    `,
-      [providerId]
-    );
+    if (apptError) throw apptError;
+
+    // Get notes by status (manual grouping since Supabase doesn't have GROUP BY in JS)
+    const { data: statusData, error: statusError } = await unifiedSupabase
+      .from('dictated_notes')
+      .select('status')
+      .eq('provider_id', providerId)
+      .gte('created_at', oneMonthAgo.toISOString());
+
+    if (statusError) throw statusError;
+
+    // Group by status manually
+    const notesByStatus = (statusData || []).reduce((acc, note) => {
+      const existing = acc.find(item => item.status === note.status);
+      if (existing) {
+        existing.count++;
+      } else {
+        acc.push({ status: note.status, count: 1 });
+      }
+      return acc;
+    }, []);
 
     res.json({
       success: true,
       analytics: {
-        recentNotesCount: notesCount[0].total_notes,
-        upcomingAppointments: upcomingCount[0].upcoming_appointments,
+        recentNotesCount: notesData?.length || 0,
+        upcomingAppointments: apptData?.length || 0,
         notesByStatus: notesByStatus,
       },
     });
