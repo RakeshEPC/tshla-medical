@@ -2177,45 +2177,25 @@ app.post('/api/pumpdrive/assessments/:id/email', verifyToken, async (req, res) =
  */
 app.get('/api/admin/pumpdrive-users', requireAdmin, async (req, res) => {
   try {
-    const connection = await unifiedDatabase.getConnection();
+    // Fetch pump users from Supabase
+    const { data: users, error } = await supabase
+      .from('pump_users')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-    const query = `
-      SELECT
-        u.id,
-        u.username,
-        u.email,
-        u.first_name,
-        u.last_name,
-        u.phone_number,
-        u.current_payment_status,
-        u.created_at,
-        u.last_login,
-        u.login_count,
-        u.is_active,
-        u.email_verified,
-        r.id as report_id,
-        r.payment_status as report_payment_status,
-        r.payment_amount,
-        r.payment_date,
-        r.recommendations,
-        r.created_at as report_created_at
-      FROM pump_users u
-      LEFT JOIN pump_reports r ON u.id = r.user_id
-      ORDER BY u.created_at DESC
-    `;
+    if (error) throw error;
 
-    const [users] = await connection.execute(query);
-    connection.release();
-
-    // Parse JSON recommendations
+    // Format users for admin dashboard (pump_reports table migration pending)
     const usersWithParsedData = users.map(user => ({
       ...user,
-      recommendations: user.recommendations ? JSON.parse(user.recommendations) : null,
-      primary_pump: user.recommendations ?
-        JSON.parse(user.recommendations)[0]?.name || null : null,
-      secondary_pump: user.recommendations && JSON.parse(user.recommendations)[1] ?
-        JSON.parse(user.recommendations)[1].name : null,
-      full_name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'N/A'
+      full_name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'N/A',
+      report_id: null,
+      report_payment_status: null,
+      payment_amount: null,
+      payment_date: null,
+      recommendations: null,
+      primary_pump: null,
+      secondary_pump: null
     }));
 
     res.json({
@@ -2242,25 +2222,29 @@ app.get('/api/admin/pumpdrive-users', requireAdmin, async (req, res) => {
  */
 app.get('/api/admin/pumpdrive-stats', requireAdmin, async (req, res) => {
   try {
-    const connection = await unifiedDatabase.getConnection();
+    // Fetch pump users from Supabase
+    const { data: users, error } = await supabase
+      .from('pump_users')
+      .select('*');
 
-    const [stats] = await connection.execute(`
-      SELECT
-        COUNT(DISTINCT u.id) as total_users,
-        COUNT(DISTINCT CASE WHEN u.current_payment_status = 'active' THEN u.id END) as paid_users,
-        COUNT(DISTINCT r.id) as total_reports,
-        COUNT(DISTINCT CASE WHEN r.payment_status = 'paid' THEN r.user_id END) as users_with_paid_reports,
-        COUNT(DISTINCT CASE WHEN u.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR) THEN u.id END) as new_users_24h,
-        COUNT(DISTINCT CASE WHEN r.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR) THEN r.id END) as new_reports_24h
-      FROM pump_users u
-      LEFT JOIN pump_reports r ON u.id = r.user_id
-    `);
+    if (error) throw error;
 
-    connection.release();
+    // Calculate stats (pump_reports table migration pending)
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    const stats = {
+      total_users: users.length,
+      paid_users: users.filter(u => u.current_payment_status === 'active').length,
+      total_reports: 0, // pump_reports table not migrated yet
+      users_with_paid_reports: 0,
+      new_users_24h: users.filter(u => new Date(u.created_at) >= yesterday).length,
+      new_reports_24h: 0
+    };
 
     res.json({
       success: true,
-      stats: stats[0],
+      stats: stats,
       timestamp: new Date().toISOString()
     });
 
