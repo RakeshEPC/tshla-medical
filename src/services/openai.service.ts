@@ -351,10 +351,18 @@ NOTE: To enable AI processing, integrate:
    */
   async processText(prompt: string, options?: { model?: string; temperature?: number; maxTokens?: number }): Promise<string> {
     if (!this.client) {
-      throw new Error('OpenAI client not initialized. Please set API key.');
+      const errorMsg = 'OpenAI client not initialized. Please set API key.';
+      logError('openai', errorMsg, { apiKeyPresent: !!this.apiKey, apiKeyLength: this.apiKey?.length });
+      throw new Error(errorMsg);
     }
 
     try {
+      logInfo('openai', 'Making OpenAI API call', {
+        model: options?.model || 'gpt-4',
+        promptLength: prompt.length,
+        apiKeyPrefix: this.apiKey?.substring(0, 10) + '...'
+      });
+
       const completion = await this.client.chat.completions.create({
         model: options?.model || 'gpt-4',
         messages: [
@@ -369,10 +377,25 @@ NOTE: To enable AI processing, integrate:
         throw new Error('No response from OpenAI');
       }
 
+      logInfo('openai', 'OpenAI API call successful', { responseLength: response.length });
       return response;
-    } catch (error) {
-      logError('openai', 'Error processing text prompt', { error });
-      throw error;
+    } catch (error: any) {
+      // Enhanced error logging
+      const errorDetails = {
+        message: error?.message || 'Unknown error',
+        status: error?.status,
+        statusText: error?.statusText,
+        type: error?.type,
+        code: error?.code,
+        apiKeyPresent: !!this.apiKey,
+        apiKeyValid: this.apiKey?.startsWith('sk-'),
+        model: options?.model || 'gpt-4'
+      };
+
+      logError('openai', 'OpenAI API call failed', errorDetails);
+
+      // Throw with more context
+      throw new Error(`OpenAI API Error: ${error?.message || 'Unknown error'} (Status: ${error?.status || 'N/A'})`);
     }
   }
 

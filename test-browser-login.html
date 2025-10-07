@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Supabase Login - Browser Console</title>
+</head>
+<body>
+    <h1>Check Browser Console (F12) for results</h1>
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+        const supabaseUrl = 'https://minvvjdflezibmgkplqb.supabase.co';
+        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1pbnZ2amRmbGV6aWJtZ2twbHFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzg3MDg2MTgsImV4cCI6MjA1NDI4NDYxOH0.Hqd1NVJHLYfmgp4m6w28uDPOrhS3pPgHCe_s2E6y7xE';
+
+        const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+            auth: {
+                persistSession: true,
+                autoRefreshToken: true,
+                detectSessionInUrl: true,
+                flowType: 'pkce',
+            },
+        });
+
+        async function testLogin() {
+            console.log('🔐 Testing login with admin@tshla.ai / TshlaAdmin2025!');
+
+            try {
+                // Step 1: Auth login
+                const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+                    email: 'admin@tshla.ai',
+                    password: 'TshlaAdmin2025!'
+                });
+
+                if (authError) {
+                    console.error('❌ Auth error:', authError);
+                    return;
+                }
+
+                console.log('✅ Auth successful:', authData);
+
+                // Step 2: Get medical_staff record
+                const { data: staffData, error: staffError } = await supabase
+                    .from('medical_staff')
+                    .select('*')
+                    .eq('auth_user_id', authData.user.id)
+                    .single();
+
+                if (staffError) {
+                    console.error('❌ Staff query error:', staffError);
+                    return;
+                }
+
+                console.log('✅ Staff record:', staffData);
+
+            } catch (error) {
+                console.error('❌ Unexpected error:', error);
+            }
+        }
+
+        testLogin();
+    </script>
+</body>
+</html>

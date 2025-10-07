@@ -1,22 +1,31 @@
 /**
  * Supabase Client Configuration
- * HIPAA-compliant database for TSHLA Medical
+ * HIPAA-compliant database and authentication for TSHLA Medical
+ *
+ * SECURITY NOTE:
+ * - Uses environment variables (no hardcoded keys)
+ * - anon key is safe to expose in frontend
+ * - service_role key must NEVER be exposed (server-side only)
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { env } from '../config/environment';
 import type { Template } from '../types/template.types';
 
-// Supabase configuration from environment
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://minvvjdflezibmgkplqb.supabase.co';
-const supabaseAnonKey =
-  import.meta.env.VITE_SUPABASE_ANON_KEY ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1pbnZ2amRmbGV6aWJtZ2twbHFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYwNDE5ODgsImV4cCI6MjA3MTYxNzk4OH0.-qzlS3artX2DWOVQgIqwd1jd3Utlnik6yOMFhyGcHl8';
+// Validate Supabase configuration
+if (!env.supabase.url || !env.supabase.anonKey) {
+  throw new Error(
+    'Missing Supabase configuration. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env'
+  );
+}
 
 // Create Supabase client
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient(env.supabase.url, env.supabase.anonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
+    detectSessionInUrl: true,
+    flowType: 'pkce', // PKCE flow for enhanced security
   },
   db: {
     schema: 'public',
@@ -24,6 +33,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   global: {
     headers: {
       'X-HIPAA-Compliant': 'true',
+      'X-Client-Info': 'tshla-medical@1.0.0',
     },
   },
 });

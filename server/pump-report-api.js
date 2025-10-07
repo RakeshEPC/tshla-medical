@@ -28,6 +28,13 @@ if (process.env.STRIPE_SECRET_KEY && process.env.STRIPE_SECRET_KEY !== 'sk_test_
   console.warn('Stripe not initialized - missing secret key');
 }
 
+// Initialize Supabase client for token verification
+const { createClient } = require('@supabase/supabase-js');
+const supabase = createClient(
+  process.env.VITE_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY
+);
+
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.VITE_OPENAI_API_KEY
@@ -74,9 +81,14 @@ app.use(
     credentials: true,
   })
 );
-// JSON parsing middleware
+// JSON parsing middleware with strict: false to handle escaped characters
 app.use(express.json({
-  limit: '10mb'
+  limit: '10mb',
+  strict: false,  // Allow escaped characters in JSON
+  verify: (req, res, buf, encoding) => {
+    // Store raw body for debugging
+    req.rawBody = buf.toString(encoding || 'utf8');
+  }
 }));
 
 // Database configuration - Local MySQL
@@ -196,8 +208,8 @@ function initializeEmailService() {
   console.log('App', 'Placeholder message');
 }
 
-// JWT verification middleware
-const verifyToken = (req, res, next) => {
+// JWT verification middleware - Supports both Supabase and legacy JWT tokens
+const verifyToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
@@ -205,21 +217,57 @@ const verifyToken = (req, res, next) => {
     return res.status(401).json({ error: 'Access token required' });
   }
 
-  const jwtSecret = process.env.JWT_SECRET;
-  if (!jwtSecret) {
-    console.error('JWT_SECRET environment variable not set');
-    return res.status(500).json({
-      error: 'Server configuration error',
-      message: 'Authentication service is not properly configured'
-    });
-  }
-
   try {
-    const decoded = jwt.verify(token, jwtSecret);
-    req.user = decoded;
-    next();
+    // Try Supabase token verification first
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+
+    if (!error && user) {
+      // Supabase token is valid - get user details from medical_staff table
+      const { data: staffData, error: staffError } = await supabase
+        .from('medical_staff')
+        .select('*')
+        .eq('auth_user_id', user.id)
+        .single();
+
+      if (!staffError && staffData) {
+        req.user = {
+          id: staffData.id,
+          email: staffData.email,
+          role: staffData.role,
+          auth_user_id: user.id
+        };
+        return next();
+      }
+
+      // Try pump_users table if not in medical_staff
+      const { data: pumpData, error: pumpError } = await supabase
+        .from('pump_users')
+        .select('*')
+        .eq('auth_user_id', user.id)
+        .single();
+
+      if (!pumpError && pumpData) {
+        req.user = {
+          id: pumpData.id,
+          email: pumpData.email,
+          role: 'pump_user',
+          auth_user_id: user.id
+        };
+        return next();
+      }
+    }
+
+    // Fallback to legacy JWT verification for backward compatibility
+    const jwtSecret = process.env.JWT_SECRET;
+    if (jwtSecret) {
+      const decoded = jwt.verify(token, jwtSecret);
+      req.user = decoded;
+      return next();
+    }
+
+    return res.status(403).json({ error: 'Invalid or expired token' });
   } catch (error) {
-    console.error('Token verification failed:', error);
+    console.error('Token verification failed:', error.message);
     return res.status(403).json({ error: 'Invalid or expired token' });
   }
 };

@@ -391,6 +391,11 @@ export default function PumpDriveResults() {
           return;
         } catch (simplifiedAIError) {
           console.error('PumpDriveResults: API call failed:', simplifiedAIError);
+          console.error('PumpDriveResults: Error details:', {
+            message: simplifiedAIError instanceof Error ? simplifiedAIError.message : 'Unknown error',
+            type: simplifiedAIError instanceof Error ? simplifiedAIError.constructor.name : typeof simplifiedAIError,
+            stack: simplifiedAIError instanceof Error ? simplifiedAIError.stack : 'No stack trace'
+          });
           logError('PumpDriveResults', 'API service failed, trying Azure AI directly', { error: simplifiedAIError });
 
           // Try using Azure AI directly via pumpDriveAIService

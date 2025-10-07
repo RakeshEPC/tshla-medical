@@ -622,23 +622,57 @@ Format your response as JSON with the following structure:
     // Check for specific feature preferences
     const selectedFeatures = features.map(f => f.title.toLowerCase());
 
-    if (selectedFeatures.some(f => f.includes('apple watch'))) {
+    // Check free text for weight/size preferences
+    const freeTextLower = (freeTextData?.currentSituation || '').toLowerCase();
+
+    // PRIORITY 1: Weight-specific features (Twiist is ONLY pump at 2 ounces)
+    if (selectedFeatures.some(f => f.includes('2 ounces') || f.includes('weighs only') || f.includes('lightest')) ||
+        freeTextLower.includes('2 ounces') || freeTextLower.includes('lightest') || freeTextLower.includes('2oz')) {
       topRecommendation = 'Twiist';
-      score = 90;
+      score = 95;
+      reasons = [
+        'Lightest insulin pump at only 2 ounces',
+        'Ultra-compact tubed design',
+        'Apple Watch control and modern tech features'
+      ];
+    }
+    // PRIORITY 2: Apple Watch (Twiist exclusive)
+    else if (selectedFeatures.some(f => f.includes('apple watch')) ||
+             freeTextLower.includes('apple watch')) {
+      topRecommendation = 'Twiist';
+      score = 94;
       reasons = [
         'Only pump with Apple Watch control',
         'Lightest weight at 2 ounces',
         'Modern smartphone integration'
       ];
-    } else if (selectedFeatures.some(f => f.includes('tubeless') || f.includes('patch'))) {
+    }
+    // PRIORITY 3: Tubeless preference
+    else if (selectedFeatures.some(f => f.includes('tubeless') || f.includes('patch')) ||
+             freeTextLower.includes('tubeless') || freeTextLower.includes('no tubing')) {
       topRecommendation = 'Omnipod 5';
-      score = 88;
+      score = 90;
       reasons = [
-        'Tubeless patch design',
+        'Completely tubeless patch design',
         'Phone control capabilities',
         'Automated insulin delivery'
       ];
-    } else if (selectedFeatures.some(f => f.includes('touchscreen') || f.includes('phone'))) {
+    }
+    // PRIORITY 4: Simple/hands-off (Beta Bionics iLet)
+    else if (selectedFeatures.some(f => f.includes('no carb counting') || f.includes('simple')) ||
+             freeTextLower.includes("don't want to do anything") || freeTextLower.includes('hands-off') ||
+             freeTextLower.includes('simple')) {
+      topRecommendation = 'Beta Bionics iLet';
+      score = 88;
+      reasons = [
+        'No carb counting required',
+        'Fully automated insulin delivery',
+        'Simplest workflow of all pumps'
+      ];
+    }
+    // PRIORITY 5: Touchscreen/tech-savvy
+    else if (selectedFeatures.some(f => f.includes('touchscreen') || f.includes('phone')) ||
+             sliders.techComfort >= 7) {
       topRecommendation = 'Tandem t:slim X2';
       score = 86;
       reasons = [

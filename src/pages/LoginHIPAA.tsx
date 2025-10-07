@@ -217,16 +217,6 @@ export default function LoginHIPAA() {
           </div>
         </div>
 
-        {/* Default Credentials Notice (Remove in production) */}
-        <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <p className="text-xs text-yellow-800">
-            <strong>Test Credentials:</strong>
-            <br />
-            Email: admin@tshla.ai
-            <br />
-            Password: TshlaSecure2025!
-          </p>
-        </div>
       </div>
     </div>
   );

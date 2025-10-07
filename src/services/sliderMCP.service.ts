@@ -181,7 +181,7 @@ class SliderMCPService {
     sliderData: Record<string, number>,
     selectedFeatures: any[] = []
   ): Promise<SliderAnalysis> {
-    logDebug('sliderMCP', 'Debug message', {});
+    logDebug('sliderMCP', 'Generating pump recommendation', { sliderCount: Object.keys(sliderData).length, featuresCount: selectedFeatures.length });
 
     const startTime = Date.now();
     const freeTextForHash = this.getFreeTextResponse();
@@ -191,6 +191,7 @@ class SliderMCPService {
     let cachedRecommendation = await this.getSliderRecommendation(profileHash);
 
     if (cachedRecommendation) {
+      logInfo('sliderMCP', 'Using cached recommendation', { profileHash });
       return {
         profile: {
           sessionId: this.sessionId,
@@ -217,38 +218,58 @@ class SliderMCPService {
     const freeTextData = sessionStorage.getItem('pumpDriveFreeText');
     const freeTextResponse = freeTextData ? JSON.parse(freeTextData)?.currentSituation : '';
 
-    const enhancedPrompt = this.buildEnhancedAIPrompt(sliderData, featuresData, freeTextResponse);
+    // STRATEGY: Try backend API first, then fall back to frontend OpenAI
+    let recommendation: SliderRecommendation;
+    let source: 'backend-api' | 'frontend-ai' | 'fallback' = 'fallback';
 
+    // METHOD 1: Try backend API (RECOMMENDED - keeps API key secure)
     try {
-      const aiResponse = await openAIService.processText(enhancedPrompt, { model: 'gpt-4', temperature: 0.7, maxTokens: 2000 });
-      const recommendation = this.parseAIResponse(aiResponse, sliderData);
+      logInfo('sliderMCP', 'Attempting backend API call', {});
+      recommendation = await this.callBackendAPI(sliderData, featuresData, freeTextResponse);
+      source = 'backend-api';
+      logInfo('sliderMCP', 'Backend API call successful', {});
+    } catch (backendError: any) {
+      logWarn('sliderMCP', 'Backend API failed, trying frontend OpenAI', { error: backendError?.message });
 
-      // Feature boosting removed - AI handles feature preferences objectively in the prompt
+      // METHOD 2: Try frontend OpenAI as fallback
+      try {
+        const enhancedPrompt = this.buildEnhancedAIPrompt(sliderData, featuresData, freeTextResponse);
+        const aiResponse = await openAIService.processText(enhancedPrompt, { model: 'gpt-4', temperature: 0.7, maxTokens: 2000 });
+        recommendation = this.parseAIResponse(aiResponse, sliderData);
+        source = 'frontend-ai';
+        logInfo('sliderMCP', 'Frontend OpenAI call successful', {});
+      } catch (frontendError: any) {
+        logError('sliderMCP', 'Both backend and frontend AI failed - using rule-based fallback', {
+          backendError: backendError?.message,
+          frontendError: frontendError?.message
+        });
 
-      // Cache the recommendation
-      await this.cacheRecommendation(profileHash, recommendation);
-
-      return {
-        profile: {
-          sessionId: this.sessionId,
-          responses: Object.entries(sliderData).map(([key, value]) => ({
-            sliderId: key,
-            value,
-            timestamp: Date.now(),
-            category: key,
-          })),
-          profileHash,
-          createdAt: Date.now(),
-        },
-        recommendation,
-        cacheKey: profileHash,
-        processingTime: Date.now() - startTime,
-        source: 'ai',
-      };
-    } catch (error) {
-      logError('sliderMCP', 'Error message', {});
-      throw new Error('Failed to generate pump recommendation');
+        // METHOD 3: Rule-based fallback
+        recommendation = this.createRuleBasedRecommendation(sliderData, featuresData, freeTextResponse);
+        source = 'fallback';
+      }
     }
+
+    // Cache the recommendation
+    await this.cacheRecommendation(profileHash, recommendation);
+
+    return {
+      profile: {
+        sessionId: this.sessionId,
+        responses: Object.entries(sliderData).map(([key, value]) => ({
+          sliderId: key,
+          value,
+          timestamp: Date.now(),
+          category: key,
+        })),
+        profileHash,
+        createdAt: Date.now(),
+      },
+      recommendation,
+      cacheKey: profileHash,
+      processingTime: Date.now() - startTime,
+      source: source as 'cache' | 'ai',  // Map source types
+    };
   }
 
   private getSelectedFeatures(): any[] {
@@ -271,6 +292,154 @@ class SliderMCPService {
     } catch {
       return '';
     }
+  }
+
+  /**
+   * Call backend API for pump recommendation
+   */
+  private async callBackendAPI(
+    sliderData: Record<string, number>,
+    features: any[],
+    freeText: string
+  ): Promise<SliderRecommendation> {
+    const apiUrl = import.meta.env.VITE_PUMP_API_URL || 'http://localhost:3002';
+    const endpoint = `${apiUrl}/api/pumpdrive/recommend`;
+
+    const requestBody = {
+      sliders: sliderData,
+      features: features.map(f => f.title || f.id || ''),
+      freeText: {
+        currentSituation: freeText
+      }
+    };
+
+    logInfo('sliderMCP', 'Calling backend API', { endpoint, dataSize: JSON.stringify(requestBody).length });
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      throw new Error(`Backend API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    // Convert backend response to SliderRecommendation format
+    return this.convertBackendResponse(data);
+  }
+
+  /**
+   * Convert backend API response to SliderRecommendation format
+   */
+  private convertBackendResponse(backendData: any): SliderRecommendation {
+    const topPump = backendData.overallTop?.[0] || backendData.topChoice;
+    const alternatives = backendData.alternatives || [];
+
+    return {
+      profileId: Date.now().toString(),
+      topPumps: [
+        {
+          pumpId: topPump.pumpId || topPump.name?.toLowerCase().replace(/\s+/g, '-'),
+          pumpName: topPump.pumpName || topPump.name,
+          score: topPump.score || 85,
+          matchFactors: topPump.reasons || [],
+          sliderInfluence: {}
+        },
+        ...alternatives.slice(0, 2).map((alt: any) => ({
+          pumpId: alt.pumpId || alt.name?.toLowerCase().replace(/\s+/g, '-'),
+          pumpName: alt.pumpName || alt.name,
+          score: alt.score || 75,
+          matchFactors: alt.reasons || [],
+          sliderInfluence: {}
+        }))
+      ],
+      personalizedInsights: [
+        backendData.personalizedInsights || 'Based on your preferences, we recommend this pump.'
+      ],
+      nextSteps: [
+        'Discuss this recommendation with your healthcare provider',
+        'Research insurance coverage for your top choice',
+        'Schedule a pump demonstration if available'
+      ],
+      confidence: 0.9
+    };
+  }
+
+  /**
+   * Rule-based fallback recommendation
+   */
+  private createRuleBasedRecommendation(
+    sliderData: Record<string, number>,
+    features: any[],
+    freeText: string
+  ): SliderRecommendation {
+    const selectedFeatures = features.map(f => (f.title || f.id || '').toLowerCase());
+    const freeTextLower = freeText.toLowerCase();
+
+    let topPump = 'Medtronic 780G';
+    let score = 85;
+    let reasons = ['Well-established hybrid closed-loop system', 'Strong clinical support'];
+
+    // PRIORITY 1: Weight-specific features (Twiist is ONLY pump at 2 ounces)
+    if (selectedFeatures.some(f => f.includes('2 ounces') || f.includes('weighs only') || f.includes('lightest')) ||
+        freeTextLower.includes('2 ounces') || freeTextLower.includes('lightest') || freeTextLower.includes('2oz')) {
+      topPump = 'Twiist';
+      score = 95;
+      reasons = ['Lightest insulin pump at only 2 ounces', 'Ultra-compact tubed design', 'Apple Watch control'];
+    }
+    // PRIORITY 2: Apple Watch (Twiist exclusive)
+    else if (selectedFeatures.some(f => f.includes('apple watch')) || freeTextLower.includes('apple watch')) {
+      topPump = 'Twiist';
+      score = 94;
+      reasons = ['Only pump with Apple Watch control', 'Lightest at 2 ounces', 'Modern smartphone integration'];
+    }
+    // PRIORITY 3: Tubeless preference
+    else if (selectedFeatures.some(f => f.includes('tubeless') || f.includes('patch')) || freeTextLower.includes('tubeless')) {
+      topPump = 'Omnipod 5';
+      score = 90;
+      reasons = ['Completely tubeless patch design', 'Phone control capabilities', 'Automated insulin delivery'];
+    }
+    // PRIORITY 4: Simple/hands-off (Beta Bionics iLet)
+    else if (selectedFeatures.some(f => f.includes('no carb counting') || f.includes('simple')) ||
+             freeTextLower.includes("don't want to do anything") || freeTextLower.includes('hands-off') || freeTextLower.includes('simple')) {
+      topPump = 'Beta Bionics iLet';
+      score = 88;
+      reasons = ['No carb counting required', 'Fully automated insulin delivery', 'Simplest workflow'];
+    }
+    // PRIORITY 5: Touchscreen/tech-savvy
+    else if (selectedFeatures.some(f => f.includes('touchscreen') || f.includes('phone')) || sliderData.techComfort >= 7) {
+      topPump = 'Tandem t:slim X2';
+      score = 86;
+      reasons = ['Color touchscreen interface', 'Phone app integration', 'Remote software updates'];
+    }
+
+    return {
+      profileId: Date.now().toString(),
+      topPumps: [
+        {
+          pumpId: topPump.toLowerCase().replace(/\s+/g, '-'),
+          pumpName: topPump,
+          score,
+          matchFactors: reasons,
+          sliderInfluence: {}
+        }
+      ],
+      personalizedInsights: [
+        `Based on your preferences${selectedFeatures.length > 0 ? ` (especially ${selectedFeatures[0]})` : ''}, we recommend the ${topPump}.`,
+        'This recommendation uses rule-based matching. For AI-powered analysis, please try again later.'
+      ],
+      nextSteps: [
+        'Discuss this recommendation with your healthcare provider',
+        'Research insurance coverage for your top choice',
+        'Schedule a pump demonstration if available'
+      ],
+      confidence: 0.75
+    };
   }
 
   private buildEnhancedAIPrompt(

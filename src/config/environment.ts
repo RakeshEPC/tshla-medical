@@ -5,7 +5,14 @@
  */
 
 export interface EnvironmentConfig {
-  // Azure Services (Primary - HIPAA Compliant)
+  // Supabase (Primary - HIPAA Compliant Database & Auth)
+  supabase: {
+    url: string;
+    anonKey: string;
+    serviceRoleKey?: string; // Server-side only
+  };
+
+  // Azure Services (Optional - AI Features)
   azureOpenAI: {
     endpoint: string;
     apiKey: string;
@@ -18,7 +25,7 @@ export interface EnvironmentConfig {
     apiKey: string;
   };
 
-  // Database (RDS/MySQL)
+  // Database (Legacy - being migrated to Supabase)
   database: {
     host: string;
     port: number;
@@ -82,24 +89,21 @@ class EnvironmentValidator {
       return 'development';
     };
 
-    // Critical security check: No hardcoded API keys allowed
-    // All external services are optional - app primarily uses MySQL database for authentication
+    // Critical security check: Supabase required for authentication
     const requiredVars: Record<string, string> = {
-      // No required external service vars - MySQL is primary database
+      VITE_SUPABASE_URL: 'Supabase project URL (required for auth & database)',
+      VITE_SUPABASE_ANON_KEY: 'Supabase anon/public key (required for auth & database)',
     };
 
-    // Optional external services - all are optional
+    // Optional external services for AI features
     const optionalVars = {
       VITE_AZURE_OPENAI_ENDPOINT: 'Azure OpenAI endpoint (optional)',
       VITE_AZURE_OPENAI_KEY: 'Azure OpenAI API key (optional)',
       VITE_AZURE_SPEECH_REGION: 'Azure Speech region (optional)',
     };
 
-    // Secure authentication credentials (optional but recommended)
-    const optionalSecureVars = {
-      VITE_ADMIN_PASSWORD: 'Admin password for secure authentication',
-      VITE_PUMPDRIVE_ADMIN_PASSWORD: 'PumpDrive admin password for secure authentication',
-    };
+    // NOTE: Admin passwords removed - all authentication handled by Supabase Auth
+    // Create admin accounts via: Supabase Dashboard → Authentication → Users
 
     // Validate required environment variables exist
     for (const [envVar, description] of Object.entries(requiredVars)) {
@@ -109,7 +113,7 @@ class EnvironmentValidator {
     }
 
     // Validate URL formats
-    const urlVars = ['VITE_AZURE_OPENAI_ENDPOINT'];
+    const urlVars = ['VITE_SUPABASE_URL', 'VITE_AZURE_OPENAI_ENDPOINT'];
     urlVars.forEach(envVar => {
       const value = import.meta.env[envVar];
       if (value && !isValidUrl(value)) {
@@ -118,7 +122,7 @@ class EnvironmentValidator {
     });
 
     // Validate API key formats (security check against placeholder values)
-    const apiKeyVars = ['VITE_AZURE_OPENAI_KEY'];
+    const apiKeyVars = ['VITE_SUPABASE_ANON_KEY', 'VITE_AZURE_OPENAI_KEY'];
     apiKeyVars.forEach(envVar => {
       const value = import.meta.env[envVar];
       if (value) {
@@ -136,27 +140,6 @@ class EnvironmentValidator {
       }
     });
 
-    // Validate optional secure authentication variables
-    for (const [envVar, description] of Object.entries(optionalSecureVars)) {
-      const value = import.meta.env[envVar];
-      if (!value) {
-        console.warn(`⚠️  Optional secure variable not set: ${envVar} (${description})`);
-        console.warn(`   Authentication will fall back to account creation service only`);
-      } else {
-        // Validate secure password format
-        if (value.length < 8) {
-          errors.push(`${envVar} must be at least 8 characters long for security`);
-        }
-        if (
-          value.includes('placeholder') ||
-          value.includes('example') ||
-          value.includes('change-this')
-        ) {
-          errors.push(`${envVar} contains placeholder text - use real password`);
-        }
-      }
-    }
-
     if (errors.length > 0) {
       console.error('❌ Environment validation failed:');
       console.error('='.repeat(80));
@@ -166,6 +149,11 @@ class EnvironmentValidator {
     }
 
     return {
+      supabase: {
+        url: import.meta.env.VITE_SUPABASE_URL || '',
+        anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+        serviceRoleKey: import.meta.env.SUPABASE_SERVICE_ROLE_KEY, // Server-side only
+      },
       azureOpenAI: {
         endpoint: import.meta.env.VITE_AZURE_OPENAI_ENDPOINT || '',
         apiKey: import.meta.env.VITE_AZURE_OPENAI_KEY || '',
@@ -258,6 +246,9 @@ const configObject = validator.getConfig();
 
 // Export validated configuration
 export const config = configObject;
+
+// Export as 'env' for backward compatibility with existing code
+export const env = configObject;
 
 // Export environment helpers (computed from local variable to avoid initialization issues)
 export const isProduction = configObject.app.environment === 'production';

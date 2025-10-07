@@ -11,7 +11,7 @@
  */
 
 import { logDebug } from './logger.service';
-import { medicalAuthService } from './medicalAuth.service';
+import { supabaseAuthService } from './supabaseAuth.service';
 
 interface AuthUser {
   id: string;
@@ -80,21 +80,20 @@ class UnifiedAuthService {
   }
 
   /**
-   * Check medical staff database (primary method)
+   * Check medical staff database (primary method) - NOW USES SUPABASE
    */
   private async checkMedicalStaffDatabase(email: string, password: string): Promise<AuthResult> {
     try {
-      const medicalResult = await medicalAuthService.login({ email, password });
+      const medicalResult = await supabaseAuthService.loginMedicalStaff(email, password);
 
       if (medicalResult.success && medicalResult.user && medicalResult.token) {
-        // Use the REAL JWT token from the medical auth service, not a fake one
         const token = medicalResult.token;
         const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000); // 8 hours
 
         const user: AuthUser = {
-          id: medicalResult.user.id.toString(),
+          id: medicalResult.user.id,
           email: medicalResult.user.email,
-          name: `${medicalResult.user.firstName || ''} ${medicalResult.user.lastName || ''}`.trim() || medicalResult.user.username,
+          name: medicalResult.user.name,
           role: medicalResult.user.role,
           specialty: medicalResult.user.specialty,
           accessType: 'medical',
@@ -120,41 +119,29 @@ class UnifiedAuthService {
   // Removed checkAccountService - all accounts now in medical_staff database
 
   /**
-   * Check PumpDrive database credentials
+   * Check PumpDrive database credentials - NOW USES SUPABASE
    * All PumpDrive users now stored in pump_users table
    */
   private async checkPumpDriveDatabase(email: string, password: string): Promise<AuthResult> {
     try {
-      // Import pumpAuth service to check pump_users database
-      const { pumpAuthService } = await import('./pumpAuth.service');
-
-      const pumpResult = await pumpAuthService.login({ email, password });
+      const pumpResult = await supabaseAuthService.loginPumpUser(email, password);
 
       if (pumpResult.success && pumpResult.user && pumpResult.token) {
         const token = pumpResult.token;
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-        // Decode JWT to extract role from token
-        let userRole = 'user'; // default role
-        try {
-          const payload = JSON.parse(atob(token.split('.')[1]));
-          userRole = payload.role || 'user';
-        } catch (e) {
-          console.warn('Failed to decode JWT token:', e);
-        }
-
         const user: AuthUser = {
-          id: pumpResult.user.id.toString(),
+          id: pumpResult.user.id,
           email: pumpResult.user.email,
-          name: `${pumpResult.user.firstName || ''} ${pumpResult.user.lastName ||''}`.trim(),
-          role: userRole, // Role from JWT token (admin only for specific users)
+          name: pumpResult.user.name,
+          role: pumpResult.user.role,
           accessType: 'pumpdrive',
         };
 
         this.saveSession(token, user, expiresAt);
 
         // Set PumpDrive specific flags for admin users
-        if (userRole === 'admin') {
+        if (pumpResult.user.role === 'admin') {
           localStorage.setItem('pumpdrive_access', 'unlimited');
           localStorage.setItem('admin_access', 'true');
           localStorage.setItem('admin_email', email);

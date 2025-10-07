@@ -47,9 +47,16 @@ jobs:
 
       - name: Build application
         env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_PUMP_API_URL: https://tshla-pump-api-container.redpebble-e4551b7a.eastus.azurecontainerapps.io
           VITE_SCHEDULE_API_URL: https://tshla-schedule-api-container.redpebble-e4551b7a.eastus.azurecontainerapps.io
           VITE_AUTH_API_URL: https://tshla-auth-api-container.redpebble-e4551b7a.eastus.azurecontainerapps.io
+          VITE_OPENAI_API_KEY: ${{ secrets.VITE_OPENAI_API_KEY }}
+          VITE_OPENAI_MODEL_STAGE4: gpt-4o-mini
+          VITE_OPENAI_MODEL_STAGE5: gpt-4o
+          VITE_OPENAI_MODEL_STAGE6: gpt-4o
+          VITE_PRIMARY_AI_PROVIDER: openai
         run: npm run build
 
       - name: Post-Build Validation
