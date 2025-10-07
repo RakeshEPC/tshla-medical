@@ -376,10 +376,7 @@ app.post('/api/auth/register', checkDatabaseStatus, async (req, res) => {
       password,
       firstName,
       lastName,
-      phoneNumber,
-      isResearchParticipant = false,
-      researchData,
-      questionnaireData
+      phoneNumber
     } = req.body;
 
     // Validation
@@ -447,8 +444,7 @@ app.post('/api/auth/register', checkDatabaseStatus, async (req, res) => {
         first_name: firstName || null,
         last_name: lastName || null,
         phone_number: phoneNumber || null,
-        current_payment_status: 'active',
-        is_research_participant: isResearchParticipant
+        current_payment_status: 'active'
       })
       .select()
       .single();
@@ -458,59 +454,6 @@ app.post('/api/auth/register', checkDatabaseStatus, async (req, res) => {
     }
 
     const userId = newUser.id;
-
-    // If research participant, create research record
-    let researchParticipantId = null;
-    if (isResearchParticipant && researchData) {
-      const { data: researchResult, error: researchError } = await supabase
-        .from('research_participants')
-        .insert({
-          user_id: userId,
-          full_name: researchData.fullName,
-          date_of_birth: researchData.dateOfBirth,
-          pcp_name: researchData.pcpName,
-          pcp_phone: researchData.pcpPhone,
-          pcp_email: researchData.pcpEmail,
-          pcp_address: researchData.pcpAddress,
-          endocrinologist_name: researchData.endocrinologistName,
-          endocrinologist_phone: researchData.endocrinologistPhone,
-          endocrinologist_email: researchData.endocrinologistEmail,
-          endocrinologist_address: researchData.endocrinologistAddress,
-          mailing_address: researchData.mailingAddress,
-          pre_treatment_survey_completed: true
-        })
-        .select()
-        .single();
-
-      if (researchError) {
-        throw researchError;
-      }
-
-      researchParticipantId = researchResult.id;
-
-      // Save pre-treatment questionnaire
-      if (questionnaireData) {
-        const { error: questionnaireError } = await supabase
-          .from('research_questionnaires')
-          .insert({
-            user_id: userId,
-            questionnaire_type: 'pre_treatment',
-            overall_satisfaction: questionnaireData.overallSatisfaction,
-            high_blood_sugar_frequency: questionnaireData.highBloodSugarFrequency,
-            low_blood_sugar_frequency: questionnaireData.lowBloodSugarFrequency,
-            convenience_satisfaction: questionnaireData.convenienceSatisfaction,
-            flexibility_satisfaction: questionnaireData.flexibilitySatisfaction,
-            understanding_satisfaction: questionnaireData.understandingSatisfaction,
-            continuation_likelihood: questionnaireData.continuationLikelihood,
-            recommendation_likelihood: questionnaireData.recommendationLikelihood,
-            additional_comments: questionnaireData.additionalComments
-          });
-
-        if (questionnaireError) {
-          throw questionnaireError;
-        }
-      }
-    }
 
     // Generate JWT token
     const jwtSecret = process.env.JWT_SECRET;
@@ -526,7 +469,7 @@ app.post('/api/auth/register', checkDatabaseStatus, async (req, res) => {
     const isAdmin = ['rakesh@tshla.ai', 'admin@tshla.ai'].includes(email.toLowerCase());
 
     const token = jwt.sign(
-      { userId, email, username, isResearchParticipant, role: isAdmin ? 'admin' : 'user' },
+      { userId, email, username, role: isAdmin ? 'admin' : 'user' },
       jwtSecret,
       { expiresIn: '24h' }
     );
@@ -536,7 +479,7 @@ app.post('/api/auth/register', checkDatabaseStatus, async (req, res) => {
       .from('access_logs')
       .insert({
         user_id: userId,
-        access_type: isResearchParticipant ? 'research_access' : 'initial_purchase',
+        access_type: 'initial_purchase',
         payment_amount_cents: 999,
         ip_address: req.ip,
         user_agent: req.get('User-Agent')
@@ -550,9 +493,7 @@ app.post('/api/auth/register', checkDatabaseStatus, async (req, res) => {
     console.log('User registered successfully:', {
       userId,
       email,
-      username,
-      isResearchParticipant,
-      researchParticipantId
+      username
     });
 
     res.json({
@@ -564,11 +505,9 @@ app.post('/api/auth/register', checkDatabaseStatus, async (req, res) => {
         username,
         firstName,
         lastName,
-        phoneNumber,
-        isResearchParticipant
+        phoneNumber
       },
-      token,
-      researchParticipantId
+      token
     });
   } catch (error) {
     console.error('User registration failed:', error);
@@ -596,7 +535,7 @@ app.post('/api/auth/login', async (req, res) => {
     // Get user by email
     const { data: users, error: searchError } = await supabase
       .from('pump_users')
-      .select('id, email, username, password_hash, first_name, last_name, phone_number, current_payment_status, is_research_participant, is_active, login_count')
+      .select('id, email, username, password_hash, first_name, last_name, phone_number, current_payment_status, is_active, login_count')
       .eq('email', email);
 
     if (searchError) {
@@ -653,7 +592,6 @@ app.post('/api/auth/login', async (req, res) => {
         userId: user.id,
         email: user.email,
         username: user.username,
-        isResearchParticipant: user.is_research_participant,
         role: isAdmin ? 'admin' : 'user'
       },
       jwtSecret,
@@ -669,8 +607,7 @@ app.post('/api/auth/login', async (req, res) => {
         username: user.username,
         firstName: user.first_name,
         lastName: user.last_name,
-        phoneNumber: user.phone_number,
-        isResearchParticipant: user.is_research_participant
+        phoneNumber: user.phone_number
       },
       token
     });
