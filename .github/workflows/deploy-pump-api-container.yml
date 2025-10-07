@@ -99,8 +99,8 @@ jobs:
         API_URL="https://tshla-pump-api-container.redpebble-e4551b7a.eastus.azurecontainerapps.io"
 
         # Test health endpoint
-        echo "Testing /health endpoint..."
-        HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/health" --max-time 10)
+        echo "Testing /api/health endpoint..."
+        HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/api/health" --max-time 10)
         if [ "$HEALTH_STATUS" = "200" ]; then
           echo "✅ Health check: $HEALTH_STATUS"
         else
@@ -110,7 +110,7 @@ jobs:
 
         # Test CORS headers
         echo "Testing CORS headers..."
-        CORS_HEADER=$(curl -s -I -H "Origin: https://mango-sky-0ba265c0f.1.azurestaticapps.net" "$API_URL/health" | grep -i "access-control-allow-origin" || echo "")
+        CORS_HEADER=$(curl -s -I -H "Origin: https://mango-sky-0ba265c0f.1.azurestaticapps.net" "$API_URL/api/health" | grep -i "access-control-allow-origin" || echo "")
         if [ -z "$CORS_HEADER" ]; then
           echo "❌ CORS headers missing! Frontend will get errors."
           exit 1
@@ -119,7 +119,7 @@ jobs:
 
         # Test response is valid JSON
         echo "Testing JSON response..."
-        RESPONSE=$(curl -s "$API_URL/health" --max-time 10)
+        RESPONSE=$(curl -s "$API_URL/api/health" --max-time 10)
         if echo "$RESPONSE" | jq . > /dev/null 2>&1; then
           STATUS=$(echo "$RESPONSE" | jq -r '.status')
           if [ "$STATUS" = "ok" ]; then
