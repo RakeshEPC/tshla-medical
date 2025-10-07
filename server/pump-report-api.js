@@ -387,27 +387,28 @@ app.get('/api/health', async (req, res) => {
 
   let overallStatus = 'ok';
 
-  // Check database connectivity
+  // Check Supabase connectivity
   try {
-    if (unifiedDatabase.isInitialized) {
-      const connection = await unifiedDatabase.getConnection();
-      await connection.ping();
-      connection.release();
-      health.services.database = {
-        status: 'healthy',
-        connected: true,
-        host: process.env.DB_HOST
-      };
-    } else {
-      throw new Error('Unified database service not initialized');
-    }
+    const { data, error } = await supabase
+      .from('pump_comparison_data')
+      .select('id')
+      .limit(1);
+
+    if (error) throw error;
+
+    health.services.database = {
+      status: 'healthy',
+      connected: true,
+      type: 'supabase',
+      url: process.env.VITE_SUPABASE_URL
+    };
   } catch (error) {
     overallStatus = 'degraded';
     health.services.database = {
       status: 'unhealthy',
       connected: false,
-      error: error.message,
-      host: process.env.DB_HOST
+      type: 'supabase',
+      error: error.message
     };
   }
 
@@ -2167,28 +2168,7 @@ app.post('/api/pumpdrive/assessments/:id/email', verifyToken, async (req, res) =
  * Health check endpoint
  * GET /api/health
  */
-app.get('/api/health', async (req, res) => {
-  try {
-    // Test database connection
-    const connection = await unifiedDatabase.getConnection();
-    await connection.ping();
-    connection.release();
-
-    res.json({
-      status: 'healthy',
-      timestamp: new Date().toISOString(),
-      database: 'connected',
-      email: emailTransporter ? 'configured' : 'not_configured',
-      stripe: process.env.STRIPE_SECRET_KEY ? 'configured' : 'not_configured',
-    });
-  } catch (error) {
-    res.status(500).json({
-      status: 'unhealthy',
-      timestamp: new Date().toISOString(),
-      error: error.message,
-    });
-  }
-});
+// Duplicate health endpoint removed - see line 374
 
 /**
  * ADMIN: Get all PumpDrive users with their pump selections
