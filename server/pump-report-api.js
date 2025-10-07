@@ -2686,40 +2686,23 @@ app.get('/api/admin/pumpdrive/analytics/recent', requireAdmin, async (req, res) 
  */
 app.get('/api/admin/pump-comparison-data', requireAdmin, async (req, res) => {
   try {
-    const connection = await unifiedDatabase.getConnection();
+    // Fetch from Supabase instead of MySQL
+    const { data: dimensions, error } = await supabase
+      .from('pump_comparison_data')
+      .select('*')
+      .eq('is_active', true)
+      .order('display_order', { ascending: true })
+      .order('dimension_number', { ascending: true });
 
-    const [dimensions] = await connection.execute(`
-      SELECT
-        id,
-        dimension_number,
-        dimension_name,
-        dimension_description,
-        importance_scale,
-        pump_details,
-        category,
-        display_order,
-        is_active,
-        created_at,
-        updated_at
-      FROM pump_comparison_data
-      WHERE is_active = true
-      ORDER BY display_order ASC, dimension_number ASC
-    `);
+    if (error) {
+      throw error;
+    }
 
-    connection.release();
-
-    // Parse JSON pump_details for each dimension
-    const parsedDimensions = dimensions.map(dim => ({
-      ...dim,
-      pump_details: typeof dim.pump_details === 'string'
-        ? JSON.parse(dim.pump_details)
-        : dim.pump_details
-    }));
-
+    // pump_details is already JSONB in Supabase, no parsing needed
     res.json({
       success: true,
-      count: parsedDimensions.length,
-      dimensions: parsedDimensions,
+      count: dimensions.length,
+      dimensions: dimensions,
       timestamp: new Date().toISOString()
     });
 
@@ -4180,47 +4163,32 @@ function generateRuleBasedRecommendations(userData) {
  */
 async function fetchPumpComparisonData() {
   try {
-    const connection = await pool.getConnection();
+    // Fetch from Supabase instead of MySQL
+    const { data: dimensions, error: dimError } = await supabase
+      .from('pump_comparison_data')
+      .select('dimension_number, dimension_name, dimension_description, pump_details, category, importance_scale')
+      .eq('is_active', true)
+      .order('display_order', { ascending: true })
+      .order('dimension_number', { ascending: true });
 
-    const [dimensions] = await connection.execute(`
-      SELECT
-        dimension_number,
-        dimension_name,
-        dimension_description,
-        pump_details,
-        category,
-        importance_scale
-      FROM pump_comparison_data
-      WHERE is_active = true
-      ORDER BY display_order ASC, dimension_number ASC
-    `);
+    if (dimError) {
+      throw dimError;
+    }
 
-    const [manufacturers] = await connection.execute(`
-      SELECT
-        pump_name,
-        manufacturer,
-        website,
-        rep_name,
-        rep_contact,
-        support_phone
-      FROM pump_manufacturers
-      WHERE is_active = true
-      ORDER BY pump_name ASC
-    `);
+    const { data: manufacturers, error: mfgError } = await supabase
+      .from('pump_manufacturers')
+      .select('pump_name, manufacturer, website, rep_name, rep_contact, support_phone')
+      .eq('is_active', true)
+      .order('pump_name', { ascending: true });
 
-    connection.release();
+    if (mfgError) {
+      throw mfgError;
+    }
 
-    // Parse JSON pump_details
-    const parsedDimensions = dimensions.map(dim => ({
-      ...dim,
-      pump_details: typeof dim.pump_details === 'string'
-        ? JSON.parse(dim.pump_details)
-        : dim.pump_details
-    }));
-
+    // pump_details is already JSONB in Supabase, no parsing needed
     return {
-      dimensions: parsedDimensions,
-      manufacturers
+      dimensions: dimensions,
+      manufacturers: manufacturers
     };
   } catch (error) {
     console.error('Error fetching pump comparison data:', error);
