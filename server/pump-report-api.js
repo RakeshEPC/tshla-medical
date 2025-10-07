@@ -2934,29 +2934,16 @@ app.delete('/api/admin/pump-comparison-data/:id', requireAdmin, async (req, res)
  */
 app.get('/api/admin/pump-manufacturers', requireAdmin, async (req, res) => {
   try {
-    const connection = await unifiedDatabase.getConnection();
+    // Fetch from Supabase instead of MySQL
+    const { data: manufacturers, error } = await supabase
+      .from('pump_manufacturers')
+      .select('*')
+      .eq('is_active', true)
+      .order('pump_name', { ascending: true });
 
-    const [manufacturers] = await connection.execute(`
-      SELECT
-        id,
-        pump_name,
-        manufacturer,
-        website,
-        rep_name,
-        rep_contact,
-        rep_email,
-        support_phone,
-        support_email,
-        notes,
-        is_active,
-        created_at,
-        updated_at
-      FROM pump_manufacturers
-      WHERE is_active = true
-      ORDER BY pump_name ASC
-    `);
-
-    connection.release();
+    if (error) {
+      throw error;
+    }
 
     res.json({
       success: true,
@@ -2996,40 +2983,32 @@ app.put('/api/admin/pump-manufacturers/:id', requireAdmin, async (req, res) => {
       is_active
     } = req.body;
 
-    const connection = await unifiedDatabase.getConnection();
+    // Build update object with only provided fields
+    const updates = {};
+    if (pump_name !== undefined) updates.pump_name = pump_name;
+    if (manufacturer !== undefined) updates.manufacturer = manufacturer;
+    if (website !== undefined) updates.website = website;
+    if (rep_name !== undefined) updates.rep_name = rep_name;
+    if (rep_contact !== undefined) updates.rep_contact = rep_contact;
+    if (rep_email !== undefined) updates.rep_email = rep_email;
+    if (support_phone !== undefined) updates.support_phone = support_phone;
+    if (support_email !== undefined) updates.support_email = support_email;
+    if (notes !== undefined) updates.notes = notes;
+    if (is_active !== undefined) updates.is_active = is_active;
+    updates.updated_at = new Date().toISOString();
 
-    const [result] = await connection.execute(`
-      UPDATE pump_manufacturers
-      SET
-        pump_name = COALESCE(?, pump_name),
-        manufacturer = COALESCE(?, manufacturer),
-        website = COALESCE(?, website),
-        rep_name = COALESCE(?, rep_name),
-        rep_contact = COALESCE(?, rep_contact),
-        rep_email = COALESCE(?, rep_email),
-        support_phone = COALESCE(?, support_phone),
-        support_email = COALESCE(?, support_email),
-        notes = COALESCE(?, notes),
-        is_active = COALESCE(?, is_active),
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `, [
-      pump_name,
-      manufacturer,
-      website,
-      rep_name,
-      rep_contact,
-      rep_email,
-      support_phone,
-      support_email,
-      notes,
-      is_active,
-      id
-    ]);
+    // Update in Supabase
+    const { data, error } = await supabase
+      .from('pump_manufacturers')
+      .update(updates)
+      .eq('id', id)
+      .select();
 
-    connection.release();
+    if (error) {
+      throw error;
+    }
 
-    if (result.affectedRows === 0) {
+    if (!data || data.length === 0) {
       return res.status(404).json({
         success: false,
         error: 'Pump manufacturer not found'
