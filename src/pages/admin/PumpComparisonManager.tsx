@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Database, Users, Phone, Globe, Mail, Save, Plus, Trash2, Edit3, X, Check } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
 interface PumpDetails {
   [pumpName: string]: {
@@ -61,7 +62,14 @@ export default function PumpComparisonManager() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const token = localStorage.getItem('auth_token');
+      // Get token from Supabase session
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
       const headers = {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -96,7 +104,13 @@ export default function PumpComparisonManager() {
 
   const updateDimension = async (id: number, updates: Partial<Dimension>) => {
     try {
-      const token = localStorage.getItem('auth_token');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
       const response = await fetch(`${API_BASE_URL}/api/admin/pump-comparison-data/${id}`, {
         method: 'PUT',
         headers: {
@@ -122,7 +136,13 @@ export default function PumpComparisonManager() {
 
   const updateManufacturer = async (id: number, updates: Partial<Manufacturer>) => {
     try {
-      const token = localStorage.getItem('auth_token');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
       const response = await fetch(`${API_BASE_URL}/api/admin/pump-manufacturers/${id}`, {
         method: 'PUT',
         headers: {
