@@ -32,6 +32,7 @@ function validateBuildPlugin() {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), validateBuildPlugin()],
+  publicDir: 'public', // Explicitly set public directory
   server: {
     proxy: {
       '/api/schedules': {
