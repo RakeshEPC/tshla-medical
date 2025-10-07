@@ -172,53 +172,65 @@ app.post('/api/medical/register', checkDatabaseStatus, async (req, res) => {
     const saltRounds = 12;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-    const connection = await unifiedDatabase.getConnection();
-    try {
-      // Check if email already exists
-      const [existingUsers] = await connection.execute(
-        'SELECT email FROM medical_staff WHERE email = ?',
-        [email.toLowerCase()]
-      );
+    // Initialize Supabase
+    await unifiedDatabase.initialize();
 
-      if (existingUsers.length > 0) {
-        return res.status(409).json({ error: 'Email already registered' });
-      }
+    // Check if email already exists
+    const { data: existingUsers, error: searchError } = await unifiedDatabase
+      .from('medical_staff')
+      .select('email')
+      .eq('email', email.toLowerCase());
 
-      // Create medical staff account
-      const [userResult] = await connection.execute(
-        `INSERT INTO medical_staff (
-          email, username, password_hash, first_name, last_name,
-          role, practice, specialty
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [email.toLowerCase(), username, passwordHash, firstName || null, lastName || null, role, practice || null, specialty || null]
-      );
-
-      const userId = userResult.insertId;
-
-      console.log('Medical staff registered successfully:', {
-        userId,
-        email: email.toLowerCase(),
-        role
-      });
-
-      res.json({
-        success: true,
-        message: 'Medical staff account created successfully',
-        user: {
-          id: userId,
-          email: email.toLowerCase(),
-          username,
-          firstName,
-          lastName,
-          role,
-          practice,
-          specialty
-        }
-      });
-
-    } finally {
-      connection.release();
+    if (searchError) {
+      throw searchError;
     }
+
+    if (existingUsers && existingUsers.length > 0) {
+      return res.status(409).json({ error: 'Email already registered' });
+    }
+
+    // Create medical staff account
+    const { data: newUser, error: insertError } = await unifiedDatabase
+      .from('medical_staff')
+      .insert({
+        email: email.toLowerCase(),
+        username,
+        password_hash: passwordHash,
+        first_name: firstName || null,
+        last_name: lastName || null,
+        role,
+        practice: practice || null,
+        specialty: specialty || null
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      throw insertError;
+    }
+
+    const userId = newUser.id;
+
+    console.log('Medical staff registered successfully:', {
+      userId,
+      email: email.toLowerCase(),
+      role
+    });
+
+    res.json({
+      success: true,
+      message: 'Medical staff account created successfully',
+      user: {
+        id: userId,
+        email: email.toLowerCase(),
+        username,
+        firstName,
+        lastName,
+        role,
+        practice,
+        specialty
+      }
+    });
   } catch (error) {
     console.error('Medical staff registration failed:', error);
     res.status(500).json({
@@ -244,71 +256,79 @@ app.post('/api/medical/login', checkDatabaseStatus, async (req, res) => {
       });
     }
 
-    const connection = await unifiedDatabase.getConnection();
-    try {
-      const [users] = await connection.execute(
-        `SELECT id, email, username, password_hash, first_name, last_name,
-                role, practice, specialty, is_active
-         FROM medical_staff WHERE email = ?`,
-        [email.toLowerCase()]
-      );
+    // Initialize Supabase
+    await unifiedDatabase.initialize();
 
-      if (users.length === 0) {
-        return res.status(401).json({ error: 'Invalid email or password' });
-      }
+    // Get user by email
+    const { data: users, error: searchError } = await unifiedDatabase
+      .from('medical_staff')
+      .select('id, email, username, password_hash, first_name, last_name, role, practice, specialty, is_active')
+      .eq('email', email.toLowerCase());
 
-      const user = users[0];
-
-      if (!user.is_active) {
-        return res.status(401).json({ error: 'Account is deactivated' });
-      }
-
-      // Verify password
-      const passwordValid = await bcrypt.compare(password, user.password_hash);
-      if (!passwordValid) {
-        return res.status(401).json({ error: 'Invalid email or password' });
-      }
-
-      // Update login tracking
-      await connection.execute(
-        'UPDATE medical_staff SET last_login = NOW(), login_count = login_count + 1 WHERE id = ?',
-        [user.id]
-      );
-
-      // Generate JWT token (separate from PumpDrive)
-      const jwtSecret = process.env.JWT_SECRET || process.env.MEDICAL_JWT_SECRET || 'tshla-unified-jwt-secret-2025';
-      const token = jwt.sign(
-        {
-          userId: user.id,
-          email: user.email,
-          username: user.username,
-          role: user.role,
-          accessType: 'medical'
-        },
-        jwtSecret,
-        { expiresIn: '8h' } // 8 hour sessions for medical staff
-      );
-
-      res.json({
-        success: true,
-        message: 'Login successful',
-        user: {
-          id: user.id,
-          email: user.email,
-          username: user.username,
-          firstName: user.first_name,
-          lastName: user.last_name,
-          role: user.role,
-          practice: user.practice,
-          specialty: user.specialty,
-          accessType: 'medical'
-        },
-        token
-      });
-
-    } finally {
-      connection.release();
+    if (searchError) {
+      throw searchError;
     }
+
+    if (!users || users.length === 0) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    const user = users[0];
+
+    if (!user.is_active) {
+      return res.status(401).json({ error: 'Account is deactivated' });
+    }
+
+    // Verify password
+    const passwordValid = await bcrypt.compare(password, user.password_hash);
+    if (!passwordValid) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    // Update login tracking
+    const { error: updateError } = await unifiedDatabase
+      .from('medical_staff')
+      .update({
+        last_login: new Date().toISOString(),
+        login_count: user.login_count ? user.login_count + 1 : 1
+      })
+      .eq('id', user.id);
+
+    if (updateError) {
+      console.error('Failed to update login tracking:', updateError);
+      // Don't fail login if tracking update fails
+    }
+
+    // Generate JWT token (separate from PumpDrive)
+    const jwtSecret = process.env.JWT_SECRET || process.env.MEDICAL_JWT_SECRET || 'tshla-unified-jwt-secret-2025';
+    const token = jwt.sign(
+      {
+        userId: user.id,
+        email: user.email,
+        username: user.username,
+        role: user.role,
+        accessType: 'medical'
+      },
+      jwtSecret,
+      { expiresIn: '8h' } // 8 hour sessions for medical staff
+    );
+
+    res.json({
+      success: true,
+      message: 'Login successful',
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        role: user.role,
+        practice: user.practice,
+        specialty: user.specialty,
+        accessType: 'medical'
+      },
+      token
+    });
   } catch (error) {
     console.error('Medical staff login failed:', error);
     res.status(500).json({
@@ -326,39 +346,39 @@ app.post('/api/medical/login', checkDatabaseStatus, async (req, res) => {
  */
 app.get('/api/medical/verify', verifyToken, async (req, res) => {
   try {
-    const connection = await unifiedDatabase.getConnection();
-    try {
-      const [users] = await connection.execute(
-        `SELECT id, email, username, first_name, last_name,
-                role, practice, specialty, is_active
-         FROM medical_staff WHERE id = ?`,
-        [req.user.userId]
-      );
+    // Initialize Supabase
+    await unifiedDatabase.initialize();
 
-      if (users.length === 0 || !users[0].is_active) {
-        return res.status(401).json({ error: 'User not found or inactive' });
-      }
+    // Get user by ID
+    const { data: users, error: searchError } = await unifiedDatabase
+      .from('medical_staff')
+      .select('id, email, username, first_name, last_name, role, practice, specialty, is_active')
+      .eq('id', req.user.userId);
 
-      const user = users[0];
-
-      res.json({
-        success: true,
-        user: {
-          id: user.id,
-          email: user.email,
-          username: user.username,
-          firstName: user.first_name,
-          lastName: user.last_name,
-          role: user.role,
-          practice: user.practice,
-          specialty: user.specialty,
-          accessType: 'medical'
-        }
-      });
-
-    } finally {
-      connection.release();
+    if (searchError) {
+      throw searchError;
     }
+
+    if (!users || users.length === 0 || !users[0].is_active) {
+      return res.status(401).json({ error: 'User not found or inactive' });
+    }
+
+    const user = users[0];
+
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        role: user.role,
+        practice: user.practice,
+        specialty: user.specialty,
+        accessType: 'medical'
+      }
+    });
   } catch (error) {
     console.error('Medical staff token verification failed:', error);
     res.status(500).json({
@@ -392,14 +412,16 @@ app.get('/api/medical/health', async (req, res) => {
   // Check database connectivity
   try {
     if (unifiedDatabase && req.app.locals.dbConnected) {
-      const connection = await unifiedDatabase.getConnection();
-      await connection.ping();
-      connection.release();
-      health.services.database = {
-        status: 'healthy',
-        connected: true,
-        host: process.env.DB_HOST
-      };
+      const dbHealth = await unifiedDatabase.healthCheck();
+      if (dbHealth.healthy) {
+        health.services.database = {
+          status: 'healthy',
+          connected: true,
+          service: 'supabase'
+        };
+      } else {
+        throw new Error(dbHealth.error || 'Database health check failed');
+      }
     } else {
       throw new Error('Database not connected or unified service not initialized');
     }
@@ -550,14 +572,16 @@ function startDatabaseMonitoring() {
   setInterval(async () => {
     try {
       if (unifiedDatabase) {
-        const connection = await unifiedDatabase.getConnection();
-        await connection.ping();
-        connection.release();
+        const health = await unifiedDatabase.healthCheck();
 
-        // If we're here, database is healthy
-        if (!app.locals.dbConnected) {
-          console.log('Medical Auth API: Database connection restored');
-          app.locals.dbConnected = true;
+        if (health.healthy) {
+          // If we're here, database is healthy
+          if (!app.locals.dbConnected) {
+            console.log('Medical Auth API: Database connection restored');
+            app.locals.dbConnected = true;
+          }
+        } else {
+          throw new Error(health.error || 'Health check failed');
         }
       }
     } catch (error) {
