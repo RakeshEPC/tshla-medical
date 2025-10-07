@@ -3149,7 +3149,10 @@ function applySliderAdjustments(scores, sliders) {
     scores['Tandem Mobi'] -= 3;
     scores['Tandem t:slim X2'] -= 4;
     scores['Medtronic 780G'] -= 2;
-    scores['Twiist'] -= 2;
+    // Only penalize Twiist if tech comfort is also low
+    if (techComfort < 5) {
+      scores['Twiist'] -= 2;
+    }
   } else if (simplicity >= 4) {
     scores['Omnipod 5'] += 2;
     scores['Medtronic 780G'] += 2;
@@ -3294,19 +3297,110 @@ function applyFeatureAdjustments(scores, features) {
     const featureId = feature.id || feature;
     const impact = FEATURE_IMPACT[featureId];
 
+    console.log(`[V3] Processing feature: ${JSON.stringify(feature)}`);
+    console.log(`     Extracted ID: "${featureId}"`);
+    console.log(`     Found mapping: ${!!impact}`);
+
     if (impact) {
       // Apply boosts
       Object.entries(impact.boosts).forEach(([pump, points]) => {
         scores[pump] += points;
+        console.log(`       ${pump} +${points}%`);
       });
       // Apply penalties
       Object.entries(impact.penalties).forEach(([pump, points]) => {
         scores[pump] += points;
+        console.log(`       ${pump} ${points}%`);
       });
+    } else {
+      console.warn(`     ⚠️  Feature ID "${featureId}" not found in FEATURE_IMPACT mapping!`);
     }
   });
 
   console.log('[V3] Stage 3 complete:', scores);
+  return scores;
+}
+
+// ===================================
+// STAGE 3.5: Critical Keyword Detection (Before AI)
+// ===================================
+function applyCriticalKeywordBoosts(scores, freeText) {
+  if (!freeText || freeText.trim().length === 0) {
+    console.log('[V3] Stage 3.5: No free text, skipping keyword detection');
+    return scores;
+  }
+
+  console.log('[V3] Stage 3.5: Checking for critical keywords');
+  const text = freeText.toLowerCase();
+  let boostsApplied = false;
+
+  // CRITICAL: Weight/Size mentions (Twiist = 2 oz, only pump this light)
+  const weightKeywords = /\b(lightest|2\s*oz|2\s*ounce|ultra.*light|minimal.*weight|tiny|smallest.*pump)\b/i;
+  if (weightKeywords.test(text)) {
+    scores['Twiist'] += 12;
+    scores['Tandem Mobi'] += 4;
+    console.log('  ✓ WEIGHT PRIORITY detected: Twiist +12%, Mobi +4%');
+    boostsApplied = true;
+  }
+
+  // CRITICAL: Lowest target glucose (Twiist = 87 mg/dL lowest)
+  const targetKeywords = /\b(lowest.*target|87.*mg|tight.*control|aggressive.*target)\b/i;
+  if (targetKeywords.test(text)) {
+    scores['Twiist'] += 6;
+    scores['Medtronic 780G'] += 5;
+    console.log('  ✓ LOWEST TARGET detected: Twiist +6%, 780G +5%');
+    boostsApplied = true;
+  }
+
+  // CRITICAL: Running/Active (Twiist is lightest for runners)
+  const runningKeywords = /\b(run|running|runner|jog|marathon|athlete)\b/i;
+  if (runningKeywords.test(text)) {
+    scores['Twiist'] += 4;
+    scores['Omnipod 5'] += 3;
+    scores['Tandem Mobi'] += 3;
+    console.log('  ✓ RUNNING detected: Twiist +4%, Omnipod +3%, Mobi +3%');
+    boostsApplied = true;
+  }
+
+  // CRITICAL: Apple Watch (only Twiist has this)
+  const appleWatchKeywords = /\b(apple.*watch|watch.*bolus|dose.*watch)\b/i;
+  if (appleWatchKeywords.test(text)) {
+    scores['Twiist'] += 15;
+    console.log('  ✓ APPLE WATCH detected: Twiist +15%');
+    boostsApplied = true;
+  }
+
+  // CRITICAL: No carb counting (only iLet)
+  const noCarbKeywords = /\b(no.*carb|don't.*count|without.*counting|carb.*free)\b/i;
+  if (noCarbKeywords.test(text)) {
+    scores['Beta Bionics iLet'] += 15;
+    console.log('  ✓ NO CARB detected: iLet +15%');
+    boostsApplied = true;
+  }
+
+  // CRITICAL: Tubeless (only Omnipod)
+  const tubelessKeywords = /\b(tubeless|no.*tub|hate.*tub|without.*tub)\b/i;
+  if (tubelessKeywords.test(text)) {
+    scores['Omnipod 5'] += 15;
+    console.log('  ✓ TUBELESS detected: Omnipod +15%');
+    boostsApplied = true;
+  }
+
+  // PREFERENCE: User says they DON'T mind tubes (helps tubed pumps)
+  const okayWithTubesKeywords = /\b(don't.*mind.*tub|okay.*with.*tub|fine.*with.*tub)\b/i;
+  if (okayWithTubesKeywords.test(text)) {
+    scores['Twiist'] += 3;
+    scores['Tandem t:slim X2'] += 2;
+    scores['Medtronic 780G'] += 2;
+    console.log('  ✓ OK WITH TUBES detected: Twiist +3%, t:slim +2%, 780G +2%');
+    boostsApplied = true;
+  }
+
+  if (!boostsApplied) {
+    console.log('  (No critical keywords detected)');
+  }
+
+  console.log('[V3] Stage 3.5 complete:', scores);
   return scores;
 }
 
@@ -3407,20 +3501,40 @@ BETA BIONICS ILET:
 - Dimension 8: Meal sizes (small/medium/large)
 
 TWIIST:
+- Dimension 22: Lightest pump (2 ounces) ⭐ ONLY PUMP THIS LIGHT
+- Dimension 6: Lowest target (87 mg/dL) ⭐ LOWEST STANDARD TARGET
 - Dimension 19: Apple Watch bolusing (dose from wrist!)
-- Dimension 22: Lightest pump (2 ounces)
 - Dimension 8: Emoji interface (food pics)
 - Dimension 23: Automatic OTA updates
 - Dimension 2: Full Apple integration
 
 SCORING RULES:
 - Perfect fit for stated need: +5 to +8 points per pump
+- CRITICAL FEATURES (only one pump has): +8 points
 - Good fit: +3 to +5 points
 - Mentioned but not primary: +1 to +2 points
-- Not relevant: 0 points
+- NOT RELEVANT: 0 points
 - MAXIMUM total per pump: +25 points
 
-EXAMPLES:
+⭐ CRITICAL PRIORITY EXAMPLES:
+
+Example 0a: "I want the lightest pump" or "2 ounces" or "minimal weight"
+INTENT: Minimize weight for comfort/running
+DIMENSION: #22 (Wearability)
+SCORING:
+- Twiist: +8 (ONLY pump at 2 oz - lightest by far)
+- Tandem Mobi: +3 (small but not lightest)
+- Others: 0 (significantly heavier)
+
+Example 0b: "lowest glucose target" or "87 mg/dL" or "tightest control possible"
+INTENT: Wants lowest possible target for tight control
+DIMENSION: #6 (Target adjustability)
+SCORING:
+- Twiist: +7 (87 mg/dL - lowest standard target)
+- Medtronic 780G: +5 (100 mg/dL fixed aggressive)
+- Others: +2 (higher targets)
+
+REGULAR EXAMPLES:
 
 Example 1: "I love to swim and I'm in the pool every day"
 INTENT: Needs excellent water resistance for daily swimming
@@ -3493,7 +3607,16 @@ NOW ANALYZE THE PATIENT'S TEXT AND RETURN JSON.`;
     });
 
     const analysis = JSON.parse(response.choices[0].message.content);
-    console.log('[V3] Stage 4 complete:', analysis);
+
+    // DEBUG: Log detailed AI analysis results
+    console.log('[V3] Stage 4 AI Analysis Results:');
+    console.log('  Intents extracted:', analysis.extractedIntents?.map(i => i.intent) || []);
+    console.log('  Dimensions covered:', analysis.dimensionsCovered || []);
+    console.log('  Pump scores from AI:');
+    Object.entries(analysis.pumpScores || {}).forEach(([pump, data]) => {
+      console.log(`    ${pump}: +${data.points}% - ${data.reasoning?.substring(0, 60) || 'No reasoning'}...`);
+    });
+
     return analysis;
   } catch (error) {
     console.error('[V3] Stage 4 error:', error);
@@ -3732,6 +3855,9 @@ async function generatePumpRecommendationsV3(userData) {
     // Stage 3: Apply feature adjustments (±8%)
     scores = applyFeatureAdjustments(scores, userData.features || []);
 
+    // Stage 3.5: Critical keyword detection (NEW!)
+    scores = applyCriticalKeywordBoosts(scores, userData.freeText?.currentSituation || '');
+
     // Stage 4: AI-powered free text analysis (0-25%)
     const freeTextAnalysis = await analyzeFreeTextWithAI(userData.freeText?.currentSituation || '');
 
@@ -3775,6 +3901,14 @@ async function generatePumpRecommendationsV3(userData) {
 
     // Sort and format final result
     const sorted = Object.entries(cappedScores).sort((a, b) => b[1].score - a[1].score);
+
+    // Final summary with visual ranking
+    console.log('\n[V3] ====== FINAL SCORING SUMMARY ======');
+    sorted.forEach(([pump, data], index) => {
+      const emoji = index === 0 ? '🏆' : index === 1 ? '🥈' : index === 2 ? '🥉' : '  ';
+      console.log(`${emoji} ${pump}: ${data.score}%`);
+    });
+    console.log('=======================================\n');
 
     console.log('[V3] ====== V3.0 Recommendation Complete ======');
     console.log('[V3] Final scores:', sorted.map(([name, data]) => `${name}: ${data.score}%`).join(', '));
