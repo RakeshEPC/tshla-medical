@@ -1065,7 +1065,7 @@ const ALL_DIMENSIONS = [...PUMP_DIMENSIONS, ...REMAINING_DIMENSIONS, ...[
       }
     }
   }
-]];
+];
 
 
 module.exports = PUMP_DIMENSIONS;
