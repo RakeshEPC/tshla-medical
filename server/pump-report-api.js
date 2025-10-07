@@ -5,7 +5,7 @@
  */
 
 // Load environment variables
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 
 const express = require('express');
 const cors = require('cors');
@@ -423,152 +423,153 @@ app.post('/api/auth/register', checkDatabaseStatus, async (req, res) => {
     const saltRounds = 12;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-    if (!pool) {
-      console.error('Database connection not available for user registration');
-      return res.status(503).json({
-        error: 'Service temporarily unavailable',
-        message: 'We are experiencing technical difficulties. Please try again in a few moments. If the problem persists, please contact support.',
-        code: 'DATABASE_UNAVAILABLE'
-      });
+    // Check if email already exists
+    const { data: existingUsers, error: searchError } = await supabase
+      .from('pump_users')
+      .select('email')
+      .eq('email', email);
+
+    if (searchError) {
+      throw searchError;
     }
 
-    const connection = await unifiedDatabase.getConnection();
-    try {
-      // Check if email already exists
-      const [existingUsers] = await connection.execute(
-        'SELECT email FROM pump_users WHERE email = ?',
-        [email]
-      );
+    if (existingUsers && existingUsers.length > 0) {
+      return res.status(409).json({ error: 'Email already registered' });
+    }
 
-      if (existingUsers.length > 0) {
-        return res.status(409).json({ error: 'Email already registered' });
-      }
-
-      // Create user account with unlimited access (no expiry)
-      const [userResult] = await connection.execute(
-        `INSERT INTO pump_users (
-          email, username, password_hash, first_name, last_name, phone_number,
-          current_payment_status, is_research_participant
-        ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?)`,
-        [email, username, passwordHash, firstName || null, lastName || null, phoneNumber || null, isResearchParticipant]
-      );
-
-      const userId = userResult.insertId;
-
-      // If research participant, create research record
-      let researchParticipantId = null;
-      if (isResearchParticipant && researchData) {
-        const [researchResult] = await connection.execute(
-          `INSERT INTO research_participants (
-            user_id, full_name, date_of_birth,
-            pcp_name, pcp_phone, pcp_email, pcp_address,
-            endocrinologist_name, endocrinologist_phone,
-            endocrinologist_email, endocrinologist_address,
-            mailing_address, pre_treatment_survey_completed
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            userId,
-            researchData.fullName,
-            researchData.dateOfBirth,
-            researchData.pcpName,
-            researchData.pcpPhone,
-            researchData.pcpEmail,
-            researchData.pcpAddress,
-            researchData.endocrinologistName,
-            researchData.endocrinologistPhone,
-            researchData.endocrinologistEmail,
-            researchData.endocrinologistAddress,
-            researchData.mailingAddress,
-            true
-          ]
-        );
-
-        researchParticipantId = researchResult.insertId;
-
-        // Save pre-treatment questionnaire
-        if (questionnaireData) {
-          await connection.execute(
-            `INSERT INTO research_questionnaires (
-              user_id, questionnaire_type,
-              overall_satisfaction, high_blood_sugar_frequency, low_blood_sugar_frequency,
-              convenience_satisfaction, flexibility_satisfaction, understanding_satisfaction,
-              continuation_likelihood, recommendation_likelihood, additional_comments
-            ) VALUES (?, 'pre_treatment', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              userId,
-              questionnaireData.overallSatisfaction,
-              questionnaireData.highBloodSugarFrequency,
-              questionnaireData.lowBloodSugarFrequency,
-              questionnaireData.convenienceSatisfaction,
-              questionnaireData.flexibilitySatisfaction,
-              questionnaireData.understandingSatisfaction,
-              questionnaireData.continuationLikelihood,
-              questionnaireData.recommendationLikelihood,
-              questionnaireData.additionalComments
-            ]
-          );
-        }
-      }
-
-      // Generate JWT token
-      const jwtSecret = process.env.JWT_SECRET;
-      if (!jwtSecret) {
-        console.error('JWT_SECRET environment variable not set');
-        return res.status(500).json({
-          error: 'Server configuration error',
-          message: 'Authentication service is not properly configured'
-        });
-      }
-
-      //Determine if user should be admin (for specific emails only)
-      const isAdmin = ['rakesh@tshla.ai', 'admin@tshla.ai'].includes(email.toLowerCase());
-
-      const token = jwt.sign(
-        { userId, email, username, isResearchParticipant, role: isAdmin ? 'admin' : 'user' },
-        jwtSecret,
-        { expiresIn: '24h' }
-      );
-
-      // Log access
-      await connection.execute(
-        `INSERT INTO access_logs (
-          user_id, access_type, payment_amount_cents, ip_address, user_agent
-        ) VALUES (?, ?, 999, ?, ?)`,
-        [
-          userId,
-          isResearchParticipant ? 'research_access' : 'initial_purchase',
-          req.ip,
-          req.get('User-Agent')
-        ]
-      );
-
-      console.log('User registered successfully:', {
-        userId,
+    // Create user account with unlimited access (no expiry)
+    const { data: newUser, error: insertError } = await supabase
+      .from('pump_users')
+      .insert({
         email,
         username,
-        isResearchParticipant,
-        researchParticipantId
-      });
+        password_hash: passwordHash,
+        first_name: firstName || null,
+        last_name: lastName || null,
+        phone_number: phoneNumber || null,
+        current_payment_status: 'active',
+        is_research_participant: isResearchParticipant
+      })
+      .select()
+      .single();
 
-      res.json({
-        success: true,
-        message: 'User registered successfully',
-        user: {
-          id: userId,
-          email,
-          username,
-          firstName,
-          lastName,
-          phoneNumber,
-          isResearchParticipant
-        },
-        token,
-        researchParticipantId
-      });
-
-    } finally {
-      connection.release();
+    if (insertError) {
+      throw insertError;
     }
+
+    const userId = newUser.id;
+
+    // If research participant, create research record
+    let researchParticipantId = null;
+    if (isResearchParticipant && researchData) {
+      const { data: researchResult, error: researchError } = await supabase
+        .from('research_participants')
+        .insert({
+          user_id: userId,
+          full_name: researchData.fullName,
+          date_of_birth: researchData.dateOfBirth,
+          pcp_name: researchData.pcpName,
+          pcp_phone: researchData.pcpPhone,
+          pcp_email: researchData.pcpEmail,
+          pcp_address: researchData.pcpAddress,
+          endocrinologist_name: researchData.endocrinologistName,
+          endocrinologist_phone: researchData.endocrinologistPhone,
+          endocrinologist_email: researchData.endocrinologistEmail,
+          endocrinologist_address: researchData.endocrinologistAddress,
+          mailing_address: researchData.mailingAddress,
+          pre_treatment_survey_completed: true
+        })
+        .select()
+        .single();
+
+      if (researchError) {
+        throw researchError;
+      }
+
+      researchParticipantId = researchResult.id;
+
+      // Save pre-treatment questionnaire
+      if (questionnaireData) {
+        const { error: questionnaireError } = await supabase
+          .from('research_questionnaires')
+          .insert({
+            user_id: userId,
+            questionnaire_type: 'pre_treatment',
+            overall_satisfaction: questionnaireData.overallSatisfaction,
+            high_blood_sugar_frequency: questionnaireData.highBloodSugarFrequency,
+            low_blood_sugar_frequency: questionnaireData.lowBloodSugarFrequency,
+            convenience_satisfaction: questionnaireData.convenienceSatisfaction,
+            flexibility_satisfaction: questionnaireData.flexibilitySatisfaction,
+            understanding_satisfaction: questionnaireData.understandingSatisfaction,
+            continuation_likelihood: questionnaireData.continuationLikelihood,
+            recommendation_likelihood: questionnaireData.recommendationLikelihood,
+            additional_comments: questionnaireData.additionalComments
+          });
+
+        if (questionnaireError) {
+          throw questionnaireError;
+        }
+      }
+    }
+
+    // Generate JWT token
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      console.error('JWT_SECRET environment variable not set');
+      return res.status(500).json({
+        error: 'Server configuration error',
+        message: 'Authentication service is not properly configured'
+      });
+    }
+
+    //Determine if user should be admin (for specific emails only)
+    const isAdmin = ['rakesh@tshla.ai', 'admin@tshla.ai'].includes(email.toLowerCase());
+
+    const token = jwt.sign(
+      { userId, email, username, isResearchParticipant, role: isAdmin ? 'admin' : 'user' },
+      jwtSecret,
+      { expiresIn: '24h' }
+    );
+
+    // Log access
+    const { error: logError } = await supabase
+      .from('access_logs')
+      .insert({
+        user_id: userId,
+        access_type: isResearchParticipant ? 'research_access' : 'initial_purchase',
+        payment_amount_cents: 999,
+        ip_address: req.ip,
+        user_agent: req.get('User-Agent')
+      });
+
+    if (logError) {
+      console.error('Failed to log access:', logError);
+      // Don't fail registration if logging fails
+    }
+
+    console.log('User registered successfully:', {
+      userId,
+      email,
+      username,
+      isResearchParticipant,
+      researchParticipantId
+    });
+
+    res.json({
+      success: true,
+      message: 'User registered successfully',
+      user: {
+        id: userId,
+        email,
+        username,
+        firstName,
+        lastName,
+        phoneNumber,
+        isResearchParticipant
+      },
+      token,
+      researchParticipantId
+    });
   } catch (error) {
     console.error('User registration failed:', error);
     res.status(500).json({
@@ -592,81 +593,88 @@ app.post('/api/auth/login', async (req, res) => {
       });
     }
 
-    const connection = await unifiedDatabase.getConnection();
-    try {
-      const [users] = await connection.execute(
-        `SELECT id, email, username, password_hash, first_name, last_name, phone_number,
-                current_payment_status, is_research_participant, is_active
-         FROM pump_users WHERE email = ?`,
-        [email]
-      );
+    // Get user by email
+    const { data: users, error: searchError } = await supabase
+      .from('pump_users')
+      .select('id, email, username, password_hash, first_name, last_name, phone_number, current_payment_status, is_research_participant, is_active, login_count')
+      .eq('email', email);
 
-      if (users.length === 0) {
-        return res.status(401).json({ error: 'Invalid email or password' });
-      }
-
-      const user = users[0];
-
-      if (!user.is_active) {
-        return res.status(401).json({ error: 'Account is deactivated' });
-      }
-
-      // Verify password
-      const passwordValid = await bcrypt.compare(password, user.password_hash);
-      if (!passwordValid) {
-        return res.status(401).json({ error: 'Invalid email or password' });
-      }
-
-      // No access expiry check - users have unlimited access
-      // Update login tracking and set payment status to active
-      await connection.execute(
-        'UPDATE pump_users SET current_payment_status = ?, last_login = NOW(), login_count = login_count + 1 WHERE id = ?',
-        ['active', user.id]
-      );
-
-      // Generate JWT token
-      const jwtSecret = process.env.JWT_SECRET;
-      if (!jwtSecret) {
-        console.error('JWT_SECRET environment variable not set');
-        return res.status(500).json({
-          error: 'Server configuration error',
-          message: 'Authentication service is not properly configured'
-        });
-      }
-
-      // Determine admin role from email (consistent with registration logic)
-      const isAdmin = ['rakesh@tshla.ai', 'admin@tshla.ai'].includes(email.toLowerCase());
-
-      const token = jwt.sign(
-        {
-          userId: user.id,
-          email: user.email,
-          username: user.username,
-          isResearchParticipant: user.is_research_participant,
-          role: isAdmin ? 'admin' : 'user'
-        },
-        jwtSecret,
-        { expiresIn: '24h' }
-      );
-
-      res.json({
-        success: true,
-        message: 'Login successful',
-        user: {
-          id: user.id,
-          email: user.email,
-          username: user.username,
-          firstName: user.first_name,
-          lastName: user.last_name,
-          phoneNumber: user.phone_number,
-          isResearchParticipant: user.is_research_participant
-        },
-        token
-      });
-
-    } finally {
-      connection.release();
+    if (searchError) {
+      throw searchError;
     }
+
+    if (!users || users.length === 0) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    const user = users[0];
+
+    if (!user.is_active) {
+      return res.status(401).json({ error: 'Account is deactivated' });
+    }
+
+    // Verify password
+    const passwordValid = await bcrypt.compare(password, user.password_hash);
+    if (!passwordValid) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    // No access expiry check - users have unlimited access
+    // Update login tracking and set payment status to active
+    const { error: updateError } = await supabase
+      .from('pump_users')
+      .update({
+        current_payment_status: 'active',
+        last_login: new Date().toISOString(),
+        login_count: (user.login_count || 0) + 1
+      })
+      .eq('id', user.id);
+
+    if (updateError) {
+      console.error('Failed to update login tracking:', updateError);
+      // Don't fail login if tracking update fails
+    }
+
+    // Generate JWT token
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      console.error('JWT_SECRET environment variable not set');
+      return res.status(500).json({
+        error: 'Server configuration error',
+        message: 'Authentication service is not properly configured'
+      });
+    }
+
+    // Determine admin role from email (consistent with registration logic)
+    const isAdmin = ['rakesh@tshla.ai', 'admin@tshla.ai'].includes(email.toLowerCase());
+
+    const token = jwt.sign(
+      {
+        userId: user.id,
+        email: user.email,
+        username: user.username,
+        isResearchParticipant: user.is_research_participant,
+        role: isAdmin ? 'admin' : 'user'
+      },
+      jwtSecret,
+      { expiresIn: '24h' }
+    );
+
+    res.json({
+      success: true,
+      message: 'Login successful',
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        phoneNumber: user.phone_number,
+        isResearchParticipant: user.is_research_participant
+      },
+      token
+    });
+
   } catch (error) {
     console.error('Login failed:', error);
     res.status(500).json({
@@ -733,38 +741,42 @@ app.post('/api/auth/renew-access', async (req, res) => {
       return res.status(400).json({ error: 'User ID is required' });
     }
 
-    const connection = await unifiedDatabase.getConnection();
-    try {
-      // Extend access by 24 hours
-      const newExpiryTime = new Date();
-      newExpiryTime.setHours(newExpiryTime.getHours() + 24);
+    // Extend access by 24 hours
+    const newExpiryTime = new Date();
+    newExpiryTime.setHours(newExpiryTime.getHours() + 24);
 
-      await connection.execute(
-        `UPDATE pump_users SET
-           access_expires_at = ?,
-           current_payment_status = 'active',
-           updated_at = NOW()
-         WHERE id = ?`,
-        [newExpiryTime, userId]
-      );
+    const { error: updateError } = await supabase
+      .from('pump_users')
+      .update({
+        access_expires_at: newExpiryTime.toISOString(),
+        current_payment_status: 'active',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId);
 
-      // Log the renewal
-      await connection.execute(
-        `INSERT INTO access_logs (
-          user_id, access_type, payment_amount_cents
-        ) VALUES (?, 'renewal', 999)`,
-        [userId]
-      );
+    if (updateError) {
+      throw updateError;
+    }
 
-      res.json({
-        success: true,
-        message: 'Access renewed for 24 hours',
-        accessExpiresAt: newExpiryTime.toISOString()
+    // Log the renewal
+    const { error: logError } = await supabase
+      .from('access_logs')
+      .insert({
+        user_id: userId,
+        access_type: 'renewal',
+        payment_amount_cents: 999
       });
 
-    } finally {
-      connection.release();
+    if (logError) {
+      console.error('Failed to log renewal:', logError);
+      // Don't fail renewal if logging fails
     }
+
+    res.json({
+      success: true,
+      message: 'Access renewed for 24 hours',
+      accessExpiresAt: newExpiryTime.toISOString()
+    });
   } catch (error) {
     console.error('Access renewal failed:', error);
     res.status(500).json({
@@ -798,81 +810,77 @@ app.post('/api/stripe/create-pump-report-session', async (req, res) => {
     }
 
     // Store assessment data in database first
-    const connection = await unifiedDatabase.getConnection();
-    try {
-      const [result] = await connection.execute(
-        `INSERT INTO pump_assessments (
-          patient_name,
-          slider_values,
-          selected_features,
-          lifestyle_text,
-          challenges_text,
-          priorities_text,
-          clarification_responses,
-          payment_status,
-          created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', NOW())`,
-        [
-          patientName,
-          JSON.stringify(assessmentData.sliderValues || {}),
-          JSON.stringify(assessmentData.selectedFeatures || []),
-          assessmentData.lifestyleText || '',
-          assessmentData.challengesText || '',
-          assessmentData.prioritiesText || '',
-          JSON.stringify(assessmentData.clarificationResponses || {}),
-        ]
-      );
+    const { data: newAssessment, error: insertError } = await supabase
+      .from('pump_assessments')
+      .insert({
+        patient_name: patientName,
+        slider_values: JSON.stringify(assessmentData.sliderValues || {}),
+        selected_features: JSON.stringify(assessmentData.selectedFeatures || []),
+        lifestyle_text: assessmentData.lifestyleText || '',
+        challenges_text: assessmentData.challengesText || '',
+        priorities_text: assessmentData.prioritiesText || '',
+        clarification_responses: JSON.stringify(assessmentData.clarificationResponses || {}),
+        payment_status: 'pending',
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single();
 
-      const assessmentId = result.insertId;
-
-      // Create Stripe checkout session
-      const session = await stripeInstance.checkout.sessions.create({
-        payment_method_types: ['card'],
-        line_items: [
-          {
-            price_data: {
-              currency: 'usd',
-              product_data: {
-                name: 'Insulin Pump Recommendation Report',
-                description: `Personalized pump analysis for ${patientName}`,
-                images: ['https://www.tshla.ai/assets/pump-report-image.jpg'],
-              },
-              unit_amount: priceInCents,
-            },
-            quantity: 1,
-          },
-        ],
-        mode: 'payment',
-        success_url: `${successUrl}&session_id={CHECKOUT_SESSION_ID}&assessment_id=${assessmentId}`,
-        cancel_url: cancelUrl,
-        metadata: {
-          assessment_id: assessmentId.toString(),
-          patient_name: patientName,
-          type: 'pump_report',
-        },
-        customer_email: req.body.customerEmail || undefined,
-      });
-
-      // Store payment record
-      await connection.execute(
-        `INSERT INTO payment_records (
-          assessment_id,
-          stripe_session_id,
-          amount_cents,
-          status,
-          created_at
-        ) VALUES (?, ?, ?, 'pending', NOW())`,
-        [assessmentId, session.id, priceInCents]
-      );
-
-      res.json({
-        id: session.id,
-        url: session.url,
-        assessment_id: assessmentId,
-      });
-    } finally {
-      connection.release();
+    if (insertError) {
+      throw insertError;
     }
+
+    const assessmentId = newAssessment.id;
+
+    // Create Stripe checkout session
+    const session = await stripeInstance.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: 'Insulin Pump Recommendation Report',
+              description: `Personalized pump analysis for ${patientName}`,
+              images: ['https://www.tshla.ai/assets/pump-report-image.jpg'],
+            },
+            unit_amount: priceInCents,
+          },
+          quantity: 1,
+        },
+      ],
+      mode: 'payment',
+      success_url: `${successUrl}&session_id={CHECKOUT_SESSION_ID}&assessment_id=${assessmentId}`,
+      cancel_url: cancelUrl,
+      metadata: {
+        assessment_id: assessmentId.toString(),
+        patient_name: patientName,
+        type: 'pump_report',
+      },
+      customer_email: req.body.customerEmail || undefined,
+    });
+
+    // Store payment record
+    const { error: paymentError } = await supabase
+      .from('payment_records')
+      .insert({
+        assessment_id: assessmentId,
+        stripe_session_id: session.id,
+        amount_cents: priceInCents,
+        status: 'pending',
+        created_at: new Date().toISOString()
+      });
+
+    if (paymentError) {
+      console.error('Failed to store payment record:', paymentError);
+      // Don't fail checkout if payment record fails
+    }
+
+    res.json({
+      id: session.id,
+      url: session.url,
+      assessment_id: assessmentId,
+    });
   } catch (error) {
     console.error('App', 'Placeholder message');
     res.status(500).json({
@@ -895,31 +903,30 @@ app.get('/api/stripe/verify-payment/:sessionId', async (req, res) => {
 
     if (session.payment_status === 'paid') {
       // Update payment status in database
-      const connection = await unifiedDatabase.getConnection();
-      try {
-        await connection.execute(
-          `UPDATE payment_records
-           SET status = 'succeeded'
-           WHERE stripe_session_id = ?`,
-          [sessionId]
-        );
+      const { error: paymentError } = await supabase
+        .from('payment_records')
+        .update({ status: 'succeeded' })
+        .eq('stripe_session_id', sessionId);
 
-        await connection.execute(
-          `UPDATE pump_assessments
-           SET payment_status = 'paid'
-           WHERE id = ?`,
-          [session.metadata.assessment_id]
-        );
-
-        res.json({
-          paid: true,
-          assessment_id: session.metadata.assessment_id,
-          amount: session.amount_total,
-          customer_email: session.customer_details?.email,
-        });
-      } finally {
-        connection.release();
+      if (paymentError) {
+        throw paymentError;
       }
+
+      const { error: assessmentError } = await supabase
+        .from('pump_assessments')
+        .update({ payment_status: 'paid' })
+        .eq('id', session.metadata.assessment_id);
+
+      if (assessmentError) {
+        throw assessmentError;
+      }
+
+      res.json({
+        paid: true,
+        assessment_id: session.metadata.assessment_id,
+        amount: session.amount_total,
+        customer_email: session.customer_details?.email,
+      });
     } else {
       res.json({
         paid: false,
@@ -954,26 +961,25 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
       const session = event.data.object;
 
       // Update payment status
-      const connection = await unifiedDatabase.getConnection();
-      try {
-        await connection.execute(
-          `UPDATE payment_records
-           SET status = 'succeeded'
-           WHERE stripe_session_id = ?`,
-          [session.id]
-        );
+      const { error: paymentError } = await supabase
+        .from('payment_records')
+        .update({ status: 'succeeded' })
+        .eq('stripe_session_id', session.id);
 
-        await connection.execute(
-          `UPDATE pump_assessments
-           SET payment_status = 'paid'
-           WHERE id = ?`,
-          [session.metadata.assessment_id]
-        );
-
-        console.log('App', 'Placeholder message');
-      } finally {
-        connection.release();
+      if (paymentError) {
+        console.error('Failed to update payment record:', paymentError);
       }
+
+      const { error: assessmentError } = await supabase
+        .from('pump_assessments')
+        .update({ payment_status: 'paid' })
+        .eq('id', session.metadata.assessment_id);
+
+      if (assessmentError) {
+        console.error('Failed to update assessment payment status:', assessmentError);
+      }
+
+      console.log('App', 'Placeholder message');
     }
 
     res.json({ received: true });
@@ -1000,55 +1006,52 @@ app.post('/api/provider/send-report', async (req, res) => {
     }
 
     // Store assessment data in database
-    const connection = await unifiedDatabase.getConnection();
     let assessmentId;
 
-    try {
-      const [result] = await connection.execute(
-        `INSERT INTO pump_assessments (
-          patient_name,
-          doctor_name,
-          slider_values,
-          selected_features,
-          lifestyle_text,
-          challenges_text,
-          priorities_text,
-          clarification_responses,
-          payment_status,
-          sent_to_provider,
-          provider_email,
-          provider_name,
-          created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'provider_sent', true, ?, ?, NOW())`,
-        [
-          patientName,
-          providerName,
-          JSON.stringify(assessmentData.sliderValues || {}),
-          JSON.stringify(assessmentData.selectedFeatures || []),
-          assessmentData.lifestyleText || '',
-          assessmentData.challengesText || '',
-          assessmentData.prioritiesText || '',
-          JSON.stringify(assessmentData.clarificationResponses || {}),
-          providerEmail,
-          providerName,
-        ]
-      );
+    const { data: newAssessment, error: assessmentError } = await supabase
+      .from('pump_assessments')
+      .insert({
+        patient_name: patientName,
+        doctor_name: providerName,
+        slider_values: JSON.stringify(assessmentData.sliderValues || {}),
+        selected_features: JSON.stringify(assessmentData.selectedFeatures || []),
+        lifestyle_text: assessmentData.lifestyleText || '',
+        challenges_text: assessmentData.challengesText || '',
+        priorities_text: assessmentData.prioritiesText || '',
+        clarification_responses: JSON.stringify(assessmentData.clarificationResponses || {}),
+        payment_status: 'provider_sent',
+        sent_to_provider: true,
+        provider_email: providerEmail,
+        provider_name: providerName,
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single();
 
-      assessmentId = result.insertId;
+    if (assessmentError) {
+      throw assessmentError;
+    }
 
-      // Store provider delivery record
-      const [deliveryResult] = await connection.execute(
-        `INSERT INTO provider_deliveries (
-          assessment_id,
-          provider_name,
-          provider_email,
-          delivery_status,
-          created_at
-        ) VALUES (?, ?, ?, 'pending', NOW())`,
-        [assessmentId, providerName, providerEmail]
-      );
+    assessmentId = newAssessment.id;
 
-      const deliveryId = deliveryResult.insertId;
+    // Store provider delivery record
+    const { data: newDelivery, error: deliveryError } = await supabase
+      .from('provider_deliveries')
+      .insert({
+        assessment_id: assessmentId,
+        provider_name: providerName,
+        provider_email: providerEmail,
+        delivery_status: 'pending',
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (deliveryError) {
+      throw deliveryError;
+    }
+
+    const deliveryId = newDelivery.id;
 
       // Send email to provider
       if (emailTransporter) {
@@ -1107,47 +1110,57 @@ app.post('/api/provider/send-report', async (req, res) => {
           html: emailBody,
         };
 
-        const emailResult = await emailTransporter.sendMail(mailOptions);
+      const emailResult = await emailTransporter.sendMail(mailOptions);
 
-        // Update delivery status
-        await connection.execute(
-          `UPDATE provider_deliveries
-           SET delivery_status = 'sent', sent_at = NOW(), email_message_id = ?
-           WHERE id = ?`,
-          [emailResult.messageId, deliveryId]
-        );
+      // Update delivery status
+      const { error: deliveryUpdateError } = await supabase
+        .from('provider_deliveries')
+        .update({
+          delivery_status: 'sent',
+          sent_at: new Date().toISOString(),
+          email_message_id: emailResult.messageId
+        })
+        .eq('id', deliveryId);
 
-        await connection.execute(
-          `UPDATE pump_assessments
-           SET sent_at = NOW()
-           WHERE id = ?`,
-          [assessmentId]
-        );
-
-        console.log('App', 'Placeholder message');
-
-        res.json({
-          success: true,
-          messageId: emailResult.messageId,
-          assessmentId: assessmentId,
-          deliveryId: deliveryId,
-        });
-      } else {
-        // Email service not configured
-        await connection.execute(
-          `UPDATE provider_deliveries
-           SET delivery_status = 'failed', bounce_reason = 'Email service not configured'
-           WHERE id = ?`,
-          [deliveryId]
-        );
-
-        res.status(500).json({
-          success: false,
-          error: 'Email service not configured',
-        });
+      if (deliveryUpdateError) {
+        console.error('Failed to update delivery status:', deliveryUpdateError);
       }
-    } finally {
-      connection.release();
+
+      const { error: assessmentUpdateError } = await supabase
+        .from('pump_assessments')
+        .update({ sent_at: new Date().toISOString() })
+        .eq('id', assessmentId);
+
+      if (assessmentUpdateError) {
+        console.error('Failed to update assessment sent_at:', assessmentUpdateError);
+      }
+
+      console.log('App', 'Placeholder message');
+
+      res.json({
+        success: true,
+        messageId: emailResult.messageId,
+        assessmentId: assessmentId,
+        deliveryId: deliveryId,
+      });
+    } else {
+      // Email service not configured
+      const { error: failedDeliveryError } = await supabase
+        .from('provider_deliveries')
+        .update({
+          delivery_status: 'failed',
+          bounce_reason: 'Email service not configured'
+        })
+        .eq('id', deliveryId);
+
+      if (failedDeliveryError) {
+        console.error('Failed to update delivery as failed:', failedDeliveryError);
+      }
+
+      res.status(500).json({
+        success: false,
+        error: 'Email service not configured',
+      });
     }
   } catch (error) {
     console.error('App', 'Placeholder message');
@@ -1167,22 +1180,20 @@ app.get('/api/provider/delivery-status/:assessmentId', async (req, res) => {
   try {
     const { assessmentId } = req.params;
 
-    const connection = await unifiedDatabase.getConnection();
-    try {
-      const [rows] = await connection.execute(
-        `SELECT * FROM provider_deliveries
-         WHERE assessment_id = ?
-         ORDER BY created_at DESC`,
-        [assessmentId]
-      );
+    const { data: rows, error } = await supabase
+      .from('provider_deliveries')
+      .select('*')
+      .eq('assessment_id', assessmentId)
+      .order('created_at', { ascending: false });
 
-      res.json({
-        assessmentId: parseInt(assessmentId),
-        deliveries: rows,
-      });
-    } finally {
-      connection.release();
+    if (error) {
+      throw error;
     }
+
+    res.json({
+      assessmentId: parseInt(assessmentId),
+      deliveries: rows,
+    });
   } catch (error) {
     console.error('App', 'Placeholder message');
     res.status(500).json({
@@ -1198,20 +1209,16 @@ app.get('/api/provider/delivery-status/:assessmentId', async (req, res) => {
  */
 app.get('/api/provider/participating', async (req, res) => {
   try {
-    const connection = await unifiedDatabase.getConnection();
-    try {
-      const [rows] = await connection.execute(
-        `SELECT id, name, specialty, practice_name, email, phone, active
-         FROM participating_providers
-         WHERE active = true
-         ORDER BY name`
-      );
+    const { data: rows, error } = await supabase
+      .from('participating_providers')
+      .select('id, name, specialty, practice_name, email, phone, active')
+      .eq('active', true)
+      .order('name');
 
-      res.json(rows);
-    } catch (error) {
+    if (error) {
       // Fallback to hardcoded list if table doesn't exist
       console.warn('App', 'Placeholder message');
-      res.json([
+      return res.json([
         { id: 1, name: 'Dr. Rakesh Patel', email: 'rpatel@tshla.ai', specialty: 'Endocrinologist' },
         {
           id: 2,
@@ -1242,9 +1249,9 @@ app.get('/api/provider/participating', async (req, res) => {
           specialty: 'Diabetes Care',
         },
       ]);
-    } finally {
-      connection.release();
     }
+
+    res.json(rows);
   } catch (error) {
     console.error('App', 'Placeholder message');
     res.status(500).json({
@@ -1262,16 +1269,26 @@ app.get('/api/provider/track-pixel/:messageId', async (req, res) => {
   try {
     const { messageId } = req.params;
 
-    const connection = await unifiedDatabase.getConnection();
-    try {
-      await connection.execute(
-        `UPDATE provider_deliveries
-         SET delivery_status = 'viewed', viewed_at = NOW()
-         WHERE email_message_id = ? AND viewed_at IS NULL`,
-        [messageId]
-      );
-    } finally {
-      connection.release();
+    // First check if already viewed
+    const { data: existing } = await supabase
+      .from('provider_deliveries')
+      .select('viewed_at')
+      .eq('email_message_id', messageId)
+      .single();
+
+    if (existing && !existing.viewed_at) {
+      const { error } = await supabase
+        .from('provider_deliveries')
+        .update({
+          delivery_status: 'viewed',
+          viewed_at: new Date().toISOString()
+        })
+        .eq('email_message_id', messageId)
+        .is('viewed_at', null);
+
+      if (error) {
+        console.error('Failed to update tracking pixel:', error);
+      }
     }
 
     // Return 1x1 transparent PNG
@@ -1311,44 +1328,47 @@ app.post('/api/pump-conversation/save-session', async (req, res) => {
       });
     }
 
-    const connection = await unifiedDatabase.getConnection();
-    try {
-      // Safely prepare data for storage
-      const preparedData = DatabaseHelper.prepareForSave(
-        { categoryResponses, completedCategories },
-        ['categoryResponses', 'completedCategories']
-      );
+    // Check if session exists
+    const { data: existing } = await supabase
+      .from('pump_conversation_sessions')
+      .select('id')
+      .eq('session_id', sessionId)
+      .single();
 
-      // Insert or update conversation session
-      await connection.execute(
-        `INSERT INTO pump_conversation_sessions (
-          session_id,
-          category_responses,
-          current_category,
-          completed_categories,
-          updated_at
-        ) VALUES (?, ?, ?, ?, NOW())
-        ON DUPLICATE KEY UPDATE
-          category_responses = VALUES(category_responses),
-          current_category = VALUES(current_category),
-          completed_categories = VALUES(completed_categories),
-          updated_at = NOW()`,
-        [
-          sessionId,
-          preparedData.categoryResponses,
-          currentCategory || null,
-          preparedData.completedCategories,
-        ]
-      );
+    const sessionData = {
+      session_id: sessionId,
+      category_responses: JSON.stringify(categoryResponses || {}),
+      current_category: currentCategory || null,
+      completed_categories: JSON.stringify(completedCategories || []),
+      updated_at: new Date().toISOString()
+    };
 
-      res.json({
-        success: true,
-        sessionId: sessionId,
-        timestamp: new Date().toISOString(),
-      });
-    } finally {
-      connection.release();
+    if (existing) {
+      // Update existing session
+      const { error } = await supabase
+        .from('pump_conversation_sessions')
+        .update(sessionData)
+        .eq('session_id', sessionId);
+
+      if (error) {
+        throw error;
+      }
+    } else {
+      // Insert new session
+      const { error } = await supabase
+        .from('pump_conversation_sessions')
+        .insert(sessionData);
+
+      if (error) {
+        throw error;
+      }
     }
+
+    res.json({
+      success: true,
+      sessionId: sessionId,
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
     console.error('App', 'Placeholder message');
     res.status(500).json({
@@ -1366,28 +1386,28 @@ app.get('/api/pump-conversation/get-session/:sessionId', async (req, res) => {
   try {
     const { sessionId } = req.params;
 
-    const connection = await unifiedDatabase.getConnection();
-    try {
-      const [rows] = await connection.execute(
-        `SELECT * FROM pump_conversation_sessions
-         WHERE session_id = ? AND expires_at > NOW()`,
-        [sessionId]
-      );
+    const { data: session, error } = await supabase
+      .from('pump_conversation_sessions')
+      .select('*')
+      .eq('session_id', sessionId)
+      .gt('expires_at', new Date().toISOString())
+      .single();
 
-      if (rows.length === 0) {
-        return res.status(404).json({
-          error: 'Session not found or expired',
-        });
-      }
-
-      const session = rows[0];
-
-      // Use safe parsing to prevent JSON errors
-      const parsedSession = DatabaseHelper.parseSessionData(session);
-      res.json(parsedSession);
-    } finally {
-      connection.release();
+    if (error || !session) {
+      return res.status(404).json({
+        error: 'Session not found or expired',
+      });
     }
+
+    // Parse JSON fields safely
+    const parsedSession = {
+      ...session,
+      category_responses: session.category_responses ? JSON.parse(session.category_responses) : {},
+      completed_categories: session.completed_categories ? JSON.parse(session.completed_categories) : [],
+      ai_recommendation: session.ai_recommendation ? JSON.parse(session.ai_recommendation) : null
+    };
+
+    res.json(parsedSession);
   } catch (error) {
     console.error('App', 'Placeholder message');
     res.status(500).json({
@@ -1411,23 +1431,23 @@ app.post('/api/pump-conversation/save-recommendation', async (req, res) => {
       });
     }
 
-    const connection = await unifiedDatabase.getConnection();
-    try {
-      await connection.execute(
-        `UPDATE pump_conversation_sessions
-         SET ai_recommendation = ?, updated_at = NOW()
-         WHERE session_id = ?`,
-        [JSON.stringify(recommendation), sessionId]
-      );
+    const { error } = await supabase
+      .from('pump_conversation_sessions')
+      .update({
+        ai_recommendation: JSON.stringify(recommendation),
+        updated_at: new Date().toISOString()
+      })
+      .eq('session_id', sessionId);
 
-      res.json({
-        success: true,
-        sessionId: sessionId,
-        timestamp: new Date().toISOString(),
-      });
-    } finally {
-      connection.release();
+    if (error) {
+      throw error;
     }
+
+    res.json({
+      success: true,
+      sessionId: sessionId,
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
     console.error('App', 'Placeholder message');
     res.status(500).json({
@@ -1445,37 +1465,30 @@ app.get('/api/pump-assessments/list', async (req, res) => {
   try {
     const { limit = 50, offset = 0, status } = req.query;
 
-    const connection = await unifiedDatabase.getConnection();
-    try {
-      let query = `
-        SELECT
-          id, patient_name, doctor_name, payment_status,
-          sent_to_provider, provider_name, created_at
-        FROM pump_assessments
-      `;
-      let params = [];
+    let query = supabase
+      .from('pump_assessments')
+      .select('id, patient_name, doctor_name, payment_status, sent_to_provider, provider_name, created_at')
+      .order('created_at', { ascending: false })
+      .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
 
-      if (status) {
-        query += ' WHERE payment_status = ?';
-        params.push(status);
-      }
-
-      query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-      params.push(parseInt(limit), parseInt(offset));
-
-      const [rows] = await connection.execute(query, params);
-
-      res.json({
-        assessments: rows,
-        pagination: {
-          limit: parseInt(limit),
-          offset: parseInt(offset),
-          total: rows.length,
-        },
-      });
-    } finally {
-      connection.release();
+    if (status) {
+      query = query.eq('payment_status', status);
     }
+
+    const { data: rows, error } = await query;
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      assessments: rows,
+      pagination: {
+        limit: parseInt(limit),
+        offset: parseInt(offset),
+        total: rows.length,
+      },
+    });
   } catch (error) {
     console.error('App', 'Placeholder message');
     res.status(500).json({
@@ -1493,25 +1506,29 @@ app.get('/api/pump-assessments/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const connection = await unifiedDatabase.getConnection();
-    try {
-      const [rows] = await connection.execute(`SELECT * FROM pump_assessments WHERE id = ?`, [id]);
+    const { data: assessment, error } = await supabase
+      .from('pump_assessments')
+      .select('*')
+      .eq('id', id)
+      .single();
 
-      if (rows.length === 0) {
-        return res.status(404).json({
-          error: 'Assessment not found',
-        });
-      }
-
-      const assessment = rows[0];
-
-      // Use safe parsing to prevent JSON errors
-      const parsedAssessment = DatabaseHelper.parseAssessmentData(assessment);
-
-      res.json(parsedAssessment);
-    } finally {
-      connection.release();
+    if (error || !assessment) {
+      return res.status(404).json({
+        error: 'Assessment not found',
+      });
     }
+
+    // Parse JSON fields safely
+    const parsedAssessment = {
+      ...assessment,
+      slider_values: assessment.slider_values ? JSON.parse(assessment.slider_values) : {},
+      selected_features: assessment.selected_features ? JSON.parse(assessment.selected_features) : [],
+      clarification_responses: assessment.clarification_responses ? JSON.parse(assessment.clarification_responses) : {},
+      final_recommendation: assessment.final_recommendation ? JSON.parse(assessment.final_recommendation) : null,
+      hybrid_scores: assessment.hybrid_scores ? JSON.parse(assessment.hybrid_scores) : {}
+    };
+
+    res.json(parsedAssessment);
   } catch (error) {
     console.error('App', 'Placeholder message');
     res.status(500).json({
@@ -1527,20 +1544,21 @@ app.get('/api/pump-assessments/:id', async (req, res) => {
  */
 app.delete('/api/pump-conversation/cleanup-expired', async (req, res) => {
   try {
-    const connection = await unifiedDatabase.getConnection();
-    try {
-      const [result] = await connection.execute(
-        `DELETE FROM pump_conversation_sessions WHERE expires_at < NOW()`
-      );
+    const { data, error } = await supabase
+      .from('pump_conversation_sessions')
+      .delete()
+      .lt('expires_at', new Date().toISOString())
+      .select();
 
-      res.json({
-        success: true,
-        deletedCount: result.affectedRows,
-        timestamp: new Date().toISOString(),
-      });
-    } finally {
-      connection.release();
+    if (error) {
+      throw error;
     }
+
+    res.json({
+      success: true,
+      deletedCount: data ? data.length : 0,
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
     console.error('App', 'Placeholder message');
     res.status(500).json({
@@ -1578,68 +1596,53 @@ app.post('/api/pump-assessments/save-complete', verifyToken, async (req, res) =>
       });
     }
 
-    const connection = await unifiedDatabase.getConnection();
-    try {
-      // Get authenticated user ID
-      const userId = req.user.userId;
+    // Get authenticated user ID
+    const userId = req.user.userId;
 
-      // Insert comprehensive assessment
-      const [result] = await connection.execute(
-        `INSERT INTO pump_assessments (
-          patient_name,
-          user_id,
-          slider_values,
-          selected_features,
-          lifestyle_text,
-          challenges_text,
-          priorities_text,
-          clarification_responses,
-          gpt4_scores,
-          claude_scores,
-          hybrid_scores,
-          final_recommendation,
-          payment_status,
-          created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
-        [
-          patientName,
-          userId,
-          JSON.stringify(sliderValues || {}),
-          JSON.stringify(selectedFeatures || []),
-          personalStory || '',
-          challenges || '',
-          priorities || '',
-          JSON.stringify(clarifyingResponses || {}),
-          null, // gpt4_scores - can be populated later
-          null, // claude_scores - can be populated later
-          JSON.stringify({
-            assessmentFlow,
-            conversationHistory: conversationHistory || [],
-            timestamp
-          }),
-          JSON.stringify(aiRecommendation),
-          timestamp || new Date().toISOString().slice(0, 19).replace('T', ' ')
-        ]
-      );
+    // Insert comprehensive assessment
+    const { data: newAssessment, error } = await supabase
+      .from('pump_assessments')
+      .insert({
+        patient_name: patientName,
+        user_id: userId,
+        slider_values: JSON.stringify(sliderValues || {}),
+        selected_features: JSON.stringify(selectedFeatures || []),
+        lifestyle_text: personalStory || '',
+        challenges_text: challenges || '',
+        priorities_text: priorities || '',
+        clarification_responses: JSON.stringify(clarifyingResponses || {}),
+        gpt4_scores: null,
+        claude_scores: null,
+        hybrid_scores: JSON.stringify({
+          assessmentFlow,
+          conversationHistory: conversationHistory || [],
+          timestamp
+        }),
+        final_recommendation: JSON.stringify(aiRecommendation),
+        payment_status: 'pending',
+        created_at: timestamp || new Date().toISOString()
+      })
+      .select()
+      .single();
 
-      const assessmentId = result.insertId;
-
-      console.log('App', 'Assessment saved successfully', {
-        assessmentId,
-        patientName,
-        flow: assessmentFlow
-      });
-
-      res.json({
-        success: true,
-        assessmentId,
-        message: 'Assessment saved successfully',
-        timestamp: new Date().toISOString()
-      });
-
-    } finally {
-      connection.release();
+    if (error) {
+      throw error;
     }
+
+    const assessmentId = newAssessment.id;
+
+    console.log('App', 'Assessment saved successfully', {
+      assessmentId,
+      patientName,
+      flow: assessmentFlow
+    });
+
+    res.json({
+      success: true,
+      assessmentId,
+      message: 'Assessment saved successfully',
+      timestamp: new Date().toISOString()
+    });
   } catch (error) {
     console.error('App', 'Failed to save complete assessment', { error });
     res.status(500).json({
@@ -1657,43 +1660,44 @@ app.get('/api/pump-assessments/:id/complete', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const connection = await unifiedDatabase.getConnection();
-    try {
-      const [rows] = await connection.execute(
-        `SELECT * FROM pump_assessments WHERE id = ?`,
-        [id]
-      );
+    const { data: assessment, error } = await supabase
+      .from('pump_assessments')
+      .select('*')
+      .eq('id', id)
+      .single();
 
-      if (rows.length === 0) {
-        return res.status(404).json({
-          error: 'Assessment not found'
-        });
-      }
-
-      const assessment = rows[0];
-
-      // Parse JSON fields safely using DatabaseHelper
-      const completeData = {
-        assessmentId: assessment.id,
-        patientName: assessment.patient_name,
-        sliderValues: DatabaseHelper.safeJsonParse(assessment.slider_values, {}),
-        selectedFeatures: DatabaseHelper.safeJsonParse(assessment.selected_features, []),
-        personalStory: assessment.lifestyle_text,
-        challenges: assessment.challenges_text,
-        priorities: assessment.priorities_text,
-        clarifyingResponses: DatabaseHelper.safeJsonParse(assessment.clarification_responses, {}),
-        aiRecommendation: DatabaseHelper.safeJsonParse(assessment.final_recommendation, null),
-        hybridData: DatabaseHelper.safeJsonParse(assessment.hybrid_scores, {}),
-        paymentStatus: assessment.payment_status,
-        createdAt: assessment.created_at,
-        updatedAt: assessment.updated_at
-      };
-
-      res.json(completeData);
-
-    } finally {
-      connection.release();
+    if (error || !assessment) {
+      return res.status(404).json({
+        error: 'Assessment not found'
+      });
     }
+
+    // Parse JSON fields safely
+    const safeJsonParse = (str, fallback) => {
+      try {
+        return str ? JSON.parse(str) : fallback;
+      } catch {
+        return fallback;
+      }
+    };
+
+    const completeData = {
+      assessmentId: assessment.id,
+      patientName: assessment.patient_name,
+      sliderValues: safeJsonParse(assessment.slider_values, {}),
+      selectedFeatures: safeJsonParse(assessment.selected_features, []),
+      personalStory: assessment.lifestyle_text,
+      challenges: assessment.challenges_text,
+      priorities: assessment.priorities_text,
+      clarifyingResponses: safeJsonParse(assessment.clarification_responses, {}),
+      aiRecommendation: safeJsonParse(assessment.final_recommendation, null),
+      hybridData: safeJsonParse(assessment.hybrid_scores, {}),
+      paymentStatus: assessment.payment_status,
+      createdAt: assessment.created_at,
+      updatedAt: assessment.updated_at
+    };
+
+    res.json(completeData);
   } catch (error) {
     console.error('App', 'Failed to retrieve complete assessment', { error, assessmentId: req.params.id });
     res.status(500).json({
@@ -1712,43 +1716,40 @@ app.post('/api/pump-assessments/:id/generate-pdf', async (req, res) => {
     const { id } = req.params;
 
     // First, get the assessment data
-    const connection = await unifiedDatabase.getConnection();
-    try {
-      const [rows] = await connection.execute(
-        `SELECT * FROM pump_assessments WHERE id = ?`,
-        [id]
-      );
+    const { data: assessment, error } = await supabase
+      .from('pump_assessments')
+      .select('*')
+      .eq('id', id)
+      .single();
 
-      if (rows.length === 0) {
-        return res.status(404).json({
-          error: 'Assessment not found'
-        });
-      }
-
-      const assessment = rows[0];
-
-      // TODO: Implement PDF generation logic here
-      // For now, return a placeholder URL
-      const pdfUrl = `/reports/assessment_${id}_${Date.now()}.pdf`;
-
-      // Update the assessment with PDF URL (if you want to store it)
-      await connection.execute(
-        `UPDATE pump_assessments SET updated_at = NOW() WHERE id = ?`,
-        [id]
-      );
-
-      console.log('App', 'PDF generation requested', { assessmentId: id });
-
-      res.json({
-        success: true,
-        pdfUrl,
-        message: 'PDF generation initiated',
-        assessmentId: id
+    if (error || !assessment) {
+      return res.status(404).json({
+        error: 'Assessment not found'
       });
-
-    } finally {
-      connection.release();
     }
+
+    // TODO: Implement PDF generation logic here
+    // For now, return a placeholder URL
+    const pdfUrl = `/reports/assessment_${id}_${Date.now()}.pdf`;
+
+    // Update the assessment with PDF URL (if you want to store it)
+    const { error: updateError } = await supabase
+      .from('pump_assessments')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', id);
+
+    if (updateError) {
+      console.error('Failed to update assessment:', updateError);
+    }
+
+    console.log('App', 'PDF generation requested', { assessmentId: id });
+
+    res.json({
+      success: true,
+      pdfUrl,
+      message: 'PDF generation initiated',
+      assessmentId: id
+    });
   } catch (error) {
     console.error('App', 'Failed to generate PDF', { error, assessmentId: req.params.id });
     res.status(500).json({
@@ -1769,46 +1770,40 @@ app.get('/api/pumpdrive/assessments/:id', verifyToken, async (req, res) => {
     const { id } = req.params;
     const userId = req.user.userId;
 
-    const connection = await unifiedDatabase.getConnection();
-    try {
-      // Get assessment and verify ownership
-      const [rows] = await connection.execute(
-        `SELECT * FROM pump_assessments WHERE id = ? AND user_id = ?`,
-        [id, userId]
-      );
+    // Get assessment and verify ownership
+    const { data: assessment, error } = await supabase
+      .from('pump_assessments')
+      .select('*')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .single();
 
-      if (rows.length === 0) {
-        return res.status(404).json({
-          success: false,
-          error: 'Assessment not found or access denied'
-        });
-      }
-
-      const assessment = rows[0];
-
-      res.json({
-        success: true,
-        assessment: {
-          id: assessment.id,
-          user_id: assessment.user_id,
-          patient_name: assessment.patient_name,
-          slider_values: assessment.slider_values,
-          selected_features: assessment.selected_features,
-          personal_story: assessment.personal_story,
-          challenges: assessment.challenges,
-          priorities: assessment.priorities,
-          clarifying_responses: assessment.clarifying_responses,
-          ai_recommendation: assessment.ai_recommendation,
-          conversation_history: assessment.conversation_history,
-          assessment_flow: assessment.assessment_flow,
-          created_at: assessment.created_at,
-          updated_at: assessment.updated_at
-        }
+    if (error || !assessment) {
+      return res.status(404).json({
+        success: false,
+        error: 'Assessment not found or access denied'
       });
-
-    } finally {
-      connection.release();
     }
+
+    res.json({
+      success: true,
+      assessment: {
+        id: assessment.id,
+        user_id: assessment.user_id,
+        patient_name: assessment.patient_name,
+        slider_values: assessment.slider_values,
+        selected_features: assessment.selected_features,
+        personal_story: assessment.personal_story,
+        challenges: assessment.challenges,
+        priorities: assessment.priorities,
+        clarifying_responses: assessment.clarifying_responses,
+        ai_recommendation: assessment.ai_recommendation,
+        conversation_history: assessment.conversation_history,
+        assessment_flow: assessment.assessment_flow,
+        created_at: assessment.created_at,
+        updated_at: assessment.updated_at
+      }
+    });
   } catch (error) {
     console.error('Error fetching assessment:', error);
     res.status(500).json({
@@ -1836,49 +1831,41 @@ app.get('/api/pumpdrive/assessments/user/:userId', verifyToken, async (req, res)
       });
     }
 
-    const connection = await unifiedDatabase.getConnection();
-    try {
-      const [rows] = await connection.execute(
-        `SELECT
-          id,
-          created_at,
-          ai_recommendation,
-          assessment_flow
-        FROM pump_assessments
-        WHERE user_id = ?
-        ORDER BY created_at DESC`,
-        [userId]
-      );
+    const { data: rows, error } = await supabase
+      .from('pump_assessments')
+      .select('id, created_at, ai_recommendation, assessment_flow')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
 
-      // Parse and transform the data
-      const assessments = rows.map(row => {
-        let aiRec = null;
-        try {
-          aiRec = typeof row.ai_recommendation === 'string'
-            ? JSON.parse(row.ai_recommendation)
-            : row.ai_recommendation;
-        } catch (e) {
-          console.error('Failed to parse ai_recommendation:', e);
-        }
-
-        return {
-          id: row.id,
-          created_at: row.created_at,
-          recommended_pump: aiRec?.topChoice?.name || 'Unknown',
-          score: aiRec?.topChoice?.score || 0,
-          assessment_flow: row.assessment_flow,
-          ai_recommendation: aiRec
-        };
-      });
-
-      res.json({
-        success: true,
-        assessments
-      });
-
-    } finally {
-      connection.release();
+    if (error) {
+      throw error;
     }
+
+    // Parse and transform the data
+    const assessments = rows.map(row => {
+      let aiRec = null;
+      try {
+        aiRec = typeof row.ai_recommendation === 'string'
+          ? JSON.parse(row.ai_recommendation)
+          : row.ai_recommendation;
+      } catch (e) {
+        console.error('Failed to parse ai_recommendation:', e);
+      }
+
+      return {
+        id: row.id,
+        created_at: row.created_at,
+        recommended_pump: aiRec?.topChoice?.name || 'Unknown',
+        score: aiRec?.topChoice?.score || 0,
+        assessment_flow: row.assessment_flow,
+        ai_recommendation: aiRec
+      };
+    });
+
+    res.json({
+      success: true,
+      assessments
+    });
   } catch (error) {
     console.error('Error fetching user assessments:', error);
     res.status(500).json({
@@ -1897,49 +1884,41 @@ app.get('/api/pumpdrive/assessments/current-user', verifyToken, async (req, res)
   try {
     const userId = req.user.userId;
 
-    const connection = await unifiedDatabase.getConnection();
-    try {
-      const [rows] = await connection.execute(
-        `SELECT
-          id,
-          created_at,
-          ai_recommendation,
-          assessment_flow
-        FROM pump_assessments
-        WHERE user_id = ?
-        ORDER BY created_at DESC`,
-        [userId]
-      );
+    const { data: rows, error } = await supabase
+      .from('pump_assessments')
+      .select('id, created_at, ai_recommendation, assessment_flow')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
 
-      // Parse and transform the data
-      const assessments = rows.map(row => {
-        let aiRec = null;
-        try {
-          aiRec = typeof row.ai_recommendation === 'string'
-            ? JSON.parse(row.ai_recommendation)
-            : row.ai_recommendation;
-        } catch (e) {
-          console.error('Failed to parse ai_recommendation:', e);
-        }
-
-        return {
-          id: row.id,
-          created_at: row.created_at,
-          recommended_pump: aiRec?.topChoice?.name || 'Unknown',
-          score: aiRec?.topChoice?.score || 0,
-          assessment_flow: row.assessment_flow,
-          ai_recommendation: aiRec
-        };
-      });
-
-      res.json({
-        success: true,
-        assessments
-      });
-
-    } finally {
-      connection.release();
+    if (error) {
+      throw error;
     }
+
+    // Parse and transform the data
+    const assessments = rows.map(row => {
+      let aiRec = null;
+      try {
+        aiRec = typeof row.ai_recommendation === 'string'
+          ? JSON.parse(row.ai_recommendation)
+          : row.ai_recommendation;
+      } catch (e) {
+        console.error('Failed to parse ai_recommendation:', e);
+      }
+
+      return {
+        id: row.id,
+        created_at: row.created_at,
+        recommended_pump: aiRec?.topChoice?.name || 'Unknown',
+        score: aiRec?.topChoice?.score || 0,
+        assessment_flow: row.assessment_flow,
+        ai_recommendation: aiRec
+      };
+    });
+
+    res.json({
+      success: true,
+      assessments
+    });
   } catch (error) {
     console.error('Error fetching current user assessments:', error);
     res.status(500).json({
@@ -1967,98 +1946,99 @@ app.post('/api/pumpdrive/assessments/:id/email', verifyToken, async (req, res) =
       });
     }
 
-    const connection = await unifiedDatabase.getConnection();
-    try {
-      // Get assessment and verify ownership
-      const [rows] = await connection.execute(
-        `SELECT * FROM pump_assessments WHERE id = ? AND user_id = ?`,
-        [id, userId]
-      );
+    // Get assessment and verify ownership
+    const { data: assessment, error } = await supabase
+      .from('pump_assessments')
+      .select('*')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .single();
 
-      if (rows.length === 0) {
-        return res.status(404).json({
-          success: false,
-          error: 'Assessment not found or access denied'
-        });
-      }
-
-      const assessment = rows[0];
-
-      // Parse AI recommendation
-      let aiRec = null;
-      try {
-        aiRec = typeof assessment.ai_recommendation === 'string'
-          ? JSON.parse(assessment.ai_recommendation)
-          : assessment.ai_recommendation;
-      } catch (e) {
-        console.error('Failed to parse ai_recommendation:', e);
-      }
-
-      // Check if email service is configured
-      if (!emailTransporter) {
-        console.warn('Email service not configured, logging email request');
-        return res.status(503).json({
-          success: false,
-          error: 'Email service not configured',
-          message: 'Please configure SMTP settings to enable email delivery'
-        });
-      }
-
-      // Create email content
-      const recommendedPump = aiRec?.topChoice?.name || 'Unknown';
-      const score = aiRec?.topChoice?.score || 0;
-      const patientName = assessment.patient_name || 'Patient';
-
-      const emailHtml = `
-        <h2>Insulin Pump Assessment Results</h2>
-        <p><strong>Patient:</strong> ${patientName}</p>
-        <p><strong>Assessment Date:</strong> ${new Date(assessment.created_at).toLocaleDateString()}</p>
-        <hr/>
-        <h3>Recommended Pump</h3>
-        <p><strong>${recommendedPump}</strong> (${score}% match)</p>
-        ${aiRec?.topChoice?.reasons ? `
-          <h4>Reasons:</h4>
-          <ul>
-            ${aiRec.topChoice.reasons.map(r => `<li>${r}</li>`).join('')}
-          </ul>
-        ` : ''}
-        ${patientMessage ? `
-          <hr/>
-          <h4>Message from Patient:</h4>
-          <p>${patientMessage}</p>
-        ` : ''}
-        <hr/>
-        <p><em>This assessment was generated by TSHLA Medical's AI-powered pump recommendation system.</em></p>
-        <p><a href="${process.env.VITE_REPORT_BASE_URL || 'https://www.tshla.ai'}/pumpdrive/assessment/${id}">View Full Assessment</a></p>
-      `;
-
-      // Send email
-      await emailTransporter.sendMail({
-        from: process.env.FROM_EMAIL || 'noreply@tshla.ai',
-        to: providerEmail,
-        subject: `Pump Assessment Results for ${patientName}`,
-        html: emailHtml
+    if (error || !assessment) {
+      return res.status(404).json({
+        success: false,
+        error: 'Assessment not found or access denied'
       });
-
-      // Log the delivery
-      await connection.execute(
-        `INSERT INTO provider_deliveries
-         (assessment_id, provider_email, delivery_method, delivery_status, delivered_at)
-         VALUES (?, ?, 'email', 'sent', NOW())`,
-        [id, providerEmail]
-      );
-
-      console.log('Assessment emailed successfully:', { assessmentId: id, providerEmail });
-
-      res.json({
-        success: true,
-        message: 'Assessment sent successfully to provider',
-        providerEmail
-      });
-
-    } finally {
-      connection.release();
     }
+
+    // Parse AI recommendation
+    let aiRec = null;
+    try {
+      aiRec = typeof assessment.ai_recommendation === 'string'
+        ? JSON.parse(assessment.ai_recommendation)
+        : assessment.ai_recommendation;
+    } catch (e) {
+      console.error('Failed to parse ai_recommendation:', e);
+    }
+
+    // Check if email service is configured
+    if (!emailTransporter) {
+      console.warn('Email service not configured, logging email request');
+      return res.status(503).json({
+        success: false,
+        error: 'Email service not configured',
+        message: 'Please configure SMTP settings to enable email delivery'
+      });
+    }
+
+    // Create email content
+    const recommendedPump = aiRec?.topChoice?.name || 'Unknown';
+    const score = aiRec?.topChoice?.score || 0;
+    const patientName = assessment.patient_name || 'Patient';
+
+    const emailHtml = `
+      <h2>Insulin Pump Assessment Results</h2>
+      <p><strong>Patient:</strong> ${patientName}</p>
+      <p><strong>Assessment Date:</strong> ${new Date(assessment.created_at).toLocaleDateString()}</p>
+      <hr/>
+      <h3>Recommended Pump</h3>
+      <p><strong>${recommendedPump}</strong> (${score}% match)</p>
+      ${aiRec?.topChoice?.reasons ? `
+        <h4>Reasons:</h4>
+        <ul>
+          ${aiRec.topChoice.reasons.map(r => `<li>${r}</li>`).join('')}
+        </ul>
+      ` : ''}
+      ${patientMessage ? `
+        <hr/>
+        <h4>Message from Patient:</h4>
+        <p>${patientMessage}</p>
+      ` : ''}
+      <hr/>
+      <p><em>This assessment was generated by TSHLA Medical's AI-powered pump recommendation system.</em></p>
+      <p><a href="${process.env.VITE_REPORT_BASE_URL || 'https://www.tshla.ai'}/pumpdrive/assessment/${id}">View Full Assessment</a></p>
+    `;
+
+    // Send email
+    await emailTransporter.sendMail({
+      from: process.env.FROM_EMAIL || 'noreply@tshla.ai',
+      to: providerEmail,
+      subject: `Pump Assessment Results for ${patientName}`,
+      html: emailHtml
+    });
+
+    // Log the delivery
+    const { error: deliveryError } = await supabase
+      .from('provider_deliveries')
+      .insert({
+        assessment_id: id,
+        provider_email: providerEmail,
+        delivery_method: 'email',
+        delivery_status: 'sent',
+        delivered_at: new Date().toISOString()
+      });
+
+    if (deliveryError) {
+      console.error('Failed to log delivery:', deliveryError);
+    }
+
+    console.log('Assessment emailed successfully:', { assessmentId: id, providerEmail });
+
+    res.json({
+      success: true,
+      message: 'Assessment sent successfully to provider',
+      providerEmail
+    });
   } catch (error) {
     console.error('Error emailing assessment:', error);
     res.status(500).json({
@@ -2172,30 +2152,42 @@ app.get('/api/admin/pumpdrive-stats', requireAdmin, async (req, res) => {
  */
 app.get('/api/admin/pumpdrive-users/export', requireAdmin, async (req, res) => {
   try {
-    const connection = await unifiedDatabase.getConnection();
+    const { data: users, error: usersError } = await supabase
+      .from('pump_users')
+      .select('id, username, email, first_name, last_name, phone_number, current_payment_status, created_at, last_login, login_count')
+      .order('created_at', { ascending: false });
 
-    const [users] = await connection.execute(`
-      SELECT
-        u.id,
-        u.username,
-        u.email,
-        CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) as full_name,
-        u.phone_number,
-        u.current_payment_status,
-        u.created_at,
-        u.last_login,
-        u.login_count,
-        r.recommendations
-      FROM pump_users u
-      LEFT JOIN pump_reports r ON u.id = r.user_id
-      ORDER BY u.created_at DESC
-    `);
+    if (usersError) {
+      throw usersError;
+    }
 
-    connection.release();
+    // Get pump reports for recommendations
+    const { data: reports, error: reportsError } = await supabase
+      .from('pump_reports')
+      .select('user_id, recommendations');
+
+    if (reportsError) {
+      console.error('Failed to fetch pump_reports:', reportsError);
+    }
+
+    // Map reports by user_id
+    const reportsByUser = {};
+    if (reports) {
+      reports.forEach(r => {
+        reportsByUser[r.user_id] = r.recommendations;
+      });
+    }
+
+    // Join data
+    const usersWithReports = users.map(u => ({
+      ...u,
+      full_name: `${u.first_name || ''} ${u.last_name || ''}`.trim(),
+      recommendations: reportsByUser[u.id] || null
+    }));
 
     // Convert to CSV
     const csvHeader = 'ID,Username,Email,Full Name,Phone,Payment Status,Primary Pump,Secondary Pump,Created Date,Last Login,Login Count\n';
-    const csvRows = users.map(user => {
+    const csvRows = usersWithReports.map(user => {
       const recommendations = user.recommendations ? JSON.parse(user.recommendations) : [];
       const primaryPump = recommendations[0]?.name || 'None';
       const secondaryPump = recommendations[1]?.name || 'None';
@@ -2244,132 +2236,130 @@ app.get('/api/admin/pumpdrive-users/export', requireAdmin, async (req, res) => {
  */
 app.get('/api/admin/pumpdrive/analytics', requireAdmin, async (req, res) => {
   try {
-    const connection = await unifiedDatabase.getConnection();
+    // Get all assessments for calculations
+    const { data: allAssessments, error: assessmentsError } = await supabase
+      .from('pump_assessments')
+      .select('id, user_id, match_score, recommended_pump, completed_at, flow_type');
 
-    // Get summary stats
-    const [summaryStats] = await connection.execute(`
-      SELECT
-        COUNT(*) as totalAssessments,
-        COUNT(DISTINCT user_id) as totalUsers,
-        AVG(match_score) as avgMatchScore,
-        (COUNT(*) / NULLIF(COUNT(DISTINCT user_id), 0) * 100) as completionRate
-      FROM pump_assessments
-    `);
+    if (assessmentsError) {
+      throw assessmentsError;
+    }
 
-    // Get pump distribution
-    const [pumpDist] = await connection.execute(`
-      SELECT
-        recommended_pump as pumpName,
-        COUNT(*) as count,
-        (COUNT(*) * 100.0 / (SELECT COUNT(*) FROM pump_assessments)) as percentage,
-        AVG(match_score) as avgScore
-      FROM pump_assessments
-      WHERE recommended_pump IS NOT NULL
-      GROUP BY recommended_pump
-      ORDER BY count DESC
-    `);
+    // Get all users
+    const { data: allUsers, error: usersError } = await supabase
+      .from('pump_users')
+      .select('id');
 
-    // Get top 5 pumps
+    if (usersError) {
+      throw usersError;
+    }
+
+    // Calculate summary stats
+    const totalAssessments = allAssessments.length;
+    const uniqueUsers = new Set(allAssessments.map(a => a.user_id)).size;
+    const avgMatchScore = allAssessments.reduce((sum, a) => sum + (a.match_score || 0), 0) / totalAssessments || 0;
+    const completionRate = uniqueUsers > 0 ? (totalAssessments / uniqueUsers * 100) : 0;
+
+    // Calculate pump distribution
+    const pumpCounts = {};
+    allAssessments.forEach(a => {
+      if (a.recommended_pump) {
+        pumpCounts[a.recommended_pump] = pumpCounts[a.recommended_pump] || { count: 0, scoreSum: 0 };
+        pumpCounts[a.recommended_pump].count++;
+        pumpCounts[a.recommended_pump].scoreSum += a.match_score || 0;
+      }
+    });
+
+    const pumpDist = Object.entries(pumpCounts).map(([pumpName, data]) => ({
+      pumpName,
+      count: data.count,
+      percentage: (data.count / totalAssessments) * 100,
+      avgScore: data.scoreSum / data.count
+    })).sort((a, b) => b.count - a.count);
+
     const topPumps = pumpDist.slice(0, 5);
 
     // Get assessment trends (last 30 days)
-    const [trends] = await connection.execute(`
-      SELECT
-        DATE(completed_at) as date,
-        COUNT(*) as count
-      FROM pump_assessments
-      WHERE completed_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-      GROUP BY DATE(completed_at)
-      ORDER BY date ASC
-    `);
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const recentAssessments = allAssessments.filter(a => a.completed_at && new Date(a.completed_at) >= thirtyDaysAgo);
+    const trendsByDate = {};
+    recentAssessments.forEach(a => {
+      const date = new Date(a.completed_at).toISOString().split('T')[0];
+      trendsByDate[date] = (trendsByDate[date] || 0) + 1;
+    });
+    const trends = Object.entries(trendsByDate).map(([date, count]) => ({ date, count })).sort((a, b) => a.date.localeCompare(b.date));
 
     // Get flow type statistics
-    const [flowStats] = await connection.execute(`
-      SELECT
-        flow_type as flowType,
-        COUNT(*) as count,
-        (COUNT(*) * 100.0 / (SELECT COUNT(*) FROM pump_assessments)) as percentage,
-        AVG(match_score) as avgScore
-      FROM pump_assessments
-      WHERE flow_type IS NOT NULL
-      GROUP BY flow_type
-      ORDER BY count DESC
-    `);
+    const flowCounts = {};
+    allAssessments.forEach(a => {
+      if (a.flow_type) {
+        flowCounts[a.flow_type] = flowCounts[a.flow_type] || { count: 0, scoreSum: 0 };
+        flowCounts[a.flow_type].count++;
+        flowCounts[a.flow_type].scoreSum += a.match_score || 0;
+      }
+    });
+
+    const flowStats = Object.entries(flowCounts).map(([flowType, data]) => ({
+      flowType,
+      count: data.count,
+      percentage: (data.count / totalAssessments) * 100,
+      avgScore: data.scoreSum / data.count
+    })).sort((a, b) => b.count - a.count);
 
     // Get user engagement stats
-    const [engagement] = await connection.execute(`
-      SELECT
-        COUNT(DISTINCT u.id) as totalUsers,
-        COUNT(DISTINCT pa.user_id) as completedAssessments,
-        (COUNT(DISTINCT pa.user_id) * 100.0 / NULLIF(COUNT(DISTINCT u.id), 0)) as conversionRate,
-        (COUNT(pa.id) / NULLIF(COUNT(DISTINCT pa.user_id), 0)) as avgAssessmentsPerUser
-      FROM pump_users u
-      LEFT JOIN pump_assessments pa ON u.id = pa.user_id
-    `);
+    const { data: assessmentsWithUsers, error: engagementError } = await supabase
+      .from('pump_assessments')
+      .select('user_id');
 
-    // Get recent assessments
-    const [recentAssessments] = await connection.execute(`
-      SELECT
-        pa.id,
-        pa.user_id as userId,
-        pu.username,
-        pa.completed_at as completedAt,
-        pa.recommended_pump as recommendedPump,
-        pa.match_score as matchScore,
-        pa.flow_type as flowType
-      FROM pump_assessments pa
-      JOIN pump_users pu ON pa.user_id = pu.id
-      ORDER BY pa.completed_at DESC
-      LIMIT 10
-    `);
+    const completedAssessments = assessmentsWithUsers ? new Set(assessmentsWithUsers.map(a => a.user_id)).size : 0;
+    const conversionRate = allUsers.length > 0 ? (completedAssessments / allUsers.length) * 100 : 0;
+    const avgAssessmentsPerUser = completedAssessments > 0 ? totalAssessments / completedAssessments : 0;
 
-    connection.release();
+    // Get recent assessments with user info
+    const { data: recentAssessmentsData, error: recentError } = await supabase
+      .from('pump_assessments')
+      .select(`
+        id,
+        user_id,
+        completed_at,
+        recommended_pump,
+        match_score,
+        flow_type,
+        pump_users (username)
+      `)
+      .order('completed_at', { ascending: false })
+      .limit(10);
+
+    const recentAssessmentsList = recentAssessmentsData?.map(a => ({
+      id: a.id,
+      userId: a.user_id,
+      username: a.pump_users?.username || 'Unknown',
+      completedAt: a.completed_at,
+      recommendedPump: a.recommended_pump,
+      matchScore: a.match_score,
+      flowType: a.flow_type
+    })) || [];
 
     const analyticsData = {
       summary: {
-        totalAssessments: summaryStats[0].totalAssessments,
-        totalUsers: summaryStats[0].totalUsers,
-        avgMatchScore: parseFloat(summaryStats[0].avgMatchScore) || 0,
-        completionRate: parseFloat(summaryStats[0].completionRate) || 0,
+        totalAssessments,
+        totalUsers: uniqueUsers,
+        avgMatchScore,
+        completionRate,
         lastUpdated: new Date().toISOString()
       },
-      pumpDistribution: pumpDist.map(p => ({
-        pumpName: p.pumpName,
-        count: p.count,
-        percentage: parseFloat(p.percentage),
-        avgScore: parseFloat(p.avgScore)
-      })),
-      assessmentTrends: trends.map(t => ({
-        date: t.date,
-        count: t.count
-      })),
-      flowTypeStats: flowStats.map(f => ({
-        flowType: f.flowType,
-        count: f.count,
-        percentage: parseFloat(f.percentage),
-        avgScore: parseFloat(f.avgScore)
-      })),
+      pumpDistribution: pumpDist,
+      assessmentTrends: trends,
+      flowTypeStats: flowStats,
       userEngagement: {
-        totalUsers: engagement[0].totalUsers,
-        completedAssessments: engagement[0].completedAssessments,
-        conversionRate: parseFloat(engagement[0].conversionRate) || 0,
-        avgAssessmentsPerUser: parseFloat(engagement[0].avgAssessmentsPerUser) || 0
+        totalUsers: allUsers.length,
+        completedAssessments,
+        conversionRate,
+        avgAssessmentsPerUser
       },
-      topPumps: topPumps.map(p => ({
-        pumpName: p.pumpName,
-        count: p.count,
-        percentage: parseFloat(p.percentage),
-        avgScore: parseFloat(p.avgScore)
-      })),
-      recentAssessments: recentAssessments.map(a => ({
-        id: a.id,
-        userId: a.userId,
-        username: a.username,
-        completedAt: a.completedAt,
-        recommendedPump: a.recommendedPump,
-        matchScore: parseFloat(a.matchScore),
-        flowType: a.flowType
-      }))
+      topPumps,
+      recentAssessments: recentAssessmentsList
     };
 
     res.json(analyticsData);
@@ -2391,24 +2381,24 @@ app.get('/api/admin/pumpdrive/analytics', requireAdmin, async (req, res) => {
  */
 app.get('/api/admin/pumpdrive/analytics/summary', requireAdmin, async (req, res) => {
   try {
-    const connection = await unifiedDatabase.getConnection();
+    const { data: assessments, error } = await supabase
+      .from('pump_assessments')
+      .select('id, user_id, match_score');
 
-    const [stats] = await connection.execute(`
-      SELECT
-        COUNT(*) as totalAssessments,
-        COUNT(DISTINCT user_id) as totalUsers,
-        AVG(match_score) as avgMatchScore,
-        (COUNT(*) / NULLIF(COUNT(DISTINCT user_id), 0) * 100) as completionRate
-      FROM pump_assessments
-    `);
+    if (error) {
+      throw error;
+    }
 
-    connection.release();
+    const totalAssessments = assessments.length;
+    const uniqueUsers = new Set(assessments.map(a => a.user_id)).size;
+    const avgMatchScore = assessments.reduce((sum, a) => sum + (a.match_score || 0), 0) / totalAssessments || 0;
+    const completionRate = uniqueUsers > 0 ? (totalAssessments / uniqueUsers * 100) : 0;
 
     res.json({
-      totalAssessments: stats[0].totalAssessments,
-      totalUsers: stats[0].totalUsers,
-      avgMatchScore: parseFloat(stats[0].avgMatchScore) || 0,
-      completionRate: parseFloat(stats[0].completionRate) || 0,
+      totalAssessments,
+      totalUsers: uniqueUsers,
+      avgMatchScore,
+      completionRate,
       lastUpdated: new Date().toISOString()
     });
 
@@ -2429,28 +2419,36 @@ app.get('/api/admin/pumpdrive/analytics/summary', requireAdmin, async (req, res)
  */
 app.get('/api/admin/pumpdrive/analytics/pump-distribution', requireAdmin, async (req, res) => {
   try {
-    const connection = await unifiedDatabase.getConnection();
+    const { data: assessments, error } = await supabase
+      .from('pump_assessments')
+      .select('recommended_pump, match_score')
+      .not('recommended_pump', 'is', null);
 
-    const [distribution] = await connection.execute(`
-      SELECT
-        recommended_pump as pumpName,
-        COUNT(*) as count,
-        (COUNT(*) * 100.0 / (SELECT COUNT(*) FROM pump_assessments)) as percentage,
-        AVG(match_score) as avgScore
-      FROM pump_assessments
-      WHERE recommended_pump IS NOT NULL
-      GROUP BY recommended_pump
-      ORDER BY count DESC
-    `);
+    if (error) {
+      throw error;
+    }
 
-    connection.release();
+    const totalAssessments = assessments.length;
+    const pumpCounts = {};
 
-    res.json(distribution.map(d => ({
-      pumpName: d.pumpName,
-      count: d.count,
-      percentage: parseFloat(d.percentage),
-      avgScore: parseFloat(d.avgScore)
-    })));
+    assessments.forEach(a => {
+      if (!pumpCounts[a.recommended_pump]) {
+        pumpCounts[a.recommended_pump] = { count: 0, scoreSum: 0 };
+      }
+      pumpCounts[a.recommended_pump].count++;
+      pumpCounts[a.recommended_pump].scoreSum += a.match_score || 0;
+    });
+
+    const distribution = Object.entries(pumpCounts)
+      .map(([pumpName, data]) => ({
+        pumpName,
+        count: data.count,
+        percentage: (data.count / totalAssessments) * 100,
+        avgScore: data.scoreSum / data.count
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    res.json(distribution);
 
   } catch (error) {
     console.error('Distribution API Error:', error);
@@ -2470,24 +2468,30 @@ app.get('/api/admin/pumpdrive/analytics/pump-distribution', requireAdmin, async 
 app.get('/api/admin/pumpdrive/analytics/trends', requireAdmin, async (req, res) => {
   try {
     const days = parseInt(req.query.days) || 30;
-    const connection = await unifiedDatabase.getConnection();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
 
-    const [trends] = await connection.execute(`
-      SELECT
-        DATE(completed_at) as date,
-        COUNT(*) as count
-      FROM pump_assessments
-      WHERE completed_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
-      GROUP BY DATE(completed_at)
-      ORDER BY date ASC
-    `, [days]);
+    const { data: assessments, error } = await supabase
+      .from('pump_assessments')
+      .select('completed_at')
+      .gte('completed_at', startDate.toISOString())
+      .not('completed_at', 'is', null);
 
-    connection.release();
+    if (error) {
+      throw error;
+    }
 
-    res.json(trends.map(t => ({
-      date: t.date,
-      count: t.count
-    })));
+    const trendsByDate = {};
+    assessments.forEach(a => {
+      const date = new Date(a.completed_at).toISOString().split('T')[0];
+      trendsByDate[date] = (trendsByDate[date] || 0) + 1;
+    });
+
+    const trends = Object.entries(trendsByDate)
+      .map(([date, count]) => ({ date, count }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    res.json(trends);
 
   } catch (error) {
     console.error('Trends API Error:', error);
@@ -2507,33 +2511,33 @@ app.get('/api/admin/pumpdrive/analytics/trends', requireAdmin, async (req, res) 
 app.get('/api/admin/pumpdrive/analytics/recent', requireAdmin, async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 10;
-    const connection = await unifiedDatabase.getConnection();
 
-    const [recent] = await connection.execute(`
-      SELECT
-        pa.id,
-        pa.user_id as userId,
-        pu.username,
-        pa.completed_at as completedAt,
-        pa.recommended_pump as recommendedPump,
-        pa.match_score as matchScore,
-        pa.flow_type as flowType
-      FROM pump_assessments pa
-      JOIN pump_users pu ON pa.user_id = pu.id
-      ORDER BY pa.completed_at DESC
-      LIMIT ?
-    `, [limit]);
+    const { data: recent, error } = await supabase
+      .from('pump_assessments')
+      .select(`
+        id,
+        user_id,
+        completed_at,
+        recommended_pump,
+        match_score,
+        flow_type,
+        pump_users (username)
+      `)
+      .order('completed_at', { ascending: false })
+      .limit(limit);
 
-    connection.release();
+    if (error) {
+      throw error;
+    }
 
     res.json(recent.map(a => ({
       id: a.id,
-      userId: a.userId,
-      username: a.username,
-      completedAt: a.completedAt,
-      recommendedPump: a.recommendedPump,
-      matchScore: parseFloat(a.matchScore),
-      flowType: a.flowType
+      userId: a.user_id,
+      username: a.pump_users?.username || 'Unknown',
+      completedAt: a.completed_at,
+      recommendedPump: a.recommended_pump,
+      matchScore: a.match_score,
+      flowType: a.flow_type
     })));
 
   } catch (error) {
@@ -2595,41 +2599,21 @@ app.get('/api/admin/pump-comparison-data', requireAdmin, async (req, res) => {
 app.get('/api/admin/pump-comparison-data/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const connection = await unifiedDatabase.getConnection();
 
-    const [dimensions] = await connection.execute(`
-      SELECT
-        id,
-        dimension_number,
-        dimension_name,
-        dimension_description,
-        importance_scale,
-        pump_details,
-        category,
-        display_order,
-        is_active,
-        created_at,
-        updated_at
-      FROM pump_comparison_data
-      WHERE id = ?
-    `, [id]);
+    const { data: dimension, error } = await supabase
+      .from('pump_comparison_data')
+      .select('*')
+      .eq('id', id)
+      .single();
 
-    connection.release();
-
-    if (dimensions.length === 0) {
+    if (error || !dimension) {
       return res.status(404).json({
         success: false,
         error: 'Dimension not found'
       });
     }
 
-    const dimension = {
-      ...dimensions[0],
-      pump_details: typeof dimensions[0].pump_details === 'string'
-        ? JSON.parse(dimensions[0].pump_details)
-        : dimensions[0].pump_details
-    };
-
+    // pump_details is already JSONB in Supabase, no parsing needed
     res.json({
       success: true,
       dimension,
@@ -2664,39 +2648,28 @@ app.put('/api/admin/pump-comparison-data/:id', requireAdmin, async (req, res) =>
       is_active
     } = req.body;
 
-    const connection = await unifiedDatabase.getConnection();
+    // Build update object with only provided fields
+    const updates = {};
+    if (dimension_name !== undefined) updates.dimension_name = dimension_name;
+    if (dimension_description !== undefined) updates.dimension_description = dimension_description;
+    if (importance_scale !== undefined) updates.importance_scale = importance_scale;
+    if (pump_details !== undefined) updates.pump_details = pump_details; // JSONB in Supabase
+    if (category !== undefined) updates.category = category;
+    if (display_order !== undefined) updates.display_order = display_order;
+    if (is_active !== undefined) updates.is_active = is_active;
+    updates.updated_at = new Date().toISOString();
 
-    // Convert pump_details to JSON string if it's an object
-    const pumpDetailsJson = typeof pump_details === 'object'
-      ? JSON.stringify(pump_details)
-      : pump_details;
+    const { data, error } = await supabase
+      .from('pump_comparison_data')
+      .update(updates)
+      .eq('id', id)
+      .select();
 
-    const [result] = await connection.execute(`
-      UPDATE pump_comparison_data
-      SET
-        dimension_name = COALESCE(?, dimension_name),
-        dimension_description = COALESCE(?, dimension_description),
-        importance_scale = COALESCE(?, importance_scale),
-        pump_details = COALESCE(?, pump_details),
-        category = COALESCE(?, category),
-        display_order = COALESCE(?, display_order),
-        is_active = COALESCE(?, is_active),
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `, [
-      dimension_name,
-      dimension_description,
-      importance_scale,
-      pumpDetailsJson,
-      category,
-      display_order,
-      is_active,
-      id
-    ]);
+    if (error) {
+      throw error;
+    }
 
-    connection.release();
-
-    if (result.affectedRows === 0) {
+    if (!data || data.length === 0) {
       return res.status(404).json({
         success: false,
         error: 'Dimension not found'
@@ -2744,40 +2717,30 @@ app.post('/api/admin/pump-comparison-data', requireAdmin, async (req, res) => {
       });
     }
 
-    const connection = await unifiedDatabase.getConnection();
-
-    // Convert pump_details to JSON string if it's an object
-    const pumpDetailsJson = typeof pump_details === 'object'
-      ? JSON.stringify(pump_details)
-      : pump_details;
-
-    const [result] = await connection.execute(`
-      INSERT INTO pump_comparison_data (
+    // Insert into Supabase
+    const { data: newDimension, error } = await supabase
+      .from('pump_comparison_data')
+      .insert({
         dimension_number,
         dimension_name,
-        dimension_description,
-        importance_scale,
-        pump_details,
-        category,
-        display_order,
-        is_active
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, true)
-    `, [
-      dimension_number,
-      dimension_name,
-      dimension_description || null,
-      importance_scale || '1-10',
-      pumpDetailsJson,
-      category || null,
-      display_order || dimension_number
-    ]);
+        dimension_description: dimension_description || null,
+        importance_scale: importance_scale || '1-10',
+        pump_details, // JSONB in Supabase
+        category: category || null,
+        display_order: display_order || dimension_number,
+        is_active: true
+      })
+      .select()
+      .single();
 
-    connection.release();
+    if (error) {
+      throw error;
+    }
 
     res.json({
       success: true,
       message: 'Dimension created successfully',
-      dimensionId: result.insertId,
+      dimensionId: newDimension.id,
       timestamp: new Date().toISOString()
     });
 
@@ -2799,18 +2762,22 @@ app.post('/api/admin/pump-comparison-data', requireAdmin, async (req, res) => {
 app.delete('/api/admin/pump-comparison-data/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const connection = await unifiedDatabase.getConnection();
 
     // Soft delete by setting is_active to false
-    const [result] = await connection.execute(`
-      UPDATE pump_comparison_data
-      SET is_active = false, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `, [id]);
+    const { data, error } = await supabase
+      .from('pump_comparison_data')
+      .update({
+        is_active: false,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select();
 
-    connection.release();
+    if (error) {
+      throw error;
+    }
 
-    if (result.affectedRows === 0) {
+    if (!data || data.length === 0) {
       return res.status(404).json({
         success: false,
         error: 'Dimension not found'
@@ -2965,39 +2932,31 @@ app.post('/api/admin/pump-manufacturers', requireAdmin, async (req, res) => {
       });
     }
 
-    const connection = await unifiedDatabase.getConnection();
-
-    const [result] = await connection.execute(`
-      INSERT INTO pump_manufacturers (
+    const { data: newManufacturer, error } = await supabase
+      .from('pump_manufacturers')
+      .insert({
         pump_name,
         manufacturer,
-        website,
-        rep_name,
-        rep_contact,
-        rep_email,
-        support_phone,
-        support_email,
-        notes,
-        is_active
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, true)
-    `, [
-      pump_name,
-      manufacturer,
-      website || null,
-      rep_name || null,
-      rep_contact || null,
-      rep_email || null,
-      support_phone || null,
-      support_email || null,
-      notes || null
-    ]);
+        website: website || null,
+        rep_name: rep_name || null,
+        rep_contact: rep_contact || null,
+        rep_email: rep_email || null,
+        support_phone: support_phone || null,
+        support_email: support_email || null,
+        notes: notes || null,
+        is_active: true
+      })
+      .select()
+      .single();
 
-    connection.release();
+    if (error) {
+      throw error;
+    }
 
     res.json({
       success: true,
       message: 'Pump manufacturer created successfully',
-      manufacturerId: result.insertId,
+      manufacturerId: newManufacturer.id,
       timestamp: new Date().toISOString()
     });
 
@@ -3079,9 +3038,6 @@ app.post('/api/pumpdrive/recommend', optionalAuth, async (req, res) => {
     // Authentication is optional - log warning if not authenticated
     if (!userId) {
       console.log('PumpDrive API: ⚠️ Unauthenticated request - will not save to database');
-    } else {
-      // Only get DB connection if user is authenticated
-      connection = await pool.getConnection();
     }
 
     // Basic validation
@@ -3133,29 +3089,32 @@ app.post('/api/pumpdrive/recommend', optionalAuth, async (req, res) => {
                            formattedResponse.alternatives?.[0]?.name ||
                            null;
 
-      const [insertResult] = await connection.execute(
-        `INSERT INTO pump_reports
-         (user_id, report_data, questionnaire_responses, recommendations, primary_pump, secondary_pump)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [
+      const { data: newReport, error: insertError } = await supabase
+        .from('pump_reports')
+        .insert({
+          user_id: userId,
+          report_data: JSON.stringify(requestData),
+          questionnaire_responses: JSON.stringify(requestData.questionnaire || {}),
+          recommendations: JSON.stringify(formattedResponse),
+          primary_pump: primaryPump,
+          secondary_pump: secondaryPump
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error('Failed to save pump report:', insertError);
+      } else {
+        console.log('Pump report saved:', {
+          reportId: newReport.id,
           userId,
-          JSON.stringify(requestData),
-          JSON.stringify(requestData.questionnaire || {}),
-          JSON.stringify(formattedResponse),
           primaryPump,
           secondaryPump
-        ]
-      );
+        });
 
-      console.log('Pump report saved:', {
-        reportId: insertResult.insertId,
-        userId,
-        primaryPump,
-        secondaryPump
-      });
-
-      // Add report ID to response
-      formattedResponse.reportId = insertResult.insertId;
+        // Add report ID to response
+        formattedResponse.reportId = newReport.id;
+      }
     } else {
       console.log('Pump report NOT saved (no authentication)');
     }
@@ -3169,10 +3128,6 @@ app.post('/api/pumpdrive/recommend', optionalAuth, async (req, res) => {
       message: error.message,
       details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
-  } finally {
-    if (connection) {
-      connection.release();
-    }
   }
 });
 
@@ -4186,19 +4141,17 @@ app.get('/api/templates', async (req, res) => {
       return res.status(400).json({ error: 'doctorId is required' });
     }
 
-    const connection = await unifiedDatabase.getConnection();
-
     // Get templates created by doctor or system templates
-    const [templates] = await connection.execute(
-      `
-      SELECT * FROM templates
-      WHERE created_by = ? OR is_system_template = 1
-      ORDER BY is_system_template DESC, name ASC
-    `,
-      [doctorId]
-    );
+    const { data: templates, error } = await supabase
+      .from('templates')
+      .select('*')
+      .or(`created_by.eq.${doctorId},is_system_template.eq.true`)
+      .order('is_system_template', { ascending: false })
+      .order('name', { ascending: true });
 
-    connection.release();
+    if (error) {
+      throw error;
+    }
 
     // Transform database format to frontend format
     const formattedTemplates = templates.map(template => ({
@@ -4233,76 +4186,69 @@ app.post('/api/doctor-profiles', async (req, res) => {
       return res.status(400).json({ error: 'doctorId is required' });
     }
 
-    const connection = await unifiedDatabase.getConnection();
+    // Update or insert doctor (using upsert)
+    const { error: doctorError } = await supabase
+      .from('doctors')
+      .upsert({
+        id: doctorId,
+        name: `Doctor ${doctorId}`,
+        email: `${doctorId}@tshla.ai`,
+        specialty: 'General Medicine',
+        password_hash: 'hash_placeholder',
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'id' });
 
-    try {
-      // Update or insert doctor (matching existing table structure)
-      await connection.execute(
-        `
-        INSERT INTO doctors (id, name, email, specialty, password_hash)
-        VALUES (?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE
-          name = VALUES(name),
-          updated_at = CURRENT_TIMESTAMP
-      `,
-        [
-          doctorId,
-          `Doctor ${doctorId}`, // Default name
-          `${doctorId}@tshla.ai`, // Default email
-          'General Medicine', // Default specialty
-          'hash_placeholder', // Default password hash
-        ]
-      );
+    if (doctorError) {
+      console.error('Failed to upsert doctor:', doctorError);
+    }
 
-      // Save favorites as separate records in doctor_template_favorites table
-      if (favoriteTemplates && favoriteTemplates.length > 0) {
-        // Clear existing favorites
-        await connection.execute(
-          `
-          DELETE FROM doctor_template_favorites WHERE doctor_id = ?
-        `,
-          [doctorId]
-        );
+    // Save favorites as separate records in doctor_template_favorites table
+    if (favoriteTemplates && favoriteTemplates.length > 0) {
+      // Clear existing favorites
+      const { error: deleteError } = await supabase
+        .from('doctor_template_favorites')
+        .delete()
+        .eq('doctor_id', doctorId);
 
-        // Insert new favorites
-        for (const templateId of favoriteTemplates) {
-          await connection.execute(
-            `
-            INSERT INTO doctor_template_favorites (doctor_id, template_id)
-            VALUES (?, ?)
-          `,
-            [doctorId, templateId]
-          );
-        }
+      if (deleteError) {
+        console.error('Failed to clear favorites:', deleteError);
       }
 
-      // Save any new templates
-      if (templates && templates.length > 0) {
-        for (const template of templates) {
-          await connection.execute(
-            `
-            INSERT INTO templates (id, name, specialty, template_type, sections, created_by, usage_count)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE
-              name = VALUES(name),
-              sections = VALUES(sections),
-              usage_count = VALUES(usage_count),
-              updated_at = CURRENT_TIMESTAMP
-          `,
-            [
-              template.id,
-              template.name,
-              template.specialty || 'General Medicine',
-              template.visitType || 'general',
-              JSON.stringify(template.sections),
-              doctorId,
-              template.usageCount || 0,
-            ]
-          );
+      // Insert new favorites
+      const favoritesToInsert = favoriteTemplates.map(templateId => ({
+        doctor_id: doctorId,
+        template_id: templateId
+      }));
+
+      const { error: insertError } = await supabase
+        .from('doctor_template_favorites')
+        .insert(favoritesToInsert);
+
+      if (insertError) {
+        console.error('Failed to insert favorites:', insertError);
+      }
+    }
+
+    // Save any new templates
+    if (templates && templates.length > 0) {
+      for (const template of templates) {
+        const { error: templateError } = await supabase
+          .from('templates')
+          .upsert({
+            id: template.id,
+            name: template.name,
+            specialty: template.specialty || 'General Medicine',
+            template_type: template.visitType || 'general',
+            sections: JSON.stringify(template.sections),
+            created_by: doctorId,
+            usage_count: template.usageCount || 0,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'id' });
+
+        if (templateError) {
+          console.error('Failed to upsert template:', templateError);
         }
       }
-    } finally {
-      connection.release();
     }
 
     res.json({ success: true });
@@ -4319,41 +4265,36 @@ app.get('/api/doctor-profiles/:doctorId', async (req, res) => {
   try {
     const { doctorId } = req.params;
 
-    const connection = await unifiedDatabase.getConnection();
+    const { data: doctor, error: doctorError } = await supabase
+      .from('doctors')
+      .select('*')
+      .eq('id', doctorId)
+      .single();
 
-    const [doctors] = await connection.execute(
-      `
-      SELECT * FROM doctors WHERE id = ?
-    `,
-      [doctorId]
-    );
-
-    if (doctors.length === 0) {
-      connection.release();
+    if (doctorError || !doctor) {
       return res.status(404).json({ error: 'Doctor profile not found' });
     }
 
-    const doctor = doctors[0];
-
     // Get templates
-    const [templates] = await connection.execute(
-      `
-      SELECT * FROM templates
-      WHERE created_by = ? OR is_system_template = 1
-      ORDER BY name ASC
-    `,
-      [doctorId]
-    );
+    const { data: templates, error: templatesError } = await supabase
+      .from('templates')
+      .select('*')
+      .or(`created_by.eq.${doctorId},is_system_template.eq.true`)
+      .order('name', { ascending: true });
+
+    if (templatesError) {
+      console.error('Failed to fetch templates:', templatesError);
+    }
 
     // Get favorite templates
-    const [favorites] = await connection.execute(
-      `
-      SELECT template_id FROM doctor_template_favorites WHERE doctor_id = ?
-    `,
-      [doctorId]
-    );
+    const { data: favorites, error: favoritesError } = await supabase
+      .from('doctor_template_favorites')
+      .select('template_id')
+      .eq('doctor_id', doctorId);
 
-    connection.release();
+    if (favoritesError) {
+      console.error('Failed to fetch favorites:', favoritesError);
+    }
 
     const profile = {
       doctorId: doctor.id,
@@ -4414,34 +4355,23 @@ app.post('/api/templates', async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    const connection = await unifiedDatabase.getConnection();
-
-    await connection.execute(
-      `
-      INSERT INTO templates (
-        id, name, specialty, template_type, sections,
-        general_instructions, created_by, usage_count
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      ON DUPLICATE KEY UPDATE
-        name = VALUES(name),
-        sections = VALUES(sections),
-        general_instructions = VALUES(general_instructions),
-        usage_count = VALUES(usage_count),
-        updated_at = CURRENT_TIMESTAMP
-    `,
-      [
+    const { error } = await supabase
+      .from('templates')
+      .upsert({
         id,
         name,
-        'General Medicine',
-        visitType || 'general',
-        JSON.stringify(sections),
-        generalInstructions || '',
-        doctorId,
-        usageCount || 0,
-      ]
-    );
+        specialty: 'General Medicine',
+        template_type: visitType || 'general',
+        sections: JSON.stringify(sections),
+        general_instructions: generalInstructions || '',
+        created_by: doctorId,
+        usage_count: usageCount || 0,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'id' });
 
-    connection.release();
+    if (error) {
+      throw error;
+    }
 
     res.json({ success: true });
   } catch (error) {
@@ -4462,41 +4392,41 @@ app.post('/api/templates/:templateId/toggle-favorite', async (req, res) => {
       return res.status(400).json({ error: 'doctorId is required' });
     }
 
-    const connection = await unifiedDatabase.getConnection();
+    // Check if favorite already exists
+    const { data: existing, error: checkError } = await supabase
+      .from('doctor_template_favorites')
+      .select('id')
+      .eq('doctor_id', doctorId)
+      .eq('template_id', templateId)
+      .single();
 
-    try {
-      // Check if favorite already exists
-      const [existing] = await connection.execute(
-        `
-        SELECT id FROM doctor_template_favorites
-        WHERE doctor_id = ? AND template_id = ?
-      `,
-        [doctorId, templateId]
-      );
+    if (existing) {
+      // Remove favorite
+      const { error: deleteError } = await supabase
+        .from('doctor_template_favorites')
+        .delete()
+        .eq('doctor_id', doctorId)
+        .eq('template_id', templateId);
 
-      if (existing.length > 0) {
-        // Remove favorite
-        await connection.execute(
-          `
-          DELETE FROM doctor_template_favorites
-          WHERE doctor_id = ? AND template_id = ?
-        `,
-          [doctorId, templateId]
-        );
-        res.json({ success: true, isFavorite: false });
-      } else {
-        // Add favorite
-        await connection.execute(
-          `
-          INSERT INTO doctor_template_favorites (doctor_id, template_id)
-          VALUES (?, ?)
-        `,
-          [doctorId, templateId]
-        );
-        res.json({ success: true, isFavorite: true });
+      if (deleteError) {
+        throw deleteError;
       }
-    } finally {
-      connection.release();
+
+      res.json({ success: true, isFavorite: false });
+    } else {
+      // Add favorite
+      const { error: insertError } = await supabase
+        .from('doctor_template_favorites')
+        .insert({
+          doctor_id: doctorId,
+          template_id: templateId
+        });
+
+      if (insertError) {
+        throw insertError;
+      }
+
+      res.json({ success: true, isFavorite: true });
     }
   } catch (error) {
     console.error('Template API Error:', error.message);
@@ -4509,18 +4439,19 @@ app.post('/api/templates/:templateId/toggle-favorite', async (req, res) => {
  */
 app.get('/api/database/test', async (req, res) => {
   try {
-    const connection = await unifiedDatabase.getConnection();
+    const { count: doctorCount, error: doctorError } = await supabase
+      .from('doctors')
+      .select('*', { count: 'exact', head: true });
 
-    const [doctors] = await connection.execute('SELECT COUNT(*) as count FROM doctors');
-    const [templates] = await connection.execute('SELECT COUNT(*) as count FROM templates');
-
-    connection.release();
+    const { count: templateCount, error: templateError } = await supabase
+      .from('templates')
+      .select('*', { count: 'exact', head: true });
 
     res.json({
       success: true,
       connected: true,
-      doctors: doctors[0].count,
-      templates: templates[0].count,
+      doctors: doctorCount || 0,
+      templates: templateCount || 0,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -4599,14 +4530,20 @@ async function startServer() {
 
   console.log('Pump Report API: Environment configuration valid');
 
-  // Initialize database
-  const dbConnected = await initializeDatabase();
-  if (!dbConnected) {
-    console.error('Pump Report API: Database connection failed - running in degraded mode');
-    console.error('Pump Report API: Authentication services will return errors until database is available');
+  // Supabase client already initialized at module load
+  // Test connection
+  try {
+    const { error } = await supabase.from('pump_users').select('count', { count: 'exact', head: true });
+    if (error) {
+      console.error('Pump Report API: Supabase connection test failed:', error.message);
+      app.locals.dbConnected = false;
+    } else {
+      console.log('Pump Report API: Supabase connected successfully');
+      app.locals.dbConnected = true;
+    }
+  } catch (err) {
+    console.error('Pump Report API: Database connection failed:', err.message);
     app.locals.dbConnected = false;
-  } else {
-    app.locals.dbConnected = true;
   }
 
   // Initialize email service
@@ -4626,40 +4563,11 @@ async function startServer() {
 }
 
 // Database connection monitoring and recovery
+// Note: Using Supabase now - monitoring handled by Supabase client
 function startDatabaseMonitoring() {
-  console.log('Pump Report API: Starting database connection monitoring...');
-
-  // Check database connection every 30 seconds
-  setInterval(async () => {
-    try {
-      if (unifiedDatabase.isInitialized) {
-        const connection = await unifiedDatabase.getConnection();
-        await connection.ping();
-        connection.release();
-
-        // If we're here, database is healthy
-        if (!app.locals.dbConnected) {
-          console.log('Pump Report API: Database connection restored');
-          app.locals.dbConnected = true;
-        }
-      }
-    } catch (error) {
-      if (app.locals.dbConnected) {
-        console.error('Pump Report API: Database connection lost:', error.message);
-        app.locals.dbConnected = false;
-      }
-
-      // Attempt to reconnect
-      try {
-        await initializeDatabase();
-        if (app.locals.dbConnected) {
-          console.log('Pump Report API: Database reconnection successful');
-        }
-      } catch (reconnectError) {
-        console.error('Pump Report API: Database reconnection failed:', reconnectError.message);
-      }
-    }
-  }, 30000); // Check every 30 seconds
+  console.log('Pump Report API: Using Supabase - connection monitoring handled by Supabase client');
+  // Supabase client handles connection pooling and monitoring automatically
+  app.locals.dbConnected = true;
 }
 
 // Validate environment configuration
