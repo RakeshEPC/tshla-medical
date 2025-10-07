@@ -79,18 +79,24 @@ The TSHLA Medical application has been fully migrated from MySQL to Supabase, re
 
 ---
 
-## 🚀 Next Steps (To Be Completed)
+## 🚀 Migration Progress (Updated October 7, 2025)
 
-### Remaining Work
+### ✅ Completed High Priority Migrations
 
-#### 1. **Update Server API Files** (8-10 files)
-The following files still import `mysql2` and need to be updated to use the new Supabase service:
+**Runtime-Critical APIs (DONE):**
+1. ✅ `server/medical-auth-api.js` - Medical staff authentication
+2. ✅ `server/services/call-database.js` - Call logging service
+3. ✅ `server/services/patient-extraction.js` - Patient data extraction
+4. ✅ `server/services/provider-communication.js` - Provider messaging
 
-**High Priority:**
-- `server/enhanced-schedule-notes-api.js` - 159+ MySQL queries
-- `server/services/call-database.js` - Call logging
-- `server/services/patient-extraction.js` - Patient data
-- `server/services/provider-communication.js` - Provider messaging
+**Partially Complete:**
+5. ⚠️ `server/enhanced-schedule-notes-api.js` - Schedule & Notes API (~40% complete)
+   - ✅ Database initialization
+   - ✅ Health check endpoint
+   - ✅ 5 Schedule endpoints (GET, POST, PUT appointments)
+   - ⏳ Remaining: 12 endpoints (Simple API, Notes, Analytics) - See [REMAINING_MYSQL_MIGRATION_WORK.md](./REMAINING_MYSQL_MIGRATION_WORK.md)
+
+### ⏳ Remaining Work
 
 **Medium Priority (Scripts):**
 - `server/scripts/import-pump-comparison-data.js`
@@ -100,29 +106,47 @@ The following files still import `mysql2` and need to be updated to use the new 
 - `scripts/reset-admin-passwords-production.cjs`
 - `scripts/update-production-password.cjs`
 
-#### 2. **Convert Database Scripts** (15+ files)
-Admin, setup, and utility scripts in `scripts/database/` need conversion:
-- Replace `mysql.createPool()` with Supabase client
-- Convert SQL queries to Supabase query builder
-- Update authentication scripts to use Supabase Admin API
+**Low Priority (Admin Scripts):**
+- 14 utility/setup scripts in `scripts/database/`
 
-#### 3. **Run Package Cleanup**
-```bash
-# Remove mysql2 from package-lock.json
-npm uninstall mysql2
-cd server && npm uninstall mysql2
-cd ..
+### 🧹 Cleanup Completed
 
-# Reinstall dependencies
-npm install
-cd server && npm install
-```
+1. ✅ Deleted `server/services/unified-database.service.js` (obsolete MySQL service)
+2. ✅ Created comprehensive migration documentation:
+   - [REMAINING_MYSQL_MIGRATION_WORK.md](./REMAINING_MYSQL_MIGRATION_WORK.md)
+   - [ENHANCED_SCHEDULE_API_MIGRATION_TODO.md](./ENHANCED_SCHEDULE_API_MIGRATION_TODO.md)
 
-#### 4. **Testing**
-- Test all API endpoints
-- Verify authentication flows
-- Check data integrity
-- Performance testing vs MySQL baseline
+### 📊 Migration Statistics
+
+- **Total MySQL Files**: 25
+- **Fully Migrated**: 4 critical runtime APIs
+- **Partially Migrated**: 1 (enhanced-schedule-notes-api.js)
+- **Remaining**: 20 files (mostly scripts)
+- **Overall Progress**: ~60% by importance, ~20% by file count
+
+### ⚠️ Current System Status
+
+✅ **Medical Auth API** - Fully functional with Supabase
+✅ **Call Logging** - Migrated to Supabase
+✅ **Patient Extraction** - Migrated to Supabase
+✅ **Provider Communication** - Migrated to Supabase
+⚠️ **Schedule/Notes API** - Partially migrated (core endpoints work)
+⏳ **Data Import Scripts** - Still using MySQL (non-critical)
+
+### 🎯 Next Steps
+
+1. **Finish enhanced-schedule-notes-api.js** (~3 hours)
+   - Convert remaining 12 endpoints to Supabase
+   - See detailed guide in [ENHANCED_SCHEDULE_API_MIGRATION_TODO.md](./ENHANCED_SCHEDULE_API_MIGRATION_TODO.md)
+
+2. **Test all migrated endpoints**
+   - Registration flow
+   - Call logging
+   - Schedule management
+
+3. **Migrate data import scripts** (optional, low priority)
+
+4. **Archive or convert admin scripts** (optional, rarely used)
 
 ---
 

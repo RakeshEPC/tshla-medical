@@ -2,9 +2,10 @@ import { logError, logWarn, logInfo, logDebug } from '../../src/services/logger.
 /**
  * TSHLA Medical Patient Extraction & Smart Lookup Service
  * Handles patient identification, data extraction, and database lookup
+ * Migrated to Supabase (PostgreSQL) - October 2025
  */
 
-const mysql = require('mysql2/promise');
+const unifiedSupabase = require('./unified-supabase.service');
 
 class PatientExtractionService {
   constructor() {
@@ -86,17 +87,16 @@ class PatientExtractionService {
   }
 
   /**
-   * Get database connection
+   * Initialize Supabase connection
    */
-  async getDatabaseConnection() {
-    const mysql = require('mysql2/promise');
-    return await mysql.createConnection({
-      host: process.env.AZURE_MYSQL_HOST || 'tshla-mysql-staging.mysql.database.azure.com',
-      user: process.env.AZURE_MYSQL_USER || 'tshlaadmin',
-      password: process.env.AZURE_MYSQL_PASSWORD || 'TshlaSecure2025!',
-      database: process.env.AZURE_MYSQL_DATABASE || 'tshla_medical_staging',
-      ssl: { rejectUnauthorized: false },
-    });
+  async initializeConnection() {
+    try {
+      await unifiedSupabase.initialize();
+      return true;
+    } catch (error) {
+      logError('patient-extraction', 'Failed to initialize Supabase', error);
+      throw error;
+    }
   }
 
   /**
@@ -104,24 +104,21 @@ class PatientExtractionService {
    */
   async getLastProviderSeen(patientId) {
     try {
-      const connection = await this.getDatabaseConnection();
+      await this.initializeConnection();
 
-      const [rows] = await connection.execute(
-        `
-                SELECT provider_name 
-                FROM appointments 
-                WHERE patient_id = ? AND status IN ('completed', 'confirmed')
-                ORDER BY appointment_date DESC 
-                LIMIT 1
-            `,
-        [patientId]
-      );
+      const { data, error } = await unifiedSupabase
+        .from('appointments')
+        .select('provider_name')
+        .eq('patient_id', patientId)
+        .in('status', ['completed', 'confirmed'])
+        .order('appointment_date', { ascending: false })
+        .limit(1);
 
-      await connection.end();
+      if (error) throw error;
 
-      return rows.length > 0 ? rows[0].provider_name : null;
+      return data && data.length > 0 ? data[0].provider_name : null;
     } catch (error) {
-      logError('patient-extraction', '$1', $2);
+      logError('patient-extraction', 'Failed to get last provider', error);
       return null;
     }
   }
@@ -411,21 +408,6 @@ class PatientExtractionService {
     return phoneNumber.replace(/[^\d]/g, '');
   }
 
-  /**
-   * Get database connection
-   */
-  async getDatabaseConnection() {
-    return mysql.createConnection({
-      host: process.env.AZURE_MYSQL_HOST || 'tshla-mysql-staging.mysql.database.azure.com',
-      port: process.env.AZURE_MYSQL_PORT || 3306,
-      database: process.env.AZURE_MYSQL_DATABASE || 'tshla_medical_staging',
-      user: process.env.AZURE_MYSQL_USER || 'azureadmin',
-      password: process.env.AZURE_MYSQL_PASSWORD || 'TshlaSecure2025!',
-      ssl: {
-        rejectUnauthorized: false,
-      },
-    });
-  }
 
   /**
    * Validate extracted patient information

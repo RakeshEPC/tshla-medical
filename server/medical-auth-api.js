@@ -12,7 +12,7 @@ const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const unifiedDatabase = require('./services/unified-database.service');
+const unifiedDatabase = require('./services/unified-supabase.service');
 
 const app = express();
 const PORT = process.env.PORT || process.env.MEDICAL_AUTH_PORT || 3003;

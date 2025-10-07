@@ -173,34 +173,31 @@ For complete transcript or additional details, please contact TSHLA Medical.
 
   /**
    * Log provider communication for audit trail
+   * Migrated to Supabase - October 2025
    */
   async logProviderCommunication(logData) {
     try {
-      // In production, this would write to the database
-      // For now, we'll log to console
-      logInfo('provider-communication', '$1', $2);
+      logInfo('provider-communication', 'Logging provider communication', logData);
 
-      // TODO: Implement database logging
-      /*
-            const mysql = require('mysql2/promise');
-            const connection = await mysql.createConnection(dbConfig);
+      // Import Supabase service
+      const unifiedSupabase = require('./unified-supabase.service');
+      await unifiedSupabase.initialize();
 
-            await connection.execute(`
-                INSERT INTO provider_communications
-                (call_sid, provider_email, provider_type, sent_by_staff, urgency_level, status, sent_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            `, [
-                logData.call_sid,
-                logData.provider_email,
-                logData.provider_type,
-                logData.sent_by_staff,
-                logData.urgency_level,
-                logData.status,
-                logData.sent_at
-            ]);
-            */
+      // Insert into provider_communications table
+      const commData = {
+        call_sid: logData.call_sid,
+        provider_email: logData.provider_email,
+        provider_type: logData.provider_type,
+        sent_by_staff: logData.sent_by_staff,
+        urgency_level: logData.urgency_level,
+        status: logData.status,
+        sent_at: logData.sent_at || new Date().toISOString()
+      };
+
+      await unifiedSupabase.insert('provider_communications', commData);
+      logInfo('provider-communication', 'Provider communication logged successfully');
     } catch (error) {
-      logError('provider-communication', '$1', $2);
+      logError('provider-communication', 'Failed to log provider communication', error);
     }
   }
 

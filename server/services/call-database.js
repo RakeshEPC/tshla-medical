@@ -2,35 +2,26 @@ import { logError, logWarn, logInfo, logDebug } from '../../src/services/logger.
 /**
  * TSHLA Medical Call Database Service
  * Stores all call records, conversations, and extracted patient data
- * Integrates with Azure MySQL for HIPAA-compliant storage
+ * Migrated to Supabase (PostgreSQL) - October 2025
  */
 
-const mysql = require('mysql2/promise');
+const unifiedSupabase = require('./unified-supabase.service');
 
 class CallDatabaseService {
     constructor() {
-        this.dbConfig = {
-            host: process.env.AZURE_MYSQL_HOST || 'tshla-mysql-staging.mysql.database.azure.com',
-            port: process.env.AZURE_MYSQL_PORT || 3306,
-            database: process.env.AZURE_MYSQL_DATABASE || 'tshla_medical_staging',
-            user: process.env.AZURE_MYSQL_USER || 'azureadmin',
-            password: process.env.AZURE_MYSQL_PASSWORD || 'TshlaSecure2025!',
-            ssl: {
-                rejectUnauthorized: false
-            },
-            timezone: 'Z'
-        };
-        logInfo('call-database', '$1', $2);
+        logInfo('call-database', 'Initializing Call Database Service with Supabase');
     }
 
     /**
-     * Get database connection
+     * Initialize Supabase connection
      */
-    async getConnection() {
+    async initialize() {
         try {
-            return await mysql.createConnection(this.dbConfig);
+            await unifiedSupabase.initialize();
+            logInfo('call-database', 'Supabase connection initialized');
+            return true;
         } catch (error) {
-            logError('call-database', '$1', $2);
+            logError('call-database', 'Failed to initialize Supabase', error);
             throw error;
         }
     }
@@ -39,28 +30,28 @@ class CallDatabaseService {
      * Store complete call record with conversation data
      */
     async storeCallRecord(callData) {
-        const connection = await this.getConnection();
-        
         try {
-            await connection.beginTransaction();
+            await this.initialize();
+
+            // Supabase doesn't support client-side transactions, so we'll do our best effort
+            // For critical data integrity, consider creating a PostgreSQL function
 
             // 1. Store or update patient record
-            const patientId = await this.storePatientRecord(connection, callData.extractedData);
+            const patientId = await this.storePatientRecord(callData.extractedData);
 
             // 2. Store communication record
-            const communicationId = await this.storeCommunicationRecord(connection, {
+            const communicationId = await this.storeCommunicationRecord({
                 ...callData,
                 patientId
             });
 
             // 3. Store AI interactions
-            await this.storeAIInteractions(connection, communicationId, callData.conversations);
+            await this.storeAIInteractions(communicationId, callData.conversations);
 
             // 4. Create case/action items if needed
-            await this.createActionItems(connection, communicationId, callData.extractedData);
+            await this.createActionItems(communicationId, callData.extractedData);
 
-            await connection.commit();
-            logInfo('call-database', '$1', $2);
+            logInfo('call-database', `Call record stored: ${callData.callSid}`);
 
             return {
                 success: true,
@@ -70,79 +61,74 @@ class CallDatabaseService {
             };
 
         } catch (error) {
-            await connection.rollback();
-            logError('call-database', '$1', $2);
+            logError('call-database', 'Failed to store call record', error);
             throw error;
-        } finally {
-            await connection.end();
         }
     }
 
     /**
      * Store or update patient record
      */
-    async storePatientRecord(connection, extractedData) {
+    async storePatientRecord(extractedData) {
         try {
             // Check if patient exists by phone number
-            const [existingPatients] = await connection.execute(
-                'SELECT id FROM patients WHERE phone_number = ? LIMIT 1',
-                [extractedData.phoneNumber]
-            );
+            const { data: existingPatients, error: searchError } = await unifiedSupabase
+                .from('patients')
+                .select('id')
+                .eq('phone_number', extractedData.phoneNumber)
+                .limit(1);
 
-            if (existingPatients.length > 0) {
+            if (searchError) throw searchError;
+
+            if (existingPatients && existingPatients.length > 0) {
                 // Update existing patient if we have new information
                 const patientId = existingPatients[0].id;
-                
-                const updateFields = [];
-                const updateValues = [];
+
+                const updateData = { updated_at: new Date().toISOString() };
 
                 if (extractedData.firstName && extractedData.lastName) {
-                    updateFields.push('first_name = ?', 'last_name = ?');
-                    updateValues.push(extractedData.firstName, extractedData.lastName);
+                    updateData.first_name = extractedData.firstName;
+                    updateData.last_name = extractedData.lastName;
                 }
 
                 if (extractedData.dateOfBirth) {
-                    updateFields.push('date_of_birth = ?');
-                    updateValues.push(extractedData.dateOfBirth);
+                    updateData.date_of_birth = extractedData.dateOfBirth;
                 }
 
-                if (updateFields.length > 0) {
-                    updateValues.push(patientId);
-                    await connection.execute(
-                        `UPDATE patients SET ${updateFields.join(', ')}, updated_at = NOW() WHERE id = ?`,
-                        updateValues
-                    );
-                    logDebug('call-database', '$1', $2);
+                if (Object.keys(updateData).length > 1) { // More than just updated_at
+                    await unifiedSupabase.update('patients', updateData, { id: patientId });
+                    logDebug('call-database', `Updated patient: ${patientId}`);
                 }
 
                 return patientId;
 
             } else if (extractedData.name || extractedData.firstName) {
                 // Create new patient record
-                const patientId = this.generateUUID();
-                
-                await connection.execute(
-                    `INSERT INTO patients (
-                        id, phone_number, first_name, last_name, date_of_birth, 
-                        created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
-                    [
-                        patientId,
-                        extractedData.phoneNumber,
-                        extractedData.firstName || extractedData.name?.split(' ')[0] || null,
-                        extractedData.lastName || (extractedData.name?.split(' ').slice(1).join(' ')) || null,
-                        extractedData.dateOfBirth || null
-                    ]
-                );
+                const patientData = {
+                    phone_number: extractedData.phoneNumber,
+                    first_name: extractedData.firstName || extractedData.name?.split(' ')[0] || null,
+                    last_name: extractedData.lastName || (extractedData.name?.split(' ').slice(1).join(' ')) || null,
+                    date_of_birth: extractedData.dateOfBirth || null,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                };
 
-                logDebug('call-database', '$1', $2);
-                return patientId;
+                const { data: newPatient, error: insertError } = await unifiedSupabase
+                    .from('patients')
+                    .insert(patientData)
+                    .select()
+                    .single();
+
+                if (insertError) throw insertError;
+
+                logDebug('call-database', `Created new patient: ${newPatient.id}`);
+                return newPatient.id;
             }
 
             return null; // No patient information to store
 
         } catch (error) {
-            logError('call-database', '$1', $2);
+            logError('call-database', 'Failed to store patient record', error);
             throw error;
         }
     }
@@ -150,46 +136,46 @@ class CallDatabaseService {
     /**
      * Store communication record (call details and transcript)
      */
-    async storeCommunicationRecord(connection, callData) {
+    async storeCommunicationRecord(callData) {
         try {
-            const communicationId = this.generateUUID();
-
             // Prepare transcript from conversation messages
-            const transcript = callData.conversations?.map(msg => 
+            const transcript = callData.conversations?.map(msg =>
                 `${msg.role}: ${msg.content}`
             ).join('\n') || 'No transcript available';
 
             // Generate AI summary
             const aiSummary = this.generateCallSummary(callData);
 
-            await connection.execute(
-                `INSERT INTO communications (
-                    id, call_sid, patient_id, type, direction, from_number, to_number,
-                    status, duration_seconds, raw_transcript, ai_summary, 
-                    confidence_score, needs_review, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-                [
-                    communicationId,
-                    callData.callSid,
-                    callData.patientId,
-                    'voice',
-                    'inbound',
-                    callData.fromNumber,
-                    callData.toNumber,
-                    callData.status || 'completed',
-                    Math.floor(callData.duration || 0),
-                    transcript,
-                    aiSummary,
-                    callData.extractedData?.confidence || 0.8,
-                    callData.extractedData?.isEmergency || false,
-                ]
-            );
+            const commData = {
+                call_sid: callData.callSid,
+                patient_id: callData.patientId,
+                type: 'voice',
+                direction: 'inbound',
+                from_number: callData.fromNumber,
+                to_number: callData.toNumber,
+                status: callData.status || 'completed',
+                duration_seconds: Math.floor(callData.duration || 0),
+                raw_transcript: transcript,
+                ai_summary: aiSummary,
+                confidence_score: callData.extractedData?.confidence || 0.8,
+                needs_review: callData.extractedData?.isEmergency || false,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
 
-            logDebug('call-database', '$1', $2);
-            return communicationId;
+            const { data: newComm, error } = await unifiedSupabase
+                .from('communications')
+                .insert(commData)
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            logDebug('call-database', `Created communication record: ${newComm.id}`);
+            return newComm.id;
 
         } catch (error) {
-            logError('call-database', '$1', $2);
+            logError('call-database', 'Failed to store communication record', error);
             throw error;
         }
     }
@@ -197,33 +183,31 @@ class CallDatabaseService {
     /**
      * Store AI interactions for audit trail
      */
-    async storeAIInteractions(connection, communicationId, conversations) {
+    async storeAIInteractions(communicationId, conversations) {
         if (!conversations || conversations.length === 0) return;
 
         try {
+            const interactions = [];
             for (const message of conversations) {
                 if (message.role === 'assistant') {
-                    await connection.execute(
-                        `INSERT INTO ai_interactions (
-                            id, communication_id, agent_type, request, response,
-                            tokens_used, created_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-                        [
-                            this.generateUUID(),
-                            communicationId,
-                            'voice-assistant',
-                            'Voice conversation', // Previous user message would be request
-                            message.content,
-                            message.content.length // Approximate token count
-                        ]
-                    );
+                    interactions.push({
+                        communication_id: communicationId,
+                        agent_type: 'voice-assistant',
+                        request: 'Voice conversation', // Previous user message would be request
+                        response: message.content,
+                        tokens_used: message.content.length, // Approximate token count
+                        created_at: new Date().toISOString()
+                    });
                 }
             }
 
-            logDebug('call-database', '$1', $2).length} AI interactions`);
+            if (interactions.length > 0) {
+                await unifiedSupabase.insert('ai_interactions', interactions);
+                logDebug('call-database', `Stored ${interactions.length} AI interactions`);
+            }
 
         } catch (error) {
-            logError('call-database', '$1', $2);
+            logError('call-database', 'Failed to store AI interactions', error);
             // Don't throw - this is not critical for call functionality
         }
     }
@@ -231,65 +215,57 @@ class CallDatabaseService {
     /**
      * Create action items based on call content
      */
-    async createActionItems(connection, communicationId, extractedData) {
+    async createActionItems(communicationId, extractedData) {
         try {
             const actionItems = [];
 
             // Create appointment request if detected
             if (extractedData.appointmentType && extractedData.appointmentType !== 'message') {
                 actionItems.push({
-                    type: 'schedule_appointment',
-                    title: `Schedule ${extractedData.appointmentType} appointment`,
-                    description: `Patient ${extractedData.name || 'caller'} requested ${extractedData.appointmentType} appointment. Preferred provider: ${extractedData.preferredProvider || 'Not specified'}`,
-                    priority: extractedData.urgencyLevel === 'emergency' ? 'high' : 'medium'
+                    communication_log_id: communicationId,
+                    action_type: 'schedule_appointment',
+                    action_title: `Schedule ${extractedData.appointmentType} appointment`,
+                    action_description: `Patient ${extractedData.name || 'caller'} requested ${extractedData.appointmentType} appointment. Preferred provider: ${extractedData.preferredProvider || 'Not specified'}`,
+                    priority: extractedData.urgencyLevel === 'emergency' ? 'high' : 'medium',
+                    status: 'pending',
+                    created_at: new Date().toISOString()
                 });
             }
 
             // Create message follow-up if it's a message call
             if (extractedData.reasonForCall && !extractedData.appointmentType) {
                 actionItems.push({
-                    type: 'follow_up',
-                    title: 'Follow up on patient message',
-                    description: `Patient called regarding: ${extractedData.reasonForCall}`,
-                    priority: extractedData.urgencyLevel === 'urgent' ? 'high' : 'medium'
+                    communication_log_id: communicationId,
+                    action_type: 'follow_up',
+                    action_title: 'Follow up on patient message',
+                    action_description: `Patient called regarding: ${extractedData.reasonForCall}`,
+                    priority: extractedData.urgencyLevel === 'urgent' ? 'high' : 'medium',
+                    status: 'pending',
+                    created_at: new Date().toISOString()
                 });
             }
 
             // Create emergency action if detected
             if (extractedData.isEmergency) {
                 actionItems.push({
-                    type: 'emergency_follow_up',
-                    title: '🚨 Emergency call follow-up',
-                    description: `EMERGENCY CALL: Patient instructed to call 911. Follow up required.`,
-                    priority: 'high'
+                    communication_log_id: communicationId,
+                    action_type: 'emergency_follow_up',
+                    action_title: '🚨 Emergency call follow-up',
+                    action_description: `EMERGENCY CALL: Patient instructed to call 911. Follow up required.`,
+                    priority: 'high',
+                    status: 'pending',
+                    created_at: new Date().toISOString()
                 });
             }
 
             // Store action items
-            for (const item of actionItems) {
-                await connection.execute(
-                    `INSERT INTO action_items (
-                        id, communication_log_id, action_type, action_title, 
-                        action_description, priority, status, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
-                    [
-                        this.generateUUID(),
-                        communicationId,
-                        item.type,
-                        item.title,
-                        item.description,
-                        item.priority,
-                        'pending'
-                    ]
-                );
-            }
-
             if (actionItems.length > 0) {
-                logInfo('call-database', '$1', $2);
+                await unifiedSupabase.insert('action_items', actionItems);
+                logInfo('call-database', `Created ${actionItems.length} action items`);
             }
 
         } catch (error) {
-            logError('call-database', '$1', $2);
+            logError('call-database', 'Failed to create action items', error);
             // Don't throw - this is not critical for call functionality
         }
     }
@@ -300,15 +276,15 @@ class CallDatabaseService {
     generateCallSummary(callData) {
         const data = callData.extractedData;
         let summary = `Phone call received. `;
-        
+
         if (data.name) summary += `Patient: ${data.name}. `;
         if (data.reasonForCall) summary += `Reason: ${data.reasonForCall}. `;
         if (data.appointmentType) summary += `Requested: ${data.appointmentType}. `;
         if (data.preferredProvider) summary += `Provider: ${data.preferredProvider}. `;
         if (data.isEmergency) summary += `⚠️ EMERGENCY - instructed to call 911. `;
-        
+
         summary += `Language: ${data.language || 'English'}.`;
-        
+
         return summary;
     }
 
@@ -316,25 +292,29 @@ class CallDatabaseService {
      * Get recent calls for dashboard
      */
     async getRecentCalls(limit = 50) {
-        const connection = await this.getConnection();
-        
         try {
-            // Ensure limit is an integer to avoid SQL parameter errors
-            const limitInt = parseInt(limit) || 50;
-            
-            const [rows] = await connection.execute(`
-                SELECT 
-                    c.id, c.call_sid, c.from_number, c.to_number, c.status,
-                    c.duration_seconds, c.ai_summary, c.needs_review, c.created_at,
-                    p.first_name, p.last_name, p.phone as patient_phone
-                FROM communications c
-                LEFT JOIN patients p ON c.patient_id = p.id
-                WHERE c.type = 'voice'
-                ORDER BY c.created_at DESC
-                LIMIT ${limitInt}
-            `);
+            await this.initialize();
 
-            return rows.map(row => ({
+            const limitInt = parseInt(limit) || 50;
+
+            const { data, error } = await unifiedSupabase.getClient()
+                .from('communications')
+                .select(`
+                    id, call_sid, from_number, to_number, status,
+                    duration_seconds, ai_summary, needs_review, created_at,
+                    patients!patient_id (
+                        first_name,
+                        last_name,
+                        phone_number
+                    )
+                `)
+                .eq('type', 'voice')
+                .order('created_at', { ascending: false })
+                .limit(limitInt);
+
+            if (error) throw error;
+
+            return data.map(row => ({
                 id: row.id,
                 callSid: row.call_sid,
                 fromNumber: row.from_number,
@@ -344,14 +324,15 @@ class CallDatabaseService {
                 summary: row.ai_summary,
                 needsReview: row.needs_review,
                 createdAt: row.created_at,
-                patient: row.first_name ? {
-                    name: `${row.first_name} ${row.last_name}`,
-                    phone: row.patient_phone
+                patient: row.patients ? {
+                    name: `${row.patients.first_name} ${row.patients.last_name}`,
+                    phone: row.patients.phone_number
                 } : null
             }));
 
-        } finally {
-            await connection.end();
+        } catch (error) {
+            logError('call-database', 'Failed to get recent calls', error);
+            throw error;
         }
     }
 
@@ -359,62 +340,60 @@ class CallDatabaseService {
      * Get call details with transcript
      */
     async getCallDetails(callSid) {
-        const connection = await this.getConnection();
-        
         try {
-            const [calls] = await connection.execute(`
-                SELECT 
-                    c.*, p.first_name, p.last_name, p.date_of_birth, p.phone_number as patient_phone
-                FROM communications c
-                LEFT JOIN patients p ON c.patient_id = p.id
-                WHERE c.call_sid = ?
-            `, [callSid]);
+            await this.initialize();
 
-            if (calls.length === 0) {
-                return null;
-            }
+            // Get call with patient info
+            const { data: calls, error: callError } = await unifiedSupabase.getClient()
+                .from('communications')
+                .select(`
+                    *,
+                    patients!patient_id (
+                        first_name,
+                        last_name,
+                        date_of_birth,
+                        phone_number
+                    )
+                `)
+                .eq('call_sid', callSid)
+                .single();
 
-            const call = calls[0];
+            if (callError) throw callError;
+            if (!calls) return null;
 
             // Get AI interactions
-            const [interactions] = await connection.execute(`
-                SELECT * FROM ai_interactions 
-                WHERE communication_id = ? 
-                ORDER BY created_at ASC
-            `, [call.id]);
+            const { data: interactions, error: interactionsError } = await unifiedSupabase
+                .from('ai_interactions')
+                .select('*')
+                .eq('communication_id', calls.id)
+                .order('created_at', { ascending: true });
+
+            if (interactionsError) throw interactionsError;
 
             // Get action items
-            const [actions] = await connection.execute(`
-                SELECT * FROM action_items 
-                WHERE communication_log_id = ? 
-                ORDER BY created_at ASC
-            `, [call.id]);
+            const { data: actions, error: actionsError } = await unifiedSupabase
+                .from('action_items')
+                .select('*')
+                .eq('communication_log_id', calls.id)
+                .order('created_at', { ascending: true });
+
+            if (actionsError) throw actionsError;
 
             return {
-                ...call,
-                patient: call.first_name ? {
-                    name: `${call.first_name} ${call.last_name}`,
-                    dateOfBirth: call.date_of_birth,
-                    phone: call.patient_phone
+                ...calls,
+                patient: calls.patients ? {
+                    name: `${calls.patients.first_name} ${calls.patients.last_name}`,
+                    dateOfBirth: calls.patients.date_of_birth,
+                    phone: calls.patients.phone_number
                 } : null,
-                interactions: interactions,
-                actionItems: actions
+                interactions: interactions || [],
+                actionItems: actions || []
             };
 
-        } finally {
-            await connection.end();
+        } catch (error) {
+            logError('call-database', 'Failed to get call details', error);
+            throw error;
         }
-    }
-
-    /**
-     * Generate UUID for database records
-     */
-    generateUUID() {
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-            const r = Math.random() * 16 | 0;
-            const v = c == 'x' ? r : (r & 0x3 | 0x8);
-            return v.toString(16);
-        });
     }
 
     /**
@@ -422,13 +401,20 @@ class CallDatabaseService {
      */
     async testConnection() {
         try {
-            const connection = await this.getConnection();
-            await connection.execute('SELECT 1 as test');
-            await connection.end();
-            logInfo('call-database', '$1', $2);
+            await this.initialize();
+            const { error } = await unifiedSupabase.getClient()
+                .from('communications')
+                .select('id')
+                .limit(1);
+
+            if (error && error.code !== 'PGRST116') { // PGRST116 = no rows, which is fine
+                throw error;
+            }
+
+            logInfo('call-database', 'Database connection test successful');
             return true;
         } catch (error) {
-            logError('call-database', '$1', $2);
+            logError('call-database', 'Database connection test failed', error);
             return false;
         }
     }

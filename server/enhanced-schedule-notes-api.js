@@ -6,7 +6,7 @@
 
 const express = require('express');
 const cors = require('cors');
-const mysql = require('mysql2/promise');
+const unifiedSupabase = require('./services/unified-supabase.service');
 const logger = require('./logger');
 
 const app = express();
@@ -26,54 +26,21 @@ app.use(
 );
 app.use(express.json({ limit: '50mb' }));
 
-// Database configuration - Use same config as pump-report-api for consistency
-const dbConfig = {
-  host:
-    process.env.AZURE_DB_HOST ||
-    process.env.AZURE_MYSQL_HOST ||
-    'tshla-mysql-staging.mysql.database.azure.com',
-  port: 3306,
-  user: process.env.AZURE_DB_USER || process.env.AZURE_MYSQL_USER || 'tshlaadmin',
-  password: process.env.AZURE_DB_PASSWORD || process.env.AZURE_MYSQL_PASSWORD || 'TshlaSecure2025!',
-  database:
-    process.env.AZURE_DB_NAME || process.env.AZURE_MYSQL_DATABASE || 'tshla_medical_staging',
-  ssl: {
-    rejectUnauthorized: false,
-    require: true,
-  },
-  timezone: 'Z',
-  reconnect: true,
-  idleTimeout: 60000,
-  acquireTimeout: 30000,
-  timeout: 30000,
-};
-
-// Database connection pool with fallback
-let pool;
+// Database connection status
 let dbConnected = false;
 
+/**
+ * Initialize Supabase connection
+ * Migrated from MySQL to Supabase - October 2025
+ */
 async function initializeDatabase() {
   try {
-    pool = mysql.createPool({
-      ...dbConfig,
-      connectionLimit: 15,
-      queueLimit: 0,
-      waitForConnections: true,
-      multipleStatements: false,
-      acquireTimeout: 30000,
-      timeout: 30000,
-      reconnect: true,
-    });
-
-    // Test the connection
-    const connection = await pool.getConnection();
-    await connection.ping();
-    connection.release();
+    await unifiedSupabase.initialize();
     dbConnected = true;
-    logger.database('Connection established', true);
+    logger.database('Supabase connection established', true);
     logger.info('App', 'Database initialized successfully');
   } catch (error) {
-    logger.database('Connection failed, using fallback mode', false, error);
+    logger.database('Supabase connection failed, using fallback mode', false, error);
     logger.warn('App', 'Database connection failed, switching to fallback mode');
     dbConnected = false;
   }
@@ -88,7 +55,7 @@ const fallbackStorage = {
 
 logger.startup('🏥 TSHLA Enhanced Schedule & Notes API Server Starting', {
   port: PORT,
-  database: `${dbConfig.host}/${dbConfig.database}`,
+  database: 'Supabase PostgreSQL',
   environment: process.env.NODE_ENV || 'development',
 });
 
@@ -103,17 +70,19 @@ app.get('/health', async (req, res) => {
   const healthStatus = {
     service: 'enhanced-schedule-notes-api',
     timestamp: new Date().toISOString(),
-    version: '1.0.0',
+    version: '2.0.0',
     database: dbConnected ? 'connected' : 'fallback-mode',
+    databaseType: 'Supabase PostgreSQL',
     status: 'healthy', // Always healthy as we have fallback
   };
 
   if (dbConnected) {
     try {
-      const connection = await pool.getConnection();
-      await connection.ping();
-      connection.release();
-      healthStatus.database = 'connected';
+      const health = await unifiedSupabase.healthCheck();
+      healthStatus.database = health.healthy ? 'connected' : 'fallback-mode';
+      if (!health.healthy) {
+        healthStatus.fallbackReason = health.error;
+      }
     } catch (error) {
       logger.warn('API', 'Database operation warning', { error });
       dbConnected = false;
@@ -135,33 +104,27 @@ app.get('/api/providers/:providerId/schedule', async (req, res) => {
     const { providerId } = req.params;
     const { date, startDate, endDate } = req.query;
 
-    let query = `
-      SELECT
-        id, provider_id, provider_name, patient_name, patient_phone,
-        appointment_type, appointment_title, scheduled_date, start_time, end_time,
-        duration_minutes, status, chief_complaint, urgency_level, is_telehealth,
-        provider_notes, created_at, updated_at
-      FROM provider_schedules
-      WHERE provider_id = ?
-    `;
-    const params = [providerId];
+    let query = unifiedSupabase
+      .from('provider_schedules')
+      .select('id, provider_id, provider_name, patient_name, patient_phone, appointment_type, appointment_title, scheduled_date, start_time, end_time, duration_minutes, status, chief_complaint, urgency_level, is_telehealth, provider_notes, created_at, updated_at')
+      .eq('provider_id', providerId);
 
     if (date) {
-      query += ' AND scheduled_date = ?';
-      params.push(date);
+      query = query.eq('scheduled_date', date);
     } else if (startDate && endDate) {
-      query += ' AND scheduled_date BETWEEN ? AND ?';
-      params.push(startDate, endDate);
+      query = query.gte('scheduled_date', startDate).lte('scheduled_date', endDate);
     }
 
-    query += ' ORDER BY scheduled_date ASC, start_time ASC';
+    query = query.order('scheduled_date', { ascending: true }).order('start_time', { ascending: true });
 
-    const [rows] = await pool.execute(query, params);
+    const { data: rows, error } = await query;
+
+    if (error) throw error;
 
     res.json({
       success: true,
-      appointments: rows,
-      count: rows.length,
+      appointments: rows || [],
+      count: rows?.length || 0,
     });
   } catch (error) {
     logger.error('API', error.message, { error });
@@ -198,15 +161,9 @@ app.post('/api/appointments', async (req, res) => {
     if (dbConnected) {
       // Try database first
       try {
-        const [result] = await pool.execute(
-          `
-          INSERT INTO provider_schedules (
-            provider_id, provider_name, patient_name, patient_phone, patient_email,
-            appointment_type, appointment_title, scheduled_date, start_time, end_time,
-            chief_complaint, urgency_level, is_telehealth, provider_notes, status, source_system
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', 'tshla-dictation')
-        `,
-          [
+        const { data, error } = await unifiedSupabase
+          .from('provider_schedules')
+          .insert({
             provider_id,
             provider_name,
             patient_name,
@@ -218,14 +175,19 @@ app.post('/api/appointments', async (req, res) => {
             start_time,
             end_time,
             chief_complaint,
-            urgency_level || 'routine',
-            is_telehealth || false,
+            urgency_level: urgency_level || 'routine',
+            is_telehealth: is_telehealth || false,
             provider_notes,
-          ]
-        );
-        appointmentId = result.insertId;
+            status: 'scheduled',
+            source_system: 'tshla-dictation'
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        appointmentId = data.id;
       } catch (dbError) {
-        logger.warn('API', 'Database operation warning', { error });
+        logger.warn('API', 'Database operation warning', { error: dbError });
         dbConnected = false; // Switch to fallback mode
       }
     }
@@ -282,24 +244,17 @@ app.post('/api/appointments', async (req, res) => {
 app.put('/api/appointments/:appointmentId', async (req, res) => {
   try {
     const { appointmentId } = req.params;
-    const updates = req.body;
+    const updates = { ...req.body, updated_at: new Date().toISOString() };
 
-    // Build dynamic update query
-    const updateFields = Object.keys(updates)
-      .map(key => `${key} = ?`)
-      .join(', ');
-    const updateValues = Object.values(updates);
+    const { data, error } = await unifiedSupabase
+      .from('provider_schedules')
+      .update(updates)
+      .eq('id', appointmentId)
+      .select();
 
-    const [result] = await pool.execute(
-      `
-      UPDATE provider_schedules
-      SET ${updateFields}, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `,
-      [...updateValues, appointmentId]
-    );
+    if (error) throw error;
 
-    if (result.affectedRows === 0) {
+    if (!data || data.length === 0) {
       return res.status(404).json({
         success: false,
         error: 'Appointment not found',
@@ -323,15 +278,21 @@ app.put('/api/appointments/:appointmentId', async (req, res) => {
 // Get today's schedule for all providers
 app.get('/api/schedule/today', async (req, res) => {
   try {
-    const [rows] = await pool.execute(`
-      SELECT * FROM todays_schedule
-      ORDER BY provider_name, start_time
-    `);
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+    const { data: rows, error } = await unifiedSupabase
+      .from('provider_schedules')
+      .select('*')
+      .eq('scheduled_date', today)
+      .order('provider_name', { ascending: true })
+      .order('start_time', { ascending: true });
+
+    if (error) throw error;
 
     res.json({
       success: true,
-      schedule: rows,
-      date: new Date().toISOString().split('T')[0],
+      schedule: rows || [],
+      date: today,
     });
   } catch (error) {
     logger.error('API', error.message, { error });
