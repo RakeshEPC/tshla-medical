@@ -89,6 +89,7 @@
     "stream-browserify": "^3.0.0",
     "stripe": "^18.5.0",
     "util": "^0.12.5",
+    "uuid": "^13.0.0",
     "winston": "^3.11.0",
     "winston-daily-rotate-file": "^4.7.1",
     "ws": "^8.18.3"
