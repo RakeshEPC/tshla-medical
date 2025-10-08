@@ -2,10 +2,101 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Tesla Design System - Base Styles */
+@layer base {
+  * {
+    @apply antialiased;
+  }
+
+  body {
+    @apply font-sans text-tesla-dark-gray bg-white;
+    font-weight: 300;
+    letter-spacing: -0.01em;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display font-bold tracking-tight;
+  }
+
+  h1 {
+    @apply text-display-lg;
+  }
+
+  h2 {
+    @apply text-display-md;
+  }
+
+  h3 {
+    @apply text-display-sm;
+  }
+}
+
+/* Tesla Component Styles */
+@layer components {
+  /* Tesla Button Styles */
+  .btn-tesla {
+    @apply px-6 py-3 rounded-full font-medium transition-all duration-200;
+    letter-spacing: 0.02em;
+  }
+
+  .btn-tesla-primary {
+    @apply bg-tesla-blue text-white hover:bg-opacity-90;
+  }
+
+  .btn-tesla-secondary {
+    @apply bg-tesla-dark-gray text-white hover:bg-opacity-90;
+  }
+
+  .btn-tesla-outline {
+    @apply bg-transparent border-2 border-tesla-dark-gray text-tesla-dark-gray hover:bg-tesla-dark-gray hover:text-white;
+  }
+
+  .btn-tesla-light {
+    @apply bg-white text-tesla-dark-gray border-2 border-tesla-dark-gray hover:bg-tesla-dark-gray hover:text-white;
+  }
+
+  /* Tesla Card Styles */
+  .card-tesla {
+    @apply bg-white border border-gray-200 rounded-tesla-lg overflow-hidden;
+  }
+
+  .card-tesla-dark {
+    @apply bg-tesla-dark-gray text-white rounded-tesla-lg overflow-hidden;
+  }
+
+  /* Tesla Input Styles */
+  .input-tesla {
+    @apply w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-tesla text-tesla-dark-gray;
+    @apply focus:outline-none focus:border-tesla-dark-gray transition-colors duration-200;
+    font-weight: 300;
+  }
+
+  .input-tesla-dark {
+    @apply w-full px-4 py-3 bg-tesla-medium-gray border-2 border-tesla-medium-gray rounded-tesla text-white;
+    @apply focus:outline-none focus:border-white transition-colors duration-200;
+    font-weight: 300;
+  }
+}
+
 /* Disable all animations and transitions to prevent strobing */
 .no-animations * {
   animation-duration: 0s !important;
   animation-delay: 0s !important;
   transition-duration: 0s !important;
   transition-delay: 0s !important;
+}
+
+/* Tesla Smooth Transitions */
+@layer utilities {
+  .transition-tesla {
+    @apply transition-all duration-300 ease-out;
+  }
+
+  .shadow-tesla {
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
 }

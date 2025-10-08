@@ -198,17 +198,18 @@ export default function DoctorDashboardUnified() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
-          <div className="text-xl font-semibold text-gray-700 mb-2">Loading schedule...</div>
-          <div className="text-gray-500">Connecting to database</div>
+          <div className="spinner-tesla mx-auto mb-4"></div>
+          <div className="text-lg font-medium text-tesla-dark-gray mb-2">Loading schedule</div>
+          <div className="text-tesla-light-gray font-light">Connecting to database</div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white">
       {/* Top Navigation */}
       <DoctorNavBar
         currentView={dashboardView}
@@ -218,15 +219,15 @@ export default function DoctorDashboardUnified() {
       />
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto p-6">
+      <div className="max-w-7xl mx-auto p-8">
         {/* Error Display */}
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <div className="text-red-800 font-medium">Database Error</div>
-            <div className="text-red-600 text-sm mt-1">{error}</div>
+          <div className="bg-red-50 border border-red-200 rounded p-6 mb-6">
+            <div className="text-red-800 font-medium mb-2">Database Error</div>
+            <div className="text-red-600 text-sm mb-4 font-light">{error}</div>
             <button
               onClick={refreshSchedule}
-              className="mt-2 px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
+              className="btn-tesla btn-tesla-secondary text-sm px-6 py-2"
             >
               Retry Connection
             </button>
@@ -237,74 +238,74 @@ export default function DoctorDashboardUnified() {
         {renderDashboardContent()}
       </div>
 
-      {/* Add Patient Modal */}
+      {/* Add Patient Modal - Tesla Style */}
       {showAddPatient && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white border border-gray-200 rounded-lg p-8 w-full max-w-md">
+            <h3 className="text-xl font-bold text-tesla-dark-gray mb-6">
               {editingAppointment ? 'Edit Appointment' : 'Add New Patient'}
             </h3>
 
-            <div className="space-y-4">
+            <div className="space-y-5">
               <div>
-                <label className="block text-sm font-medium mb-1">Patient Name *</label>
+                <label className="block text-sm font-medium text-tesla-dark-gray mb-2">Patient Name *</label>
                 <input
                   type="text"
                   value={newAppointment.patientName}
                   onChange={e =>
                     setNewAppointment({ ...newAppointment, patientName: e.target.value })
                   }
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="input-tesla-minimal"
                   placeholder="Enter patient name"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Phone</label>
+                <label className="block text-sm font-medium text-tesla-dark-gray mb-2">Phone</label>
                 <input
                   type="tel"
                   value={newAppointment.patientPhone}
                   onChange={e =>
                     setNewAppointment({ ...newAppointment, patientPhone: e.target.value })
                   }
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="input-tesla-minimal"
                   placeholder="Phone number"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Email</label>
+                <label className="block text-sm font-medium text-tesla-dark-gray mb-2">Email</label>
                 <input
                   type="email"
                   value={newAppointment.patientEmail}
                   onChange={e =>
                     setNewAppointment({ ...newAppointment, patientEmail: e.target.value })
                   }
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="input-tesla-minimal"
                   placeholder="Email address"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Time *</label>
+                <label className="block text-sm font-medium text-tesla-dark-gray mb-2">Time *</label>
                 <input
                   type="time"
                   value={newAppointment.appointmentTime}
                   onChange={e =>
                     setNewAppointment({ ...newAppointment, appointmentTime: e.target.value })
                   }
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="input-tesla-minimal"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Visit Type</label>
+                <label className="block text-sm font-medium text-tesla-dark-gray mb-2">Visit Type</label>
                 <select
                   value={newAppointment.visitType}
                   onChange={e =>
                     setNewAppointment({ ...newAppointment, visitType: e.target.value as any })
                   }
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="input-tesla-minimal"
                 >
                   <option value="new-patient">New Patient</option>
                   <option value="follow-up">Follow-up</option>
@@ -316,35 +317,35 @@ export default function DoctorDashboardUnified() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Visit Reason</label>
+                <label className="block text-sm font-medium text-tesla-dark-gray mb-2">Visit Reason</label>
                 <input
                   type="text"
                   value={newAppointment.visitReason}
                   onChange={e =>
                     setNewAppointment({ ...newAppointment, visitReason: e.target.value })
                   }
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="input-tesla-minimal"
                   placeholder="Reason for visit"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Notes</label>
+                <label className="block text-sm font-medium text-tesla-dark-gray mb-2">Notes</label>
                 <textarea
                   value={newAppointment.notes}
                   onChange={e => setNewAppointment({ ...newAppointment, notes: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="input-tesla-minimal resize-none"
                   rows={3}
                   placeholder="Additional notes"
                 />
               </div>
             </div>
 
-            <div className="flex gap-3 mt-6">
+            <div className="flex gap-3 mt-8">
               <button
                 onClick={saveAppointment}
                 disabled={isLoading}
-                className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 btn-tesla btn-tesla-secondary py-3 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? 'Saving...' : editingAppointment ? 'Update' : 'Save'}
               </button>
@@ -353,7 +354,7 @@ export default function DoctorDashboardUnified() {
                   setShowAddPatient(false);
                   setEditingAppointment(null);
                 }}
-                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="btn-tesla btn-tesla-outline-dark py-3 px-6"
               >
                 Cancel
               </button>

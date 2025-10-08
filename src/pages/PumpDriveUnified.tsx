@@ -374,39 +374,34 @@ const PumpDriveUnified: React.FC = () => {
   };
 
   const renderProgressBar = () => (
-    <div className="mb-8">
-      <div className="flex justify-between text-sm text-gray-600 mb-2">
-        <span>Complete Assessment</span>
-        <span>{getStepProgress()}% Complete</span>
+    <div className="mb-12">
+      <div className="flex justify-between text-sm font-light text-tesla-light-gray mb-3">
+        <span>Assessment Progress</span>
+        <span>{getStepProgress()}%</span>
       </div>
-      <div className="w-full bg-gray-200 rounded-full h-3">
-        <div 
-          className="bg-gradient-to-r from-blue-500 to-purple-500 h-3 rounded-full transition-all duration-500"
+      <div className="w-full bg-tesla-silver rounded h-1">
+        <div
+          className="bg-tesla-dark-gray h-1 transition-all duration-500"
           style={{ width: `${getStepProgress()}%` }}
         ></div>
       </div>
-      
-      {/* Step indicators */}
-      <div className="flex justify-between mt-4">
-        <div className={`flex items-center ${currentStep === 'sliders' ? 'text-blue-600 font-semibold' : completedSteps.includes('sliders') ? 'text-green-600' : 'text-gray-400'}`}>
-          <span className="mr-2">{completedSteps.includes('sliders') ? '✅' : '🎚️'}</span>
-          <span className="text-sm">Preferences</span>
+
+      {/* Step indicators - Tesla Minimal */}
+      <div className="flex justify-between mt-6">
+        <div className={`flex items-center ${currentStep === 'sliders' ? 'text-tesla-dark-gray font-medium' : completedSteps.includes('sliders') ? 'text-tesla-dark-gray' : 'text-tesla-light-gray'}`}>
+          <span className="text-xs font-light">Preferences</span>
         </div>
-        <div className={`flex items-center ${currentStep === 'features' ? 'text-blue-600 font-semibold' : completedSteps.includes('features') ? 'text-green-600' : 'text-gray-400'}`}>
-          <span className="mr-2">{completedSteps.includes('features') ? '✅' : '⭐'}</span>
-          <span className="text-sm">Features</span>
+        <div className={`flex items-center ${currentStep === 'features' ? 'text-tesla-dark-gray font-medium' : completedSteps.includes('features') ? 'text-tesla-dark-gray' : 'text-tesla-light-gray'}`}>
+          <span className="text-xs font-light">Features</span>
         </div>
-        <div className={`flex items-center ${currentStep === 'story' ? 'text-blue-600 font-semibold' : completedSteps.includes('story') ? 'text-green-600' : 'text-gray-400'}`}>
-          <span className="mr-2">{completedSteps.includes('story') ? '✅' : '💭'}</span>
-          <span className="text-sm">Your Story</span>
+        <div className={`flex items-center ${currentStep === 'story' ? 'text-tesla-dark-gray font-medium' : completedSteps.includes('story') ? 'text-tesla-dark-gray' : 'text-tesla-light-gray'}`}>
+          <span className="text-xs font-light">Your Story</span>
         </div>
-        <div className={`flex items-center ${currentStep === 'clarify' ? 'text-blue-600 font-semibold' : completedSteps.includes('clarify') ? 'text-green-600' : 'text-gray-400'}`}>
-          <span className="mr-2">{completedSteps.includes('clarify') ? '✅' : '❓'}</span>
-          <span className="text-sm">Questions</span>
+        <div className={`flex items-center ${currentStep === 'clarify' ? 'text-tesla-dark-gray font-medium' : completedSteps.includes('clarify') ? 'text-tesla-dark-gray' : 'text-tesla-light-gray'}`}>
+          <span className="text-xs font-light">Questions</span>
         </div>
-        <div className={`flex items-center ${currentStep === 'results' ? 'text-blue-600 font-semibold' : 'text-gray-400'}`}>
-          <span className="mr-2">🎯</span>
-          <span className="text-sm">Results</span>
+        <div className={`flex items-center ${currentStep === 'results' ? 'text-tesla-dark-gray font-medium' : 'text-tesla-light-gray'}`}>
+          <span className="text-xs font-light">Results</span>
         </div>
       </div>
     </div>
@@ -669,17 +664,16 @@ const PumpDriveUnified: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4">
+    <div className="min-h-screen bg-white p-4">
       <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-800 mb-4">
-            🎯 Complete Pump Assessment
+        {/* Header - Tesla Style */}
+        <div className="text-center mb-12 pt-8">
+          <h1 className="text-4xl font-bold text-tesla-dark-gray mb-4 tracking-tight">
+            Pump Assessment
           </h1>
-          <p className="text-xl text-gray-600">
-            Comprehensive evaluation to find your perfect insulin pump
+          <p className="text-lg font-light text-tesla-light-gray">
+            Find your perfect insulin pump match
           </p>
-          <div className="w-24 h-1 bg-blue-500 mx-auto mt-4 rounded"></div>
         </div>
 
         {renderProgressBar()}
