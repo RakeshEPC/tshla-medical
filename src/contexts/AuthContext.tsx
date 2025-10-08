@@ -28,21 +28,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Check if user is already authenticated using unified auth service
-    if (unifiedAuthService.isAuthenticated()) {
-      const currentUser = unifiedAuthService.getCurrentUser();
-      if (currentUser) {
-        setUser({
-          id: currentUser.id,
-          email: currentUser.email,
-          name: currentUser.name,
-          role: currentUser.role,
-          specialty: currentUser.specialty,
-          practiceId: currentUser.id,
-          accessType: currentUser.accessType,
-        });
+    const checkAuth = async () => {
+      try {
+        const isAuth = await unifiedAuthService.isAuthenticated();
+        if (isAuth) {
+          const result = await unifiedAuthService.getCurrentUser();
+          if (result.success && result.user) {
+            setUser({
+              id: result.user.id,
+              email: result.user.email,
+              name: result.user.name,
+              role: result.user.role,
+              specialty: result.user.specialty,
+              practiceId: result.user.id,
+              accessType: result.user.accessType,
+            });
+          }
+        }
+      } catch (error) {
+        logError('AuthContext', 'Failed to check authentication', { error });
+      } finally {
+        setLoading(false);
       }
-    }
-    setLoading(false);
+    };
+
+    checkAuth();
   }, []);
 
   const login = async (email: string, password: string) => {

@@ -494,6 +494,13 @@ class SupabaseAuthService {
   }
 
   /**
+   * Logout (alias for signOut for backward compatibility)
+   */
+  async logout(): Promise<void> {
+    await this.signOut();
+  }
+
+  /**
    * Generic register method (defaults to patient)
    * Used by old code that calls unifiedAuthService.register()
    */
