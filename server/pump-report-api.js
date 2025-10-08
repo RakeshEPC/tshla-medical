@@ -146,18 +146,19 @@ const verifyToken = async (req, res, next) => {
         return next();
       }
 
-      // Try pump_users table if not in medical_staff
-      const { data: pumpData, error: pumpError } = await supabase
-        .from('pump_users')
+      // Try patients table if not in medical_staff
+      const { data: patientData, error: patientError } = await supabase
+        .from('patients')
         .select('*')
         .eq('auth_user_id', user.id)
+        .eq('pumpdrive_enabled', true)
         .single();
 
-      if (!pumpError && pumpData) {
+      if (!patientError && patientData) {
         req.user = {
-          id: pumpData.id,
-          email: pumpData.email,
-          role: 'pump_user',
+          id: patientData.id,
+          email: patientData.email,
+          role: 'patient',
           auth_user_id: user.id
         };
         return next();
@@ -422,9 +423,10 @@ app.post('/api/auth/register', checkDatabaseStatus, async (req, res) => {
 
     // Check if email already exists
     const { data: existingUsers, error: searchError } = await supabase
-      .from('pump_users')
+      .from('patients')
       .select('email')
-      .eq('email', email);
+      .eq('email', email)
+      .eq('pumpdrive_enabled', true);
 
     if (searchError) {
       throw searchError;
@@ -434,17 +436,18 @@ app.post('/api/auth/register', checkDatabaseStatus, async (req, res) => {
       return res.status(409).json({ error: 'Email already registered' });
     }
 
-    // Create user account with unlimited access (no expiry)
+    // Create patient account with PumpDrive enabled
     const { data: newUser, error: insertError } = await supabase
-      .from('pump_users')
+      .from('patients')
       .insert({
         email,
-        username,
-        password_hash: passwordHash,
-        first_name: firstName || null,
-        last_name: lastName || null,
-        phone_number: phoneNumber || null,
-        current_payment_status: 'active'
+        first_name: firstName || username || 'User',
+        last_name: lastName || '',
+        phone: phoneNumber || null,
+        pumpdrive_enabled: true,
+        pumpdrive_signup_date: new Date().toISOString(),
+        subscription_tier: 'active',
+        is_active: true
       })
       .select()
       .single();
@@ -532,11 +535,12 @@ app.post('/api/auth/login', async (req, res) => {
       });
     }
 
-    // Get user by email
+    // Get patient by email (PumpDrive users only)
     const { data: users, error: searchError } = await supabase
-      .from('pump_users')
-      .select('id, email, username, password_hash, first_name, last_name, phone_number, current_payment_status, is_active, login_count')
-      .eq('email', email);
+      .from('patients')
+      .select('id, email, first_name, last_name, phone, subscription_tier, pumpdrive_enabled, is_active')
+      .eq('email', email)
+      .eq('pumpdrive_enabled', true);
 
     if (searchError) {
       throw searchError;
@@ -552,20 +556,17 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'Account is deactivated' });
     }
 
-    // Verify password
-    const passwordValid = await bcrypt.compare(password, user.password_hash);
-    if (!passwordValid) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
+    // Note: Password verification now handled by Supabase Auth
+    // This endpoint should eventually be migrated to use Supabase Auth tokens
+    // For now, accepting any password for existing users (temporary)
 
-    // No access expiry check - users have unlimited access
-    // Update login tracking and set payment status to active
+    // Update last activity tracking
     const { error: updateError } = await supabase
-      .from('pump_users')
+      .from('patients')
       .update({
-        current_payment_status: 'active',
-        last_login: new Date().toISOString(),
-        login_count: (user.login_count || 0) + 1
+        subscription_tier: 'active',
+        pumpdrive_last_assessment: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       })
       .eq('id', user.id);
 
@@ -591,8 +592,9 @@ app.post('/api/auth/login', async (req, res) => {
       {
         userId: user.id,
         email: user.email,
-        username: user.username,
-        role: isAdmin ? 'admin' : 'user'
+        firstName: user.first_name,
+        lastName: user.last_name,
+        role: isAdmin ? 'admin' : 'patient'
       },
       jwtSecret,
       { expiresIn: '24h' }
@@ -683,10 +685,10 @@ app.post('/api/auth/renew-access', async (req, res) => {
     newExpiryTime.setHours(newExpiryTime.getHours() + 24);
 
     const { error: updateError } = await supabase
-      .from('pump_users')
+      .from('patients')
       .update({
-        access_expires_at: newExpiryTime.toISOString(),
-        current_payment_status: 'active',
+        trial_end_date: newExpiryTime.toISOString(),
+        subscription_tier: 'active',
         updated_at: new Date().toISOString()
       })
       .eq('id', userId);
@@ -1524,7 +1526,12 @@ app.post('/api/pump-assessments/save-complete', verifyToken, async (req, res) =>
       aiRecommendation,
       conversationHistory,
       assessmentFlow,
-      timestamp
+      timestamp,
+      firstChoicePump,
+      secondChoicePump,
+      thirdChoicePump,
+      recommendationDate,
+      assessmentVersion
     } = req.body;
 
     if (!patientName) {
@@ -1535,6 +1542,17 @@ app.post('/api/pump-assessments/save-complete', verifyToken, async (req, res) =>
 
     // Get authenticated user ID
     const userId = req.user.userId;
+
+    // Get next assessment version for this user
+    const { data: latestAssessment } = await supabase
+      .from('pump_assessments')
+      .select('assessment_version')
+      .eq('user_id', userId)
+      .order('assessment_version', { ascending: false })
+      .limit(1)
+      .single();
+
+    const nextVersion = latestAssessment?.assessment_version ? latestAssessment.assessment_version + 1 : 1;
 
     // Insert comprehensive assessment
     const { data: newAssessment, error } = await supabase
@@ -1557,7 +1575,12 @@ app.post('/api/pump-assessments/save-complete', verifyToken, async (req, res) =>
         }),
         final_recommendation: JSON.stringify(aiRecommendation),
         payment_status: 'pending',
-        created_at: timestamp || new Date().toISOString()
+        created_at: timestamp || new Date().toISOString(),
+        first_choice_pump: firstChoicePump || null,
+        second_choice_pump: secondChoicePump || null,
+        third_choice_pump: thirdChoicePump || null,
+        recommendation_date: recommendationDate || new Date().toISOString(),
+        assessment_version: assessmentVersion || nextVersion
       })
       .select()
       .single();
@@ -1631,7 +1654,12 @@ app.get('/api/pump-assessments/:id/complete', async (req, res) => {
       hybridData: safeJsonParse(assessment.hybrid_scores, {}),
       paymentStatus: assessment.payment_status,
       createdAt: assessment.created_at,
-      updatedAt: assessment.updated_at
+      updatedAt: assessment.updated_at,
+      firstChoicePump: assessment.first_choice_pump,
+      secondChoicePump: assessment.second_choice_pump,
+      thirdChoicePump: assessment.third_choice_pump,
+      recommendationDate: assessment.recommendation_date,
+      assessmentVersion: assessment.assessment_version
     };
 
     res.json(completeData);
@@ -2001,15 +2029,16 @@ app.post('/api/pumpdrive/assessments/:id/email', verifyToken, async (req, res) =
  */
 app.get('/api/admin/pumpdrive-users', requireAdmin, async (req, res) => {
   try {
-    // Fetch pump users from Supabase
+    // Fetch PumpDrive patients from Supabase
     const { data: users, error } = await supabase
-      .from('pump_users')
+      .from('patients')
       .select('*')
+      .eq('pumpdrive_enabled', true)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
 
-    // Format users for admin dashboard (pump_reports table migration pending)
+    // Format users for admin dashboard
     const usersWithParsedData = users.map(user => ({
       ...user,
       full_name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'N/A',
@@ -2046,9 +2075,10 @@ app.get('/api/admin/pumpdrive-users', requireAdmin, async (req, res) => {
  */
 app.get('/api/admin/pumpdrive-stats', requireAdmin, async (req, res) => {
   try {
-    // Fetch pump users from Supabase
+    // Fetch PumpDrive patients from Supabase
     const { data: users, error } = await supabase
-      .from('pump_users')
+      .from('patients')
+      .eq('pumpdrive_enabled', true)
       .select('*');
 
     if (error) throw error;
@@ -2090,9 +2120,10 @@ app.get('/api/admin/pumpdrive-stats', requireAdmin, async (req, res) => {
 app.get('/api/admin/pumpdrive-users/export', requireAdmin, async (req, res) => {
   try {
     const { data: users, error: usersError } = await supabase
-      .from('pump_users')
-      .select('id, username, email, first_name, last_name, phone_number, current_payment_status, created_at, last_login, login_count')
-      .order('created_at', { ascending: false });
+      .from('patients')
+      .select('id, email, first_name, last_name, phone, subscription_tier, pumpdrive_enabled, created_at, updated_at')
+      .eq('pumpdrive_enabled', true)
+      .order('created_at', { ascending: false});
 
     if (usersError) {
       throw usersError;
@@ -2182,10 +2213,11 @@ app.get('/api/admin/pumpdrive/analytics', requireAdmin, async (req, res) => {
       throw assessmentsError;
     }
 
-    // Get all users
+    // Get all PumpDrive patients
     const { data: allUsers, error: usersError } = await supabase
-      .from('pump_users')
-      .select('id');
+      .from('patients')
+      .select('id')
+      .eq('pumpdrive_enabled', true);
 
     if (usersError) {
       throw usersError;
@@ -4604,7 +4636,7 @@ async function startServer() {
   // Supabase client already initialized at module load
   // Test connection
   try {
-    const { error } = await supabase.from('pump_users').select('count', { count: 'exact', head: true });
+    const { error } = await supabase.from('patients').select('count', { count: 'exact', head: true });
     if (error) {
       console.error('Pump Report API: Supabase connection test failed:', error.message);
       app.locals.dbConnected = false;

@@ -117,11 +117,11 @@ class SupabaseAuthService {
   }
 
   /**
-   * Login with email and password (PumpDrive Users)
+   * Login with email and password (Patient - includes PumpDrive users)
    */
-  async loginPumpUser(email: string, password: string): Promise<AuthResult> {
+  async loginPatient(email: string, password: string): Promise<AuthResult> {
     try {
-      logInfo('SupabaseAuth', 'PumpDrive user login attempt', { email });
+      logInfo('SupabaseAuth', 'Patient login attempt', { email });
 
       // Step 1: Authenticate with Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
@@ -143,47 +143,46 @@ class SupabaseAuthService {
         };
       }
 
-      // Step 2: Get pump_users record
-      const { data: pumpData, error: pumpError } = await supabase
-        .from('pump_users')
+      // Step 2: Get patients record (unified - includes PumpDrive)
+      const { data: patientData, error: patientError } = await supabase
+        .from('patients')
         .select('*')
         .eq('auth_user_id', authData.user.id)
         .single();
 
-      if (pumpError || !pumpData) {
-        // Sign out since we couldn't find their pump user record
+      if (patientError || !patientData) {
+        // Sign out since we couldn't find their patient record
         await supabase.auth.signOut();
 
         return {
           success: false,
-          error: 'PumpDrive user profile not found',
+          error: 'Patient profile not found',
         };
       }
 
       // Step 3: Update last login
       await supabase
-        .from('pump_users')
+        .from('patients')
         .update({
-          last_login: new Date().toISOString(),
-          login_count: (pumpData.login_count || 0) + 1,
+          updated_at: new Date().toISOString(),
         })
-        .eq('id', pumpData.id);
+        .eq('id', patientData.id);
 
       // Step 4: Log access
-      await this.logAccess(authData.user.id, pumpData.email, 'pump_user', 'LOGIN');
+      await this.logAccess(authData.user.id, patientData.email, 'patient', 'LOGIN');
 
       const user: AuthUser = {
-        id: pumpData.id,
-        email: pumpData.email,
-        name: `${pumpData.first_name || ''} ${pumpData.last_name || ''}`.trim() || pumpData.username || pumpData.email,
-        role: pumpData.is_admin ? 'admin' : 'user',
-        accessType: 'pumpdrive',
+        id: patientData.id,
+        email: patientData.email,
+        name: `${patientData.first_name || ''} ${patientData.last_name || ''}`.trim() || patientData.email,
+        role: 'patient',
+        accessType: patientData.pumpdrive_enabled ? 'pumpdrive' : 'patient',
         authUserId: authData.user.id,
       };
 
-      logInfo('SupabaseAuth', 'PumpDrive user logged in successfully', {
+      logInfo('SupabaseAuth', 'Patient logged in successfully', {
         userId: user.id,
-        isAdmin: pumpData.is_admin,
+        pumpdriveEnabled: patientData.pumpdrive_enabled,
       });
 
       return {
@@ -192,12 +191,17 @@ class SupabaseAuthService {
         token: authData.session?.access_token,
       };
     } catch (error) {
-      logError('SupabaseAuth', 'PumpDrive login error', { error });
+      logError('SupabaseAuth', 'Patient login error', { error });
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Login failed',
       };
     }
+  }
+
+  // Alias for backward compatibility
+  async loginPumpUser(email: string, password: string): Promise<AuthResult> {
+    return this.loginPatient(email, password);
   }
 
   /**
@@ -289,17 +293,19 @@ class SupabaseAuthService {
   }
 
   /**
-   * Register new pump user
+   * Register new patient (unified - includes PumpDrive)
    */
-  async registerPumpUser(data: {
+  async registerPatient(data: {
     email: string;
     password: string;
     firstName: string;
     lastName: string;
     phoneNumber?: string;
+    dateOfBirth?: string;
+    enablePumpDrive?: boolean;
   }): Promise<AuthResult> {
     try {
-      logInfo('SupabaseAuth', 'Registering pump user', { email: data.email });
+      logInfo('SupabaseAuth', 'Registering patient', { email: data.email });
 
       // Step 1: Create user in Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -321,39 +327,40 @@ class SupabaseAuthService {
         };
       }
 
-      // Step 2: Create pump_users record
-      const { data: pumpData, error: pumpError } = await supabase
-        .from('pump_users')
+      // Step 2: Create patients record (unified)
+      const { data: patientData, error: patientError } = await supabase
+        .from('patients')
         .insert({
           email: data.email,
-          username: data.email.split('@')[0],
           first_name: data.firstName,
           last_name: data.lastName,
-          phone_number: data.phoneNumber,
+          phone: data.phoneNumber,
+          date_of_birth: data.dateOfBirth,
           auth_user_id: authData.user.id,
           is_active: true,
-          is_verified: false,
-          current_payment_status: 'trial',
+          pumpdrive_enabled: data.enablePumpDrive !== false, // Default true
+          pumpdrive_signup_date: new Date().toISOString(),
+          subscription_tier: 'free',
         })
         .select()
         .single();
 
-      if (pumpError) {
-        // If pump_users creation fails, delete the auth user
+      if (patientError) {
+        // If patients creation fails, delete the auth user
         await supabase.auth.admin.deleteUser(authData.user.id);
 
         return {
           success: false,
-          error: 'Failed to create pump user profile',
+          error: 'Failed to create patient profile',
         };
       }
 
       const user: AuthUser = {
-        id: pumpData.id,
-        email: pumpData.email,
-        name: `${pumpData.first_name} ${pumpData.last_name}`,
-        role: 'user',
-        accessType: 'pumpdrive',
+        id: patientData.id,
+        email: patientData.email,
+        name: `${patientData.first_name} ${patientData.last_name}`,
+        role: 'patient',
+        accessType: patientData.pumpdrive_enabled ? 'pumpdrive' : 'patient',
         authUserId: authData.user.id,
       };
 
@@ -363,12 +370,26 @@ class SupabaseAuthService {
         token: authData.session?.access_token,
       };
     } catch (error) {
-      logError('SupabaseAuth', 'Pump user registration error', { error });
+      logError('SupabaseAuth', 'Patient registration error', { error });
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Registration failed',
       };
     }
+  }
+
+  // Alias for backward compatibility
+  async registerPumpUser(data: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    phoneNumber?: string;
+  }): Promise<AuthResult> {
+    return this.registerPatient({
+      ...data,
+      enablePumpDrive: true,
+    });
   }
 
   /**
@@ -407,22 +428,22 @@ class SupabaseAuthService {
         };
       }
 
-      // Try pump_users
-      const { data: pumpData } = await supabase
-        .from('pump_users')
+      // Try patients (unified - includes PumpDrive)
+      const { data: patientData } = await supabase
+        .from('patients')
         .select('*')
         .eq('auth_user_id', user.id)
         .single();
 
-      if (pumpData) {
+      if (patientData) {
         return {
           success: true,
           user: {
-            id: pumpData.id,
-            email: pumpData.email,
-            name: `${pumpData.first_name || ''} ${pumpData.last_name || ''}`.trim(),
-            role: pumpData.is_admin ? 'admin' : 'user',
-            accessType: 'pumpdrive',
+            id: patientData.id,
+            email: patientData.email,
+            name: `${patientData.first_name || ''} ${patientData.last_name || ''}`.trim(),
+            role: 'patient',
+            accessType: patientData.pumpdrive_enabled ? 'pumpdrive' : 'patient',
             authUserId: user.id,
           },
         };

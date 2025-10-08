@@ -32,10 +32,11 @@ export interface AssessmentData {
   assessmentFlow?: string; // 'sliders' | 'conversation' | 'hybrid'
   timestamp: string;
   // Pump recommendation tracking (top 3 choices)
-  topChoicePump?: string;
+  firstChoicePump?: string;
   secondChoicePump?: string;
   thirdChoicePump?: string;
   recommendationDate?: string;
+  assessmentVersion?: number;
 }
 
 export interface SaveAssessmentResponse {

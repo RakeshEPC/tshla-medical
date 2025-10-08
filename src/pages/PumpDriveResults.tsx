@@ -183,10 +183,11 @@ export default function PumpDriveResults() {
         assessmentFlow: 'unified',
         timestamp: new Date().toISOString(),
         // Track top 3 pump recommendations for analytics
-        topChoicePump: recommendationData.topRecommendation.name,
+        firstChoicePump: recommendationData.topRecommendation.name,
         secondChoicePump: recommendationData.alternatives[0]?.name || null,
         thirdChoicePump: recommendationData.alternatives[1]?.name || null,
-        recommendationDate: new Date().toISOString()
+        recommendationDate: new Date().toISOString(),
+        assessmentVersion: 1 // Will be updated by backend to track retakes
       };
 
       const result = await pumpAssessmentService.saveAssessment(assessmentData);
