@@ -48,8 +48,12 @@ export default function Login() {
             navigate('/pumpdrive');
           } else if (result.user.accessType === 'patient') {
             navigate('/patient/dashboard');
+          } else if (result.user.role === 'admin' || result.user.role === 'super_admin') {
+            // Admins go directly to account manager
+            navigate('/admin/account-manager');
           } else {
-            navigate('/doctor');
+            // Medical staff go to dashboard
+            navigate('/dashboard');
           }
         }
       } else {
@@ -65,8 +69,12 @@ export default function Login() {
   const quickLogin = async (code: string) => {
     try {
       const result = await unifiedAuthService.login('', code);
-      if (result.success) {
-        navigate('/doctor');
+      if (result.success && result.user) {
+        if (result.user.role === 'admin' || result.user.role === 'super_admin') {
+          navigate('/admin/account-manager');
+        } else {
+          navigate('/dashboard');
+        }
       } else {
         setError(result.error || 'Login failed');
       }
