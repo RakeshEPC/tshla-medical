@@ -26,6 +26,30 @@ export interface AuthResult {
 
 class SupabaseAuthService {
   /**
+   * Generic login method (tries staff first, then patient)
+   * Used by old code that calls unifiedAuthService.login()
+   */
+  async login(email: string, password: string): Promise<AuthResult> {
+    // Try medical staff first
+    const staffResult = await this.loginMedicalStaff(email, password);
+    if (staffResult.success) {
+      return staffResult;
+    }
+
+    // Try patient if staff login failed
+    const patientResult = await this.loginPatient(email, password);
+    if (patientResult.success) {
+      return patientResult;
+    }
+
+    // Both failed
+    return {
+      success: false,
+      error: 'Invalid email or password',
+    };
+  }
+
+  /**
    * Login with email and password (Medical Staff)
    */
   async loginMedicalStaff(email: string, password: string): Promise<AuthResult> {
@@ -467,6 +491,23 @@ class SupabaseAuthService {
   async signOut(): Promise<void> {
     await supabase.auth.signOut();
     logInfo('SupabaseAuth', 'User signed out');
+  }
+
+  /**
+   * Generic register method (defaults to patient)
+   * Used by old code that calls unifiedAuthService.register()
+   */
+  async register(data: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    phoneNumber?: string;
+  }): Promise<AuthResult> {
+    return this.registerPatient({
+      ...data,
+      enablePumpDrive: true,
+    });
   }
 
   /**
