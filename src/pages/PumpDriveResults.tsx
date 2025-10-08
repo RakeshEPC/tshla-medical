@@ -8,6 +8,16 @@ import { pumpAuthService } from '../services/pumpAuth.service';
 import { assessmentHistoryService, type StoredAssessment } from '../services/assessmentHistory.service';
 import AssessmentDataViewer from '../components/pumpdrive/AssessmentDataViewer';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
+import ExpandableEducation, { EducationalCard } from '../components/pumpdrive/ExpandableEducation';
+import { HelpIcon } from '../components/pumpdrive/EducationalTooltip';
+import {
+  resultInterpretation,
+  pumpFeatureEducation,
+  nextSteps,
+  decisionFactorsEducation,
+  comparisonEducation,
+  importantDisclaimers
+} from '../data/pumpEducation';
 
 interface PumpRecommendation {
   topRecommendation: {
@@ -766,6 +776,59 @@ export default function PumpDriveResults() {
           )}
         </div>
 
+        {/* Understanding Your Results Section */}
+        <div className="mb-8 space-y-4">
+          <EducationalCard title="Understanding Your Results" icon="📖" defaultExpanded={true}>
+            <div className="space-y-6">
+              {/* Match Score Explanation */}
+              <div>
+                <div className="flex items-center mb-2">
+                  <h4 className="font-bold text-gray-800">{resultInterpretation.matchScore.icon} {resultInterpretation.matchScore.title}</h4>
+                  <HelpIcon tooltip="Your match score shows how well this specific pump aligns with YOUR stated priorities and lifestyle." />
+                </div>
+                <p className="text-gray-700 mb-2">{resultInterpretation.matchScore.description}</p>
+                <div className="bg-blue-50 rounded-lg p-4 text-sm">
+                  <pre className="whitespace-pre-line font-sans text-gray-600">{resultInterpretation.matchScore.details}</pre>
+                </div>
+              </div>
+
+              {/* Confidence Score Explanation */}
+              <div>
+                <div className="flex items-center mb-2">
+                  <h4 className="font-bold text-gray-800">{resultInterpretation.confidenceScore.icon} {resultInterpretation.confidenceScore.title}</h4>
+                  <HelpIcon tooltip="Confidence reflects how clearly your preferences point to this specific recommendation." />
+                </div>
+                <p className="text-gray-700 mb-2">{resultInterpretation.confidenceScore.description}</p>
+                <div className="bg-purple-50 rounded-lg p-4 text-sm">
+                  <pre className="whitespace-pre-line font-sans text-gray-600">{resultInterpretation.confidenceScore.details}</pre>
+                </div>
+              </div>
+
+              {/* How to Use This Information */}
+              <div>
+                <div className="flex items-center mb-2">
+                  <h4 className="font-bold text-gray-800">{resultInterpretation.howToUse.icon} {resultInterpretation.howToUse.title}</h4>
+                </div>
+                <p className="text-gray-700 mb-2">{resultInterpretation.howToUse.description}</p>
+                <div className="bg-green-50 rounded-lg p-4 text-sm">
+                  <pre className="whitespace-pre-line font-sans text-gray-600">{resultInterpretation.howToUse.details}</pre>
+                </div>
+              </div>
+
+              {/* Important Disclaimer */}
+              <div className="bg-amber-50 border-l-4 border-amber-400 p-4 rounded">
+                <div className="flex items-start">
+                  <span className="text-2xl mr-3">⚠️</span>
+                  <div className="text-sm">
+                    <p className="font-semibold text-amber-800 mb-1">Important Medical Disclaimer</p>
+                    <p className="text-amber-700">{importantDisclaimers.medical}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </EducationalCard>
+        </div>
+
         {/* User Input Summary - PROMINENT DISPLAY */}
         <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl shadow-lg p-8 mb-8">
           <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
@@ -909,11 +972,14 @@ export default function PumpDriveResults() {
             </div>
           </div>
 
-          <p className="text-gray-700 mb-6 text-lg leading-relaxed">
-            {topRecommendation.explanation}
-          </p>
+          <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6 rounded">
+            <p className="text-sm text-blue-800 font-medium mb-1">Why This Pump?</p>
+            <p className="text-gray-700 text-lg leading-relaxed">
+              {topRecommendation.explanation}
+            </p>
+          </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-3 gap-6 mb-6">
             {/* Key Features */}
             <div>
               <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
@@ -959,6 +1025,43 @@ export default function PumpDriveResults() {
               </ul>
             </div>
           </div>
+
+          {/* Educational Feature Explanations */}
+          <div className="border-t pt-6 space-y-3">
+            <h3 className="font-semibold text-gray-800 mb-4 flex items-center">
+              <span className="mr-2">📚</span> Learn More About Key Features
+            </h3>
+            <div className="grid md:grid-cols-2 gap-3">
+              <ExpandableEducation
+                title={pumpFeatureEducation.automation.title}
+                icon={pumpFeatureEducation.automation.icon}
+                summary={pumpFeatureEducation.automation.description}
+                details={pumpFeatureEducation.automation.details || ''}
+                variant="info"
+              />
+              <ExpandableEducation
+                title={pumpFeatureEducation.cgmCompatibility.title}
+                icon={pumpFeatureEducation.cgmCompatibility.icon}
+                summary={pumpFeatureEducation.cgmCompatibility.description}
+                details={pumpFeatureEducation.cgmCompatibility.details || ''}
+                variant="info"
+              />
+              <ExpandableEducation
+                title={pumpFeatureEducation.tubing.title}
+                icon={pumpFeatureEducation.tubing.icon}
+                summary={pumpFeatureEducation.tubing.description}
+                details={pumpFeatureEducation.tubing.details || ''}
+                variant="info"
+              />
+              <ExpandableEducation
+                title={pumpFeatureEducation.phoneControl.title}
+                icon={pumpFeatureEducation.phoneControl.icon}
+                summary={pumpFeatureEducation.phoneControl.description}
+                details={pumpFeatureEducation.phoneControl.details || ''}
+                variant="info"
+              />
+            </div>
+          </div>
         </div>
 
         {/* Detailed Analysis */}
@@ -971,9 +1074,19 @@ export default function PumpDriveResults() {
 
         {/* Decision Summary */}
         <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
-          <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-            <span className="mr-2">📋</span> Your Decision Factors
-          </h3>
+          <div className="flex items-center mb-4">
+            <h3 className="text-xl font-semibold text-gray-800 flex items-center">
+              <span className="mr-2">📋</span> Your Decision Factors
+            </h3>
+            <HelpIcon tooltip={decisionFactorsEducation.description} />
+          </div>
+
+          <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-4 mb-6">
+            <p className="text-sm text-gray-700 italic">
+              {decisionFactorsEducation.explanation}
+            </p>
+          </div>
+
           <div className="grid md:grid-cols-2 gap-6">
             <div>
               <h4 className="font-medium text-gray-700 mb-3">Your Priorities:</h4>
@@ -1000,51 +1113,212 @@ export default function PumpDriveResults() {
           </div>
         </div>
 
-        {/* Alternative Options */}
-        <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
-          <h3 className="text-xl font-semibold text-gray-800 flex items-center mb-6">
-            <span className="mr-2">🔄</span> Other Strong Options
+        {/* Next Steps Section */}
+        <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-lg p-8 mb-8 border-2 border-indigo-200">
+          <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+            <span className="mr-3">🎯</span> Your Next Steps
           </h3>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {alternatives.map((alt, index) => {
-                // Ensure alt has all required properties with defaults
-                const safeAlt = {
-                  name: alt?.name || 'Unknown Pump',
-                  score: alt?.score || 0,
-                  explanation: alt?.explanation || 'No explanation available',
-                  keyFeatures: alt?.keyFeatures || []
-                };
 
-                return (
-                  <div
-                    key={index}
-                    className="border rounded-lg p-4 hover:border-blue-300 transition-colors"
-                  >
-                    <div className="flex justify-between items-start mb-3">
-                      <h4 className="font-semibold text-gray-800">{safeAlt.name}</h4>
-                      <span className="bg-gray-100 px-2 py-1 rounded text-sm text-gray-600">
-                        {safeAlt.score}% Match
-                      </span>
-                    </div>
-                    <p className="text-gray-600 text-sm mb-3">{safeAlt.explanation}</p>
-                    <div>
-                      <h5 className="text-xs font-medium text-gray-700 mb-2">Key Features:</h5>
-                      <ul className="space-y-1">
-                        {safeAlt.keyFeatures.slice(0, 3).map((feature, i) => (
-                          <li key={i} className="text-xs text-gray-600">
-                            • {feature}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                );
-              })}
+          {/* Questions for Provider */}
+          <div className="mb-8">
+            <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+              <span className="mr-2">❓</span> {nextSteps.questionsForProvider.title}
+            </h4>
+            <div className="bg-white rounded-lg p-6 shadow">
+              <p className="text-sm text-gray-600 mb-4">
+                Bring these questions to your appointment to have an informed discussion:
+              </p>
+              <ol className="space-y-3">
+                {nextSteps.questionsForProvider.questions.map((question, index) => (
+                  <li key={index} className="flex items-start">
+                    <span className="bg-indigo-100 text-indigo-700 font-bold rounded-full w-6 h-6 flex items-center justify-center text-xs mr-3 flex-shrink-0 mt-0.5">
+                      {index + 1}
+                    </span>
+                    <span className="text-gray-700 text-sm">{question}</span>
+                  </li>
+                ))}
+              </ol>
             </div>
+          </div>
+
+          {/* What to Expect */}
+          <div className="mb-8">
+            <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+              <span className="mr-2">📅</span> {nextSteps.whatToExpect.title}
+            </h4>
+            <div className="grid md:grid-cols-2 gap-4">
+              {nextSteps.whatToExpect.steps.map((step, index) => (
+                <div key={index} className="bg-white rounded-lg p-4 shadow">
+                  <div className="flex items-center mb-2">
+                    <span className="text-2xl mr-2">{step.icon}</span>
+                    <h5 className="font-semibold text-gray-800">{step.title}</h5>
+                  </div>
+                  <p className="text-sm text-gray-600">{step.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Learning Resources */}
+          <div>
+            <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+              <span className="mr-2">📚</span> {nextSteps.learningResources.title}
+            </h4>
+            <p className="text-sm text-gray-600 mb-4">{nextSteps.learningResources.description}</p>
+            <div className="space-y-3">
+              {nextSteps.learningResources.resources.map((resource, index) => (
+                <div key={index} className="bg-white rounded-lg p-4 shadow-sm border-l-4 border-indigo-400">
+                  <h5 className="font-semibold text-gray-800 mb-1 text-sm">{resource.type}</h5>
+                  <p className="text-sm text-gray-600">{resource.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
+        {/* Alternative Options */}
+        <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
+          <div className="flex items-center mb-4">
+            <h3 className="text-xl font-semibold text-gray-800 flex items-center">
+              <span className="mr-2">🔄</span> Other Strong Options
+            </h3>
+            <HelpIcon tooltip={comparisonEducation.description} />
+          </div>
 
+          <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg p-4 mb-6">
+            <h4 className="font-semibold text-gray-800 mb-2">{comparisonEducation.title}</h4>
+            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+              {comparisonEducation.guidance}
+            </p>
+          </div>
 
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {alternatives.map((alt, index) => {
+              // Ensure alt has all required properties with defaults
+              const safeAlt = {
+                name: alt?.name || 'Unknown Pump',
+                score: alt?.score || 0,
+                explanation: alt?.explanation || 'No explanation available',
+                keyFeatures: alt?.keyFeatures || []
+              };
+
+              const scoreDiff = topRecommendation.score - safeAlt.score;
+
+              return (
+                <div
+                  key={index}
+                  className="border-2 border-gray-200 rounded-lg p-5 hover:border-blue-300 hover:shadow-md transition-all"
+                >
+                  <div className="flex justify-between items-start mb-3">
+                    <h4 className="font-semibold text-gray-800 text-lg">{safeAlt.name}</h4>
+                    <div className="flex flex-col items-end">
+                      <span className="bg-blue-100 px-2 py-1 rounded text-sm font-semibold text-blue-700">
+                        {safeAlt.score}% Match
+                      </span>
+                      {scoreDiff > 0 && (
+                        <span className="text-xs text-gray-500 mt-1">
+                          -{scoreDiff}% vs top
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="bg-gray-50 rounded p-3 mb-3">
+                    <p className="text-gray-700 text-sm leading-relaxed">{safeAlt.explanation}</p>
+                  </div>
+
+                  <div>
+                    <h5 className="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">
+                      Key Features:
+                    </h5>
+                    <ul className="space-y-1.5">
+                      {safeAlt.keyFeatures.slice(0, 3).map((feature, i) => (
+                        <li key={i} className="text-sm text-gray-600 flex items-start">
+                          <span className="text-blue-500 mr-2 flex-shrink-0">✓</span>
+                          <span>{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-gray-200">
+                    <p className="text-xs text-gray-500 italic">
+                      Worth considering if: Your priorities shift, insurance coverage differs, or your healthcare provider has specific experience with this pump.
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Additional disclaimers */}
+          <div className="mt-6 space-y-3">
+            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+              <div className="flex items-start">
+                <span className="text-xl mr-3">💰</span>
+                <div className="text-sm">
+                  <p className="font-semibold text-yellow-800 mb-1">Insurance Coverage Matters</p>
+                  <p className="text-yellow-700">{importantDisclaimers.insurance}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded">
+              <div className="flex items-start">
+                <span className="text-xl mr-3">👤</span>
+                <div className="text-sm">
+                  <p className="font-semibold text-blue-800 mb-1">Individual Results Vary</p>
+                  <p className="text-blue-700">{importantDisclaimers.individual}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Additional Educational Features Section */}
+        <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
+          <h3 className="text-xl font-semibold text-gray-800 mb-6 flex items-center">
+            <span className="mr-2">📚</span> Understanding Insulin Pump Features
+          </h3>
+
+          <p className="text-gray-600 mb-6">
+            Learn more about important pump features to help you understand your recommendation and prepare for discussions with your healthcare team.
+          </p>
+
+          <div className="grid md:grid-cols-2 gap-4">
+            <ExpandableEducation
+              title={pumpFeatureEducation.exerciseMode.title}
+              icon={pumpFeatureEducation.exerciseMode.icon}
+              summary={pumpFeatureEducation.exerciseMode.description}
+              details={pumpFeatureEducation.exerciseMode.details || ''}
+            />
+            <ExpandableEducation
+              title={pumpFeatureEducation.batteryType.title}
+              icon={pumpFeatureEducation.batteryType.icon}
+              summary={pumpFeatureEducation.batteryType.description}
+              details={pumpFeatureEducation.batteryType.details || ''}
+            />
+            <ExpandableEducation
+              title={pumpFeatureEducation.reservoirSize.title}
+              icon={pumpFeatureEducation.reservoirSize.icon}
+              summary={pumpFeatureEducation.reservoirSize.description}
+              details={pumpFeatureEducation.reservoirSize.details || ''}
+            />
+            <ExpandableEducation
+              title={pumpFeatureEducation.waterResistance.title}
+              icon={pumpFeatureEducation.waterResistance.icon}
+              summary={pumpFeatureEducation.waterResistance.description}
+              details={pumpFeatureEducation.waterResistance.details || ''}
+            />
+            <ExpandableEducation
+              title={pumpFeatureEducation.bolusSpeed.title}
+              icon={pumpFeatureEducation.bolusSpeed.icon}
+              summary={pumpFeatureEducation.bolusSpeed.description}
+              details={pumpFeatureEducation.bolusSpeed.details || ''}
+              variant="tip"
+            />
+          </div>
+        </div>
 
 
 
