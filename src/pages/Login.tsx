@@ -34,10 +34,8 @@ export default function Login() {
         // For doctor codes, use the code as the password
         result = await unifiedAuthService.login('', doctorCode);
       } else {
-        // For email login, combine password with verification code if needed
-        const fullPassword =
-          verificationCode.length === 6 ? `${password}:${verificationCode}` : password;
-        result = await unifiedAuthService.login(email, fullPassword);
+        // For email login, just use the password (verification code is optional)
+        result = await unifiedAuthService.login(email, password);
       }
 
       if (result.success && result.user) {
@@ -182,7 +180,7 @@ export default function Login() {
 
               <div>
                 <label className="block text-sm font-medium text-tesla-dark-gray mb-2">
-                  Verification Code
+                  Verification Code <span className="text-tesla-light-gray font-normal">(Optional)</span>
                 </label>
                 <input
                   type="text"
@@ -193,10 +191,9 @@ export default function Login() {
                   maxLength={6}
                   pattern="\d{6}"
                   autoComplete="one-time-code"
-                  required
                 />
                 <p className="text-xs text-tesla-light-gray mt-2 text-center">
-                  Enter your 6-digit verification code
+                  6-digit verification code (leave blank if not required)
                 </p>
               </div>
             </>
@@ -212,7 +209,7 @@ export default function Login() {
             type="submit"
             disabled={
               loading ||
-              (loginMethod === 'email' && (!email || !password || verificationCode.length !== 6)) ||
+              (loginMethod === 'email' && (!email || !password)) ||
               (loginMethod === 'code' && !doctorCode)
             }
             className="btn-tesla btn-tesla-secondary w-full py-4 disabled:opacity-50 disabled:cursor-not-allowed"

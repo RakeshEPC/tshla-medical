@@ -8,12 +8,23 @@
 
 import { createClient } from '@supabase/supabase-js';
 import * as readline from 'readline';
+import * as dotenv from 'dotenv';
 
-// Supabase configuration
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://minvvjdflezibmgkplqb.supabase.co';
-const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1pbnZ2amRmbGV6aWJtZ2twbHFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkwNDE1OTAsImV4cCI6MjA1NDYxNzU5MH0.UVrmcvVl9Vv_j-s-f3D_P2LOHnTCRv7qd9mPWW0nZ5w';
+// Load environment variables from .env file
+dotenv.config();
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Supabase configuration - Use SERVICE ROLE for admin operations (bypasses RLS)
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+  console.error('❌ Missing Supabase configuration in .env file');
+  console.error('   Required: VITE_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY');
+  process.exit(1);
+}
+
+console.log('🔑 Using Supabase Service Role for admin account creation (bypasses RLS)');
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 interface AdminAccount {
   email: string;
