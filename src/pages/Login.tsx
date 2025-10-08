@@ -27,16 +27,11 @@ export default function Login() {
     setLoading(true);
 
     try {
-      // Use unified auth service for all login methods
-      let result;
+      // Call AuthContext's login to update state
+      await login(loginMethod === 'code' ? '' : email, loginMethod === 'code' ? doctorCode : password);
 
-      if (loginMethod === 'code') {
-        // For doctor codes, use the code as the password
-        result = await unifiedAuthService.login('', doctorCode);
-      } else {
-        // For email login, just use the password (verification code is optional)
-        result = await unifiedAuthService.login(email, password);
-      }
+      // Get the user from unified auth service to check role
+      const result = await unifiedAuthService.getCurrentUser();
 
       if (result.success && result.user) {
         // Check if password change is required
@@ -68,7 +63,11 @@ export default function Login() {
 
   const quickLogin = async (code: string) => {
     try {
-      const result = await unifiedAuthService.login('', code);
+      // Call AuthContext's login to update state
+      await login('', code);
+
+      // Get the user to check role
+      const result = await unifiedAuthService.getCurrentUser();
       if (result.success && result.user) {
         if (result.user.role === 'admin' || result.user.role === 'super_admin') {
           navigate('/admin/account-manager');
