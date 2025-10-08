@@ -19,7 +19,7 @@ const LoadingSpinner = () => (
 // CORE PAGES (loaded immediately)
 // ========================================
 import LandingPage from './pages/LandingPage';
-import UnifiedLogin from './pages/UnifiedLogin';
+import Login from './pages/Login';
 import AuthRedirect from './pages/AuthRedirect';
 
 // ========================================
@@ -93,7 +93,7 @@ function App() {
             <Routes>
               {/* ===== CORE ROUTES (no lazy loading) ===== */}
               <Route path="/" element={<LandingPage />} />
-              <Route path="/login" element={<UnifiedLogin />} />
+              <Route path="/login" element={<Login />} />
               <Route path="/auth-redirect" element={<AuthRedirect />} />
 
               {/* ===== AUTHENTICATION & ONBOARDING ===== */}

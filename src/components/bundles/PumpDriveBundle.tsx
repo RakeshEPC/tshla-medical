@@ -17,9 +17,8 @@ const PumpDriveLoader = () => (
   </div>
 );
 
-// Authentication components
-const PumpDriveCreateAccount = lazy(() => import('../../pages/PumpDriveCreateAccount'));
-const PumpDriveLogin = lazy(() => import('../../pages/PumpDriveLogin'));
+// Authentication components (use unified PatientLogin page)
+const PatientLogin = lazy(() => import('../../pages/PatientLogin'));
 
 // PumpDrive components (require authentication)
 const PumpDriveUnified = lazy(() => import('../../pages/PumpDriveUnified'));
@@ -36,9 +35,9 @@ export default function PumpDriveBundle() {
   return (
     <Suspense fallback={<PumpDriveLoader />}>
       <Routes>
-        {/* Authentication Routes (Public) */}
-        <Route path="create-account" element={<PumpDriveCreateAccount />} />
-        <Route path="login" element={<PumpDriveLogin />} />
+        {/* Authentication Routes (Public) - redirects to unified patient login */}
+        <Route path="create-account" element={<Navigate to="/patient-login" replace />} />
+        <Route path="login" element={<PatientLogin />} />
 
         {/* Protected Assessment Routes */}
         <Route path="assessment" element={
