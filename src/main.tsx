@@ -1,6 +1,7 @@
 // import { StrictMode } from 'react'  // DISABLED to prevent double mounting
 import { createRoot } from 'react-dom/client';
 import './index.css';
+import './styles/modernUI.css';
 import App from './App.tsx';
 // import App from './AppSimple.tsx'
 import ErrorBoundary from './ErrorBoundary.tsx';
