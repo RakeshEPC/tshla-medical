@@ -99,85 +99,30 @@ export default function AccountManager() {
     setCreatedCredentials(null);
 
     try {
-      let avaId: string | undefined;
+      // Get auth session token
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('No active session');
+      }
 
-      // Step 1: Create user in Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: newAccount.email,
-        password: newAccount.password,
-        options: {
-          data: {
-            first_name: newAccount.firstName,
-            last_name: newAccount.lastName,
-            account_type: newAccount.accountType
-          }
-        }
+      // Call backend API to create account (uses service role to bypass RLS)
+      const API_URL = import.meta.env.VITE_ADMIN_ACCOUNT_API_URL || 'http://localhost:3004';
+      const response = await fetch(`${API_URL}/api/accounts/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify(newAccount)
       });
 
-      if (authError) {
-        throw new Error(authError.message);
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to create account');
       }
 
-      if (!authData.user) {
-        throw new Error('No user data returned from authentication');
-      }
-
-      // Step 2: Create appropriate profile record
-      if (newAccount.accountType === 'admin' || newAccount.accountType === 'staff') {
-        // Create medical_staff record
-        const { error: staffError } = await supabase
-          .from('medical_staff')
-          .insert({
-            email: newAccount.email,
-            username: newAccount.email.split('@')[0],
-            first_name: newAccount.firstName,
-            last_name: newAccount.lastName,
-            role: newAccount.accountType === 'admin' ? 'admin' : newAccount.role,
-            specialty: newAccount.specialty || 'General',
-            practice: newAccount.practice || 'TSHLA Medical',
-            auth_user_id: authData.user.id,
-            is_active: true,
-            is_verified: newAccount.accountType === 'admin',
-            created_by: user.id
-          });
-
-        if (staffError) {
-          throw new Error(`Failed to create staff profile: ${staffError.message}`);
-        }
-      } else {
-        // Create patient record
-        avaId = generateAvaId();
-
-        const { error: patientError } = await supabase
-          .from('patients')
-          .insert({
-            email: newAccount.email,
-            first_name: newAccount.firstName,
-            last_name: newAccount.lastName,
-            phone: newAccount.phoneNumber,
-            date_of_birth: newAccount.dateOfBirth,
-            ava_id: avaId,
-            auth_user_id: authData.user.id,
-            is_active: true,
-            pumpdrive_enabled: newAccount.enablePumpDrive !== false,
-            pumpdrive_signup_date: newAccount.enablePumpDrive !== false ? new Date().toISOString() : null,
-            subscription_tier: 'free'
-          });
-
-        if (patientError) {
-          throw new Error(`Failed to create patient profile: ${patientError.message}`);
-        }
-      }
-
-      // Step 3: Log the account creation
-      await supabase.from('access_logs').insert({
-        user_id: authData.user.id,
-        user_email: newAccount.email,
-        user_type: newAccount.accountType,
-        action: 'ACCOUNT_CREATED_BY_ADMIN',
-        success: true,
-        created_at: new Date().toISOString()
-      });
+      const avaId = result.user.avaId;
 
       // Success!
       setMessage({
