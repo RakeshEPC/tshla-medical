@@ -40,8 +40,10 @@ export default function AdminRoute({ children }: { children: React.ReactNode }) 
     return <Navigate to="/login" replace />;
   }
 
-  // Check if user has admin role
-  if (user?.role !== 'admin') {
+  // Check if user has admin role (admin or super_admin)
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+
+  if (!isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="max-w-md w-full bg-white shadow-lg rounded-lg p-8 text-center">
@@ -53,6 +55,9 @@ export default function AdminRoute({ children }: { children: React.ReactNode }) 
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
           <p className="text-gray-600 mb-6">
             You do not have permission to access the admin dashboard. This area is restricted to administrators only.
+          </p>
+          <p className="text-sm text-gray-500 mb-4">
+            Current role: {user?.role || 'none'} | Email: {user?.email || 'unknown'}
           </p>
           <button
             onClick={() => window.location.href = '/dashboard'}
