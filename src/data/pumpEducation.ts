@@ -205,6 +205,11 @@ Ease of dosing:
 };
 
 export const nextSteps = {
+  contactSalesRep: {
+    title: "Contact the Manufacturer's Sales Team",
+    description: "Reach out directly to learn about demos, pricing, and insurance coverage",
+    note: "Sales representatives can help with insurance pre-authorization, demo programs, and answer product-specific questions your doctor may not know."
+  },
   questionsForProvider: {
     title: "Questions to Ask Your Healthcare Provider",
     questions: [

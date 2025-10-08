@@ -18,6 +18,7 @@ import {
   comparisonEducation,
   importantDisclaimers
 } from '../data/pumpEducation';
+import { getManufacturerByPumpName } from '../data/pumpManufacturers';
 
 interface PumpRecommendation {
   topRecommendation: {
@@ -180,7 +181,12 @@ export default function PumpDriveResults() {
         },
         conversationHistory: existingConversation,
         assessmentFlow: 'unified',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        // Track top 3 pump recommendations for analytics
+        topChoicePump: recommendationData.topRecommendation.name,
+        secondChoicePump: recommendationData.alternatives[0]?.name || null,
+        thirdChoicePump: recommendationData.alternatives[1]?.name || null,
+        recommendationDate: new Date().toISOString()
       };
 
       const result = await pumpAssessmentService.saveAssessment(assessmentData);
@@ -1064,60 +1070,97 @@ export default function PumpDriveResults() {
           </div>
         </div>
 
-        {/* Detailed Analysis */}
-        <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
-          <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-            <span className="mr-2">🔍</span> Expert Analysis
-          </h3>
-          <div className="prose text-gray-700 leading-relaxed">{detailedAnalysis}</div>
-        </div>
-
-        {/* Decision Summary */}
-        <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
-          <div className="flex items-center mb-4">
-            <h3 className="text-xl font-semibold text-gray-800 flex items-center">
-              <span className="mr-2">📋</span> Your Decision Factors
-            </h3>
-            <HelpIcon tooltip={decisionFactorsEducation.description} />
-          </div>
-
-          <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-4 mb-6">
-            <p className="text-sm text-gray-700 italic">
-              {decisionFactorsEducation.explanation}
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <h4 className="font-medium text-gray-700 mb-3">Your Priorities:</h4>
-              <ul className="space-y-2">
-                {decisionSummary.userPriorities.map((priority, index) => (
-                  <li key={index} className="text-gray-600 text-sm flex items-center">
-                    <span className="mr-2">🎯</span>
-                    {priority}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-medium text-gray-700 mb-3">Key Matching Factors:</h4>
-              <ul className="space-y-2">
-                {decisionSummary.keyFactors.map((factor, index) => (
-                  <li key={index} className="text-gray-600 text-sm flex items-center">
-                    <span className="mr-2">🔗</span>
-                    {factor}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
-
         {/* Next Steps Section */}
         <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-lg p-8 mb-8 border-2 border-indigo-200">
           <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
             <span className="mr-3">🎯</span> Your Next Steps
           </h3>
+
+          {/* Contact Sales Rep Section */}
+          {(() => {
+            const manufacturerInfo = getManufacturerByPumpName(topRecommendation.name);
+            if (manufacturerInfo) {
+              return (
+                <div className="mb-8">
+                  <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                    <span className="mr-2">📞</span> {nextSteps.contactSalesRep.title}
+                  </h4>
+                  <p className="text-sm text-gray-600 mb-4">{nextSteps.contactSalesRep.description}</p>
+
+                  <div className="bg-white rounded-lg p-6 shadow-md border-l-4 border-green-500">
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <h5 className="text-xl font-bold text-gray-800">{manufacturerInfo.manufacturer}</h5>
+                        <p className="text-sm text-gray-600 mt-1">{manufacturerInfo.pumpModels.join(', ')}</p>
+                      </div>
+                      {manufacturerInfo.demoProgram && (
+                        <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">
+                          Demo Available
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Website</p>
+                        <a
+                          href={manufacturerInfo.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 underline text-sm"
+                        >
+                          {manufacturerInfo.website}
+                        </a>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Phone</p>
+                        <a href={`tel:${manufacturerInfo.phone}`} className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                          {manufacturerInfo.phone}
+                        </a>
+                      </div>
+                      {manufacturerInfo.salesEmail && (
+                        <div className="md:col-span-2">
+                          <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Email</p>
+                          <a href={`mailto:${manufacturerInfo.salesEmail}`} className="text-blue-600 hover:text-blue-800 underline text-sm">
+                            {manufacturerInfo.salesEmail}
+                          </a>
+                        </div>
+                      )}
+                    </div>
+
+                    {manufacturerInfo.demoProgram && manufacturerInfo.demoDetails && (
+                      <div className="bg-green-50 rounded-lg p-3 mb-3">
+                        <p className="text-sm text-green-800">
+                          <span className="font-semibold">Demo Program:</span> {manufacturerInfo.demoDetails}
+                        </p>
+                      </div>
+                    )}
+
+                    {manufacturerInfo.specialNotes && manufacturerInfo.specialNotes.length > 0 && (
+                      <div className="border-t pt-3">
+                        <p className="text-xs font-semibold text-gray-600 mb-2">💡 Helpful Tips:</p>
+                        <ul className="space-y-1">
+                          {manufacturerInfo.specialNotes.map((note, idx) => (
+                            <li key={idx} className="text-xs text-gray-600 flex items-start">
+                              <span className="mr-2">•</span>
+                              <span>{note}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-4 bg-blue-50 border-l-4 border-blue-400 p-3 rounded">
+                    <p className="text-xs text-blue-800">
+                      <span className="font-semibold">Note:</span> {nextSteps.contactSalesRep.note}
+                    </p>
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
 
           {/* Questions for Provider */}
           <div className="mb-8">

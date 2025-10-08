@@ -31,6 +31,11 @@ export interface AssessmentData {
   }>;
   assessmentFlow?: string; // 'sliders' | 'conversation' | 'hybrid'
   timestamp: string;
+  // Pump recommendation tracking (top 3 choices)
+  topChoicePump?: string;
+  secondChoicePump?: string;
+  thirdChoicePump?: string;
+  recommendationDate?: string;
 }
 
 export interface SaveAssessmentResponse {
