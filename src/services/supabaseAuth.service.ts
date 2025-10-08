@@ -470,6 +470,30 @@ class SupabaseAuthService {
   }
 
   /**
+   * Check if user is authenticated
+   */
+  async isAuthenticated(): Promise<boolean> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      return !!user;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Get current session
+   */
+  async getSession() {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      return session;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
    * Log access for HIPAA compliance
    */
   private async logAccess(
