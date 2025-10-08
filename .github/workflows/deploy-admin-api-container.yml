@@ -1,0 +1,162 @@
+name: Deploy Admin API to Azure Container Apps
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'server/admin-account-api.js'
+      - 'server/services/**'
+      - 'server/utils/**'
+      - 'server/package.json'
+      - 'server/Dockerfile.admin'
+      - '.github/workflows/deploy-admin-api-container.yml'
+  workflow_dispatch:
+
+env:
+  ACR_LOGIN_SERVER: tshlaregistry.azurecr.io
+  CONTAINER_APP_NAME: tshla-admin-api-container
+  RESOURCE_GROUP: tshla-backend-rg
+  IMAGE_NAME: tshla-admin-api
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Get current revision before deploy
+      id: pre_deploy
+      run: |
+        CURRENT_REVISION=$(az containerapp revision list \
+          --name ${{ env.CONTAINER_APP_NAME }} \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --query "[0].name" -o tsv 2>/dev/null || echo "none")
+        echo "current_revision=$CURRENT_REVISION" >> $GITHUB_OUTPUT
+        echo "Current revision: $CURRENT_REVISION"
+
+    - name: Build and push Docker image
+      working-directory: ./server
+      run: |
+        # Login to ACR
+        az acr login --name tshlaregistry
+
+        # Build with timestamp to force new revision
+        DEPLOY_TIMESTAMP=$(date +%s)
+        docker build -f Dockerfile.admin \
+          --platform linux/amd64 \
+          --no-cache \
+          --build-arg DEPLOY_TIMESTAMP=$DEPLOY_TIMESTAMP \
+          -t ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }} .
+        docker tag ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }} ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest
+
+        # Push image to ACR
+        docker push ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        docker push ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest
+
+    - name: Check if Container App exists
+      id: check_app
+      run: |
+        EXISTS=$(az containerapp show \
+          --name ${{ env.CONTAINER_APP_NAME }} \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --query "name" -o tsv 2>/dev/null || echo "")
+
+        if [ -z "$EXISTS" ]; then
+          echo "exists=false" >> $GITHUB_OUTPUT
+          echo "Container app does not exist, will create"
+        else
+          echo "exists=true" >> $GITHUB_OUTPUT
+          echo "Container app exists, will update"
+        fi
+
+    - name: Create Container App (if not exists)
+      if: steps.check_app.outputs.exists == 'false'
+      run: |
+        echo "Creating new container app..."
+        az containerapp create \
+          --name ${{ env.CONTAINER_APP_NAME }} \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --environment tshla-container-env \
+          --image ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+          --target-port 3004 \
+          --ingress external \
+          --min-replicas 1 \
+          --max-replicas 3 \
+          --cpu 0.5 \
+          --memory 1.0Gi \
+          --registry-server ${{ env.ACR_LOGIN_SERVER }} \
+          --env-vars \
+            "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" \
+            "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            "PORT=3004"
+
+    - name: Update Container App (if exists)
+      if: steps.check_app.outputs.exists == 'true'
+      run: |
+        echo "Updating existing container app..."
+        az containerapp update \
+          --name ${{ env.CONTAINER_APP_NAME }} \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --image ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+          --set-env-vars \
+            "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" \
+            "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            "PORT=3004"
+
+    - name: Get new revision after deploy
+      id: post_deploy
+      run: |
+        sleep 10
+        NEW_REVISION=$(az containerapp revision list \
+          --name ${{ env.CONTAINER_APP_NAME }} \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --query "[0].name" -o tsv)
+        echo "new_revision=$NEW_REVISION" >> $GITHUB_OUTPUT
+        echo "New revision: $NEW_REVISION"
+
+    - name: Verify deployment
+      run: |
+        FQDN=$(az containerapp show \
+          --name ${{ env.CONTAINER_APP_NAME }} \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --query "properties.configuration.ingress.fqdn" -o tsv)
+
+        echo "🚀 Deployment complete!"
+        echo "📍 Admin API URL: https://$FQDN"
+        echo "🔍 Health check: https://$FQDN/api/health"
+
+        # Wait for app to be ready
+        echo "Waiting for health check..."
+        for i in {1..30}; do
+          if curl -f -s "https://$FQDN/api/health" > /dev/null 2>&1; then
+            echo "✅ Health check passed!"
+            curl -s "https://$FQDN/api/health"
+            break
+          fi
+          echo "Attempt $i/30..."
+          sleep 5
+        done
+
+    - name: Cleanup old revisions
+      run: |
+        echo "Cleaning up old revisions (keeping last 3)..."
+        az containerapp revision list \
+          --name ${{ env.CONTAINER_APP_NAME }} \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --query "[3:].name" -o tsv | while read revision; do
+          if [ ! -z "$revision" ]; then
+            echo "Deactivating revision: $revision"
+            az containerapp revision deactivate \
+              --name ${{ env.CONTAINER_APP_NAME }} \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --revision $revision || true
+          fi
+        done
