@@ -9,7 +9,7 @@ on:
       - 'server/services/**'
       - 'server/utils/**'
       - 'server/package.json'
-      - 'server/Dockerfile.admin'
+      - 'server/Dockerfile.admin-account'
       - '.github/workflows/deploy-admin-api-container.yml'
   workflow_dispatch:
 
@@ -50,7 +50,7 @@ jobs:
 
         # Build with timestamp to force new revision
         DEPLOY_TIMESTAMP=$(date +%s)
-        docker build -f Dockerfile.admin \
+        docker build -f Dockerfile.admin-account \
           --platform linux/amd64 \
           --no-cache \
           --build-arg DEPLOY_TIMESTAMP=$DEPLOY_TIMESTAMP \
