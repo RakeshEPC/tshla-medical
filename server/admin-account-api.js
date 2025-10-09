@@ -232,6 +232,173 @@ app.post('/api/accounts/create', verifyAdmin, async (req, res) => {
   }
 });
 
+// GET /api/accounts/list - List all accounts with filtering
+app.get('/api/accounts/list', verifyAdmin, async (req, res) => {
+  try {
+    const { accountType, search } = req.query;
+
+    // Get medical staff
+    let staffQuery = supabase
+      .from('medical_staff')
+      .select('id, email, first_name, last_name, role, specialty, practice, is_active, created_at, auth_user_id');
+
+    if (accountType && (accountType === 'admin' || accountType === 'staff')) {
+      staffQuery = staffQuery.eq('role', accountType);
+    }
+
+    if (search) {
+      staffQuery = staffQuery.or(`email.ilike.%${search}%,first_name.ilike.%${search}%,last_name.ilike.%${search}%`);
+    }
+
+    const { data: staffData, error: staffError } = await staffQuery;
+
+    if (staffError) {
+      console.error('Staff query error:', staffError);
+      return res.status(500).json({ error: 'Failed to fetch staff accounts' });
+    }
+
+    // Get patients
+    let patientQuery = supabase
+      .from('patients')
+      .select('id, email, first_name, last_name, ava_id, phone, pumpdrive_enabled, subscription_tier, is_active, created_at, auth_user_id');
+
+    if (accountType === 'patient') {
+      patientQuery = patientQuery.eq('pumpdrive_enabled', false);
+    } else if (accountType === 'pumpdrive') {
+      patientQuery = patientQuery.eq('pumpdrive_enabled', true);
+    }
+
+    if (search) {
+      patientQuery = patientQuery.or(`email.ilike.%${search}%,first_name.ilike.%${search}%,last_name.ilike.%${search}%,ava_id.ilike.%${search}%`);
+    }
+
+    const { data: patientData, error: patientError } = await patientQuery;
+
+    if (patientError) {
+      console.error('Patient query error:', patientError);
+      return res.status(500).json({ error: 'Failed to fetch patient accounts' });
+    }
+
+    // Format response
+    const accounts = [
+      ...staffData.map(s => ({
+        ...s,
+        accountType: s.role === 'admin' || s.role === 'super_admin' ? 'admin' : 'staff',
+        fullName: `${s.first_name} ${s.last_name}`,
+      })),
+      ...patientData.map(p => ({
+        ...p,
+        accountType: p.pumpdrive_enabled ? 'pumpdrive' : 'patient',
+        fullName: `${p.first_name} ${p.last_name}`,
+      })),
+    ];
+
+    res.json({
+      success: true,
+      accounts: accounts.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
+      total: accounts.length,
+    });
+  } catch (error) {
+    console.error('List accounts error:', error);
+    res.status(500).json({ error: 'Failed to list accounts', details: error.message });
+  }
+});
+
+// POST /api/accounts/reset-password - Reset password for any account
+app.post('/api/accounts/reset-password', verifyAdmin, async (req, res) => {
+  try {
+    const { authUserId, email } = req.body;
+
+    if (!authUserId && !email) {
+      return res.status(400).json({ error: 'Either authUserId or email is required' });
+    }
+
+    // Generate new secure password
+    const newPassword = generateSecurePassword();
+
+    // Find user by auth_user_id or email
+    let userId = authUserId;
+
+    if (!userId && email) {
+      // Try to find in medical_staff
+      const { data: staffData } = await supabase
+        .from('medical_staff')
+        .select('auth_user_id')
+        .eq('email', email)
+        .single();
+
+      if (staffData) {
+        userId = staffData.auth_user_id;
+      } else {
+        // Try to find in patients
+        const { data: patientData } = await supabase
+          .from('patients')
+          .select('auth_user_id')
+          .eq('email', email)
+          .single();
+
+        if (patientData) {
+          userId = patientData.auth_user_id;
+        }
+      }
+    }
+
+    if (!userId) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+
+    // Update password using admin API
+    const { data, error } = await supabase.auth.admin.updateUserById(userId, {
+      password: newPassword,
+    });
+
+    if (error) {
+      console.error('Password reset error:', error);
+      return res.status(500).json({ error: 'Failed to reset password', details: error.message });
+    }
+
+    // Log the password reset
+    await supabase.from('access_logs').insert({
+      user_id: userId,
+      user_email: email,
+      action: 'ADMIN_PASSWORD_RESET',
+      success: true,
+      created_at: new Date().toISOString(),
+    });
+
+    res.json({
+      success: true,
+      message: 'Password reset successfully',
+      newPassword,
+    });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ error: 'Failed to reset password', details: error.message });
+  }
+});
+
+// Helper function to generate secure password
+function generateSecurePassword() {
+  const length = 12;
+  const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+  const numbers = '0123456789';
+  const symbols = '!@#$%&*';
+  const allChars = uppercase + lowercase + numbers + symbols;
+
+  let password = '';
+  password += uppercase[Math.floor(Math.random() * uppercase.length)];
+  password += lowercase[Math.floor(Math.random() * lowercase.length)];
+  password += numbers[Math.floor(Math.random() * numbers.length)];
+  password += symbols[Math.floor(Math.random() * symbols.length)];
+
+  for (let i = password.length; i < length; i++) {
+    password += allChars[Math.floor(Math.random() * allChars.length)];
+  }
+
+  return password.split('').sort(() => Math.random() - 0.5).join('');
+}
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', service: 'admin-account-api' });
@@ -240,7 +407,10 @@ app.get('/api/health', (req, res) => {
 // Start server
 app.listen(PORT, () => {
   console.log(`🔐 Admin Account API running on port ${PORT}`);
-  console.log(`📝 Endpoint: http://localhost:${PORT}/api/accounts/create`);
+  console.log(`📝 Endpoints:`);
+  console.log(`   POST /api/accounts/create`);
+  console.log(`   GET  /api/accounts/list`);
+  console.log(`   POST /api/accounts/reset-password`);
 });
 
 module.exports = app;

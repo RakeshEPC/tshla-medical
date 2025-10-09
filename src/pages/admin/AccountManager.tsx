@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase/client';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 interface NewAccount {
-  accountType: 'admin' | 'staff' | 'patient';
+  accountType: 'admin' | 'staff' | 'patient' | 'pumpdrive';
   email: string;
   password: string;
   firstName: string;
@@ -17,10 +17,30 @@ interface NewAccount {
   enablePumpDrive?: boolean;
 }
 
+interface Account {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  fullName: string;
+  accountType: string;
+  role?: string;
+  specialty?: string;
+  practice?: string;
+  ava_id?: string;
+  phone?: string;
+  pumpdrive_enabled?: boolean;
+  is_active: boolean;
+  created_at: string;
+  auth_user_id: string;
+}
+
 export default function AccountManager() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<'create' | 'manage' | 'reset'>('create');
 
+  // Create Account State
   const [newAccount, setNewAccount] = useState<NewAccount>({
     accountType: 'staff',
     email: '',
@@ -32,9 +52,8 @@ export default function AccountManager() {
     practice: 'TSHLA Medical',
     enablePumpDrive: true
   });
-
   const [isCreating, setIsCreating] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [createMessage, setCreateMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [createdCredentials, setCreatedCredentials] = useState<{
     email: string;
     password: string;
@@ -42,8 +61,22 @@ export default function AccountManager() {
     accountType: string;
   } | null>(null);
 
+  // Manage Accounts State
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
+  const [filterType, setFilterType] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Reset Password State
+  const [resetEmail, setResetEmail] = useState('');
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetMessage, setResetMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [newPassword, setNewPassword] = useState<string | null>(null);
+
+  const API_URL = import.meta.env.VITE_ADMIN_ACCOUNT_API_URL || 'http://localhost:3004';
+
   // Check if user is admin
-  if (!user || user.role !== 'admin') {
+  if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
         <div className="bg-white rounded-xl shadow-lg p-8 max-w-md text-center">
@@ -55,7 +88,7 @@ export default function AccountManager() {
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
           <p className="text-gray-600 mb-6">You must be an admin to access this page.</p>
           <button
-            onClick={() => navigate('/doctor')}
+            onClick={() => navigate('/dashboard')}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             Go to Dashboard
@@ -65,11 +98,11 @@ export default function AccountManager() {
     );
   }
 
-  const generateAvaId = (): string => {
-    const num1 = Math.floor(100 + Math.random() * 900);
-    const num2 = Math.floor(100 + Math.random() * 900);
-    return `AVA ${num1}-${num2}`;
-  };
+  useEffect(() => {
+    if (activeTab === 'manage') {
+      loadAccounts();
+    }
+  }, [activeTab, filterType, searchQuery]);
 
   const generatePassword = (): string => {
     const length = 12;
@@ -95,25 +128,28 @@ export default function AccountManager() {
   const handleCreateAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsCreating(true);
-    setMessage(null);
+    setCreateMessage(null);
     setCreatedCredentials(null);
 
     try {
-      // Get auth session token
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         throw new Error('No active session');
       }
 
-      // Call backend API to create account (uses service role to bypass RLS)
-      const API_URL = import.meta.env.VITE_ADMIN_ACCOUNT_API_URL || 'http://localhost:3004';
+      const accountData = {
+        ...newAccount,
+        enablePumpDrive: newAccount.accountType === 'pumpdrive' ? true : newAccount.enablePumpDrive,
+        accountType: newAccount.accountType === 'pumpdrive' ? 'patient' : newAccount.accountType
+      };
+
       const response = await fetch(`${API_URL}/api/accounts/create`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`
         },
-        body: JSON.stringify(newAccount)
+        body: JSON.stringify(accountData)
       });
 
       const result = await response.json();
@@ -122,10 +158,7 @@ export default function AccountManager() {
         throw new Error(result.error || 'Failed to create account');
       }
 
-      const avaId = result.user.avaId;
-
-      // Success!
-      setMessage({
+      setCreateMessage({
         type: 'success',
         text: `Account created successfully for ${newAccount.email}!`
       });
@@ -133,7 +166,7 @@ export default function AccountManager() {
       setCreatedCredentials({
         email: newAccount.email,
         password: newAccount.password,
-        avaId,
+        avaId: result.user.avaId,
         accountType: newAccount.accountType
       });
 
@@ -149,9 +182,8 @@ export default function AccountManager() {
         practice: 'TSHLA Medical',
         enablePumpDrive: true
       });
-
     } catch (error: any) {
-      setMessage({
+      setCreateMessage({
         type: 'error',
         text: error.message || 'Failed to create account'
       });
@@ -160,290 +192,559 @@ export default function AccountManager() {
     }
   };
 
-  const handleGeneratePassword = () => {
-    const password = generatePassword();
-    setNewAccount({ ...newAccount, password });
+  const loadAccounts = async () => {
+    setIsLoadingAccounts(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const params = new URLSearchParams();
+      if (filterType !== 'all') params.append('accountType', filterType);
+      if (searchQuery) params.append('search', searchQuery);
+
+      const response = await fetch(`${API_URL}/api/accounts/list?${params.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        setAccounts(result.accounts);
+      }
+    } catch (error) {
+      console.error('Failed to load accounts:', error);
+    } finally {
+      setIsLoadingAccounts(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsResetting(true);
+    setResetMessage(null);
+    setNewPassword(null);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('No active session');
+      }
+
+      const response = await fetch(`${API_URL}/api/accounts/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ email: resetEmail })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to reset password');
+      }
+
+      setResetMessage({
+        type: 'success',
+        text: `Password reset successfully for ${resetEmail}`
+      });
+      setNewPassword(result.newPassword);
+      setResetEmail('');
+    } catch (error: any) {
+      setResetMessage({
+        type: 'error',
+        text: error.message || 'Failed to reset password'
+      });
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+  };
+
+  const getAccountTypeBadge = (type: string) => {
+    const badges = {
+      admin: 'bg-purple-100 text-purple-800',
+      staff: 'bg-blue-100 text-blue-800',
+      patient: 'bg-green-100 text-green-800',
+      pumpdrive: 'bg-orange-100 text-orange-800'
+    };
+    return badges[type as keyof typeof badges] || 'bg-gray-100 text-gray-800';
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="bg-white rounded-xl shadow-lg p-8 mb-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center">
                 <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
                 </svg>
               </div>
               <div>
                 <h1 className="text-3xl font-bold text-gray-900">Account Manager</h1>
-                <p className="text-gray-600">Create and manage user accounts</p>
+                <p className="text-gray-600">Create and manage all user accounts</p>
               </div>
             </div>
             <button
-              onClick={() => navigate('/doctor')}
-              className="px-4 py-2 text-gray-600 hover:text-gray-900 transition-colors"
+              onClick={() => navigate('/dashboard')}
+              className="px-4 py-2 text-gray-600 hover:text-gray-900"
             >
               ← Back to Dashboard
             </button>
           </div>
         </div>
 
-        {/* Account Creation Form */}
-        <div className="bg-white rounded-xl shadow-lg p-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Create New Account</h2>
-
-          <form onSubmit={handleCreateAccount} className="space-y-6">
-            {/* Account Type */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Account Type</label>
-              <div className="grid grid-cols-3 gap-3">
-                {['admin', 'staff', 'patient'].map((type) => (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => setNewAccount({ ...newAccount, accountType: type as any })}
-                    className={`py-3 px-4 rounded-lg font-medium transition-all ${
-                      newAccount.accountType === type
-                        ? 'bg-blue-600 text-white shadow-md'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {type.charAt(0).toUpperCase() + type.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Email and Password */}
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
-                <input
-                  type="email"
-                  value={newAccount.email}
-                  onChange={(e) => setNewAccount({ ...newAccount, email: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="user@example.com"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newAccount.password}
-                    onChange={(e) => setNewAccount({ ...newAccount, password: e.target.value })}
-                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Enter password"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={handleGeneratePassword}
-                    className="px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-                    title="Generate secure password"
-                  >
-                    🔐
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Name */}
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">First Name</label>
-                <input
-                  type="text"
-                  value={newAccount.firstName}
-                  onChange={(e) => setNewAccount({ ...newAccount, firstName: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="John"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
-                <input
-                  type="text"
-                  value={newAccount.lastName}
-                  onChange={(e) => setNewAccount({ ...newAccount, lastName: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Doe"
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Staff-specific fields */}
-            {(newAccount.accountType === 'admin' || newAccount.accountType === 'staff') && (
-              <div className="grid md:grid-cols-3 gap-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
-                  <select
-                    value={newAccount.role}
-                    onChange={(e) => setNewAccount({ ...newAccount, role: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="doctor">Doctor</option>
-                    <option value="nurse">Nurse</option>
-                    <option value="staff">Staff</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Specialty</label>
-                  <input
-                    type="text"
-                    value={newAccount.specialty}
-                    onChange={(e) => setNewAccount({ ...newAccount, specialty: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Internal Medicine"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Practice</label>
-                  <input
-                    type="text"
-                    value={newAccount.practice}
-                    onChange={(e) => setNewAccount({ ...newAccount, practice: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="TSHLA Medical"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Patient-specific fields */}
-            {newAccount.accountType === 'patient' && (
-              <div className="grid md:grid-cols-2 gap-4 p-4 bg-green-50 rounded-lg border border-green-200">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
-                  <input
-                    type="tel"
-                    value={newAccount.phoneNumber}
-                    onChange={(e) => setNewAccount({ ...newAccount, phoneNumber: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="555-0100"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Date of Birth</label>
-                  <input
-                    type="date"
-                    value={newAccount.dateOfBirth}
-                    onChange={(e) => setNewAccount({ ...newAccount, dateOfBirth: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={newAccount.enablePumpDrive !== false}
-                      onChange={(e) => setNewAccount({ ...newAccount, enablePumpDrive: e.target.checked })}
-                      className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                    />
-                    <span className="text-sm font-medium text-gray-700">Enable PumpDrive Access</span>
-                  </label>
-                </div>
-              </div>
-            )}
-
-            {/* Message Display */}
-            {message && (
-              <div className={`p-4 rounded-lg ${
-                message.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'
-              }`}>
-                {message.text}
-              </div>
-            )}
-
-            {/* Created Credentials Display */}
-            {createdCredentials && (
-              <div className="p-6 bg-yellow-50 border-2 border-yellow-300 rounded-lg">
-                <div className="flex items-start gap-3 mb-4">
-                  <svg className="w-6 h-6 text-yellow-600 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                  <div>
-                    <h3 className="text-lg font-bold text-yellow-900 mb-2">Account Created - Save These Credentials!</h3>
-                    <p className="text-sm text-yellow-800 mb-4">This information will not be shown again. Make sure to save it securely.</p>
-                  </div>
-                </div>
-
-                <div className="bg-white p-4 rounded-lg space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium text-gray-700">Email:</span>
-                    <span className="font-mono text-gray-900">{createdCredentials.email}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium text-gray-700">Password:</span>
-                    <span className="font-mono text-gray-900">{createdCredentials.password}</span>
-                  </div>
-                  {createdCredentials.avaId && (
-                    <div className="flex justify-between items-center">
-                      <span className="font-medium text-gray-700">AVA ID:</span>
-                      <span className="font-mono text-gray-900">{createdCredentials.avaId}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium text-gray-700">Login URL:</span>
-                    <span className="font-mono text-blue-600">
-                      {createdCredentials.accountType === 'patient' ? '/patient-login' : '/login'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Submit Button */}
+        {/* Tabs */}
+        <div className="bg-white rounded-xl shadow-lg mb-6">
+          <div className="flex border-b">
             <button
-              type="submit"
-              disabled={isCreating}
-              className={`w-full py-4 rounded-lg font-semibold text-white transition-all ${
-                isCreating
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700 transform hover:scale-[1.02]'
+              onClick={() => setActiveTab('create')}
+              className={`flex-1 py-4 px-6 font-semibold transition-colors ${
+                activeTab === 'create'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              {isCreating ? (
-                <div className="flex items-center justify-center gap-2">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  Creating Account...
-                </div>
-              ) : (
-                'Create Account'
-              )}
+              ➕ Create Account
             </button>
-          </form>
+            <button
+              onClick={() => setActiveTab('manage')}
+              className={`flex-1 py-4 px-6 font-semibold transition-colors ${
+                activeTab === 'manage'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              📋 Manage Accounts
+            </button>
+            <button
+              onClick={() => setActiveTab('reset')}
+              className={`flex-1 py-4 px-6 font-semibold transition-colors ${
+                activeTab === 'reset'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              🔑 Reset Password
+            </button>
+          </div>
         </div>
 
-        {/* Info Cards */}
-        <div className="grid md:grid-cols-3 gap-4 mt-6">
-          <div className="bg-white rounded-lg shadow p-4">
-            <h3 className="font-semibold text-gray-900 mb-2">Admin Accounts</h3>
-            <p className="text-sm text-gray-600">Full access to all features including account management and system settings.</p>
-          </div>
+        {/* Tab Content */}
+        <div className="bg-white rounded-xl shadow-lg p-8">
+          {/* CREATE ACCOUNT TAB */}
+          {activeTab === 'create' && (
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">Create New Account</h2>
 
-          <div className="bg-white rounded-lg shadow p-4">
-            <h3 className="font-semibold text-gray-900 mb-2">Staff Accounts</h3>
-            <p className="text-sm text-gray-600">Medical staff can access patient records, dictation, and clinical features.</p>
-          </div>
+              <form onSubmit={handleCreateAccount} className="space-y-6">
+                {/* Account Type Selector */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Account Type</label>
+                  <div className="grid grid-cols-4 gap-3">
+                    {[
+                      { value: 'admin', label: 'Admin', icon: '👑' },
+                      { value: 'staff', label: 'Staff/Doctor', icon: '👨‍⚕️' },
+                      { value: 'patient', label: 'Patient', icon: '🧑' },
+                      { value: 'pumpdrive', label: 'PumpDrive Patient', icon: '💊' }
+                    ].map(type => (
+                      <button
+                        key={type.value}
+                        type="button"
+                        onClick={() => setNewAccount({ ...newAccount, accountType: type.value as any })}
+                        className={`p-4 rounded-lg border-2 transition-all ${
+                          newAccount.accountType === type.value
+                            ? 'border-blue-600 bg-blue-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="text-2xl mb-1">{type.icon}</div>
+                        <div className="text-sm font-semibold">{type.label}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-          <div className="bg-white rounded-lg shadow p-4">
-            <h3 className="font-semibold text-gray-900 mb-2">Patient Accounts</h3>
-            <p className="text-sm text-gray-600">Patients get AVA ID for login and optional PumpDrive access for insulin pump selection.</p>
-          </div>
+                {/* Basic Info */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">First Name</label>
+                    <input
+                      type="text"
+                      value={newAccount.firstName}
+                      onChange={e => setNewAccount({ ...newAccount, firstName: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
+                    <input
+                      type="text"
+                      value={newAccount.lastName}
+                      onChange={e => setNewAccount({ ...newAccount, lastName: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                  <input
+                    type="email"
+                    value={newAccount.email}
+                    onChange={e => setNewAccount({ ...newAccount, email: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newAccount.password}
+                      onChange={e => setNewAccount({ ...newAccount, password: e.target.value })}
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setNewAccount({ ...newAccount, password: generatePassword() })}
+                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                    >
+                      Generate
+                    </button>
+                  </div>
+                </div>
+
+                {/* Staff-specific fields */}
+                {(newAccount.accountType === 'admin' || newAccount.accountType === 'staff') && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                        <select
+                          value={newAccount.role}
+                          onChange={e => setNewAccount({ ...newAccount, role: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="doctor">Doctor</option>
+                          <option value="nurse">Nurse</option>
+                          <option value="staff">Staff</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Specialty</label>
+                        <input
+                          type="text"
+                          value={newAccount.specialty}
+                          onChange={e => setNewAccount({ ...newAccount, specialty: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          placeholder="e.g., Internal Medicine"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Practice</label>
+                      <input
+                        type="text"
+                        value={newAccount.practice}
+                        onChange={e => setNewAccount({ ...newAccount, practice: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* Patient-specific fields */}
+                {(newAccount.accountType === 'patient' || newAccount.accountType === 'pumpdrive') && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
+                      <input
+                        type="tel"
+                        value={newAccount.phoneNumber}
+                        onChange={e => setNewAccount({ ...newAccount, phoneNumber: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        placeholder="555-0123"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Date of Birth</label>
+                      <input
+                        type="date"
+                        value={newAccount.dateOfBirth}
+                        onChange={e => setNewAccount({ ...newAccount, dateOfBirth: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Messages */}
+                {createMessage && (
+                  <div className={`p-4 rounded-lg ${
+                    createMessage.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
+                  }`}>
+                    {createMessage.text}
+                  </div>
+                )}
+
+                {/* Created Credentials Display */}
+                {createdCredentials && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                    <h3 className="font-bold text-blue-900 mb-4">✅ Account Created Successfully!</h3>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between bg-white rounded p-3">
+                        <div>
+                          <div className="text-xs text-gray-500">Email</div>
+                          <div className="font-mono">{createdCredentials.email}</div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(createdCredentials.email)}
+                          className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                        >
+                          Copy
+                        </button>
+                      </div>
+                      <div className="flex items-center justify-between bg-white rounded p-3">
+                        <div>
+                          <div className="text-xs text-gray-500">Password</div>
+                          <div className="font-mono">{createdCredentials.password}</div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(createdCredentials.password)}
+                          className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                        >
+                          Copy
+                        </button>
+                      </div>
+                      {createdCredentials.avaId && (
+                        <div className="flex items-center justify-between bg-white rounded p-3">
+                          <div>
+                            <div className="text-xs text-gray-500">AVA ID</div>
+                            <div className="font-mono text-lg font-bold text-blue-600">{createdCredentials.avaId}</div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(createdCredentials.avaId!)}
+                            className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                          >
+                            Copy
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-sm text-blue-700 mt-4">⚠️ Save these credentials securely! The password won't be shown again.</p>
+                  </div>
+                )}
+
+                {/* Submit Button */}
+                <button
+                  type="submit"
+                  disabled={isCreating}
+                  className={`w-full py-3 rounded-lg font-semibold text-white transition-colors ${
+                    isCreating ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
+                >
+                  {isCreating ? 'Creating Account...' : 'Create Account'}
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* MANAGE ACCOUNTS TAB */}
+          {activeTab === 'manage' && (
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">Manage Accounts</h2>
+
+              {/* Filters */}
+              <div className="flex gap-4 mb-6">
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    placeholder="Search by name, email, or AVA ID..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <select
+                  value={filterType}
+                  onChange={e => setFilterType(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">All Accounts</option>
+                  <option value="admin">Admins</option>
+                  <option value="staff">Staff/Doctors</option>
+                  <option value="patient">Patients</option>
+                  <option value="pumpdrive">PumpDrive Patients</option>
+                </select>
+                <button
+                  onClick={loadAccounts}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Refresh
+                </button>
+              </div>
+
+              {/* Accounts Table */}
+              {isLoadingAccounts ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="text-gray-500 mt-4">Loading accounts...</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Details</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {accounts.map(account => (
+                        <tr key={account.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="font-medium text-gray-900">{account.fullName}</div>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
+                            {account.email}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getAccountTypeBadge(account.accountType)}`}>
+                              {account.accountType}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
+                            {account.ava_id && <div>AVA: {account.ava_id}</div>}
+                            {account.specialty && <div>{account.specialty}</div>}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                              account.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {account.is_active ? 'Active' : 'Inactive'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm">
+                            <button
+                              onClick={() => {
+                                setResetEmail(account.email);
+                                setActiveTab('reset');
+                              }}
+                              className="text-blue-600 hover:text-blue-800 font-medium"
+                            >
+                              Reset Password
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {accounts.length === 0 && (
+                    <div className="text-center py-12 text-gray-500">
+                      No accounts found
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* RESET PASSWORD TAB */}
+          {activeTab === 'reset' && (
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">Reset Password</h2>
+
+              <form onSubmit={handleResetPassword} className="max-w-2xl space-y-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Email Address or AVA ID
+                  </label>
+                  <input
+                    type="text"
+                    value={resetEmail}
+                    onChange={e => setResetEmail(e.target.value)}
+                    placeholder="user@example.com or AVA 123-456"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                  <p className="text-sm text-gray-500 mt-2">
+                    Enter the email address or AVA ID of the account you want to reset
+                  </p>
+                </div>
+
+                {resetMessage && (
+                  <div className={`p-4 rounded-lg ${
+                    resetMessage.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
+                  }`}>
+                    {resetMessage.text}
+                  </div>
+                )}
+
+                {newPassword && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                    <h3 className="font-bold text-blue-900 mb-4">🔑 New Password Generated</h3>
+                    <div className="flex items-center justify-between bg-white rounded p-4">
+                      <div>
+                        <div className="text-xs text-gray-500 mb-1">New Password</div>
+                        <div className="font-mono text-lg font-bold">{newPassword}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(newPassword)}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                      >
+                        📋 Copy
+                      </button>
+                    </div>
+                    <p className="text-sm text-blue-700 mt-4">
+                      ⚠️ Save this password securely and share it with the user. It won't be shown again.
+                    </p>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isResetting}
+                  className={`w-full py-3 rounded-lg font-semibold text-white transition-colors ${
+                    isResetting ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
+                >
+                  {isResetting ? 'Resetting Password...' : 'Reset Password'}
+                </button>
+              </form>
+
+              <div className="mt-8 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <h4 className="font-semibold text-amber-900 mb-2">ℹ️ Password Reset Process</h4>
+                <ul className="text-sm text-amber-800 space-y-1">
+                  <li>• A new secure password will be automatically generated</li>
+                  <li>• The user's current password will be immediately replaced</li>
+                  <li>• Share the new password with the user securely</li>
+                  <li>• The user can change their password after logging in</li>
+                </ul>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
