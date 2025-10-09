@@ -35,8 +35,8 @@ export default function PumpDriveBundle() {
   return (
     <Suspense fallback={<PumpDriveLoader />}>
       <Routes>
-        {/* Authentication Routes (Public) - redirects to unified patient login */}
-        <Route path="create-account" element={<Navigate to="/patient-login" replace />} />
+        {/* Authentication Routes (Public) */}
+        <Route path="create-account" element={<Navigate to="/patient-register" replace />} />
         <Route path="login" element={<PatientLogin />} />
 
         {/* Protected Assessment Routes */}

@@ -29,6 +29,7 @@ import AuthRedirect from './pages/AuthRedirect';
 
 // Authentication & Onboarding
 const CreateAccount = lazy(() => import('./pages/CreateAccount'));
+const PatientRegister = lazy(() => import('./pages/PatientRegister'));
 const AccountVerification = lazy(() => import('./pages/AccountVerification'));
 const PracticeSetup = lazy(() => import('./pages/PracticeSetup'));
 const MedicalStaffRegister = lazy(() => import('./pages/MedicalStaffRegister'));
@@ -104,6 +105,14 @@ function App() {
                 element={
                   <Suspense fallback={<LoadingSpinner />}>
                     <CreateAccount />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/patient-register"
+                element={
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <PatientRegister />
                   </Suspense>
                 }
               />
