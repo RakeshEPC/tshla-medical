@@ -85,6 +85,13 @@ function generateAvaId() {
   return `AVA ${part1}-${part2}`;
 }
 
+// Generate MRN (Medical Record Number) for patients
+function generateMrn() {
+  const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+  return `MRN-${date}-${random}`;
+}
+
 // POST /api/accounts/create - Create new account (admin, staff, or patient)
 app.post('/api/accounts/create', verifyAdmin, async (req, res) => {
   try {
@@ -171,6 +178,7 @@ app.post('/api/accounts/create', verifyAdmin, async (req, res) => {
     } else {
       // Create patient record
       avaId = generateAvaId();
+      const mrn = generateMrn();
 
       const { data, error: patientError } = await supabase
         .from('patients')
@@ -181,6 +189,7 @@ app.post('/api/accounts/create', verifyAdmin, async (req, res) => {
           phone: phoneNumber,
           date_of_birth: dateOfBirth,
           ava_id: avaId,
+          mrn: mrn,
           auth_user_id: authData.user.id,
           is_active: true,
           pumpdrive_enabled: enablePumpDrive !== false,
