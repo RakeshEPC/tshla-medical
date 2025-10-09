@@ -338,6 +338,7 @@ class SupabaseAuthService {
       });
 
       if (authError) {
+        logError('SupabaseAuth', 'Auth signup failed', { error: authError.message });
         return {
           success: false,
           error: authError.message,
@@ -345,13 +346,23 @@ class SupabaseAuthService {
       }
 
       if (!authData.user) {
+        logError('SupabaseAuth', 'No user data returned from signup');
         return {
           success: false,
           error: 'Failed to create user',
         };
       }
 
-      // Step 2: Create patients record (unified)
+      // Step 2: Generate unique MRN and AVA ID
+      const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').substring(0, 14);
+      const randomNum = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+      const mrn = `MRN-${timestamp}-${randomNum}`;
+
+      const avaNum1 = Math.floor(Math.random() * 900 + 100);
+      const avaNum2 = Math.floor(Math.random() * 900 + 100);
+      const avaId = `AVA ${avaNum1}-${avaNum2}`;
+
+      // Step 3: Create patients record (unified)
       const { data: patientData, error: patientError } = await supabase
         .from('patients')
         .insert({
@@ -361,6 +372,8 @@ class SupabaseAuthService {
           phone: data.phoneNumber,
           date_of_birth: data.dateOfBirth,
           auth_user_id: authData.user.id,
+          mrn: mrn,
+          ava_id: avaId,
           is_active: true,
           pumpdrive_enabled: data.enablePumpDrive !== false, // Default true
           pumpdrive_signup_date: new Date().toISOString(),
@@ -370,12 +383,20 @@ class SupabaseAuthService {
         .single();
 
       if (patientError) {
-        // If patients creation fails, delete the auth user
-        await supabase.auth.admin.deleteUser(authData.user.id);
+        logError('SupabaseAuth', 'Failed to create patient profile', {
+          error: patientError,
+          message: patientError.message,
+          details: patientError.details,
+          hint: patientError.hint,
+        });
+
+        // Note: We can't delete the auth user from client-side (requires service role key)
+        // The user will exist in auth.users but won't have a patient profile
+        // They can try registering again or contact support
 
         return {
           success: false,
-          error: 'Failed to create patient profile',
+          error: `Failed to create patient profile: ${patientError.message}. Please contact support if this persists.`,
         };
       }
 
@@ -387,6 +408,12 @@ class SupabaseAuthService {
         accessType: patientData.pumpdrive_enabled ? 'pumpdrive' : 'patient',
         authUserId: authData.user.id,
       };
+
+      logInfo('SupabaseAuth', 'Patient registered successfully', {
+        userId: user.id,
+        mrn: mrn,
+        avaId: avaId,
+      });
 
       return {
         success: true,
