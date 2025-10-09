@@ -1,17 +1,17 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { patientService } from '../services/patient.service';
-import type { PatientLogin } from '../types/patient.types';
+import { supabaseAuthService } from '../services/supabaseAuth.service';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
 
 export default function PatientLoginPage() {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
-  const [loginMethod, setLoginMethod] = useState<'ava' | 'email'>('ava');
+  const [loginMethod, setLoginMethod] = useState<'ava' | 'email'>('email'); // Changed to 'email' - Supabase auth requires email+password
 
-  const [loginData, setLoginData] = useState<PatientLogin>({
+  const [loginData, setLoginData] = useState({
     avaId: '',
     email: '',
+    password: '',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -70,6 +70,10 @@ export default function PatientLoginPage() {
       } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(loginData.email)) {
         newErrors.email = 'Please enter a valid email';
       }
+
+      if (!loginData.password) {
+        newErrors.password = 'Password is required';
+      }
     }
 
     setErrors(newErrors);
@@ -86,29 +90,27 @@ export default function PatientLoginPage() {
     setIsLoading(true);
 
     try {
-      const loginPayload =
-        loginMethod === 'ava' ? { avaId: loginData.avaId } : { email: loginData.email };
+      // Use Supabase authentication (requires email + password)
+      const result = await supabaseAuthService.loginPatient(loginData.email, loginData.password);
 
-      const { patient, session } = await patientService.loginWithAvaId(loginPayload);
+      if (!result.success || !result.user) {
+        setErrors({
+          submit: result.error || 'Invalid email or password.',
+        });
+        setIsLoading(false);
+        return;
+      }
 
-      // Determine where to redirect based on patient's enrolled programs
-      if (
-        patient.programs.pumpdrive?.enrolled &&
-        !patient.programs.pumpdrive?.finalRecommendations
-      ) {
-        navigate('/pumpdrive');
-      } else if (patient.programs.weightloss?.enrolled) {
-        navigate('/patient/dashboard');
+      // Successful login - redirect based on user type
+      if (result.user.accessType === 'pumpdrive') {
+        navigate('/pumpdrive/assessment');
       } else {
         navigate('/patient/dashboard');
       }
     } catch (error) {
-      logError('PatientLogin', 'Error message', {});
+      logError('PatientLogin', 'Login error', { error });
       setErrors({
-        submit:
-          loginMethod === 'ava'
-            ? 'Invalid AVA ID. Please check and try again.'
-            : 'Invalid email or account not found.',
+        submit: 'Login failed. Please check your credentials and try again.',
       });
     } finally {
       setIsLoading(false);
@@ -215,12 +217,32 @@ export default function PatientLoginPage() {
                       setLoginData({ ...loginData, email: e.target.value });
                       setErrors({});
                     }}
-                    placeholder="john.smith@email.com"
+                    placeholder="simran@tshla.ai"
                     className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                       errors.email ? 'border-red-500' : 'border-gray-300'
                     }`}
                   />
                   {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
+                </div>
+
+                {/* Password Input */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    value={loginData.password}
+                    onChange={e => {
+                      setLoginData({ ...loginData, password: e.target.value });
+                      setErrors({});
+                    }}
+                    placeholder="Enter your password"
+                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      errors.password ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                  />
+                  {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
                 </div>
               </>
             )}
