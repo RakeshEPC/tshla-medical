@@ -48,13 +48,13 @@ export default function LandingPage() {
               {/* CTA Button */}
               <div className="flex gap-4">
                 <button
-                  onClick={() => navigate('/pumpdrive/create-account')}
+                  onClick={() => navigate('/patient-login')}
                   className="btn-tesla btn-tesla-primary px-12 py-4 text-base"
                 >
                   Get Started
                 </button>
                 <button
-                  onClick={() => navigate('/patient-portal')}
+                  onClick={() => navigate('/patient-login')}
                   className="btn-tesla btn-tesla-outline-light px-8 py-4 text-base"
                 >
                   Patient Portal
@@ -151,7 +151,7 @@ export default function LandingPage() {
               </ul>
 
               <button
-                onClick={() => navigate('/pumpdrive/create-account')}
+                onClick={() => navigate('/patient-login')}
                 className="btn-tesla btn-tesla-primary px-16 py-4 text-base"
               >
                 Get Started
@@ -179,7 +179,7 @@ export default function LandingPage() {
               <ul className="space-y-3 text-sm font-light">
                 <li>
                   <button
-                    onClick={() => navigate('/pumpdrive/create-account')}
+                    onClick={() => navigate('/patient-login')}
                     className="link-tesla"
                   >
                     PumpDrive Assessment
@@ -195,7 +195,7 @@ export default function LandingPage() {
                 </li>
                 <li>
                   <button
-                    onClick={() => navigate('/patient-portal')}
+                    onClick={() => navigate('/patient-login')}
                     className="link-tesla"
                   >
                     Patient Portal

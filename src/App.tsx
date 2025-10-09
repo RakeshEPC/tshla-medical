@@ -20,6 +20,7 @@ const LoadingSpinner = () => (
 // ========================================
 import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
+import PatientLogin from './pages/PatientLogin';
 import AuthRedirect from './pages/AuthRedirect';
 
 // ========================================
@@ -94,6 +95,7 @@ function App() {
               {/* ===== CORE ROUTES (no lazy loading) ===== */}
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<Login />} />
+              <Route path="/patient-login" element={<PatientLogin />} />
               <Route path="/auth-redirect" element={<AuthRedirect />} />
 
               {/* ===== AUTHENTICATION & ONBOARDING ===== */}
@@ -383,7 +385,7 @@ function App() {
                 }
               />
               <Route
-                path="/patient-portal"
+                path="/patient-portal-demo"
                 element={
                   <Suspense fallback={<LoadingSpinner />}>
                     <PatientPortal />
