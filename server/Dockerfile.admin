@@ -4,16 +4,20 @@ FROM node:20-alpine
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy package files first
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install --production
+# Install ALL dependencies (including @supabase/supabase-js)
+RUN npm install
 
 # Copy application files
 COPY admin-account-api.js ./
-COPY services/ ./services/
-COPY utils/ ./utils/
+COPY services/ ./services/ 2>/dev/null || true
+COPY utils/ ./utils/ 2>/dev/null || true
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV PORT=3004
 
 # Expose port
 EXPOSE 3004
