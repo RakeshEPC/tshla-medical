@@ -111,7 +111,15 @@ export default function PatientRegister() {
 
       logInfo('PatientRegister', 'Registration successful', { userId: result.user.id });
 
-      // Redirect based on access type
+      // Handle email confirmation requirement
+      if (result.error === 'CONFIRMATION_REQUIRED') {
+        setError('');
+        alert('✅ Account created successfully!\n\nPlease check your email to confirm your account, then you can log in.');
+        navigate('/patient-login');
+        return;
+      }
+
+      // Redirect based on access type (only if session exists)
       if (result.user.accessType === 'pumpdrive') {
         navigate('/pumpdrive/assessment');
       } else {

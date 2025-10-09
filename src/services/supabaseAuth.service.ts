@@ -335,13 +335,31 @@ class SupabaseAuthService {
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth-redirect`,
+          data: {
+            first_name: data.firstName,
+            last_name: data.lastName,
+          }
+        }
       });
 
       if (authError) {
-        logError('SupabaseAuth', 'Auth signup failed', { error: authError.message });
+        logError('SupabaseAuth', 'Auth signup failed', { error: authError.message, code: authError.status });
+
+        // Provide user-friendly error messages
+        let errorMessage = authError.message;
+        if (authError.message.includes('already registered') || authError.message.includes('already exists')) {
+          errorMessage = 'This email is already registered. Please try logging in instead.';
+        } else if (authError.message.includes('invalid')) {
+          errorMessage = 'Invalid email format. Please check your email address.';
+        } else if (authError.message.includes('weak password')) {
+          errorMessage = 'Password is too weak. Please use at least 8 characters with a mix of letters and numbers.';
+        }
+
         return {
           success: false,
-          error: authError.message,
+          error: errorMessage,
         };
       }
 
@@ -349,9 +367,18 @@ class SupabaseAuthService {
         logError('SupabaseAuth', 'No user data returned from signup');
         return {
           success: false,
-          error: 'Failed to create user',
+          error: 'Failed to create user account. Please try again.',
         };
       }
+
+      // Check if email confirmation is required
+      const needsEmailConfirmation = authData.user && !authData.session;
+
+      logInfo('SupabaseAuth', 'Auth user created', {
+        userId: authData.user.id,
+        hasSession: !!authData.session,
+        needsConfirmation: needsEmailConfirmation
+      });
 
       // Step 2: Generate unique MRN and AVA ID
       const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').substring(0, 14);
@@ -413,7 +440,18 @@ class SupabaseAuthService {
         userId: user.id,
         mrn: mrn,
         avaId: avaId,
+        needsEmailConfirmation: needsEmailConfirmation,
       });
+
+      // If email confirmation is required, return special message
+      if (needsEmailConfirmation) {
+        return {
+          success: true,
+          user,
+          error: 'CONFIRMATION_REQUIRED', // Special flag for UI
+          token: undefined,
+        };
+      }
 
       return {
         success: true,
