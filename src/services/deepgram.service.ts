@@ -102,7 +102,8 @@ class DeepgramService {
       const wsUrl = this.buildWebSocketUrl();
       logDebug('deepgram', `Connecting to Deepgram WebSocket: ${wsUrl}`);
 
-      this.websocket = new WebSocket(wsUrl);
+      // Create WebSocket with authorization token in URL
+      this.websocket = new WebSocket(wsUrl, ['token', this.apiKey]);
 
       this.websocket.onopen = () => {
         this.isConnected = true;
