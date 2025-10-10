@@ -1,5 +1,7 @@
 import { logError, logWarn, logInfo, logDebug } from './logger.service';
 import { pumpAuthService } from './pumpAuth.service';
+import { supabase } from '../lib/supabase';
+import { supabaseAuthService } from './supabaseAuth.service';
 
 export interface AssessmentData {
   patientName: string;
@@ -41,7 +43,7 @@ export interface AssessmentData {
 
 export interface SaveAssessmentResponse {
   success: boolean;
-  assessmentId: number;
+  assessmentId: string; // UUID from Supabase
   message: string;
   pdfUrl?: string;
 }
@@ -109,45 +111,66 @@ class PumpAssessmentService {
   }
 
   /**
-   * Save complete assessment to database
+   * Save complete assessment to database (Supabase)
    */
   async saveAssessment(assessmentData: AssessmentData): Promise<SaveAssessmentResponse> {
     try {
-      logInfo('PumpAssessment', 'Saving assessment to database', {
+      logInfo('PumpAssessment', 'Saving assessment to Supabase', {
         patientName: assessmentData.patientName,
         flow: assessmentData.assessmentFlow
       });
 
-      // Get authentication headers
-      const authHeaders = pumpAuthService.getAuthHeaders();
-
-      const response = await fetch(`${this.baseUrl}/api/pump-assessments/save-complete`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
-        body: JSON.stringify(assessmentData),
-      });
-
-      if (!response.ok) {
-        // Handle authentication errors gracefully
-        if (response.status === 401 || response.status === 403) {
-          logWarn('PumpAssessment', 'Authentication error - user may need to login', { status: response.status });
-          throw new Error(`Unauthorized: ${response.status}`);
-        }
-
-        const errorData = await response.json();
-        throw new Error(errorData.message || `HTTP ${response.status}`);
+      // Get current authenticated user
+      const userResult = await supabaseAuthService.getCurrentUser();
+      if (!userResult.success || !userResult.user) {
+        logError('PumpAssessment', 'User not authenticated', {});
+        throw new Error('User must be logged in to save assessment');
       }
 
-      const result = await response.json();
+      const currentUser = userResult.user;
 
-      logInfo('PumpAssessment', 'Assessment saved successfully', {
-        assessmentId: result.assessmentId
+      // Extract pump choices from AI recommendation
+      const firstChoicePump = assessmentData.aiRecommendation?.topChoice?.name;
+      const secondChoicePump = assessmentData.aiRecommendation?.alternatives?.[0]?.name;
+      const thirdChoicePump = assessmentData.aiRecommendation?.alternatives?.[1]?.name;
+
+      // Insert assessment into Supabase
+      const { data, error } = await supabase
+        .from('pump_assessments')
+        .insert({
+          patient_id: currentUser.id, // Link to patients table
+          patient_name: assessmentData.patientName,
+          slider_values: assessmentData.sliderValues,
+          selected_features: assessmentData.selectedFeatures,
+          lifestyle_text: assessmentData.personalStory,
+          challenges_text: assessmentData.challenges,
+          priorities_text: assessmentData.priorities,
+          clarification_responses: assessmentData.clarifyingResponses,
+          final_recommendation: assessmentData.aiRecommendation,
+          first_choice_pump: firstChoicePump,
+          second_choice_pump: secondChoicePump,
+          third_choice_pump: thirdChoicePump,
+          recommendation_date: new Date().toISOString(),
+          assessment_version: assessmentData.assessmentVersion || 1,
+          created_at: assessmentData.timestamp,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        logError('PumpAssessment', 'Supabase insert failed', { error });
+        throw new Error(`Database error: ${error.message}`);
+      }
+
+      logInfo('PumpAssessment', 'Assessment saved successfully to Supabase', {
+        assessmentId: data.id
       });
 
-      return result;
+      return {
+        success: true,
+        assessmentId: data.id,
+        message: 'Assessment saved successfully',
+      };
     } catch (error) {
       logError('PumpAssessment', 'Failed to save assessment', { error });
       throw new Error(`Failed to save assessment: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -165,20 +188,42 @@ class PumpAssessmentService {
   }
 
   /**
-   * Retrieve assessment by ID
+   * Retrieve assessment by ID from Supabase
    */
-  async getAssessment(assessmentId: number): Promise<AssessmentData | null> {
+  async getAssessment(assessmentId: string): Promise<AssessmentData | null> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/pump-assessments/${assessmentId}/complete`);
+      const { data, error } = await supabase
+        .from('pump_assessments')
+        .select('*')
+        .eq('id', assessmentId)
+        .single();
 
-      if (!response.ok) {
-        if (response.status === 404) {
+      if (error) {
+        if (error.code === 'PGRST116') { // Not found
           return null;
         }
-        throw new Error(`HTTP ${response.status}`);
+        throw new Error(error.message);
       }
 
-      return await response.json();
+      // Map database fields to AssessmentData interface
+      return {
+        patientName: data.patient_name,
+        sliderValues: data.slider_values || {},
+        selectedFeatures: data.selected_features || [],
+        personalStory: data.lifestyle_text || '',
+        challenges: data.challenges_text,
+        priorities: data.priorities_text,
+        clarifyingResponses: data.clarification_responses || {},
+        aiRecommendation: data.final_recommendation,
+        conversationHistory: [],
+        assessmentFlow: 'hybrid',
+        timestamp: data.created_at,
+        firstChoicePump: data.first_choice_pump,
+        secondChoicePump: data.second_choice_pump,
+        thirdChoicePump: data.third_choice_pump,
+        recommendationDate: data.recommendation_date,
+        assessmentVersion: data.assessment_version,
+      };
     } catch (error) {
       logError('PumpAssessment', 'Failed to retrieve assessment', { error, assessmentId });
       throw new Error(`Failed to retrieve assessment: ${error instanceof Error ? error.message : 'Unknown error'}`);
