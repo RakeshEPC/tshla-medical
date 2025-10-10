@@ -103,8 +103,9 @@ class DeepgramService {
       logDebug('deepgram', `Connecting to Deepgram WebSocket`);
 
       // Create WebSocket connection with Authorization via subprotocol
-      // Format: ['token', '<your-deepgram-api-key>']
-      this.websocket = new WebSocket(wsUrl, ['token', this.apiKey]);
+      // Deepgram expects: 'token:YOUR_API_KEY' as a single protocol string
+      const protocol = `token:${this.apiKey}`;
+      this.websocket = new WebSocket(wsUrl, protocol);
 
       this.websocket.onopen = () => {
         this.isConnected = true;
