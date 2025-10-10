@@ -45,10 +45,10 @@ export default function LandingPage() {
                 </p>
               </div>
 
-              {/* CTA Button */}
+              {/* CTA Buttons */}
               <div className="flex gap-4">
                 <button
-                  onClick={() => navigate('/patient-login')}
+                  onClick={() => navigate('/patient-register')}
                   className="btn-tesla btn-tesla-primary px-12 py-4 text-base"
                 >
                   Get Started
@@ -57,7 +57,7 @@ export default function LandingPage() {
                   onClick={() => navigate('/patient-login')}
                   className="btn-tesla btn-tesla-outline-light px-8 py-4 text-base"
                 >
-                  Patient Portal
+                  Sign In
                 </button>
               </div>
             </div>
@@ -151,7 +151,7 @@ export default function LandingPage() {
               </ul>
 
               <button
-                onClick={() => navigate('/patient-login')}
+                onClick={() => navigate('/patient-register')}
                 className="btn-tesla btn-tesla-primary px-16 py-4 text-base"
               >
                 Get Started
