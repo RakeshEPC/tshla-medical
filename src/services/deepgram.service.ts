@@ -100,10 +100,10 @@ class DeepgramService {
       this.transcriptionCallback = onTranscription;
 
       const wsUrl = this.buildWebSocketUrl();
-      logDebug('deepgram', `Connecting to Deepgram WebSocket: ${wsUrl}`);
+      logDebug('deepgram', `Connecting to Deepgram WebSocket`);
 
-      // Create WebSocket with authorization token in URL
-      this.websocket = new WebSocket(wsUrl, ['token', this.apiKey]);
+      // Create WebSocket connection (token is in URL)
+      this.websocket = new WebSocket(wsUrl);
 
       this.websocket.onopen = () => {
         this.isConnected = true;
@@ -272,6 +272,7 @@ class DeepgramService {
   private buildWebSocketUrl(): string {
     const baseUrl = 'wss://api.deepgram.com/v1/listen';
     const params = new URLSearchParams({
+      token: this.apiKey, // Authentication token required in URL
       model: this.config.model,
       language: this.config.language,
       tier: this.config.tier,
