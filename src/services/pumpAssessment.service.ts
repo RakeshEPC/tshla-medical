@@ -115,52 +115,125 @@ class PumpAssessmentService {
    */
   async saveAssessment(assessmentData: AssessmentData): Promise<SaveAssessmentResponse> {
     try {
+      console.log('🔍 [PumpAssessment] Starting save process...');
       logInfo('PumpAssessment', 'Saving assessment to Supabase', {
         patientName: assessmentData.patientName,
         flow: assessmentData.assessmentFlow
       });
 
       // Get current authenticated user
+      console.log('🔍 [PumpAssessment] Fetching current authenticated user...');
       const userResult = await supabaseAuthService.getCurrentUser();
+
+      console.log('🔍 [PumpAssessment] Auth result:', {
+        success: userResult.success,
+        hasUser: !!userResult.user,
+        userId: userResult.user?.id,
+        email: userResult.user?.email,
+        role: userResult.user?.role,
+        accessType: userResult.user?.accessType,
+      });
+
       if (!userResult.success || !userResult.user) {
-        logError('PumpAssessment', 'User not authenticated', {});
+        console.error('❌ [PumpAssessment] User not authenticated!', userResult.error);
+        logError('PumpAssessment', 'User not authenticated', { error: userResult.error });
         throw new Error('User must be logged in to save assessment');
       }
 
       const currentUser = userResult.user;
+      console.log('✅ [PumpAssessment] User authenticated:', {
+        id: currentUser.id,
+        email: currentUser.email,
+        role: currentUser.role,
+      });
 
       // Extract pump choices from AI recommendation
       const firstChoicePump = assessmentData.aiRecommendation?.topChoice?.name;
       const secondChoicePump = assessmentData.aiRecommendation?.alternatives?.[0]?.name;
       const thirdChoicePump = assessmentData.aiRecommendation?.alternatives?.[1]?.name;
 
+      console.log('🔍 [PumpAssessment] Pump choices extracted:', {
+        first: firstChoicePump,
+        second: secondChoicePump,
+        third: thirdChoicePump,
+      });
+
+      // Prepare data for insert
+      const insertData = {
+        patient_id: currentUser.id, // Link to patients table
+        patient_name: assessmentData.patientName,
+        slider_values: assessmentData.sliderValues || {},
+        selected_features: assessmentData.selectedFeatures || [],
+        lifestyle_text: assessmentData.personalStory,
+        challenges_text: assessmentData.challenges,
+        priorities_text: assessmentData.priorities,
+        clarification_responses: assessmentData.clarifyingResponses || {},
+        final_recommendation: assessmentData.aiRecommendation,
+        first_choice_pump: firstChoicePump,
+        second_choice_pump: secondChoicePump,
+        third_choice_pump: thirdChoicePump,
+        recommendation_date: new Date().toISOString(),
+        assessment_version: assessmentData.assessmentVersion || 1,
+        created_at: assessmentData.timestamp,
+      };
+
+      console.log('🔍 [PumpAssessment] Preparing to insert data:', {
+        patient_id: insertData.patient_id,
+        patient_name: insertData.patient_name,
+        hasSliderValues: Object.keys(insertData.slider_values).length > 0,
+        hasSelectedFeatures: insertData.selected_features.length > 0,
+        hasRecommendation: !!insertData.final_recommendation,
+      });
+
       // Insert assessment into Supabase
+      console.log('🔍 [PumpAssessment] Attempting database insert...');
       const { data, error } = await supabase
         .from('pump_assessments')
-        .insert({
-          patient_id: currentUser.id, // Link to patients table
-          patient_name: assessmentData.patientName,
-          slider_values: assessmentData.sliderValues,
-          selected_features: assessmentData.selectedFeatures,
-          lifestyle_text: assessmentData.personalStory,
-          challenges_text: assessmentData.challenges,
-          priorities_text: assessmentData.priorities,
-          clarification_responses: assessmentData.clarifyingResponses,
-          final_recommendation: assessmentData.aiRecommendation,
-          first_choice_pump: firstChoicePump,
-          second_choice_pump: secondChoicePump,
-          third_choice_pump: thirdChoicePump,
-          recommendation_date: new Date().toISOString(),
-          assessment_version: assessmentData.assessmentVersion || 1,
-          created_at: assessmentData.timestamp,
-        })
+        .insert(insertData)
         .select()
         .single();
 
       if (error) {
-        logError('PumpAssessment', 'Supabase insert failed', { error });
-        throw new Error(`Database error: ${error.message}`);
+        console.error('❌ [PumpAssessment] Database insert failed!', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          fullError: error,
+        });
+
+        logError('PumpAssessment', 'Supabase insert failed', {
+          error,
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        });
+
+        // Provide more helpful error messages
+        let errorMessage = error.message;
+        if (error.code === '42501') {
+          errorMessage = 'Permission denied: Your account may not have permission to save assessments. Please contact support.';
+        } else if (error.code === '23503') {
+          errorMessage = 'Database reference error: Patient record not found. Please try logging in again.';
+        } else if (error.message.includes('RLS')) {
+          errorMessage = 'Security policy error: Unable to save assessment. Please try logging out and back in.';
+        }
+
+        throw new Error(`Database error: ${errorMessage}`);
       }
+
+      if (!data) {
+        console.error('❌ [PumpAssessment] No data returned from insert!');
+        logError('PumpAssessment', 'No data returned from insert', {});
+        throw new Error('No data returned from database insert');
+      }
+
+      console.log('✅ [PumpAssessment] Assessment saved successfully!', {
+        assessmentId: data.id,
+        patientId: data.patient_id,
+        timestamp: data.created_at,
+      });
 
       logInfo('PumpAssessment', 'Assessment saved successfully to Supabase', {
         assessmentId: data.id
@@ -172,6 +245,7 @@ class PumpAssessmentService {
         message: 'Assessment saved successfully',
       };
     } catch (error) {
+      console.error('❌ [PumpAssessment] Save failed:', error);
       logError('PumpAssessment', 'Failed to save assessment', { error });
       throw new Error(`Failed to save assessment: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }

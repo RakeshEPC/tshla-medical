@@ -85,8 +85,16 @@ export default function PatientRegister() {
     setError('');
 
     if (!validateForm()) {
+      console.log('❌ [PatientRegister] Form validation failed');
       return;
     }
+
+    console.log('🔍 [PatientRegister] Starting registration process...', {
+      email: formData.email,
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      enablePumpDrive: formData.enablePumpDrive,
+    });
 
     setLoading(true);
 
@@ -103,8 +111,26 @@ export default function PatientRegister() {
         enablePumpDrive: formData.enablePumpDrive,
       });
 
-      if (!result.success || !result.user) {
+      console.log('🔍 [PatientRegister] Registration result:', {
+        success: result.success,
+        hasUser: !!result.user,
+        userId: result.user?.id,
+        email: result.user?.email,
+        accessType: result.user?.accessType,
+        hasToken: !!result.token,
+        error: result.error,
+      });
+
+      if (!result.success) {
+        console.error('❌ [PatientRegister] Registration failed - not successful');
         setError(result.error || 'Registration failed. Please try again.');
+        setLoading(false);
+        return;
+      }
+
+      if (!result.user) {
+        console.error('❌ [PatientRegister] Registration failed - no user returned');
+        setError('Registration failed - no user data returned. Please try again.');
         setLoading(false);
         return;
       }
@@ -118,24 +144,44 @@ export default function PatientRegister() {
 
       // Handle email confirmation requirement
       if (result.error === 'CONFIRMATION_REQUIRED') {
+        console.log('📧 [PatientRegister] Email confirmation required - redirecting to login');
         setError('');
         alert('✅ Account created successfully!\n\nPlease check your email to confirm your account, then you can log in.');
         navigate('/patient-login');
         return;
       }
 
-      // Always redirect to assessment for pumpdrive users (default)
-      logInfo('PatientRegister', 'Redirecting to pumpdrive assessment', { accessType: result.user.accessType });
+      // Check if we have a valid session token
+      if (!result.token) {
+        console.warn('⚠️ [PatientRegister] No token returned - checking if session exists anyway');
+      } else {
+        console.log('✅ [PatientRegister] Token received, session should be active');
+      }
+
+      // Determine redirect destination
+      let redirectPath = '/pumpdrive/assessment'; // default
 
       if (result.user.accessType === 'pumpdrive') {
-        navigate('/pumpdrive/assessment');
+        redirectPath = '/pumpdrive/assessment';
       } else if (result.user.accessType === 'patient') {
-        navigate('/patient/dashboard');
-      } else {
-        // Fallback - default to pumpdrive since enablePumpDrive defaults to true
-        navigate('/pumpdrive/assessment');
+        redirectPath = '/patient/dashboard';
       }
+
+      console.log('🚀 [PatientRegister] Redirecting to:', redirectPath, {
+        accessType: result.user.accessType,
+        userId: result.user.id,
+      });
+
+      logInfo('PatientRegister', 'Redirecting user', {
+        accessType: result.user.accessType,
+        destination: redirectPath,
+      });
+
+      // Navigate to destination
+      navigate(redirectPath);
+
     } catch (err) {
+      console.error('❌ [PatientRegister] Unexpected error:', err);
       logError('PatientRegister', 'Registration error', { error: err });
       setError('An unexpected error occurred. Please try again.');
     } finally {
