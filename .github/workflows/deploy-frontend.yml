@@ -57,6 +57,13 @@ jobs:
           VITE_OPENAI_MODEL_STAGE5: gpt-4o
           VITE_OPENAI_MODEL_STAGE6: gpt-4o
           VITE_PRIMARY_AI_PROVIDER: openai
+          VITE_DEEPGRAM_API_KEY: ${{ secrets.VITE_DEEPGRAM_API_KEY }}
+          VITE_DEEPGRAM_MODEL: nova-2-medical
+          VITE_DEEPGRAM_LANGUAGE: en-US
+          VITE_DEEPGRAM_TIER: enhanced
+          VITE_PRIMARY_STT_PROVIDER: deepgram
+          VITE_USE_DEEPGRAM_SDK: true
+          VITE_PRIMARY_SPEECH_PROVIDER: deepgram
         run: npm run build
 
       - name: Post-Build Validation
