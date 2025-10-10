@@ -81,8 +81,8 @@ class DeepgramService {
       model: import.meta.env.VITE_DEEPGRAM_MODEL || 'medical',
       language: import.meta.env.VITE_DEEPGRAM_LANGUAGE || 'en-US',
       tier: import.meta.env.VITE_DEEPGRAM_TIER || 'enhanced',
-      encoding: 'linear16',
-      sampleRate: 16000,
+      encoding: 'opus', // Match MediaRecorder output format (audio/webm;codecs=opus)
+      sampleRate: 48000, // Opus typically uses 48kHz
       channels: 1
     };
 
@@ -290,8 +290,7 @@ class DeepgramService {
       model: this.config.model,
       language: this.config.language,
       tier: this.config.tier,
-      encoding: this.config.encoding,
-      sample_rate: this.config.sampleRate.toString(),
+      // NOTE: encoding/sample_rate omitted - Deepgram auto-detects from WebM/Opus container
       channels: this.config.channels.toString(),
       // Medical-specific parameters
       punctuate: 'true',
