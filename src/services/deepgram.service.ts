@@ -102,8 +102,9 @@ class DeepgramService {
       const wsUrl = this.buildWebSocketUrl();
       logDebug('deepgram', `Connecting to Deepgram WebSocket`);
 
-      // Create WebSocket connection (token is in URL)
-      this.websocket = new WebSocket(wsUrl);
+      // Create WebSocket connection with Authorization via subprotocol
+      // Format: ['token', '<your-deepgram-api-key>']
+      this.websocket = new WebSocket(wsUrl, ['token', this.apiKey]);
 
       this.websocket.onopen = () => {
         this.isConnected = true;
@@ -147,13 +148,25 @@ class DeepgramService {
       };
 
       this.websocket.onerror = (error) => {
-        logError('deepgram', `WebSocket error: ${error}`);
-        onError?.(new Error('Deepgram WebSocket error'));
+        logError('deepgram', `WebSocket error:`, error);
+        onError?.(new Error(`Deepgram WebSocket error: ${JSON.stringify(error)}`));
       };
 
       this.websocket.onclose = (event) => {
         this.isConnected = false;
-        logWarn('deepgram', `WebSocket closed: ${event.code} - ${event.reason}`);
+        const closeMsg = `WebSocket closed - Code: ${event.code}, Reason: "${event.reason || 'No reason provided'}", Clean: ${event.wasClean}`;
+        logError('deepgram', closeMsg);
+
+        // Log to console for debugging
+        console.error('Deepgram WebSocket Close Event:', {
+          code: event.code,
+          reason: event.reason,
+          wasClean: event.wasClean,
+          timestamp: new Date().toISOString()
+        });
+
+        // Call error callback with detailed info
+        onError?.(new Error(closeMsg));
 
         // Auto-reconnect on unexpected close
         if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
@@ -272,7 +285,7 @@ class DeepgramService {
   private buildWebSocketUrl(): string {
     const baseUrl = 'wss://api.deepgram.com/v1/listen';
     const params = new URLSearchParams({
-      token: this.apiKey, // Authentication token required in URL
+      // Authentication via WebSocket subprotocol, NOT query parameter
       model: this.config.model,
       language: this.config.language,
       tier: this.config.tier,
