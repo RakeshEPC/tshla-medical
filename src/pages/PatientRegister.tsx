@@ -109,7 +109,12 @@ export default function PatientRegister() {
         return;
       }
 
-      logInfo('PatientRegister', 'Registration successful', { userId: result.user.id });
+      logInfo('PatientRegister', 'Registration successful', {
+        userId: result.user.id,
+        accessType: result.user.accessType,
+        hasToken: !!result.token,
+        hasError: !!result.error
+      });
 
       // Handle email confirmation requirement
       if (result.error === 'CONFIRMATION_REQUIRED') {
@@ -119,11 +124,16 @@ export default function PatientRegister() {
         return;
       }
 
-      // Redirect based on access type (only if session exists)
+      // Always redirect to assessment for pumpdrive users (default)
+      logInfo('PatientRegister', 'Redirecting to pumpdrive assessment', { accessType: result.user.accessType });
+
       if (result.user.accessType === 'pumpdrive') {
         navigate('/pumpdrive/assessment');
-      } else {
+      } else if (result.user.accessType === 'patient') {
         navigate('/patient/dashboard');
+      } else {
+        // Fallback - default to pumpdrive since enablePumpDrive defaults to true
+        navigate('/pumpdrive/assessment');
       }
     } catch (err) {
       logError('PatientRegister', 'Registration error', { error: err });
