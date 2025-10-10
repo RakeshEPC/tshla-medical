@@ -57,6 +57,33 @@ export default function PatientRegistrationPage() {
       setAvaId(patient.patientAvaId);
       setShowSuccess(true);
 
+      // Clear all sessionStorage to ensure fresh start
+      const keysToRemove = [
+        'pumpDrivePatientName',
+        'pumpDriveSliders',
+        'selectedPumpFeatures',
+        'pumpDriveFreeText',
+        'pumpDriveClarifyingResponses',
+        'pumpDriveClarifyingQuestions',
+        'pumpdrive_recommendation',
+        'pumpDriveRecommendation',
+        'pumpDriveConversation',
+        'pumpdrive_responses',
+        'pumpDriveCompletedCategories',
+        'pumpdrive_category_order',
+        'pumpdrive_completed_categories',
+        'pumpdrive_priority_order',
+        'pumpdrive_assessment_id',
+        'pumpdrive_unsaved_recommendation'
+      ];
+      keysToRemove.forEach(key => sessionStorage.removeItem(key));
+
+      // Set fresh patient name from form data
+      sessionStorage.setItem('pumpDrivePatientName', `${formData.firstName} ${formData.lastName}`);
+      logInfo('PatientRegistration', 'SessionStorage cleared for new patient', {
+        name: `${formData.firstName} ${formData.lastName}`
+      });
+
       // Auto-login after registration
       await patientService.loginWithAvaId({ avaId: patient.patientAvaId });
 

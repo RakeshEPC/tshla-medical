@@ -5,6 +5,7 @@ import { pumpDrivePureAI } from '../services/pumpDrivePureAI.service';
 import { pumpDriveAIService } from '../services/pumpDriveAI.service';
 import { pumpAssessmentService, type AssessmentData } from '../services/pumpAssessment.service';
 import { pumpAuthService } from '../services/pumpAuth.service';
+import { supabaseAuthService } from '../services/supabaseAuth.service';
 import { assessmentHistoryService, type StoredAssessment } from '../services/assessmentHistory.service';
 import AssessmentDataViewer from '../components/pumpdrive/AssessmentDataViewer';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
@@ -143,21 +144,29 @@ export default function PumpDriveResults() {
         return;
       }
 
-      // Get current user
-      const currentUser = pumpAuthService.getUser();
-      if (!currentUser) {
+      // Get authenticated user with full details from database
+      const userResult = await supabaseAuthService.getCurrentUser();
+      if (!userResult.success || !userResult.user) {
         logWarn('PumpDriveResults', 'No authenticated user found, skipping database save', {});
         // Store in sessionStorage as fallback
         sessionStorage.setItem('pumpdrive_unsaved_recommendation', JSON.stringify(recommendationData));
         return;
       }
 
+      const currentUser = userResult.user;
+
+      // Use authenticated user's name from database (NOT stale sessionStorage)
+      const authenticatedPatientName = currentUser.name || `${currentUser.email}` || `User_${currentUser.id}`;
+
+      console.log('✅ Using authenticated patient name from database:', authenticatedPatientName);
+      logInfo('PumpDriveResults', 'Using authenticated patient name', { name: authenticatedPatientName });
+
       // Collect conversation history
       const existingConversation = JSON.parse(sessionStorage.getItem('pumpDriveConversation') || '[]');
 
       // Create assessment data with user information
       const assessmentData: AssessmentData = {
-        patientName: patientName || currentUser.username || `User_${currentUser.id}`,
+        patientName: authenticatedPatientName,
         userId: currentUser.id,
         sliderValues: JSON.parse(sessionStorage.getItem('pumpDriveSliders') || '{}'),
         selectedFeatures: JSON.parse(sessionStorage.getItem('selectedPumpFeatures') || '[]'),

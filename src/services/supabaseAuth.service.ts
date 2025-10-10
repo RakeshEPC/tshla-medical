@@ -126,6 +126,9 @@ class SupabaseAuthService {
         role: user.role,
       });
 
+      // Clear all PumpDrive sessionStorage to prevent stale data
+      this.clearPumpDriveSessionStorage();
+
       return {
         success: true,
         user,
@@ -208,6 +211,9 @@ class SupabaseAuthService {
         userId: user.id,
         pumpdriveEnabled: patientData.pumpdrive_enabled,
       });
+
+      // Clear all PumpDrive sessionStorage to prevent stale data from previous sessions
+      this.clearPumpDriveSessionStorage();
 
       return {
         success: true,
@@ -436,6 +442,15 @@ class SupabaseAuthService {
         authUserId: authData.user.id,
       };
 
+      console.log('✅ [SupabaseAuth] Patient registered successfully', {
+        userId: user.id,
+        mrn: mrn,
+        avaId: avaId,
+        needsEmailConfirmation: needsEmailConfirmation,
+        hasSession: !!authData.session,
+        hasToken: !!authData.session?.access_token,
+      });
+
       logInfo('SupabaseAuth', 'Patient registered successfully', {
         userId: user.id,
         mrn: mrn,
@@ -445,6 +460,7 @@ class SupabaseAuthService {
 
       // If email confirmation is required, return special message
       if (needsEmailConfirmation) {
+        console.log('📧 [SupabaseAuth] Email confirmation required - no session created yet');
         return {
           success: true,
           user,
@@ -452,6 +468,14 @@ class SupabaseAuthService {
           token: undefined,
         };
       }
+
+      console.log('✅ [SupabaseAuth] Registration complete with active session', {
+        hasToken: !!authData.session?.access_token,
+        sessionExpiresAt: authData.session?.expires_at,
+      });
+
+      // Clear all PumpDrive sessionStorage to ensure fresh start for new patient
+      this.clearPumpDriveSessionStorage();
 
       return {
         success: true,
@@ -604,6 +628,39 @@ class SupabaseAuthService {
     } catch (error) {
       return null;
     }
+  }
+
+  /**
+   * Clear all PumpDrive-related sessionStorage to prevent stale data
+   * Called on login/registration to ensure fresh session
+   */
+  private clearPumpDriveSessionStorage(): void {
+    const keysToRemove = [
+      'pumpDrivePatientName',
+      'pumpDriveSliders',
+      'selectedPumpFeatures',
+      'pumpDriveFreeText',
+      'pumpDriveClarifyingResponses',
+      'pumpDriveClarifyingQuestions',
+      'pumpdrive_recommendation',
+      'pumpDriveRecommendation',
+      'pumpDriveConversation',
+      'pumpdrive_responses',
+      'pumpDriveCompletedCategories',
+      'pumpdrive_category_order',
+      'pumpdrive_completed_categories',
+      'pumpdrive_priority_order',
+      'pumpdrive_assessment_id',
+      'pumpdrive_unsaved_recommendation'
+    ];
+
+    keysToRemove.forEach(key => {
+      sessionStorage.removeItem(key);
+    });
+
+    logDebug('SupabaseAuth', 'Cleared PumpDrive sessionStorage for fresh session', {
+      clearedKeys: keysToRemove.length
+    });
   }
 
   /**
