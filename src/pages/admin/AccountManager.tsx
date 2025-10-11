@@ -67,6 +67,7 @@ export default function AccountManager() {
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
   const [filterType, setFilterType] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [accountsError, setAccountsError] = useState<string | null>(null);
 
   // Reset Password State
   const [resetEmail, setResetEmail] = useState('');
@@ -195,31 +196,83 @@ export default function AccountManager() {
 
   const loadAccounts = async () => {
     setIsLoadingAccounts(true);
-    console.log('🔍 Loading accounts from:', API_URL);
+    setAccountsError(null);
+
+    console.log('🔍 [AccountManager] Starting loadAccounts...');
+    console.log('🔍 [AccountManager] API URL:', API_URL);
+
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        console.error('❌ No session found');
+      // Check session first
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError || !session) {
+        const errorMsg = 'No active session found. Please log in again.';
+        console.error('❌ [AccountManager]', errorMsg, sessionError);
+        setAccountsError(errorMsg);
+        setIsLoadingAccounts(false);
         return;
       }
-      console.log('✅ Session valid, fetching accounts...');
+
+      console.log('✅ [AccountManager] Session valid');
+      console.log('   User:', session.user.email);
+      console.log('   Token exists:', !!session.access_token);
 
       const params = new URLSearchParams();
       if (filterType !== 'all') params.append('accountType', filterType);
       if (searchQuery) params.append('search', searchQuery);
 
-      const response = await fetch(`${API_URL}/api/accounts/list?${params.toString()}`, {
+      const url = `${API_URL}/api/accounts/list?${params.toString()}`;
+      console.log('📡 [AccountManager] Fetching:', url);
+
+      // Use fetch with manual error handling to prevent authInterceptor redirect
+      const response = await fetch(url, {
+        method: 'GET',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        // Prevent the authInterceptor from auto-redirecting
+        signal: AbortSignal.timeout(10000) // 10 second timeout
+      }).catch(fetchError => {
+        console.error('❌ [AccountManager] Fetch failed:', fetchError);
+        throw new Error(`Network error: ${fetchError.message}`);
       });
 
-      const result = await response.json();
-      if (result.success) {
-        setAccounts(result.accounts);
+      console.log('📥 [AccountManager] Response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { error: errorText };
+        }
+
+        const errorMsg = `API Error (${response.status}): ${errorData.error || response.statusText}`;
+        console.error('❌ [AccountManager]', errorMsg);
+        console.error('   Full response:', errorData);
+
+        setAccountsError(errorMsg);
+        setIsLoadingAccounts(false);
+        return;
       }
-    } catch (error) {
-      console.error('Failed to load accounts:', error);
+
+      const result = await response.json();
+      console.log('✅ [AccountManager] Got', result.accounts?.length || 0, 'accounts');
+
+      if (result.success) {
+        setAccounts(result.accounts || []);
+        setAccountsError(null);
+      } else {
+        const errorMsg = result.error || 'Failed to load accounts';
+        console.error('❌ [AccountManager]', errorMsg);
+        setAccountsError(errorMsg);
+      }
+    } catch (error: any) {
+      const errorMsg = `Error: ${error.message || 'Unknown error occurred'}`;
+      console.error('❌ [AccountManager] Exception:', error);
+      setAccountsError(errorMsg);
     } finally {
       setIsLoadingAccounts(false);
     }
@@ -606,6 +659,46 @@ export default function AccountManager() {
                   Refresh
                 </button>
               </div>
+
+              {/* Error Display */}
+              {accountsError && (
+                <div className="bg-red-50 border-2 border-red-200 rounded-lg p-6 mb-6">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-red-900 mb-2">Failed to Load Accounts</h3>
+                      <p className="text-red-800 mb-4">{accountsError}</p>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={loadAccounts}
+                          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                        >
+                          Try Again
+                        </button>
+                        <button
+                          onClick={() => window.open('https://tshla-admin-api-container.redpebble-e4551b7a.eastus.azurecontainerapps.io/api/health', '_blank')}
+                          className="px-4 py-2 bg-white text-red-600 border border-red-600 rounded-lg hover:bg-red-50"
+                        >
+                          Check API Status
+                        </button>
+                      </div>
+                      <div className="mt-4 p-3 bg-white rounded border border-red-200">
+                        <p className="text-sm text-gray-700 mb-2"><strong>Debug Info:</strong></p>
+                        <p className="text-xs text-gray-600 font-mono break-all">
+                          API URL: {API_URL}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-2">
+                          Open browser Console (F12) to see detailed error logs
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Accounts Table */}
               {isLoadingAccounts ? (
