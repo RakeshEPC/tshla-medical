@@ -37,6 +37,9 @@ export default function MedicalDictation({ patientId, preloadPatientData = false
   const [showProcessed, setShowProcessed] = useState(false);
   const [recordingError, setRecordingError] = useState<string>('');
   const [recordingMode, setRecordingMode] = useState<'dictation' | 'conversation' | null>(null); // Force selection
+  const [audioLevel, setAudioLevel] = useState<number>(0);
+  const [isTestingMicrophone, setIsTestingMicrophone] = useState(false);
+  const [microphoneTestResult, setMicrophoneTestResult] = useState<string>('');
   // Speech recognition ref removed - using HIPAA-compliant services
   const [doctorSpecialty, setDoctorSpecialty] = useState<string>('');
   const [selectedTemplate, setSelectedTemplate] = useState<DoctorTemplate | null>(null);
@@ -420,135 +423,309 @@ export default function MedicalDictation({ patientId, preloadPatientData = false
 
   // Initialize HIPAA-compliant speech services
   useEffect(() => {
-    logDebug('MedicalDictation', 'Debug message', {});
-    
+    logDebug('MedicalDictation', 'Initializing speech services...');
+
     // Check if speech services are available
     if (!speechServiceRouter.isAnyServiceAvailable()) {
       setRecordingError('HIPAA-compliant speech services are not configured. Please contact administrator.');
-      logWarn('MedicalDictation', 'Warning message', {});
+      logWarn('MedicalDictation', 'No speech services available');
       return;
     }
 
-    logInfo('MedicalDictation', 'Info message', {});
-    logDebug('MedicalDictation', 'Debug message', {}); 
+    logInfo('MedicalDictation', 'Speech services initialized successfully');
+    logDebug('MedicalDictation', 'Service status:', speechServiceRouter.getServiceStatus());
 
     return () => {
       // Cleanup will be handled by individual services
-      logDebug('MedicalDictation', 'Debug message', {});
+      logDebug('MedicalDictation', 'Component unmounting, cleaning up services');
     };
   }, []);
 
-  const startRecording = async () => {
-    if (isRecording) return;
-    
-    if (!recordingMode) {
-      alert('Please select a recording mode (Dictation or Conversation) before starting.');
+  // Monitor audio level while recording
+  useEffect(() => {
+    if (!isRecording) {
+      setAudioLevel(0);
       return;
     }
-    
+
+    const audioLevelInterval = setInterval(() => {
+      try {
+        const service = speechServiceRouter.getStreamingService();
+        if (service && typeof (service as any).getAudioLevel === 'function') {
+          const level = (service as any).getAudioLevel();
+          setAudioLevel(level);
+
+          // Warn if no audio detected after 5 seconds
+          if (level < 5 && isRecording) {
+            const recordingDuration = Date.now() - (window as any)._recordingStartTime || 0;
+            if (recordingDuration > 5000) {
+              logWarn('MedicalDictation', 'Very low audio level detected - microphone may not be working');
+            }
+          }
+        }
+      } catch (error) {
+        logWarn('MedicalDictation', `Error getting audio level: ${error}`);
+      }
+    }, 100); // Update every 100ms for smooth visualization
+
+    // Store recording start time
+    (window as any)._recordingStartTime = Date.now();
+
+    return () => {
+      clearInterval(audioLevelInterval);
+      delete (window as any)._recordingStartTime;
+    };
+  }, [isRecording]);
+
+  // Test microphone function
+  const testMicrophone = async () => {
+    setIsTestingMicrophone(true);
+    setMicrophoneTestResult('');
+    setRecordingError('');
+
     try {
-      // Use Speech Service Router for Azure/AWS migration support
-      logDebug('MedicalDictation', 'Debug message', {});
-      
+      logInfo('MedicalDictation', 'Starting microphone test...');
+
+      const service = speechServiceRouter.getStreamingService();
+      if (!service || typeof (service as any).testMicrophone !== 'function') {
+        throw new Error('Microphone test is not available for the current service');
+      }
+
+      const result = await (service as any).testMicrophone();
+
+      if (result.success) {
+        const deviceName = result.deviceInfo?.label || 'Unknown Device';
+        const audioLevel = result.audioLevel || 0;
+
+        let message = `✅ Microphone Test Successful!\n\n`;
+        message += `Device: ${deviceName}\n`;
+        message += `Audio Level: ${audioLevel}/255\n\n`;
+
+        if (audioLevel < 10) {
+          message += `⚠️ Warning: Audio level is very low (${audioLevel}/255).\n`;
+          message += `Please check:\n`;
+          message += `• Microphone is not muted\n`;
+          message += `• Microphone volume is turned up\n`;
+          message += `• You are speaking close to the microphone\n`;
+        } else if (audioLevel < 30) {
+          message += `⚠️ Audio level is low. Consider speaking closer to the microphone or increasing volume.\n`;
+        } else {
+          message += `🎉 Audio level is good! You're ready to record.`;
+        }
+
+        setMicrophoneTestResult(message);
+        logInfo('MedicalDictation', `Microphone test passed: ${deviceName}, level: ${audioLevel}`);
+        alert(message);
+      } else {
+        const errorMsg = result.error || 'Unknown error';
+        setMicrophoneTestResult(`❌ Microphone Test Failed\n\n${errorMsg}`);
+        setRecordingError(errorMsg);
+        logError('MedicalDictation', `Microphone test failed: ${errorMsg}`);
+        alert(`❌ Microphone Test Failed\n\n${errorMsg}`);
+      }
+    } catch (error: any) {
+      const errorMsg = error?.message || String(error) || 'Unknown error';
+      const message = `❌ Microphone Test Failed\n\n${errorMsg}`;
+      setMicrophoneTestResult(message);
+      setRecordingError(errorMsg);
+      logError('MedicalDictation', `Microphone test error: ${errorMsg}`);
+      alert(message);
+    } finally {
+      setIsTestingMicrophone(false);
+    }
+  };
+
+  const startRecording = async () => {
+    if (isRecording) return;
+
+    if (!recordingMode) {
+      const message = 'Please select a recording mode (Dictation or Conversation) before starting.';
+      setRecordingError(message);
+      alert(message);
+      return;
+    }
+
+    // Clear any previous errors
+    setRecordingError('');
+
+    try {
+      logInfo('MedicalDictation', `Starting ${recordingMode} recording...`);
+
       const transcriptionStarted = await speechServiceRouter.startRecording(
         recordingMode === 'conversation' ? 'conversation' : 'dictation',
         {
-          onTranscript:
-        (text, isFinal) => {
-          logDebug('MedicalDictation', 'Debug message', {});
-          const corrected = medicalCorrections.correctTranscription(text);
-          
-          if (!isFinal) {
-            // Show partial results
-            setInterimText(corrected);
-          } else {
-            // Append final results
-            setTranscript(prev => {
-              const updated = prev + (prev ? ' ' : '') + corrected;
-              logDebug('MedicalDictation', 'Debug message', {});
-              return updated;
-            });
-            setInterimText('');
+          onTranscript: (text, isFinal) => {
+            if (!text || text.trim().length === 0) {
+              // Ignore empty transcripts
+              return;
+            }
+
+            logDebug('MedicalDictation', `Transcript received: "${text}" (final: ${isFinal})`);
+            const corrected = medicalCorrections.correctTranscription(text);
+
+            if (!isFinal) {
+              // Show partial results
+              setInterimText(corrected);
+            } else {
+              // Append final results
+              setTranscript(prev => {
+                const updated = prev + (prev ? ' ' : '') + corrected;
+                logDebug('MedicalDictation', `Updated transcript: ${updated.length} chars, ${updated.split(/\s+/).length} words`);
+                return updated;
+              });
+              setInterimText('');
+            }
+          },
+          onError: (error) => {
+            logError('MedicalDictation', `Speech recognition error: ${error}`);
+
+            // Parse and show user-friendly error
+            let userMessage = 'Recording Error\n\n';
+
+            if (typeof error === 'string') {
+              // The error from deepgramAdapter already has user-friendly messages
+              userMessage += error;
+            } else {
+              userMessage += 'An unexpected error occurred. Please try again.';
+            }
+
+            setRecordingError(userMessage);
+            setIsRecording(false);
+
+            // Show alert for critical errors
+            if (error.includes('permission') || error.includes('microphone') || error.includes('Deepgram')) {
+              alert(userMessage);
+            }
           }
-        },
-        onError: (error) => {
-          logError('MedicalDictation', 'Error message', {});
-          setRecordingError(`Speech Recognition Error: ${error}`);
-          setIsRecording(false);
         }
-      }
       );
-      
+
       if (transcriptionStarted) {
         setIsRecording(true);
         setRecordingError('');
-        logInfo('MedicalDictation', 'Info message', {});
+        logInfo('MedicalDictation', `${recordingMode} recording started successfully`);
       } else {
-        setRecordingError('Failed to start AWS Transcribe Medical');
+        const errorMsg = 'Failed to start recording service. Please check your microphone and browser permissions.';
+        setRecordingError(errorMsg);
+        logError('MedicalDictation', errorMsg);
+        alert(errorMsg);
       }
-    } catch (error) {
-      logError('MedicalDictation', 'Error message', {});
-      setRecordingError('Failed to start recording. Please try again.');
+    } catch (error: any) {
+      const errorMessage = error?.message || String(error) || 'Unknown error';
+      logError('MedicalDictation', `Failed to start recording: ${errorMessage}`);
+
+      // Show user-friendly error
+      let userMessage = '❌ Failed to Start Recording\n\n';
+
+      if (errorMessage.includes('Deepgram') || errorMessage.includes('VITE_DEEPGRAM_API_KEY')) {
+        userMessage +=
+          'The speech recognition service is not properly configured.\n\n' +
+          'Please contact your system administrator.';
+      } else if (errorMessage.includes('permission') || errorMessage.includes('NotAllowed')) {
+        userMessage +=
+          'Microphone permission is required.\n\n' +
+          'Please:\n' +
+          '1. Click the microphone icon in your browser\'s address bar\n' +
+          '2. Allow microphone access\n' +
+          '3. Try recording again';
+      } else if (errorMessage.includes('NotFound') || errorMessage.includes('No microphone')) {
+        userMessage +=
+          'No microphone was detected.\n\n' +
+          'Please:\n' +
+          '1. Connect a microphone\n' +
+          '2. Check it\'s enabled in system settings\n' +
+          '3. Refresh the page';
+      } else if (errorMessage.includes('NotReadable') || errorMessage.includes('already in use')) {
+        userMessage +=
+          'Your microphone is being used by another application.\n\n' +
+          'Please:\n' +
+          '1. Close other apps using the microphone\n' +
+          '2. Refresh this page\n' +
+          '3. Try again';
+      } else {
+        userMessage += errorMessage + '\n\nPlease try again or contact support if the issue persists.';
+      }
+
+      setRecordingError(userMessage);
+      alert(userMessage);
     }
   };
 
   const stopRecording = async () => {
     if (!isRecording) {
-      logDebug('MedicalDictation', 'Debug message', {});
+      logDebug('MedicalDictation', 'Stop recording called but not currently recording');
       return;
     }
-    
-    logDebug('MedicalDictation', 'Debug message', {});
-    
+
+    logInfo('MedicalDictation', 'Stopping recording...');
+
     // Immediately set recording to false to update UI
     setIsRecording(false);
-    
+
     // Stop the Speech Service Router
     try {
       speechServiceRouter.stopRecording();
-      logDebug('MedicalDictation', 'Debug message', {});
-      
+      logDebug('MedicalDictation', 'Speech service stopped successfully');
+
       // Speech service router handles transcript internally
       // Final transcript is already set via callbacks
     } catch (error) {
-      logError('MedicalDictation', 'Error message', {});
+      logError('MedicalDictation', `Error stopping speech service: ${error}`);
+      setRecordingError('Failed to stop recording properly. Some audio may have been lost.');
     }
-    
+
     // Build the final transcript including any interim text
     let finalTranscript = transcript;
     if (interimText.trim()) {
       const correctedText = medicalCorrections.correctTranscription(interimText);
       finalTranscript = transcript + (transcript ? ' ' : '') + correctedText;
-      logDebug('MedicalDictation', 'Debug message', {});
+      logDebug('MedicalDictation', `Added interim text: "${correctedText}"`);
     }
-    
+
     // Always update transcript state with the final version
     if (finalTranscript !== transcript || interimText.trim()) {
       setTranscript(finalTranscript);
       setInterimText('');
     }
-    
-    // Check current transcript state as well
-    logDebug('MedicalDictation', 'Debug message', {});
-    logDebug('MedicalDictation', 'Debug message', {});
-    logDebug('MedicalDictation', 'Debug message', {});
-    
+
+    // Check current transcript state
+    logDebug('MedicalDictation', `Final transcript length: ${finalTranscript.length} characters`);
+    logDebug('MedicalDictation', `Word count: ${finalTranscript.split(/\s+/).filter(w => w.length > 0).length}`);
+
     // Process with AI if we have any content (transcript or interim)
     if (finalTranscript.trim() || transcript.trim() || interimText.trim()) {
-      logDebug('MedicalDictation', 'Debug message', {});
+      logInfo('MedicalDictation', 'Audio captured successfully, processing with AI...');
+
       // Force update transcript if needed
       if (!finalTranscript.trim() && (transcript.trim() || interimText.trim())) {
         finalTranscript = transcript + (transcript && interimText ? ' ' : '') + interimText;
         setTranscript(finalTranscript);
       }
+
       // Pass the finalTranscript directly to avoid closure issues
       // Use setTimeout to ensure state updates have propagated
       setTimeout(() => {
         processWithAI(finalTranscript);
       }, 100);
     } else {
-      logDebug('MedicalDictation', 'Debug message', {});
-      alert('No audio was captured. Please check your microphone permissions and try again.');
+      // No audio was captured - show detailed error message
+      logWarn('MedicalDictation', 'No audio captured during recording session');
+
+      const errorMessage =
+        '❌ No Audio Captured\n\n' +
+        'Please check the following:\n\n' +
+        '✓ Microphone is connected and turned on\n' +
+        '✓ Browser has microphone permissions (check address bar)\n' +
+        '✓ Microphone is not muted or volume is not at 0\n' +
+        '✓ No other app is using the microphone\n' +
+        '✓ You spoke clearly during recording\n\n' +
+        'Tips:\n' +
+        '• Click "Test Microphone" to verify your setup\n' +
+        '• Try using the "Test Microphone" button before recording\n' +
+        '• Refresh the page and allow microphone access when prompted';
+
+      setRecordingError(errorMessage);
+      alert(errorMessage);
     }
   };
 
@@ -888,6 +1065,16 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
 
             {/* Recording and Process Controls - Moved to Top */}
             <div className="flex items-center gap-2">
+              {/* Test Microphone Button */}
+              <button
+                onClick={testMicrophone}
+                disabled={isRecording || isTestingMicrophone || isProcessing}
+                className="px-4 py-3 bg-purple-100 text-purple-700 text-sm font-bold rounded-lg hover:bg-purple-200 disabled:bg-gray-300 disabled:cursor-not-allowed transition shadow"
+                title="Test your microphone before recording"
+              >
+                {isTestingMicrophone ? '🔄 TESTING...' : '🎤 TEST MIC'}
+              </button>
+
               <button
                 onClick={isRecording ? stopRecording : startRecording}
                 disabled={isProcessing || !recordingMode}
@@ -903,7 +1090,27 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
               >
                 {isRecording ? '⏹ STOP RECORDING' : '🎙️ START RECORDING'}
               </button>
-              
+
+              {/* Audio Level Indicator */}
+              {isRecording && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border-2 border-green-400">
+                  <span className="text-xs font-semibold text-gray-700">AUDIO:</span>
+                  <div className="w-24 h-4 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-100 ${
+                        audioLevel < 10
+                          ? 'bg-red-500'
+                          : audioLevel < 50
+                          ? 'bg-yellow-500'
+                          : 'bg-green-500'
+                      }`}
+                      style={{ width: `${Math.min((audioLevel / 255) * 100, 100)}%` }}
+                    />
+                  </div>
+                  <span className="text-xs font-mono text-gray-600">{audioLevel}</span>
+                </div>
+              )}
+
               <button
                 onClick={() => processWithAI()}
                 disabled={!transcript.trim() || isProcessing}
