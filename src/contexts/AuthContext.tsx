@@ -29,11 +29,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Check if user is already authenticated using unified auth service
     const checkAuth = async () => {
+      console.log('🔍 [AuthContext] Starting auth check...');
       try {
         const isAuth = await unifiedAuthService.isAuthenticated();
+        console.log('🔍 [AuthContext] isAuthenticated() result:', isAuth);
+
         if (isAuth) {
+          console.log('🔍 [AuthContext] User is authenticated, fetching profile...');
           const result = await unifiedAuthService.getCurrentUser();
+          console.log('🔍 [AuthContext] getCurrentUser() result:', {
+            success: result.success,
+            hasUser: !!result.user,
+            error: result.error,
+            user: result.user ? {
+              id: result.user.id,
+              email: result.user.email,
+              role: result.user.role,
+              accessType: result.user.accessType
+            } : null
+          });
+
           if (result.success && result.user) {
+            console.log('✅ [AuthContext] User profile loaded successfully');
             setUser({
               id: result.user.id,
               email: result.user.email,
@@ -43,11 +60,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               practiceId: result.user.id,
               accessType: result.user.accessType,
             });
+          } else {
+            console.error('❌ [AuthContext] Failed to get user profile:', result.error);
           }
+        } else {
+          console.log('❌ [AuthContext] No active session found');
         }
       } catch (error) {
+        console.error('❌ [AuthContext] Exception during auth check:', error);
         logError('AuthContext', 'Failed to check authentication', { error });
       } finally {
+        console.log('🔍 [AuthContext] Auth check complete, loading=false');
         setLoading(false);
       }
     };

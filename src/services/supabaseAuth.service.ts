@@ -510,23 +510,47 @@ class SupabaseAuthService {
    */
   async getCurrentUser(): Promise<AuthResult> {
     try {
+      console.log('🔍 [SupabaseAuth] getCurrentUser() - Checking Supabase session...');
       const { data: { user }, error } = await supabase.auth.getUser();
 
       if (error || !user) {
+        console.error('❌ [SupabaseAuth] No Supabase auth user found:', error?.message);
         return {
           success: false,
           error: 'Not authenticated',
         };
       }
 
+      console.log('✅ [SupabaseAuth] Found Supabase auth user:', {
+        id: user.id,
+        email: user.email
+      });
+
       // Try medical_staff first
-      const { data: staffData } = await supabase
+      console.log('🔍 [SupabaseAuth] Querying medical_staff table...');
+      const { data: staffData, error: staffError } = await supabase
         .from('medical_staff')
         .select('*')
         .eq('auth_user_id', user.id)
         .single();
 
+      if (staffError) {
+        console.warn('⚠️ [SupabaseAuth] medical_staff query error:', {
+          code: staffError.code,
+          message: staffError.message,
+          details: staffError.details,
+          hint: staffError.hint
+        });
+      }
+
       if (staffData) {
+        console.log('✅ [SupabaseAuth] Found medical_staff record:', {
+          id: staffData.id,
+          email: staffData.email,
+          role: staffData.role,
+          isActive: staffData.is_active,
+          isVerified: staffData.is_verified
+        });
         return {
           success: true,
           user: {
@@ -541,14 +565,24 @@ class SupabaseAuthService {
         };
       }
 
+      console.log('⚠️ [SupabaseAuth] No medical_staff record found, trying patients...');
+
       // Try patients (unified - includes PumpDrive)
-      const { data: patientData } = await supabase
+      const { data: patientData, error: patientError } = await supabase
         .from('patients')
         .select('*')
         .eq('auth_user_id', user.id)
         .single();
 
+      if (patientError) {
+        console.warn('⚠️ [SupabaseAuth] patients query error:', {
+          code: patientError.code,
+          message: patientError.message
+        });
+      }
+
       if (patientData) {
+        console.log('✅ [SupabaseAuth] Found patient record');
         return {
           success: true,
           user: {
@@ -562,11 +596,20 @@ class SupabaseAuthService {
         };
       }
 
+      console.error('❌ [SupabaseAuth] User profile not found in any table');
+      console.error('   Supabase auth user ID:', user.id);
+      console.error('   Email:', user.email);
+      console.error('   This usually means:');
+      console.error('   1. Row-Level Security (RLS) policy is blocking the query');
+      console.error('   2. medical_staff record with auth_user_id=' + user.id + ' does not exist');
+      console.error('   3. Database connection issue');
+
       return {
         success: false,
         error: 'User profile not found',
       };
     } catch (error) {
+      console.error('❌ [SupabaseAuth] Exception in getCurrentUser:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to get user',

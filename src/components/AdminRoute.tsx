@@ -35,13 +35,35 @@ export default function AdminRoute({ children }: { children: React.ReactNode }) 
     );
   }
 
+  // DEBUG: Log auth state
+  console.log('🔐 [AdminRoute] Auth Check:', {
+    isAuthenticated,
+    loading,
+    authCheckDelay,
+    user: user ? {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      accessType: user.accessType
+    } : null
+  });
+
   // Check if user is authenticated
   if (!isAuthenticated) {
+    console.error('❌ [AdminRoute] NOT AUTHENTICATED - Redirecting to login');
+    console.log('   User object:', user);
+    console.log('   isAuthenticated:', isAuthenticated);
     return <Navigate to="/login" replace />;
   }
 
   // Check if user has admin role (admin or super_admin)
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+
+  console.log('👤 [AdminRoute] Role Check:', {
+    userRole: user?.role,
+    isAdmin,
+    requiredRoles: ['admin', 'super_admin']
+  });
 
   if (!isAdmin) {
     return (
