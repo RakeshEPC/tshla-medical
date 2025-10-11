@@ -102,10 +102,9 @@ class DeepgramService {
       const wsUrl = this.buildWebSocketUrl();
       logDebug('deepgram', `Connecting to Deepgram WebSocket`);
 
-      // Create WebSocket connection with Authorization via subprotocol
-      // Deepgram expects: 'token:YOUR_API_KEY' as a single protocol string
-      const protocol = `token:${this.apiKey}`;
-      this.websocket = new WebSocket(wsUrl, protocol);
+      // Create WebSocket connection
+      // Authentication is now handled via the token parameter in the URL
+      this.websocket = new WebSocket(wsUrl);
 
       this.websocket.onopen = () => {
         this.isConnected = true;
@@ -286,7 +285,8 @@ class DeepgramService {
   private buildWebSocketUrl(): string {
     const baseUrl = 'wss://api.deepgram.com/v1/listen';
     const params = new URLSearchParams({
-      // Authentication via WebSocket subprotocol, NOT query parameter
+      // Authentication via query parameter (browsers don't support custom WS headers)
+      token: this.apiKey,
       model: this.config.model,
       language: this.config.language,
       tier: this.config.tier,
