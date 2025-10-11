@@ -36,6 +36,7 @@ interface Account {
 }
 
 export default function AccountManager() {
+  // Cache-bust: 2025-10-11T12:00:00Z - Force fresh deployment
   const { user } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'create' | 'manage' | 'reset'>('create');
@@ -194,9 +195,14 @@ export default function AccountManager() {
 
   const loadAccounts = async () => {
     setIsLoadingAccounts(true);
+    console.log('🔍 Loading accounts from:', API_URL);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      if (!session) {
+        console.error('❌ No session found');
+        return;
+      }
+      console.log('✅ Session valid, fetching accounts...');
 
       const params = new URLSearchParams();
       if (filterType !== 'all') params.append('accountType', filterType);
