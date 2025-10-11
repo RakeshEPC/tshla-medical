@@ -122,9 +122,7 @@ class SpeechServiceRouter {
   isAnyServiceAvailable(): boolean {
     return (
       deepgramSDKService.isConfigured() ||
-      deepgramAdapter.isConfigured() ||
-      awsTranscribeStreamingFixed.isConfigured() ||
-      awsTranscribeSimple.isInitialized()
+      deepgramAdapter.isConfigured()
     );
   }
 
@@ -139,8 +137,9 @@ class SpeechServiceRouter {
         adapter: deepgramAdapter.isConfigured(),
       },
       aws: {
-        streaming: awsTranscribeStreamingFixed.isConfigured(),
-        simple: awsTranscribeSimple.isInitialized(),
+        status: 'DEPRECATED - Moved to _deprecated/ folder',
+        streaming: false,
+        simple: false,
       },
       azure: {
         status: 'DISABLED - Out of credits/quota issues',
