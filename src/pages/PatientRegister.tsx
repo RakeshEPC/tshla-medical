@@ -32,6 +32,9 @@ export default function PatientRegister() {
 
   const [validationErrors, setValidationErrors] = useState<Partial<Record<keyof RegistrationData, string>>>({});
 
+  // Debug: Component mounted
+  console.log('✅ [PatientRegister] Component loaded and ready');
+
   const validateForm = (): boolean => {
     const errors: Partial<Record<keyof RegistrationData, string>> = {};
 
@@ -82,10 +85,13 @@ export default function PatientRegister() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('🚀 [PatientRegister] Form submitted!');
+
     setError('');
 
     if (!validateForm()) {
-      console.log('❌ [PatientRegister] Form validation failed');
+      console.log('❌ [PatientRegister] Form validation failed', validationErrors);
+      setError('Please fix the errors in the form');
       return;
     }
 
