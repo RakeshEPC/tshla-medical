@@ -118,8 +118,37 @@ export const setupFetchInterceptor = () => {
     try {
       const response = await originalFetch(...args);
 
-      // Check for auth errors
+      // Get the request URL
+      const requestUrl = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
+
+      // SKIP auth interception for admin API calls
+      // Let the admin UI handle errors gracefully with proper error messages
+      const isAdminApi = requestUrl.includes('tshla-admin-api-container') ||
+                         requestUrl.includes('/api/accounts/');
+
+      // SKIP auth interception for admin routes
+      const currentPath = window.location.pathname;
+      const isAdminRoute = currentPath.startsWith('/admin');
+
+      if (isAdminApi || isAdminRoute) {
+        console.log('🔓 [AuthInterceptor] SKIPPING interception for:', {
+          url: requestUrl,
+          path: currentPath,
+          status: response.status,
+          reason: isAdminApi ? 'Admin API call' : 'Admin route'
+        });
+        // Return the response as-is, let the calling code handle errors
+        return response;
+      }
+
+      // Check for auth errors on non-admin requests
       if (response.status === 401 || response.status === 403) {
+        console.log('🚨 [AuthInterceptor] Auth error detected:', {
+          url: requestUrl,
+          status: response.status,
+          path: currentPath
+        });
+
         // Clone the response for error handling
         const clonedResponse = response.clone();
 
