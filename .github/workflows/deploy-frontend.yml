@@ -63,9 +63,9 @@ jobs:
           VITE_DEEPGRAM_LANGUAGE: en-US
           VITE_DEEPGRAM_TIER: enhanced
           VITE_PRIMARY_STT_PROVIDER: deepgram
-          VITE_USE_DEEPGRAM_SDK: true
+          VITE_USE_DEEPGRAM_SDK: "true"
           VITE_PRIMARY_SPEECH_PROVIDER: deepgram
-          VITE_USE_DEEPGRAM_PROXY: true
+          VITE_USE_DEEPGRAM_PROXY: "true"
           VITE_DEEPGRAM_PROXY_URL: wss://tshla-deepgram-proxy.redpebble-e4551b7a.eastus.azurecontainerapps.io
         run: npm run build
 
