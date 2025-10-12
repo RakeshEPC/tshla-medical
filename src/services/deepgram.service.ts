@@ -72,8 +72,15 @@ class DeepgramService {
   constructor() {
     this.apiKey = import.meta.env.VITE_DEEPGRAM_API_KEY;
 
+    // Debug logging to verify API key is loaded
     if (!this.apiKey) {
-      throw new Error('VITE_DEEPGRAM_API_KEY environment variable is required');
+      console.error('❌ CRITICAL: VITE_DEEPGRAM_API_KEY is undefined!');
+      console.error('Available environment variables:', Object.keys(import.meta.env).filter(key => key.startsWith('VITE_')));
+      throw new Error('Deepgram API key not configured. Set VITE_DEEPGRAM_API_KEY environment variable.');
+    } else {
+      const keyPreview = this.apiKey.substring(0, 8) + '...' + this.apiKey.substring(this.apiKey.length - 4);
+      console.log('✅ Deepgram API key loaded:', keyPreview);
+      console.log('   Key length:', this.apiKey.length, 'characters');
     }
 
     this.config = {
@@ -85,6 +92,12 @@ class DeepgramService {
       sampleRate: 48000, // Opus typically uses 48kHz
       channels: 1
     };
+
+    console.log('✅ Deepgram configuration:', {
+      model: this.config.model,
+      language: this.config.language,
+      tier: this.config.tier
+    });
 
     logInfo('deepgram', `Initialized with model: ${this.config.model}`);
   }
@@ -154,8 +167,41 @@ class DeepgramService {
 
       this.websocket.onclose = (event) => {
         this.isConnected = false;
-        const closeMsg = `WebSocket closed - Code: ${event.code}, Reason: "${event.reason || 'No reason provided'}", Clean: ${event.wasClean}`;
-        logError('deepgram', closeMsg);
+
+        let errorMessage = `WebSocket closed - Code: ${event.code}, Reason: "${event.reason || 'No reason provided'}", Clean: ${event.wasClean}`;
+
+        // Add specific error messages for common error codes
+        if (event.code === 1006) {
+          errorMessage += '\n\n⚠️ ERROR 1006: Abnormal Closure (Connection failed before handshake)';
+          errorMessage += '\n\n🔍 Most common causes:';
+          errorMessage += '\n   1. Invalid or missing Deepgram API key';
+          errorMessage += '\n   2. Network/firewall blocking WebSocket connections';
+          errorMessage += '\n   3. Deepgram service temporarily unavailable';
+          errorMessage += '\n   4. CORS policy blocking the connection';
+          errorMessage += '\n\n💡 Troubleshooting:';
+          errorMessage += '\n   • Check browser console for "Deepgram API key loaded" message';
+          errorMessage += '\n   • Verify internet connection is stable';
+          errorMessage += '\n   • Try refreshing the page or using a different browser';
+          errorMessage += '\n   • Check Deepgram service status at status.deepgram.com';
+
+          console.error('❌ Deepgram Error 1006 - Detailed Info:', {
+            code: event.code,
+            reason: event.reason || 'None provided',
+            wasClean: event.wasClean,
+            apiKeyConfigured: !!this.apiKey,
+            apiKeyLength: this.apiKey?.length || 0,
+            model: this.config.model,
+            timestamp: new Date().toISOString()
+          });
+        } else if (event.code === 4008) {
+          errorMessage += '\n\n⚠️ ERROR 4008: Invalid API key or authentication failed';
+          errorMessage += '\n   Your Deepgram API key may be invalid or expired.';
+        } else if (event.code === 4009) {
+          errorMessage += '\n\n⚠️ ERROR 4009: Insufficient credits';
+          errorMessage += '\n   Your Deepgram account has run out of credits.';
+        }
+
+        logError('deepgram', errorMessage);
 
         // Log to console for debugging
         console.error('Deepgram WebSocket Close Event:', {
@@ -166,10 +212,10 @@ class DeepgramService {
         });
 
         // Call error callback with detailed info
-        onError?.(new Error(closeMsg));
+        onError?.(new Error(errorMessage));
 
-        // Auto-reconnect on unexpected close
-        if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
+        // Auto-reconnect on unexpected close (except for auth errors)
+        if (event.code !== 1000 && event.code !== 4008 && this.reconnectAttempts < this.maxReconnectAttempts) {
           this.attemptReconnect(onTranscription, onError);
         }
       };
@@ -284,6 +330,13 @@ class DeepgramService {
    */
   private buildWebSocketUrl(): string {
     const baseUrl = 'wss://api.deepgram.com/v1/listen';
+
+    // Verify API key exists before building URL
+    if (!this.apiKey || this.apiKey.length === 0) {
+      console.error('❌ Cannot build WebSocket URL: API key is missing');
+      throw new Error('Deepgram API key is required but not set');
+    }
+
     const params = new URLSearchParams({
       // Authentication via query parameter (browsers don't support custom WS headers)
       token: this.apiKey,
@@ -304,7 +357,18 @@ class DeepgramService {
       keywords: 'medical:2,diagnosis:2,prescription:2,medication:2,symptoms:2,treatment:2'
     });
 
-    return `${baseUrl}?${params.toString()}`;
+    const fullUrl = `${baseUrl}?${params.toString()}`;
+
+    // Debug logging (without exposing full API key)
+    console.log('🔗 Building Deepgram WebSocket URL:', {
+      baseUrl,
+      tokenPresent: params.has('token'),
+      tokenLength: this.apiKey.length,
+      model: this.config.model,
+      paramCount: Array.from(params.keys()).length
+    });
+
+    return fullUrl;
   }
 
   /**
