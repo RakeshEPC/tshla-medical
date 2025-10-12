@@ -12,10 +12,16 @@ const { createClient } = require('@supabase/supabase-js');
 const app = express();
 const PORT = process.env.ADMIN_ACCOUNT_PORT || 3004;
 
-// Supabase client with SERVICE ROLE (bypasses RLS)
+// Supabase client with SERVICE ROLE (bypasses RLS for admin operations)
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+// Supabase client with ANON KEY (for JWT token validation)
+const supabaseAuth = createClient(
+  process.env.VITE_SUPABASE_URL,
+  process.env.VITE_SUPABASE_ANON_KEY
 );
 
 // Middleware
@@ -43,15 +49,18 @@ async function verifyAdmin(req, res, next) {
 
     const token = authHeader.substring(7);
 
-    // Verify the token with Supabase
+    // Verify the token with Supabase (use anon key client for JWT validation)
     const {
       data: { user },
       error,
-    } = await supabase.auth.getUser(token);
+    } = await supabaseAuth.auth.getUser(token);
 
     if (error || !user) {
+      console.error('Token validation failed:', error?.message);
       return res.status(401).json({ error: 'Invalid token' });
     }
+
+    console.log('✅ Token validated for user:', user.email);
 
     // Get the medical_staff record to check role
     const { data: staffData, error: staffError } = await supabase
