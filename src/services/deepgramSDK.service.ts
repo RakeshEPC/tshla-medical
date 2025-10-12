@@ -269,7 +269,8 @@ class DeepgramSDKService implements SpeechServiceInterface {
       // Check if we should use proxy for WebSocket connection
       const useProxyEnv = import.meta.env.VITE_USE_DEEPGRAM_PROXY;
       const proxyUrl = import.meta.env.VITE_DEEPGRAM_PROXY_URL || 'ws://localhost:8080';
-      const useProxy = useProxyEnv === 'true';
+      // Handle both boolean (from YAML) and string (from .env files)
+      const useProxy = useProxyEnv === 'true' || useProxyEnv === true;
 
       console.log('🔍 Deepgram Connection Configuration:', {
         VITE_USE_DEEPGRAM_PROXY: useProxyEnv,
