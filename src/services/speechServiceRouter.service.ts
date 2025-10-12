@@ -70,14 +70,15 @@ class SpeechServiceRouter {
    * Get the streaming service (main transcription interface)
    */
   getStreamingService(): SpeechServiceInterface {
-    // Priority: Deepgram Adapter (primary - working WebSocket auth) → Deepgram SDK (fallback)
-    // The adapter uses manual WebSocket implementation which works better in browsers
-    if (deepgramAdapter.isConfigured()) {
-      logInfo('speechServiceRouter', 'Using Deepgram Adapter for streaming (manual WebSocket)');
-      return deepgramAdapter;
-    } else if (deepgramSDKService.isConfigured()) {
-      logInfo('speechServiceRouter', 'Using Deepgram SDK for streaming');
+    // Priority: Deepgram SDK (primary - official SDK with proper auth) → Deepgram Adapter (fallback)
+    // The SDK uses the official @deepgram/sdk which handles WebSocket authentication properly
+    // The adapter uses manual WebSocket which fails due to browser limitations on custom headers
+    if (deepgramSDKService.isConfigured()) {
+      logInfo('speechServiceRouter', 'Using Deepgram SDK for streaming (official SDK with proper auth)');
       return deepgramSDKService;
+    } else if (deepgramAdapter.isConfigured()) {
+      logInfo('speechServiceRouter', 'Using Deepgram Adapter for streaming (fallback - may have auth issues)');
+      return deepgramAdapter;
     } else {
       logError('speechServiceRouter', 'No speech services available - check Deepgram configuration');
       throw new Error('Deepgram transcription service not configured. Please set VITE_DEEPGRAM_API_KEY');
