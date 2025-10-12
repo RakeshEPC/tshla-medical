@@ -89,6 +89,135 @@ class DeepgramSDKService implements SpeechServiceInterface {
   }
 
   /**
+   * Build WebSocket URL for proxy connection
+   */
+  private buildProxyWebSocketUrl(proxyUrl: string, config: any): string {
+    // Create URL with all Deepgram parameters
+    const params = new URLSearchParams();
+
+    // Add all configuration parameters
+    params.set('model', config.model);
+    params.set('language', config.language);
+    params.set('encoding', config.encoding);
+    params.set('sample_rate', config.sample_rate.toString());
+    params.set('channels', config.channels.toString());
+    params.set('tier', config.tier);
+    params.set('punctuate', config.punctuate.toString());
+    params.set('profanity_filter', config.profanity_filter.toString());
+    params.set('redact', config.redact.toString());
+    params.set('diarize', config.diarize.toString());
+    params.set('smart_format', config.smart_format.toString());
+    params.set('utterances', config.utterances.toString());
+    params.set('endpointing', config.endpointing.toString());
+    params.set('interim_results', config.interim_results.toString());
+    params.set('vad_events', config.vad_events.toString());
+
+    // Add keywords
+    if (config.keywords && Array.isArray(config.keywords)) {
+      config.keywords.forEach((keyword: string) => {
+        params.append('keywords', keyword);
+      });
+    }
+
+    return `${proxyUrl}?${params.toString()}`;
+  }
+
+  /**
+   * Create proxy WebSocket connection that mimics Deepgram SDK connection
+   */
+  private createProxyConnection(wsUrl: string): any {
+    const ws = new WebSocket(wsUrl);
+    const eventHandlers: Record<string, Function[]> = {};
+
+    // Create an object that mimics the Deepgram SDK connection interface
+    const connection = {
+      // Store WebSocket instance
+      _ws: ws,
+
+      // on() method to register event handlers
+      on(event: string, handler: Function) {
+        if (!eventHandlers[event]) {
+          eventHandlers[event] = [];
+        }
+        eventHandlers[event].push(handler);
+      },
+
+      // send() method to send audio data
+      send(data: any) {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(data);
+        } else {
+          logWarn('deepgramSDK', `Cannot send data - WebSocket not open (state: ${ws.readyState})`);
+        }
+      },
+
+      // finish() method to close connection
+      finish() {
+        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+          ws.send(JSON.stringify({ type: 'CloseStream' }));
+          ws.close(1000, 'Client finished');
+        }
+      },
+
+      // getReadyState() method
+      getReadyState() {
+        return ws.readyState;
+      }
+    };
+
+    // Set up WebSocket event handlers
+    ws.onopen = () => {
+      logInfo('deepgramSDK', 'Proxy WebSocket connection opened');
+      const handlers = eventHandlers[LiveTranscriptionEvents.Open] || [];
+      handlers.forEach(handler => handler());
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+
+        // Handle different message types from proxy
+        if (data.type === 'open') {
+          // Connection opened message
+          logInfo('deepgramSDK', 'Deepgram connection established via proxy');
+        } else if (data.type === 'error') {
+          // Error message
+          const handlers = eventHandlers[LiveTranscriptionEvents.Error] || [];
+          handlers.forEach(handler => handler(new Error(data.error)));
+        } else if (data.type === 'close') {
+          // Close message
+          const handlers = eventHandlers[LiveTranscriptionEvents.Close] || [];
+          handlers.forEach(handler => handler(data));
+        } else if (data.type === 'metadata') {
+          // Metadata message
+          const handlers = eventHandlers[LiveTranscriptionEvents.Metadata] || [];
+          handlers.forEach(handler => handler(data.metadata));
+        } else {
+          // Transcription data
+          const handlers = eventHandlers[LiveTranscriptionEvents.Transcript] || [];
+          handlers.forEach(handler => handler(data));
+        }
+      } catch (error) {
+        logError('deepgramSDK', `Error parsing proxy message: ${error}`);
+      }
+    };
+
+    ws.onerror = (error) => {
+      logError('deepgramSDK', `Proxy WebSocket error: ${error}`);
+      const handlers = eventHandlers[LiveTranscriptionEvents.Error] || [];
+      handlers.forEach(handler => handler(error));
+    };
+
+    ws.onclose = (event) => {
+      logInfo('deepgramSDK', `Proxy WebSocket closed: code=${event.code}, reason=${event.reason}`);
+      const handlers = eventHandlers[LiveTranscriptionEvents.Close] || [];
+      handlers.forEach(handler => handler(event));
+    };
+
+    return connection;
+  }
+
+  /**
    * Start transcription (main method)
    */
   async startTranscription(
@@ -137,8 +266,33 @@ class DeepgramSDKService implements SpeechServiceInterface {
         vad_events: true
       };
 
-      // Create live transcription connection
-      this.connection = this.deepgram.listen.live(liveConfig);
+      // Check if we should use proxy for WebSocket connection
+      const useProxyEnv = import.meta.env.VITE_USE_DEEPGRAM_PROXY;
+      const proxyUrl = import.meta.env.VITE_DEEPGRAM_PROXY_URL || 'ws://localhost:8080';
+      const useProxy = useProxyEnv === 'true';
+
+      console.log('🔍 Deepgram Connection Configuration:', {
+        VITE_USE_DEEPGRAM_PROXY: useProxyEnv,
+        VITE_DEEPGRAM_PROXY_URL: proxyUrl,
+        useProxy: useProxy,
+        willUseProxy: useProxy ? 'YES - Using proxy' : 'NO - Direct connection (will fail in browser)'
+      });
+
+      if (useProxy) {
+        logInfo('deepgramSDK', `Using Deepgram proxy at ${proxyUrl}`);
+        console.log(`✅ Connecting via proxy: ${proxyUrl}`);
+
+        // Create WebSocket connection to proxy instead of directly to Deepgram
+        // The proxy will handle authentication and forward to Deepgram
+        const wsUrl = this.buildProxyWebSocketUrl(proxyUrl, liveConfig);
+        console.log(`📡 Proxy WebSocket URL: ${wsUrl.substring(0, 100)}...`);
+        this.connection = this.createProxyConnection(wsUrl);
+      } else {
+        // Direct connection to Deepgram (official SDK)
+        logInfo('deepgramSDK', 'Using direct Deepgram SDK connection');
+        console.warn('⚠️ WARNING: Using direct connection to Deepgram - this will fail in browsers due to WebSocket auth limitations');
+        this.connection = this.deepgram.listen.live(liveConfig);
+      }
 
       // Set up event listeners
       this.connection.on(LiveTranscriptionEvents.Open, () => {
