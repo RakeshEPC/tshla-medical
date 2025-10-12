@@ -61,12 +61,18 @@ class DeepgramSDKService implements SpeechServiceInterface {
     };
 
     if (!this.config.apiKey) {
+      console.error('❌ CRITICAL: VITE_DEEPGRAM_API_KEY is undefined in deepgramSDK!');
       throw new Error('VITE_DEEPGRAM_API_KEY environment variable is required');
     }
+
+    const keyPreview = this.config.apiKey.substring(0, 8) + '...' + this.config.apiKey.substring(this.config.apiKey.length - 4);
+    console.log('✅ Deepgram SDK: API key loaded:', keyPreview);
+    console.log('   Key length:', this.config.apiKey.length, 'characters');
 
     // Initialize Deepgram client
     this.deepgram = createClient(this.config.apiKey);
 
+    console.log('✅ Deepgram SDK client created successfully');
     logInfo('deepgramSDK', `Initialized with model: ${this.config.model}`);
   }
 
@@ -137,6 +143,7 @@ class DeepgramSDKService implements SpeechServiceInterface {
       // Set up event listeners
       this.connection.on(LiveTranscriptionEvents.Open, () => {
         logInfo('deepgramSDK', 'Deepgram connection opened successfully');
+        console.log('✅ Deepgram WebSocket CONNECTED - transcription ready!');
         this.isRecording = true;
       });
 
@@ -145,11 +152,31 @@ class DeepgramSDKService implements SpeechServiceInterface {
       });
 
       this.connection.on(LiveTranscriptionEvents.Error, (error: any) => {
+        console.error('❌ Deepgram SDK Error Details:', {
+          error: error,
+          errorType: typeof error,
+          errorMessage: error?.message || error,
+          errorString: String(error),
+          timestamp: new Date().toISOString()
+        });
+
+        // Check if it's an authentication error
+        if (String(error).includes('401') || String(error).includes('Unauthorized') || String(error).includes('authentication')) {
+          console.error('🔑 AUTHENTICATION ERROR - API key may be invalid or not being sent properly');
+        }
+
         logError('deepgramSDK', `Deepgram error: ${error}`);
         this.handleError(new Error(`Deepgram error: ${error.message || error}`));
       });
 
-      this.connection.on(LiveTranscriptionEvents.Close, () => {
+      this.connection.on(LiveTranscriptionEvents.Close, (closeEvent: any) => {
+        console.error('⚠️ Deepgram WebSocket CLOSED:', {
+          code: closeEvent?.code,
+          reason: closeEvent?.reason || 'No reason provided',
+          wasClean: closeEvent?.wasClean,
+          timestamp: new Date().toISOString()
+        });
+
         logInfo('deepgramSDK', 'Deepgram connection closed');
         this.isRecording = false;
       });
