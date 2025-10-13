@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { unifiedAuthService } from '../services/unifiedAuth.service';
+import { supabaseAuthService as unifiedAuthService } from '../services/supabaseAuth.service';
 import { chartService } from '../services/chart.service';
 import { actionExtractionService } from '../services/actionExtraction.service';
 import { auditService } from '../services/audit.service';

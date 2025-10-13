@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { scheduleImportService } from '../services/scheduleImport.service';
-import { unifiedAuthService } from '../services/unifiedAuth.service';
+import { supabaseAuthService as unifiedAuthService } from '../services/supabaseAuth.service';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
 
 interface ScheduleImportModalProps {

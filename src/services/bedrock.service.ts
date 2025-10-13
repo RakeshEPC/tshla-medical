@@ -196,185 +196,6 @@ class BedrockService {
       return this.createEmergencyNote(transcript, patient);
     }
   }
-          
-        } catch (error: any) {
-          // Check for rate limit error (429 or TooManyRequestsException)
-          if (error?.name === 'TooManyRequestsException' || 
-              error?.name === 'ThrottlingException' ||
-              error?.$metadata?.httpStatusCode === 429 ||
-              error?.message?.toLowerCase().includes('too many requests') ||
-              error?.message?.toLowerCase().includes('throttl') ||
-              error?.message?.toLowerCase().includes('rate')) {
-            retryCount++;
-            if (retryCount > maxRetries) {
-              logError('bedrock', 'Error message', {});
-              throw new Error('AI service is temporarily busy. Please wait a moment and try again.');
-            }
-            continue; // Retry with backoff
-          }
-          
-          // Check for model access issues and try next model in preference list
-          if (error?.name === 'AccessDeniedException' || 
-              error?.name === 'ValidationException' ||
-              error?.message?.includes('Operation not allowed') ||
-              error?.message?.includes('not authorized') ||
-              error?.message?.includes('model') ||
-              error?.$metadata?.httpStatusCode === 403 ||
-              error?.$metadata?.httpStatusCode === 400) {
-            
-            logWarn('bedrock', 'Warning message', {});
-            
-            // Try the fallback model
-            const fallbackModels = [this.fallbackModelId, 'anthropic.claude-3-sonnet-20240229-v1:0', 'anthropic.claude-instant-v1', 'anthropic.claude-v2'];
-            for (const nextModelId of fallbackModels) {
-              
-              logDebug('bedrock', 'Debug message', {});
-              
-              try {
-                const fallbackCommand = new InvokeModelCommand({
-                  modelId: nextModelId,
-                  contentType: 'application/json',
-                  accept: 'application/json',
-                  body: JSON.stringify({
-                    anthropic_version: 'bedrock-2023-05-31',
-                    max_tokens: 2000,
-                    temperature: 0.3,
-                    messages: [
-                      {
-                        role: 'user',
-                        content: prompt
-                      }
-                    ]
-                  })
-                });
-                
-                response = await this.client.send(fallbackCommand);
-                
-                // Success! Save this as the working model
-                this.workingModelId = nextModelId;
-                logInfo('bedrock', 'Info message', {});
-                break; // Exit both loops
-              } catch (modelError: any) {
-                logDebug('bedrock', 'Debug message', {});
-                continue; // Try next model
-              }
-            }
-            
-            if (!response) {
-              logError('bedrock', 'Error message', {});
-              throw new Error('AWS Bedrock models not accessible. Please enable Claude models in the AWS Bedrock console at: https://console.aws.amazon.com/bedrock/');
-            }
-            break; // Exit retry loop if we found a working model
-          }
-          
-          // If it's a different type of error, check if we should try fallback
-          if (error?.name === 'ValidationException' || 
-              error?.message?.includes('model') ||
-              error?.message?.includes('not found')) {
-            logWarn('bedrock', 'Warning message', {});
-            const fallbackCommand = new InvokeModelCommand({
-              modelId: this.fallbackModelId,
-              contentType: 'application/json',
-              accept: 'application/json',
-              body: JSON.stringify({
-                anthropic_version: 'bedrock-2023-05-31',
-                max_tokens: 2000,
-                temperature: 0.3,
-                messages: [
-                  {
-                    role: 'user',
-                    content: prompt
-                  }
-                ]
-              })
-            });
-            
-            // Apply same retry logic for fallback model
-            retryCount = 0;
-            while (retryCount <= maxRetries) {
-              try {
-                if (retryCount > 0) {
-                  const delay = Math.min(1000 * Math.pow(2, retryCount), 8000);
-                  logDebug('bedrock', 'Debug message', {});
-                  await new Promise(resolve => setTimeout(resolve, delay));
-                }
-                response = await this.client.send(fallbackCommand);
-                // Update the modelId for future calls
-                this.modelId = this.fallbackModelId;
-                logInfo('bedrock', 'Info message', {});
-                break;
-              } catch (fallbackError: any) {
-                if (fallbackError?.name === 'TooManyRequestsException' || 
-                    fallbackError?.name === 'ThrottlingException' ||
-                    fallbackError?.$metadata?.httpStatusCode === 429) {
-                  retryCount++;
-                  if (retryCount > maxRetries) {
-                    throw new Error('AI service is temporarily busy. Please wait a moment and try again.');
-                  }
-                  continue;
-                }
-                throw fallbackError;
-              }
-            }
-            break; // Exit main loop after fallback
-          } else {
-            throw error; // Other errors, don't retry
-          }
-        }
-      }
-      const responseBody = JSON.parse(new TextDecoder().decode(response.body));
-      
-      return this.parseResponse(responseBody.content[0].text, patient, template, transcript);
-    } catch (error) {
-      logError('bedrock', 'Error message', {});
-      
-      // Try Azure OpenAI as fallback when Bedrock fails
-      logWarn('bedrock', 'Warning message', {});
-      
-      try {
-        // Convert template to string format for Azure OpenAI
-        const templateString = template ? 
-          `${template.name}\n${template.sections.map(s => s.title).join('\n')}` : 
-          'Standard SOAP Note Format';
-        
-        const azureResult = await azureOpenAIService.processTranscription(
-          transcript,
-          templateString,
-          {
-            name: patient.fullName,
-            mrn: patient.mrn,
-            dob: patient.dateOfBirth
-          }
-        );
-        
-        logInfo('bedrock', 'Info message', {});
-        
-        // Convert Azure OpenAI result to our ProcessedNote format
-        return {
-          formatted: azureResult.formattedNote,
-          sections: {
-            chiefComplaint: azureResult.sections.chiefComplaint,
-            historyOfPresentIllness: azureResult.sections.hpi,
-            reviewOfSystems: azureResult.sections.reviewOfSystems,
-            physicalExam: azureResult.sections.physicalExam,
-            assessment: azureResult.sections.assessment,
-            plan: azureResult.sections.plan
-          },
-          metadata: {
-            processedAt: new Date().toISOString(),
-            model: azureResult.metadata?.model || 'Azure OpenAI',
-            confidence: 0.85
-          }
-        };
-      } catch (azureError) {
-        logError('bedrock', 'Error message', {});
-        
-        // If both Bedrock and Azure fail, provide basic formatting
-        logWarn('bedrock', 'Warning message', {});
-        return this.createBasicFormattedNote(transcript, patient);
-      }
-    }
-  }
 
   /**
    * Process medical transcription using Azure OpenAI (Primary Provider)
@@ -676,11 +497,7 @@ IMPORTANT: Only return the medical note content. Do not include instructions or 
       }
       
       // Format based on template type
-      let formatted: string;
-      logDebug('bedrock', 'Debug message', {});
-      logDebug('bedrock', 'Debug message', {});
-      logDebug('bedrock', 'Debug message', {}); : 'No template');
-      logDebug('bedrock', 'Debug message', {}); 
+      let formatted: string 
       
       if (template && template.sections && parsed.sections) {
         logDebug('bedrock', 'Debug message', {});
@@ -708,8 +525,8 @@ IMPORTANT: Only return the medical note content. Do not include instructions or 
         
         // Add to sections
         parsed.sections.ordersAndActions = ordersAndActions;
-        
-        logInfo('bedrock', 'Info message', {});.length, 'lines');
+
+        logInfo('bedrock', 'Added extracted orders to note sections');
       }
       
       // Generate patient summary if we don't have one

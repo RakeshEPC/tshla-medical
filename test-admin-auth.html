@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Auth Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>Admin Auth Test</h1>
+    <button onclick="testAuth()">Test Auth</button>
+    <pre id="output"></pre>
+
+    <script>
+        const supabase = window.supabase.createClient(
+            'https://minvvjdflezibmgkplqb.supabase.co',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1pbnZ2amRmbGV6aWJtZ2twbHFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkwNDE1OTAsImV4cCI6MjA1NDYxNzU5MH0.UVrmcvVl9Vv_j-s-f3D_P2LOHnTCRv7qd9mPWW0nZ5w'
+        );
+
+        async function testAuth() {
+            const output = document.getElementById('output');
+            output.textContent = 'Testing...\n';
+
+            // Get session
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+            if (sessionError || !session) {
+                output.textContent += '❌ NO SESSION FOUND\n';
+                output.textContent += 'Error: ' + (sessionError?.message || 'No session') + '\n';
+                output.textContent += '\nYou need to log in first at https://www.tshla.ai/login\n';
+                return;
+            }
+
+            output.textContent += '✅ Session found\n';
+            output.textContent += 'User ID: ' + session.user.id + '\n';
+            output.textContent += 'Email: ' + session.user.email + '\n';
+            output.textContent += 'Token (first 50): ' + session.access_token.substring(0, 50) + '...\n\n';
+
+            // Test Admin API
+            output.textContent += 'Testing Admin API...\n';
+            const apiUrl = 'https://tshla-admin-api-container.redpebble-e4551b7a.eastus.azurecontainerapps.io/api/accounts/list';
+
+            try {
+                const response = await fetch(apiUrl, {
+                    headers: {
+                        'Authorization': `Bearer ${session.access_token}`
+                    }
+                });
+
+                output.textContent += 'Response status: ' + response.status + ' ' + response.statusText + '\n';
+
+                const data = await response.json();
+                output.textContent += 'Response: ' + JSON.stringify(data, null, 2) + '\n';
+
+                if (response.ok) {
+                    output.textContent += '\n✅ SUCCESS! Admin API works!\n';
+                    output.textContent += 'Found ' + data.accounts?.length + ' accounts\n';
+                } else {
+                    output.textContent += '\n❌ FAILED! Status: ' + response.status + '\n';
+                    output.textContent += 'Error: ' + data.error + '\n';
+                }
+            } catch (error) {
+                output.textContent += '❌ FETCH ERROR: ' + error.message + '\n';
+            }
+        }
+    </script>
+</body>
+</html>

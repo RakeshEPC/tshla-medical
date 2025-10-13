@@ -19,13 +19,60 @@ if (!env.supabase.url || !env.supabase.anonKey) {
   );
 }
 
-// Create Supabase client
+/**
+ * Custom storage adapter with fallback for Chrome's strict privacy settings
+ * Handles cases where localStorage is blocked by browser privacy settings
+ */
+const createStorageAdapter = () => {
+  // Test if localStorage is accessible
+  const isLocalStorageAvailable = (() => {
+    try {
+      const testKey = '__supabase_test__';
+      localStorage.setItem(testKey, 'test');
+      localStorage.removeItem(testKey);
+      return true;
+    } catch (e) {
+      console.warn('⚠️ localStorage blocked - using in-memory storage fallback');
+      return false;
+    }
+  })();
+
+  // In-memory fallback storage for when localStorage is blocked
+  const memoryStorage = new Map<string, string>();
+
+  return {
+    getItem: (key: string) => {
+      if (isLocalStorageAvailable) {
+        return localStorage.getItem(key);
+      }
+      return memoryStorage.get(key) ?? null;
+    },
+    setItem: (key: string, value: string) => {
+      if (isLocalStorageAvailable) {
+        localStorage.setItem(key, value);
+      } else {
+        memoryStorage.set(key, value);
+      }
+    },
+    removeItem: (key: string) => {
+      if (isLocalStorageAvailable) {
+        localStorage.removeItem(key);
+      } else {
+        memoryStorage.delete(key);
+      }
+    },
+  };
+};
+
+// Create Supabase client with Chrome-compatible storage
 export const supabase = createClient(env.supabase.url, env.supabase.anonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
     flowType: 'pkce', // PKCE flow for enhanced security
+    storage: createStorageAdapter(), // Custom storage with fallback
+    storageKey: 'tshla-medical-auth', // Unique key to avoid conflicts
   },
   db: {
     schema: 'public',

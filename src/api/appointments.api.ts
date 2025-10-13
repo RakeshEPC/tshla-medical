@@ -8,7 +8,7 @@ import {
   type Appointment,
   type AppointmentCreateData,
 } from '../services/appointmentBrowser.service';
-import { unifiedAuthService } from '../services/unifiedAuth.service';
+import { supabaseAuthService as unifiedAuthService } from '../services/supabaseAuth.service';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';

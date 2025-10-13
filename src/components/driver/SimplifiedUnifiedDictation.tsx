@@ -4,7 +4,7 @@ import { SOAPTemplate } from '@/lib/soapTemplates';
 import { medicalAPI } from '@/lib/api/medical-api';
 import { useTemplateStore } from '@/hooks/useTemplateStore';
 import { doctorProfileService } from '@/services/doctorProfile.service';
-import { unifiedAuthService } from '@/services/unifiedAuth.service';
+import { supabaseAuthService as unifiedAuthService } from '@/services/supabaseAuth.service';
 import { logError, logWarn, logInfo, logDebug } from '../../services/logger.service';
 
 interface SimplifiedDictationProps {

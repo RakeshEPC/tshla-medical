@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Deepgram Proxy Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        #log {
+            border: 1px solid #ccc;
+            padding: 10px;
+            height: 400px;
+            overflow-y: auto;
+            background: #f5f5f5;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <h1>Deepgram Proxy Connection Test</h1>
+
+    <div>
+        <button id="testHealth">Test Proxy Health</button>
+        <button id="testWebSocket">Test WebSocket Connection</button>
+        <button id="testMicrophone">Test Microphone Access</button>
+        <button id="clearLog">Clear Log</button>
+    </div>
+
+    <h2>Test Log:</h2>
+    <div id="log"></div>
+
+    <script>
+        const log = document.getElementById('log');
+
+        function addLog(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        document.getElementById('clearLog').addEventListener('click', () => {
+            log.innerHTML = '';
+        });
+
+        document.getElementById('testHealth').addEventListener('click', async () => {
+            addLog('Testing proxy health endpoint...', 'info');
+            try {
+                const response = await fetch('http://localhost:8080/health');
+                const data = await response.json();
+                addLog(`✅ Proxy health check passed: ${JSON.stringify(data)}`, 'success');
+            } catch (error) {
+                addLog(`❌ Proxy health check failed: ${error.message}`, 'error');
+            }
+        });
+
+        document.getElementById('testWebSocket').addEventListener('click', () => {
+            addLog('Testing WebSocket connection to proxy...', 'info');
+
+            const wsUrl = 'ws://localhost:8080?model=nova-2-medical&language=en-US&encoding=linear16&sample_rate=16000&channels=1';
+            addLog(`Connecting to: ${wsUrl}`, 'info');
+
+            const ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                addLog('✅ WebSocket connection established!', 'success');
+                addLog('Sending keepalive message...', 'info');
+                ws.send(JSON.stringify({ type: 'KeepAlive' }));
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    addLog(`📨 Message received: ${JSON.stringify(data)}`, 'success');
+                } catch (e) {
+                    addLog(`📨 Message received (raw): ${event.data}`, 'info');
+                }
+            };
+
+            ws.onerror = (error) => {
+                addLog(`❌ WebSocket error: ${error}`, 'error');
+            };
+
+            ws.onclose = (event) => {
+                addLog(`⚠️ WebSocket closed: code=${event.code}, reason=${event.reason}`, 'info');
+            };
+
+            setTimeout(() => {
+                if (ws.readyState === WebSocket.OPEN) {
+                    addLog('Closing test connection...', 'info');
+                    ws.close();
+                }
+            }, 3000);
+        });
+
+        document.getElementById('testMicrophone').addEventListener('click', async () => {
+            addLog('Testing microphone access...', 'info');
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        sampleRate: 16000,
+                        channelCount: 1,
+                        echoCancellation: true,
+                        noiseSuppression: true
+                    }
+                });
+
+                addLog('✅ Microphone access granted!', 'success');
+                addLog(`Device: ${stream.getAudioTracks()[0].label}`, 'success');
+
+                // Test audio level
+                const audioContext = new AudioContext();
+                const source = audioContext.createMediaStreamSource(stream);
+                const analyser = audioContext.createAnalyser();
+                source.connect(analyser);
+
+                const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+                let testCount = 0;
+                const testInterval = setInterval(() => {
+                    analyser.getByteTimeDomainData(dataArray);
+                    const level = Math.max(...dataArray);
+                    addLog(`🎤 Audio level: ${level}/255`, 'info');
+
+                    testCount++;
+                    if (testCount >= 5) {
+                        clearInterval(testInterval);
+                        stream.getTracks().forEach(track => track.stop());
+                        addLog('Microphone test complete', 'success');
+                    }
+                }, 500);
+
+            } catch (error) {
+                addLog(`❌ Microphone access failed: ${error.message}`, 'error');
+                if (error.name === 'NotAllowedError') {
+                    addLog('Please allow microphone access when prompted', 'error');
+                }
+            }
+        });
+
+        // Auto-run health check on page load
+        addLog('Page loaded - running automatic health check...', 'info');
+        document.getElementById('testHealth').click();
+    </script>
+</body>
+</html>

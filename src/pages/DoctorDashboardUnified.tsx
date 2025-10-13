@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { unifiedAuthService } from '../services/unifiedAuth.service';
+import { supabaseAuthService as unifiedAuthService } from '../services/supabaseAuth.service';
 import { type UnifiedAppointment } from '../services/unifiedAppointment.service';
 import { useSchedule } from '../hooks/useSchedule';
 import DoctorNavBar from '../components/layout/DoctorNavBar';

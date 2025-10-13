@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { simpleAppointmentService } from '../services/simpleAppointment.service';
-import { unifiedAuthService } from '../services/unifiedAuth.service';
+import { supabaseAuthService as unifiedAuthService } from '../services/supabaseAuth.service';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
 
 interface Appointment {

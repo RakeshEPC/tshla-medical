@@ -19,10 +19,21 @@ const { createClient, LiveTranscriptionEvents } = require('@deepgram/sdk');
 
 // Configuration
 const PORT = process.env.PORT || 8080;
-const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY || process.env.VITE_DEEPGRAM_API_KEY;
+
+// Try multiple environment variable names for flexibility
+const DEEPGRAM_API_KEY =
+  process.env.DEEPGRAM_API_KEY ||
+  process.env.VITE_DEEPGRAM_API_KEY;
 
 if (!DEEPGRAM_API_KEY) {
-  console.error('❌ FATAL: DEEPGRAM_API_KEY environment variable is required');
+  console.error('❌ FATAL: Deepgram API key not found');
+  console.error('   Set one of these environment variables:');
+  console.error('   - DEEPGRAM_API_KEY');
+  console.error('   - VITE_DEEPGRAM_API_KEY');
+  console.error('');
+  console.error('   Current environment variables:');
+  console.error('   - DEEPGRAM_API_KEY:', process.env.DEEPGRAM_API_KEY ? 'SET' : 'NOT SET');
+  console.error('   - VITE_DEEPGRAM_API_KEY:', process.env.VITE_DEEPGRAM_API_KEY ? 'SET' : 'NOT SET');
   process.exit(1);
 }
 
@@ -34,6 +45,17 @@ console.log(`   Port: ${PORT}`);
 
 // Create HTTP server for WebSocket upgrade
 const server = http.createServer((req, res) => {
+  // Add CORS headers for all requests
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+
   if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
@@ -52,6 +74,11 @@ const wss = new WebSocket.Server({ server });
 
 console.log(`🚀 WebSocket server ready on port ${PORT}`);
 
+// Create Deepgram client ONCE and reuse for all connections
+// This is more efficient and avoids potential rate limiting issues
+const deepgram = createClient(DEEPGRAM_API_KEY);
+console.log('✅ Deepgram client created and ready');
+
 // Track active connections
 let activeConnections = 0;
 
@@ -64,7 +91,6 @@ wss.on('connection', async (clientWs, req) => {
   console.log(`   URL: ${req.url}`);
 
   let deepgramConnection = null;
-  let deepgram = null;
 
   try {
     // Parse query parameters from client connection
@@ -77,7 +103,7 @@ wss.on('connection', async (clientWs, req) => {
     const encoding = params.get('encoding') || 'linear16';
     const sampleRate = parseInt(params.get('sample_rate') || '16000');
     const channels = parseInt(params.get('channels') || '1');
-    const tier = params.get('tier') || 'enhanced';
+    const tier = params.get('tier'); // Only use if explicitly provided, no default
 
     console.log(`🔧 [${clientId}] Configuration:`, {
       model,
@@ -85,30 +111,33 @@ wss.on('connection', async (clientWs, req) => {
       encoding,
       sampleRate,
       channels,
-      tier
+      tier: tier || 'not specified'
     });
 
-    // Initialize Deepgram client
-    deepgram = createClient(DEEPGRAM_API_KEY);
-
     // Create configuration for Deepgram
+    // Use true as default for boolean parameters that improve transcription quality
     const deepgramConfig = {
       model,
       language,
       encoding,
       sample_rate: sampleRate,
       channels,
-      tier,
-      punctuate: params.get('punctuate') === 'true',
-      profanity_filter: params.get('profanity_filter') === 'true',
-      redact: params.get('redact') === 'true',
-      diarize: params.get('diarize') === 'true',
-      smart_format: params.get('smart_format') === 'true',
-      utterances: params.get('utterances') === 'true',
-      interim_results: params.get('interim_results') === 'true',
-      vad_events: params.get('vad_events') === 'true',
+      punctuate: params.get('punctuate') !== 'false', // Default: true
+      profanity_filter: params.get('profanity_filter') === 'true', // Default: false
+      redact: params.get('redact') === 'true', // Default: false
+      diarize: params.get('diarize') === 'true', // Default: false
+      smart_format: params.get('smart_format') !== 'false', // Default: true
+      utterances: params.get('utterances') !== 'false', // Default: true
+      interim_results: params.get('interim_results') !== 'false', // Default: true
+      vad_events: params.get('vad_events') !== 'false', // Default: true
       endpointing: parseInt(params.get('endpointing') || '300')
     };
+
+    // Add tier only if explicitly provided by client
+    // Nova-2 models determine tier automatically based on API key
+    if (tier) {
+      deepgramConfig.tier = tier;
+    }
 
     // Add keywords if provided
     const keywords = params.getAll('keywords');
@@ -118,12 +147,31 @@ wss.on('connection', async (clientWs, req) => {
 
     console.log(`🎙️ [${clientId}] Connecting to Deepgram with config:`, deepgramConfig);
 
+    // Debug: Check if Deepgram client is properly initialized
+    console.log(`🔍 [${clientId}] Deepgram client type:`, typeof deepgram);
+    console.log(`🔍 [${clientId}] Has listen property:`, !!deepgram?.listen);
+    console.log(`🔍 [${clientId}] Has live method:`, !!deepgram?.listen?.live);
+
     // Create Deepgram live transcription connection
-    deepgramConnection = deepgram.listen.live(deepgramConfig);
+    try {
+      console.log(`🔄 [${clientId}] Calling deepgram.listen.live()...`);
+      deepgramConnection = deepgram.listen.live(deepgramConfig);
+      console.log(`✅ [${clientId}] Deepgram connection object created`);
+      console.log(`   Connection type:`, typeof deepgramConnection);
+      console.log(`   Has 'on' method:`, typeof deepgramConnection?.on === 'function');
+      console.log(`   Initial ready state:`, deepgramConnection?.getReadyState?.());
+    } catch (initError) {
+      console.error(`❌ [${clientId}] Failed to create Deepgram connection:`, initError);
+      throw initError;
+    }
+
+    // Add a small delay to let the connection initialize
+    await new Promise(resolve => setTimeout(resolve, 100));
+    console.log(`   Ready state after 100ms:`, deepgramConnection?.getReadyState?.());
 
     // Set up Deepgram event handlers
     deepgramConnection.on(LiveTranscriptionEvents.Open, () => {
-      console.log(`✅ [${clientId}] Deepgram connection established`);
+      console.log(`✅✅✅ [${clientId}] Deepgram connection OPENED successfully!`);
 
       // Notify client that connection is ready
       if (clientWs.readyState === WebSocket.OPEN) {

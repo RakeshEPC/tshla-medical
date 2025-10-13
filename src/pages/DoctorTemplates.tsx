@@ -19,7 +19,7 @@ import {
   Check,
 } from 'lucide-react';
 import { doctorProfileService, type DoctorTemplate } from '../services/doctorProfile.service';
-import { unifiedAuthService } from '../services/unifiedAuth.service';
+import { supabaseAuthService as unifiedAuthService } from '../services/supabaseAuth.service';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
 
 interface EditingTemplate {

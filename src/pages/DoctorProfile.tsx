@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save, User, Settings, Mic, Monitor, FileText } from 'lucide-react';
 import { doctorProfileService, type DoctorSettings } from '../services/doctorProfile.service';
-import { unifiedAuthService } from '../services/unifiedAuth.service';
+import { supabaseAuthService as unifiedAuthService } from '../services/supabaseAuth.service';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
 
 export default function DoctorProfile() {

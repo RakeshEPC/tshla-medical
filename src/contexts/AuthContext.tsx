@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { unifiedAuthService } from '../services/unifiedAuth.service';
-import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
+import { supabaseAuthService } from '../services/supabaseAuth.service';
+import type { AuthUser } from '../services/supabaseAuth.service';
+import { logError, logInfo } from '../services/logger.service';
+import { AuthErrorHandler } from '../utils/authErrorHandler';
 
 interface User {
   id: string;
@@ -27,30 +29,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is already authenticated using unified auth service
+    // Check if user is already authenticated
     const checkAuth = async () => {
-      console.log('🔍 [AuthContext] Starting auth check...');
+      logInfo('AuthContext', 'Starting auth check');
       try {
-        const isAuth = await unifiedAuthService.isAuthenticated();
-        console.log('🔍 [AuthContext] isAuthenticated() result:', isAuth);
+        const isAuth = await supabaseAuthService.isAuthenticated();
 
         if (isAuth) {
-          console.log('🔍 [AuthContext] User is authenticated, fetching profile...');
-          const result = await unifiedAuthService.getCurrentUser();
-          console.log('🔍 [AuthContext] getCurrentUser() result:', {
-            success: result.success,
-            hasUser: !!result.user,
-            error: result.error,
-            user: result.user ? {
-              id: result.user.id,
-              email: result.user.email,
-              role: result.user.role,
-              accessType: result.user.accessType
-            } : null
-          });
+          const result = await supabaseAuthService.getCurrentUser();
 
           if (result.success && result.user) {
-            console.log('✅ [AuthContext] User profile loaded successfully');
+            logInfo('AuthContext', 'User authenticated successfully');
             setUser({
               id: result.user.id,
               email: result.user.email,
@@ -61,16 +50,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               accessType: result.user.accessType,
             });
           } else {
-            console.error('❌ [AuthContext] Failed to get user profile:', result.error);
+            logError('AuthContext', `Failed to get user profile: ${result.error}`);
           }
-        } else {
-          console.log('❌ [AuthContext] No active session found');
         }
       } catch (error) {
-        console.error('❌ [AuthContext] Exception during auth check:', error);
-        logError('AuthContext', 'Failed to check authentication', { error });
+        logError('AuthContext', 'Auth check failed', { error });
       } finally {
-        console.log('🔍 [AuthContext] Auth check complete, loading=false');
         setLoading(false);
       }
     };
@@ -80,7 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
-      const result = await unifiedAuthService.login(email, password);
+      const result = await supabaseAuthService.login(email, password);
 
       if (result.success && result.user) {
         setUser({
@@ -93,18 +78,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           accessType: result.user.accessType,
         });
       } else {
-        throw new Error(result.error || 'Login failed');
+        const errorMessage = AuthErrorHandler.getUserMessage(
+          new Error(result.error),
+          'Login'
+        );
+        throw new Error(errorMessage);
       }
     } catch (error) {
-      logError('App', 'Error message', {});
-      throw error;
+      logError('AuthContext', 'Login failed', { error });
+      const userFriendlyError = AuthErrorHandler.getUserMessage(error, 'Login');
+      throw new Error(userFriendlyError);
     }
   };
 
   const logout = () => {
-    unifiedAuthService.logout();
+    supabaseAuthService.logout();
     setUser(null);
-    // Don't force redirect here - let the calling component handle it
   };
 
   const contextValue = {

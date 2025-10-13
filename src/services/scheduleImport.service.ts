@@ -4,7 +4,7 @@
  */
 
 import { appointmentService, type AppointmentCreateData } from './appointment.service';
-import { unifiedAuthService } from './unifiedAuth.service';
+import { supabaseAuthService as unifiedAuthService } from './supabaseAuth.service';
 import { simpleAppointmentService } from './simpleAppointment.service';
 import { aiScheduleParserService } from './aiScheduleParser.service';
 import { logError, logWarn, logInfo, logDebug } from './logger.service';

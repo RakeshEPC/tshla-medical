@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, FileText, Star, Clock, Plus, Edit2, Copy, Trash2 } from 'lucide-react';
 import { doctorProfileService, type DoctorTemplate } from '../services/doctorProfile.service';
-import { unifiedAuthService } from '../services/unifiedAuth.service';
+import { supabaseAuthService as unifiedAuthService } from '../services/supabaseAuth.service';
 import { getDefaultTemplatesForDoctor } from '../data/standardTemplates';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
 

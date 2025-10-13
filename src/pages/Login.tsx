@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { unifiedAuthService } from '../services/unifiedAuth.service';
+import { supabaseAuthService as unifiedAuthService } from '../services/supabaseAuth.service';
+import { checkBrowserCompatibility, getStorageEnableInstructions } from '../utils/browserCompatibility';
 
 export default function Login() {
   const [loginMethod, setLoginMethod] = useState<'email' | 'code'>('email');
@@ -12,8 +13,18 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showDoctorList, setShowDoctorList] = useState(false);
+  const [storageWarning, setStorageWarning] = useState('');
   const navigate = useNavigate();
   const { login } = useAuth();
+
+  // Check browser compatibility on mount
+  useEffect(() => {
+    const compat = checkBrowserCompatibility();
+    if (compat.needsStorageWarning) {
+      const instructions = getStorageEnableInstructions(compat.browser);
+      setStorageWarning(`${compat.browser} is blocking cookies/storage. ${instructions}`);
+    }
+  }, []);
 
   const availableDoctors = [
     { id: 'dr1', name: 'Dr. Smith', code: 'DOCTOR-2025' },
@@ -204,6 +215,13 @@ export default function Login() {
                 </p>
               </div>
             </>
+          )}
+
+          {storageWarning && (
+            <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded text-sm">
+              <strong>Browser Storage Warning:</strong>
+              <div className="mt-2 text-xs whitespace-pre-line">{storageWarning}</div>
+            </div>
           )}
 
           {error && (

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { speechServiceRouter } from '../services/speechServiceRouter.service';
-import { unifiedAuthService } from '../services/unifiedAuth.service';
+import { supabaseAuthService as unifiedAuthService } from '../services/supabaseAuth.service';
 import { doctorProfileService, type DoctorTemplate } from '../services/doctorProfile.service';
 import styles from '../styles/MedicalDictation.module.css';
 import { 
