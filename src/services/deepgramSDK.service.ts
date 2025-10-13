@@ -312,6 +312,7 @@ class DeepgramSDKService implements SpeechServiceInterface {
       logInfo('deepgramSDK', `Connecting via proxy: ${proxyUrl}`);
 
       // Validate proxy is accessible before attempting WebSocket connection
+      // Note: CORS errors on health check don't prevent WebSocket connections from working
       try {
         const healthUrl = proxyUrl.replace('ws://', 'http://').replace('wss://', 'https://') + '/health';
         logDebug('deepgramSDK', `Checking proxy health: ${healthUrl}`);
@@ -320,27 +321,22 @@ class DeepgramSDKService implements SpeechServiceInterface {
           method: 'GET',
           signal: AbortSignal.timeout(5000),
         }).catch(err => {
-          logWarn('deepgramSDK', `Proxy health check failed: ${err.message}`);
+          // CORS errors are expected for cross-origin requests
+          // WebSocket connections work independently of HTTP CORS
+          logWarn('deepgramSDK', `Proxy health check failed (expected for CORS): ${err.message}`);
           return null;
         });
 
         if (healthCheck && healthCheck.ok) {
           logInfo('deepgramSDK', 'Proxy is healthy and accessible');
         } else {
-          throw new Error(
-            `Proxy server not responding. Please start proxy: npm run proxy:start`
-          );
+          // Log warning but don't throw - WebSocket will fail on its own if proxy is down
+          logWarn('deepgramSDK', 'Proxy health check did not succeed, will attempt WebSocket connection anyway');
         }
       } catch (error) {
+        // Log warning but don't block WebSocket attempt
         const errorMsg = error instanceof Error ? error.message : String(error);
-        throw new Error(
-          `Cannot connect to Deepgram proxy at ${proxyUrl}.\n` +
-          `Error: ${errorMsg}\n\n` +
-          `To fix:\n` +
-          `1. Run: npm run proxy:start\n` +
-          `2. Verify proxy is on port 8080\n` +
-          `3. Check firewall settings`
-        );
+        logWarn('deepgramSDK', `Proxy health check error: ${errorMsg} (will attempt WebSocket anyway)`);
       }
 
       // Create WebSocket connection to proxy
