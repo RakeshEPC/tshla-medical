@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-// Azure services removed - AI and speech services no longer available
+import { speechServiceRouter } from '../services/speechServiceRouter.service';
+import { bedrockService } from '../services/bedrock.service';
 import { medicalCorrections } from '../services/medicalCorrections.service';
 import { doctorProfileService, type DoctorTemplate } from '../services/doctorProfile.service';
-import { unifiedAuthService } from '../services/unifiedAuth.service';
+import { supabaseAuthService as unifiedAuthService } from '../services/supabaseAuth.service';
 import { 
   Mic, 
   MicOff, 
@@ -123,32 +124,37 @@ export default function QuickNoteModern() {
 
   const startRecording = async () => {
     if (isRecording) return;
-    
+
     try {
-      logDebug('QuickNoteModern', 'Debug message', {});
-      logDebug('QuickNoteModern', 'Debug message', {}); 
-      
-      const transcriptionStarted = await azureSpeechTranscription.startRecording(
-        (text, isFinal) => {
-          const corrected = medicalCorrections.correctTranscription(text);
-          
-          if (!isFinal) {
-            setInterimText(corrected);
-          } else {
-            setTranscript(prev => {
-              const updated = prev + (prev ? ' ' : '') + corrected;
-              return updated;
-            });
-            setInterimText('');
+      logDebug('QuickNoteModern', 'Starting recording with Deepgram via speechServiceRouter');
+
+      const transcriptionStarted = await speechServiceRouter.startRecording(
+        recordingMode,
+        {
+          onTranscript: (text, isFinal) => {
+            const corrected = medicalCorrections.correctTranscription(text);
+
+            if (!isFinal) {
+              setInterimText(corrected);
+            } else {
+              setTranscript(prev => {
+                const updated = prev + (prev ? ' ' : '') + corrected;
+                return updated;
+              });
+              setInterimText('');
+            }
+          },
+          onError: (error) => {
+            logError('QuickNoteModern', `Recording error: ${error}`);
+            setRecordingError(`Error: ${error}`);
+            setIsRecording(false);
+          },
+          onEnd: () => {
+            logInfo('QuickNoteModern', 'Recording ended');
           }
-        },
-        (error) => {
-          logError('QuickNoteModern', 'Error message', {});
-          setRecordingError(`Error: ${error}`);
-          setIsRecording(false);
         }
       );
-      
+
       if (transcriptionStarted) {
         setIsRecording(true);
         setRecordingError('');
@@ -156,19 +162,19 @@ export default function QuickNoteModern() {
         setRecordingError('Failed to start recording');
       }
     } catch (error) {
-      logError('QuickNoteModern', 'Error message', {});
+      logError('QuickNoteModern', `Failed to start recording: ${error}`);
       setRecordingError('Failed to start recording. Please try again.');
     }
   };
 
   const stopRecording = async () => {
     if (!isRecording) return;
-    
+
     setIsRecording(false);
-    
+
     try {
-      azureSpeechTranscription.stopRecording();
-      
+      speechServiceRouter.stopRecording();
+
       let completeTranscript = transcript;
       if (interimText.trim()) {
         const correctedText = medicalCorrections.correctTranscription(interimText);
@@ -184,7 +190,7 @@ export default function QuickNoteModern() {
         }, 500);
       }
     } catch (error) {
-      logError('QuickNoteModern', 'Error message', {});
+      logError('QuickNoteModern', `Failed to stop recording: ${error}`);
     }
   };
 
@@ -232,28 +238,28 @@ Visit Date: ${patientDetails.visitDate}
       };
       
       let templateInstructions = undefined;
-      logDebug('QuickNoteModern', 'Debug message', {});
+      logDebug('QuickNoteModern', 'Checking for selected template');
       if (selectedTemplate) {
-        logInfo('QuickNoteModern', 'Info message', {});
+        logInfo('QuickNoteModern', `Using template: ${selectedTemplate.name}`);
         try {
           const settings = await doctorProfileService.getSettings();
           templateInstructions = {
             template: selectedTemplate,
             doctorSettings: settings
           };
-          logInfo('QuickNoteModern', 'Info message', {});
+          logInfo('QuickNoteModern', 'Template instructions prepared with doctor settings');
         } catch (error) {
           templateInstructions = {
             template: selectedTemplate,
             doctorSettings: null
           };
-          logDebug('QuickNoteModern', 'Debug message', {});
+          logDebug('QuickNoteModern', 'Using template without doctor settings');
         }
       } else {
-        logDebug('QuickNoteModern', 'Debug message', {});
+        logDebug('QuickNoteModern', 'No template selected, using default SOAP format');
       }
-      
-      const result = await azureAIService.processMedicalTranscription(
+
+      const result = await bedrockService.processMedicalTranscription(
         combinedContent,
         minimalPatientData,
         null,
@@ -486,33 +492,57 @@ Visit Date: ${patientDetails.visitDate}
               )}
             </div>
 
-            {/* Template Selection */}
+            {/* Template Selection - Enhanced Visibility */}
             <div className="glass-card-calm p-6 card-hover-calm">
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <FileText className="w-5 h-5 text-blue-500" />
                 Template
+                {selectedTemplate && (
+                  <span className="ml-auto text-xs px-2 py-1 bg-blue-500 text-white rounded-full">
+                    Active
+                  </span>
+                )}
               </h3>
-              
+
               <button
                 onClick={() => setShowTemplateSelector(!showTemplateSelector)}
-                className="glass-button w-full p-3 rounded-lg text-left flex items-center justify-between hover:scale-105 transition-transform"
+                className={`glass-button w-full p-3 rounded-lg text-left flex items-center justify-between hover:scale-105 transition-transform ${
+                  selectedTemplate ? 'border-2 border-blue-500' : ''
+                }`}
               >
-                <span>{selectedTemplate ? selectedTemplate.name : 'No Template Selected'}</span>
-                <ChevronDown className={`w-4 h-4 transition-transform ${showTemplateSelector ? 'rotate-180' : ''}`} />
+                <div className="flex-1">
+                  <div className="font-semibold">
+                    {selectedTemplate ? selectedTemplate.name : 'No Template Selected'}
+                  </div>
+                  {selectedTemplate && selectedTemplate.description && (
+                    <div className="text-xs text-gray-600 mt-1">
+                      {selectedTemplate.description}
+                    </div>
+                  )}
+                  {!selectedTemplate && (
+                    <div className="text-xs text-gray-600 mt-1">
+                      Standard SOAP format
+                    </div>
+                  )}
+                </div>
+                <ChevronDown className={`w-4 h-4 ml-2 transition-transform ${showTemplateSelector ? 'rotate-180' : ''}`} />
               </button>
 
               {showTemplateSelector && (
-                <div className="mt-3 glass-card p-3 max-h-48 overflow-y-auto modern-scrollbar slide-in-right">
+                <div className="mt-3 glass-card p-3 max-h-64 overflow-y-auto modern-scrollbar slide-in-right">
                   <button
                     onClick={() => {
                       setSelectedTemplate(null);
                       setShowTemplateSelector(false);
                     }}
-                    className="w-full p-2 text-left hover:bg-white hover:bg-opacity-50 rounded text-sm"
+                    className={`w-full p-3 text-left hover:bg-white hover:bg-opacity-50 rounded text-sm mb-2 transition-all ${
+                      !selectedTemplate ? 'bg-blue-50 border-2 border-blue-400' : 'border border-gray-200'
+                    }`}
                   >
-                    No Template (Standard SOAP)
+                    <div className="font-semibold">No Template</div>
+                    <div className="text-xs text-gray-600 mt-1">Standard SOAP Note Format</div>
                   </button>
-                  
+
                   {templates.map(template => (
                     <button
                       key={template.id}
@@ -520,9 +550,26 @@ Visit Date: ${patientDetails.visitDate}
                         setSelectedTemplate(template);
                         setShowTemplateSelector(false);
                       }}
-                      className="w-full p-2 text-left hover:bg-white hover:bg-opacity-50 rounded text-sm"
+                      className={`w-full p-3 text-left hover:bg-white hover:bg-opacity-50 rounded text-sm mb-2 transition-all ${
+                        selectedTemplate?.id === template.id ? 'bg-blue-50 border-2 border-blue-400' : 'border border-gray-200'
+                      }`}
                     >
-                      {template.name}
+                      <div className="flex items-center justify-between">
+                        <div className="font-semibold">{template.name}</div>
+                        {selectedTemplate?.id === template.id && (
+                          <span className="text-xs px-2 py-1 bg-blue-500 text-white rounded-full">
+                            Selected
+                          </span>
+                        )}
+                      </div>
+                      {template.description && (
+                        <div className="text-xs text-gray-600 mt-1">{template.description}</div>
+                      )}
+                      {template.specialty && (
+                        <div className="text-xs text-blue-600 mt-1 font-medium">
+                          {template.specialty}
+                        </div>
+                      )}
                     </button>
                   ))}
                 </div>
