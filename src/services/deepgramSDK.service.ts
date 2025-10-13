@@ -48,6 +48,11 @@ class DeepgramSDKService implements SpeechServiceInterface {
   private onErrorCallback: ((error: Error) => void) | null = null;
   private mediaRecorder: MediaRecorder | null = null;
   private audioStream: MediaStream | null = null;
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 3;
+  private reconnectTimeoutId: NodeJS.Timeout | null = null;
+  private lastRecordingMode: 'CONVERSATION' | 'DICTATION' | null = null;
+  private lastSpecialty: string | undefined;
 
   constructor() {
     this.config = {
@@ -101,7 +106,10 @@ class DeepgramSDKService implements SpeechServiceInterface {
     params.set('encoding', config.encoding);
     params.set('sample_rate', config.sample_rate.toString());
     params.set('channels', config.channels.toString());
-    params.set('tier', config.tier);
+    // Only add tier if it's defined
+    if (config.tier !== undefined && config.tier !== null) {
+      params.set('tier', config.tier);
+    }
     params.set('punctuate', config.punctuate.toString());
     params.set('profanity_filter', config.profanity_filter.toString());
     params.set('redact', config.redact.toString());
@@ -172,9 +180,23 @@ class DeepgramSDKService implements SpeechServiceInterface {
       handlers.forEach(handler => handler());
     };
 
-    ws.onmessage = (event) => {
+    ws.onmessage = async (event) => {
       try {
-        const data = JSON.parse(event.data);
+        // Handle both string and Blob data
+        let messageText: string;
+
+        if (typeof event.data === 'string') {
+          // Already a string
+          messageText = event.data;
+        } else if (event.data instanceof Blob) {
+          // Convert Blob to text
+          messageText = await event.data.text();
+        } else {
+          logError('deepgramSDK', `Unknown WebSocket data type: ${typeof event.data}`);
+          return;
+        }
+
+        const data = JSON.parse(messageText);
 
         // Handle different message types from proxy
         if (data.type === 'open') {
@@ -228,8 +250,17 @@ class DeepgramSDKService implements SpeechServiceInterface {
   ): Promise<void> {
     logInfo('deepgramSDK', `Starting ${mode} transcription with medical model`);
 
+    // Store for reconnection attempts
+    this.lastRecordingMode = mode;
+    this.lastSpecialty = specialty;
     this.onTranscriptCallback = onTranscript;
     this.onErrorCallback = onError;
+
+    // Clear any pending reconnection attempts
+    if (this.reconnectTimeoutId) {
+      clearTimeout(this.reconnectTimeoutId);
+      this.reconnectTimeoutId = null;
+    }
 
     try {
       // Get microphone access
@@ -243,12 +274,20 @@ class DeepgramSDKService implements SpeechServiceInterface {
         }
       });
 
-      // Configure Deepgram connection
+      // Create AudioContext FIRST to get the actual browser sample rate
+      // Browsers often ignore the requested sample rate and use their native rate (44100 or 48000)
+      const audioContext = new AudioContext();
+      const actualSampleRate = audioContext.sampleRate;
+
+      logInfo('deepgramSDK', `Browser AudioContext sample rate: ${actualSampleRate}Hz`);
+      console.log(`🎤 Audio context sample rate: ${actualSampleRate}Hz`);
+
+      // Configure Deepgram connection with ACTUAL sample rate
       const liveConfig = {
         model: this.config.model,
         language: this.config.language,
         encoding: this.config.encoding,
-        sample_rate: this.config.sampleRate,
+        sample_rate: actualSampleRate, // Use browser's actual sample rate!
         channels: this.config.channels,
         // Medical-specific parameters
         punctuate: true,
@@ -260,46 +299,60 @@ class DeepgramSDKService implements SpeechServiceInterface {
         endpointing: 300, // Wait 300ms for end of speech
         // Custom vocabulary boost for medical terms
         keywords: ['medical:2', 'diagnosis:2', 'prescription:2', 'medication:2', 'symptoms:2', 'treatment:2', 'blood pressure:3', 'diabetes:3', 'insulin:3'],
-        // Enhanced medical model settings
-        tier: this.config.tier,
+        // Note: tier parameter removed - Deepgram determines tier based on model and API key
         interim_results: true,
         vad_events: true
       };
 
-      // Check if we should use proxy for WebSocket connection
-      const useProxyEnv = import.meta.env.VITE_USE_DEEPGRAM_PROXY;
+      // ALWAYS use proxy for browser WebSocket connections
+      // Browsers cannot send Authorization headers on WebSocket connections
       const proxyUrl = import.meta.env.VITE_DEEPGRAM_PROXY_URL || 'ws://localhost:8080';
-      // Handle both boolean (from YAML) and string (from .env files)
-      const useProxy = useProxyEnv === 'true' || useProxyEnv === true;
+      const useProxy = true; // Always true for browser environment
 
-      console.log('🔍 Deepgram Connection Configuration:', {
-        VITE_USE_DEEPGRAM_PROXY: useProxyEnv,
-        VITE_DEEPGRAM_PROXY_URL: proxyUrl,
-        useProxy: useProxy,
-        willUseProxy: useProxy ? 'YES - Using proxy' : 'NO - Direct connection (will fail in browser)'
-      });
+      logInfo('deepgramSDK', `Connecting via proxy: ${proxyUrl}`);
 
-      if (useProxy) {
-        logInfo('deepgramSDK', `Using Deepgram proxy at ${proxyUrl}`);
-        console.log(`✅ Connecting via proxy: ${proxyUrl}`);
+      // Validate proxy is accessible before attempting WebSocket connection
+      try {
+        const healthUrl = proxyUrl.replace('ws://', 'http://').replace('wss://', 'https://') + '/health';
+        logDebug('deepgramSDK', `Checking proxy health: ${healthUrl}`);
 
-        // Create WebSocket connection to proxy instead of directly to Deepgram
-        // The proxy will handle authentication and forward to Deepgram
-        const wsUrl = this.buildProxyWebSocketUrl(proxyUrl, liveConfig);
-        console.log(`📡 Proxy WebSocket URL: ${wsUrl.substring(0, 100)}...`);
-        this.connection = this.createProxyConnection(wsUrl);
-      } else {
-        // Direct connection to Deepgram (official SDK)
-        logInfo('deepgramSDK', 'Using direct Deepgram SDK connection');
-        console.warn('⚠️ WARNING: Using direct connection to Deepgram - this will fail in browsers due to WebSocket auth limitations');
-        this.connection = this.deepgram.listen.live(liveConfig);
+        const healthCheck = await fetch(healthUrl, {
+          method: 'GET',
+          signal: AbortSignal.timeout(5000),
+        }).catch(err => {
+          logWarn('deepgramSDK', `Proxy health check failed: ${err.message}`);
+          return null;
+        });
+
+        if (healthCheck && healthCheck.ok) {
+          logInfo('deepgramSDK', 'Proxy is healthy and accessible');
+        } else {
+          throw new Error(
+            `Proxy server not responding. Please start proxy: npm run proxy:start`
+          );
+        }
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        throw new Error(
+          `Cannot connect to Deepgram proxy at ${proxyUrl}.\n` +
+          `Error: ${errorMsg}\n\n` +
+          `To fix:\n` +
+          `1. Run: npm run proxy:start\n` +
+          `2. Verify proxy is on port 8080\n` +
+          `3. Check firewall settings`
+        );
       }
+
+      // Create WebSocket connection to proxy
+      const wsUrl = this.buildProxyWebSocketUrl(proxyUrl, liveConfig);
+      logDebug('deepgramSDK', `Connecting to proxy WebSocket`);
+      this.connection = this.createProxyConnection(wsUrl);
 
       // Set up event listeners
       this.connection.on(LiveTranscriptionEvents.Open, () => {
         logInfo('deepgramSDK', 'Deepgram connection opened successfully');
-        console.log('✅ Deepgram WebSocket CONNECTED - transcription ready!');
         this.isRecording = true;
+        this.reconnectAttempts = 0; // Reset reconnect counter on successful connection
       });
 
       this.connection.on(LiveTranscriptionEvents.Transcript, (data: any) => {
@@ -325,35 +378,80 @@ class DeepgramSDKService implements SpeechServiceInterface {
       });
 
       this.connection.on(LiveTranscriptionEvents.Close, (closeEvent: any) => {
-        console.error('⚠️ Deepgram WebSocket CLOSED:', {
-          code: closeEvent?.code,
-          reason: closeEvent?.reason || 'No reason provided',
-          wasClean: closeEvent?.wasClean,
-          timestamp: new Date().toISOString()
-        });
+        const wasClean = closeEvent?.wasClean !== false;
+        logInfo('deepgramSDK', `Deepgram connection closed (code: ${closeEvent?.code}, clean: ${wasClean})`);
 
-        logInfo('deepgramSDK', 'Deepgram connection closed');
         this.isRecording = false;
+
+        // Attempt automatic reconnection if it was not a clean close
+        // and we haven't exceeded max attempts
+        if (!wasClean && this.reconnectAttempts < this.maxReconnectAttempts && this.lastRecordingMode) {
+          this.reconnectAttempts++;
+          const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 5000); // Exponential backoff, max 5s
+
+          logWarn('deepgramSDK', `Attempting reconnect ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`);
+
+          this.reconnectTimeoutId = setTimeout(() => {
+            if (this.onTranscriptCallback && this.onErrorCallback && this.lastRecordingMode) {
+              logInfo('deepgramSDK', 'Reconnecting to Deepgram...');
+              this.startTranscription(
+                this.lastRecordingMode,
+                this.onTranscriptCallback,
+                this.onErrorCallback,
+                this.lastSpecialty
+              ).catch(err => {
+                logError('deepgramSDK', `Reconnection failed: ${err.message}`);
+                if (this.onErrorCallback) {
+                  this.onErrorCallback(new Error(`Reconnection failed: ${err.message}`));
+                }
+              });
+            }
+          }, delay);
+        } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+          logError('deepgramSDK', 'Max reconnection attempts reached');
+          if (this.onErrorCallback) {
+            this.onErrorCallback(new Error('Connection lost. Please refresh and try again.'));
+          }
+        }
       });
 
-      // Create MediaRecorder to send audio data
-      this.mediaRecorder = new MediaRecorder(this.audioStream, {
-        mimeType: 'audio/webm;codecs=opus'
-      });
+      // Use AudioContext to capture raw PCM audio instead of MediaRecorder
+      // Deepgram WebSocket API expects raw audio, not WebM container
+      // AudioContext already created above to get actual sample rate
+      const source = audioContext.createMediaStreamSource(this.audioStream);
 
-      this.mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0 && this.connection && this.isRecording) {
-          this.connection.send(event.data);
+      // Use ScriptProcessorNode to capture raw PCM audio
+      // Note: This is deprecated but still widely supported. AudioWorklet is preferred but more complex.
+      const processorBufferSize = 4096;
+      const processor = audioContext.createScriptProcessor(processorBufferSize, 1, 1);
+
+      processor.onaudioprocess = (e) => {
+        if (!this.isRecording || !this.connection) return;
+
+        // Get raw PCM data
+        const inputData = e.inputBuffer.getChannelData(0);
+
+        // Convert float32 PCM to int16 PCM (required by Deepgram)
+        const int16Data = new Int16Array(inputData.length);
+        for (let i = 0; i < inputData.length; i++) {
+          // Clamp to [-1, 1] and convert to int16 range
+          const s = Math.max(-1, Math.min(1, inputData[i]));
+          int16Data[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        }
+
+        // Send raw PCM data to Deepgram
+        if (this.connection.getReadyState() === 1) {
+          this.connection.send(int16Data.buffer);
         }
       };
 
-      this.mediaRecorder.onerror = (error) => {
-        logError('deepgramSDK', `MediaRecorder error: ${error}`);
-        this.handleError(new Error('MediaRecorder error'));
-      };
+      // Connect audio graph
+      source.connect(processor);
+      processor.connect(audioContext.destination);
 
-      // Start recording with frequent data chunks for real-time processing
-      this.mediaRecorder.start(100);
+      // Store processor for cleanup
+      (this as any).audioProcessor = processor;
+      (this as any).audioContext = audioContext;
 
       logInfo('deepgramSDK', `${mode} transcription started successfully`);
 
@@ -413,9 +511,32 @@ class DeepgramSDKService implements SpeechServiceInterface {
 
     this.isRecording = false;
 
-    // Stop MediaRecorder
+    // Clear any pending reconnection attempts
+    if (this.reconnectTimeoutId) {
+      clearTimeout(this.reconnectTimeoutId);
+      this.reconnectTimeoutId = null;
+    }
+
+    // Reset reconnection state
+    this.reconnectAttempts = 0;
+    this.lastRecordingMode = null;
+    this.lastSpecialty = undefined;
+
+    // Stop MediaRecorder (if using old method)
     if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
       this.mediaRecorder.stop();
+    }
+
+    // Stop audio processor (if using AudioContext)
+    const audioProcessor = (this as any).audioProcessor;
+    const audioContext = (this as any).audioContext;
+    if (audioProcessor) {
+      audioProcessor.disconnect();
+      (this as any).audioProcessor = null;
+    }
+    if (audioContext) {
+      audioContext.close();
+      (this as any).audioContext = null;
     }
 
     // Stop audio stream
@@ -562,6 +683,131 @@ class DeepgramSDKService implements SpeechServiceInterface {
       provider: 'deepgram-sdk',
       model: this.config.model
     };
+  }
+
+  /**
+   * Test microphone access and audio levels
+   */
+  async testMicrophone(): Promise<{
+    success: boolean;
+    error?: string;
+    deviceInfo?: MediaDeviceInfo;
+    audioLevel?: number;
+  }> {
+    let testStream: MediaStream | null = null;
+    let audioContext: AudioContext | null = null;
+    let processor: ScriptProcessorNode | null = null;
+
+    try {
+      logInfo('deepgramSDK', 'Testing microphone access...');
+
+      // Request microphone access
+      testStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
+
+      // Get device information
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const audioInputs = devices.filter(device => device.kind === 'audioinput');
+      const currentDevice = audioInputs.find(device =>
+        testStream?.getAudioTracks()[0].label === device.label
+      ) || audioInputs[0];
+
+      logInfo('deepgramSDK', `Microphone detected: ${currentDevice?.label || 'Unknown'}`);
+
+      // Create audio context to measure audio levels
+      audioContext = new AudioContext();
+      const source = audioContext.createMediaStreamSource(testStream);
+      processor = audioContext.createScriptProcessor(2048, 1, 1);
+
+      let maxAudioLevel = 0;
+      let measurementsDone = false;
+
+      // Return a promise that resolves after measuring audio for 2 seconds
+      const result = await new Promise<{
+        success: boolean;
+        error?: string;
+        deviceInfo?: MediaDeviceInfo;
+        audioLevel?: number;
+      }>((resolve) => {
+        processor!.onaudioprocess = (e) => {
+          if (measurementsDone) return;
+
+          const inputData = e.inputBuffer.getChannelData(0);
+
+          // Calculate RMS (Root Mean Square) for audio level
+          let sum = 0;
+          for (let i = 0; i < inputData.length; i++) {
+            sum += inputData[i] * inputData[i];
+          }
+          const rms = Math.sqrt(sum / inputData.length);
+          const audioLevel = Math.floor(rms * 255); // Convert to 0-255 scale
+
+          // Track maximum audio level
+          if (audioLevel > maxAudioLevel) {
+            maxAudioLevel = audioLevel;
+          }
+        };
+
+        // Connect audio graph
+        source.connect(processor!);
+        processor!.connect(audioContext!.destination);
+
+        // Measure for 2 seconds
+        setTimeout(() => {
+          measurementsDone = true;
+
+          logInfo('deepgramSDK', `Microphone test complete. Max audio level: ${maxAudioLevel}/255`);
+
+          resolve({
+            success: true,
+            deviceInfo: currentDevice,
+            audioLevel: maxAudioLevel
+          });
+        }, 2000);
+      });
+
+      return result;
+
+    } catch (error: any) {
+      logError('deepgramSDK', `Microphone test failed: ${error.message}`);
+
+      let errorMessage = 'Unknown error occurred';
+
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        errorMessage = 'Microphone permission denied. Please allow microphone access in your browser settings.';
+      } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+        errorMessage = 'No microphone device found. Please connect a microphone and try again.';
+      } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+        errorMessage = 'Microphone is already in use by another application. Please close other apps and try again.';
+      } else if (error.name === 'OverconstrainedError') {
+        errorMessage = 'Could not satisfy microphone constraints. Please try a different microphone.';
+      } else if (error.name === 'SecurityError') {
+        errorMessage = 'Security error accessing microphone. Please ensure you are using HTTPS or localhost.';
+      } else {
+        errorMessage = error.message || String(error);
+      }
+
+      return {
+        success: false,
+        error: errorMessage
+      };
+    } finally {
+      // Cleanup
+      if (processor) {
+        processor.disconnect();
+      }
+      if (audioContext) {
+        audioContext.close();
+      }
+      if (testStream) {
+        testStream.getTracks().forEach(track => track.stop());
+      }
+    }
   }
 
   /**

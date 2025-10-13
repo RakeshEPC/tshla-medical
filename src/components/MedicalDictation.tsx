@@ -8,7 +8,7 @@ import { awsTranscribeSimple } from '../services/_deprecated/awsTranscribeSimple
 import { getPatientData, type PatientData } from '../services/patientData.service';
 import { specialtyService, type DoctorSpecialty } from '../services/specialty.service';
 import { doctorProfileService, type DoctorTemplate } from '../services/doctorProfile.service';
-import { unifiedAuthService } from '../services/unifiedAuth.service';
+import { supabaseAuthService as unifiedAuthService } from '../services/supabaseAuth.service';
 import { dictatedNotesService } from '../services/dictatedNotesService';
 import { scheduleService } from '../services/scheduleService';
 import { scheduleDatabaseService } from '../services/scheduleDatabase.service';

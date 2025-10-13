@@ -1,25 +1,11 @@
 /**
  * Speech Service Router
- * Routes speech recognition requests to the appropriate service
- * Priority: Deepgram (primary) → AWS Transcribe Medical → Azure Speech (backup)
- * Based on cost, reliability, and quota limitations
+ * Routes speech recognition requests to Deepgram STT service
+ * Simplified after cleanup - using only Deepgram SDK (AWS/Azure deprecated)
  */
 
-// Deepgram Services (primary - medical optimized, 83% cost savings)
 import { deepgramSDKService } from './deepgramSDK.service';
-import { deepgramAdapter } from './deepgramAdapter.service';
-
-// Azure Speech Services (backup - quota limited, currently archived)
-// import { azureSpeechStreamingFixed } from './azureSpeechStreamingFixed.service';
-// import { azureSpeechDictation } from './azureSpeechDictation.service';
-// import { azureSpeechConversation } from './azureSpeechConversation.service';
-// import { azureSpeechAmbientService } from './azureSpeechAmbient.service';
-// import { azureSpeechSimple } from './azureSpeechSimple.service';
-import { logError, logWarn, logInfo, logDebug } from './logger.service';
-
-// AWS Transcribe Services (deprecated - moved to _deprecated/)
-// import { awsTranscribeStreamingFixed } from './_deprecated/awsTranscribeMedicalStreamingFixed.service';
-// import { awsTranscribeSimple } from './_deprecated/awsTranscribeSimple.service';
+import { logError, logInfo, logDebug } from './logger.service';
 
 export interface TranscriptionResult {
   transcript: string;
@@ -70,18 +56,16 @@ class SpeechServiceRouter {
    * Get the streaming service (main transcription interface)
    */
   getStreamingService(): SpeechServiceInterface {
-    // Priority: Deepgram SDK (primary - official SDK with proper auth) → Deepgram Adapter (fallback)
-    // The SDK uses the official @deepgram/sdk which handles WebSocket authentication properly
-    // The adapter uses manual WebSocket which fails due to browser limitations on custom headers
     if (deepgramSDKService.isConfigured()) {
-      logInfo('speechServiceRouter', 'Using Deepgram SDK for streaming (official SDK with proper auth)');
       return deepgramSDKService;
-    } else if (deepgramAdapter.isConfigured()) {
-      logInfo('speechServiceRouter', 'Using Deepgram Adapter for streaming (fallback - may have auth issues)');
-      return deepgramAdapter;
     } else {
-      logError('speechServiceRouter', 'No speech services available - check Deepgram configuration');
-      throw new Error('Deepgram transcription service not configured. Please set VITE_DEEPGRAM_API_KEY');
+      logError('speechServiceRouter', 'Deepgram service not configured');
+      throw new Error(
+        'Deepgram transcription service not configured.\n' +
+        'Please ensure:\n' +
+        '1. VITE_DEEPGRAM_API_KEY is set in .env\n' +
+        '2. Proxy server is running: npm run proxy:start'
+      );
     }
   }
 
@@ -118,13 +102,10 @@ class SpeechServiceRouter {
   }
 
   /**
-   * Check if any speech service is available
+   * Check if speech service is available
    */
   isAnyServiceAvailable(): boolean {
-    return (
-      deepgramSDKService.isConfigured() ||
-      deepgramAdapter.isConfigured()
-    );
+    return deepgramSDKService.isConfigured();
   }
 
   /**
@@ -132,24 +113,17 @@ class SpeechServiceRouter {
    */
   getServiceStatus() {
     return {
-      primaryProvider: this.primaryProvider,
+      primaryProvider: 'deepgram',
       deepgram: {
-        sdk: deepgramSDKService.isConfigured(),
-        adapter: deepgramAdapter.isConfigured(),
+        configured: deepgramSDKService.isConfigured(),
+        model: 'nova-2-medical',
+        status: 'active'
       },
-      aws: {
-        status: 'DEPRECATED - Moved to _deprecated/ folder',
-        streaming: false,
-        simple: false,
-      },
-      azure: {
-        status: 'DISABLED - Out of credits/quota issues',
-        streaming: false,
-        dictation: false,
-        conversation: false,
-        ambient: false,
-        simple: false,
-      },
+      deprecated: {
+        aws: 'Moved to _archived/',
+        azure: 'Disabled - quota issues',
+        deepgramAdapter: 'Archived - use deepgramSDKService'
+      }
     };
   }
 
