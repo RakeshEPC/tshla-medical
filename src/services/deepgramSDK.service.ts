@@ -134,6 +134,9 @@ class DeepgramSDKService implements SpeechServiceInterface {
    * Create proxy WebSocket connection that mimics Deepgram SDK connection
    */
   private createProxyConnection(wsUrl: string): any {
+    // DEBUG: Log WebSocket creation
+    console.log('🔌 Creating WebSocket connection to:', wsUrl.substring(0, 150));
+
     const ws = new WebSocket(wsUrl);
     const eventHandlers: Record<string, Function[]> = {};
 
@@ -309,6 +312,12 @@ class DeepgramSDKService implements SpeechServiceInterface {
       const proxyUrl = import.meta.env.VITE_DEEPGRAM_PROXY_URL || 'ws://localhost:8080';
       const useProxy = true; // Always true for browser environment
 
+      // DEBUG: Log proxy URL resolution
+      console.log('🔍 DEEPGRAM PROXY DEBUG:');
+      console.log('  Environment variable VITE_DEEPGRAM_PROXY_URL:', import.meta.env.VITE_DEEPGRAM_PROXY_URL);
+      console.log('  Resolved proxy URL:', proxyUrl);
+      console.log('  Using proxy:', useProxy);
+
       logInfo('deepgramSDK', `Connecting via proxy: ${proxyUrl}`);
 
       // Validate proxy is accessible before attempting WebSocket connection
@@ -341,6 +350,11 @@ class DeepgramSDKService implements SpeechServiceInterface {
 
       // Create WebSocket connection to proxy
       const wsUrl = this.buildProxyWebSocketUrl(proxyUrl, liveConfig);
+
+      // DEBUG: Log full WebSocket URL
+      console.log('  Built WebSocket URL:', wsUrl);
+      console.log('  First 100 chars of URL:', wsUrl.substring(0, 100));
+
       logDebug('deepgramSDK', `Connecting to proxy WebSocket`);
       this.connection = this.createProxyConnection(wsUrl);
 
@@ -361,7 +375,9 @@ class DeepgramSDKService implements SpeechServiceInterface {
           errorType: typeof error,
           errorMessage: error?.message || error,
           errorString: String(error),
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          // Add URL info if available
+          connectionURL: this.connection?._ws?.url || 'unknown'
         });
 
         // Check if it's an authentication error
