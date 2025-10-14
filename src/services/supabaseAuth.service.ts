@@ -289,12 +289,25 @@ class SupabaseAuthService {
         .single();
 
       if (staffError) {
-        // If medical_staff creation fails, delete the auth user
-        await supabase.auth.admin.deleteUser(authData.user.id);
+        logError('SupabaseAuth', 'Failed to create medical_staff record', {
+          error: staffError,
+          message: staffError.message,
+          code: staffError.code,
+          details: staffError.details,
+          hint: staffError.hint,
+          authUserId: authData.user.id,
+        });
+
+        // Note: We cannot delete the orphaned auth user from client-side
+        // (requires service role key). Admin must clean up manually via Supabase Dashboard.
 
         return {
           success: false,
-          error: 'Failed to create medical staff profile',
+          error: staffError.code === '23505'
+            ? 'An account with this email already exists. Please use a different email or contact support.'
+            : staffError.code === '42501'
+            ? 'Permission denied: Row Level Security policy is blocking account creation. Please contact your system administrator to fix Supabase RLS policies.'
+            : `Failed to create medical staff profile: ${staffError.message}. If this persists, contact support.`,
         };
       }
 
@@ -419,17 +432,22 @@ class SupabaseAuthService {
         logError('SupabaseAuth', 'Failed to create patient profile', {
           error: patientError,
           message: patientError.message,
+          code: patientError.code,
           details: patientError.details,
           hint: patientError.hint,
+          authUserId: authData.user.id,
         });
 
-        // Note: We can't delete the auth user from client-side (requires service role key)
-        // The user will exist in auth.users but won't have a patient profile
-        // They can try registering again or contact support
+        // Note: We cannot delete the orphaned auth user from client-side
+        // (requires service role key). Admin must clean up manually via Supabase Dashboard.
 
         return {
           success: false,
-          error: `Failed to create patient profile: ${patientError.message}. Please contact support if this persists.`,
+          error: patientError.code === '23505'
+            ? 'An account with this email already exists. Please use a different email or contact support.'
+            : patientError.code === '42501'
+            ? 'Permission denied: Row Level Security policy is blocking account creation. Please contact your system administrator to fix Supabase RLS policies.'
+            : `Failed to create patient profile: ${patientError.message}. If this persists, contact support.`,
         };
       }
 
