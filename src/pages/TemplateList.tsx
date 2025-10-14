@@ -107,7 +107,7 @@ export default function TemplateList() {
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => navigate('/doctor-templates')}
+                onClick={() => navigate('/templates/doctor')}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
               >
                 <Plus className="h-4 w-4" />
@@ -250,7 +250,7 @@ export default function TemplateList() {
 
                     <div className="flex items-center gap-2 ml-4">
                       <button
-                        onClick={() => navigate(`/doctor-templates?edit=${template.id}`)}
+                        onClick={() => navigate(`/templates/doctor?edit=${template.id}`)}
                         className="p-2 hover:bg-gray-100 rounded-lg"
                         title="Edit template"
                       >

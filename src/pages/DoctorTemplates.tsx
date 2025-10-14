@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   Plus,
@@ -57,6 +57,7 @@ const DEFAULT_SECTIONS = [
 
 export default function DoctorTemplates() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const currentUser = unifiedAuthService.getCurrentUser();
   const currentDoctor = currentUser
     ? {
@@ -105,6 +106,19 @@ export default function DoctorTemplates() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [openDropdown]);
+
+  // Handle edit query parameter
+  useEffect(() => {
+    const editId = searchParams.get('edit');
+    if (editId && templates.length > 0) {
+      const templateToEdit = templates.find(t => t.id === editId);
+      if (templateToEdit) {
+        editTemplate(templateToEdit);
+        // Clear the query parameter to avoid re-triggering
+        navigate('/templates/doctor', { replace: true });
+      }
+    }
+  }, [searchParams, templates]);
 
   const loadTemplates = async () => {
     if (!currentDoctor) return;
