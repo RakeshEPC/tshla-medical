@@ -63,8 +63,8 @@ export interface DoctorProfile {
   favoriteTemplates: string[]; // Template IDs
 }
 
-// Import the API service
-import { templateAPIService } from './templateAPI.service';
+// Import Supabase services
+import { supabase } from '../lib/supabase';
 // Import standard templates
 import { getDefaultTemplatesForDoctor, standardTemplates } from '../data/standardTemplates';
 import { logError, logWarn, logInfo, logDebug } from './logger.service';
@@ -116,18 +116,26 @@ class DoctorProfileService {
       return migratedProfile;
     }
 
-    // NEW: Load profile with database-first template loading
-    logDebug('doctorProfile', 'Debug message', {});
+    // NEW: Load profile with Supabase-first template loading
+    logDebug('doctorProfile', 'Loading doctor profile', { doctorId: id });
 
-    // Try to load doctor profile from API
-    let profile = await templateAPIService.loadProfile(id);
-    let templatesFromDB: DoctorTemplate[] = [];
+    // Check localStorage for existing profile
+    const stored = localStorage.getItem(this.getStorageKey(id));
+    let profile: DoctorProfile | null = null;
 
-    // Load templates from database
-    templatesFromDB = await this.loadTemplatesFromDatabase(id);
+    if (stored) {
+      try {
+        profile = JSON.parse(stored);
+      } catch (e) {
+        logError('doctorProfile', 'Error parsing stored profile', { error: e });
+      }
+    }
+
+    // Load templates from Supabase database
+    const templatesFromDB = await this.loadTemplatesFromDatabase(id);
 
     if (templatesFromDB.length === 0) {
-      logDebug('doctorProfile', 'Debug message', {});
+      logDebug('doctorProfile', 'No templates in Supabase, using fallback', {});
       // If no templates in database, create profile with default templates
       if (!profile) {
         profile = this.createDefaultProfileWithoutTemplates(id);
@@ -144,12 +152,12 @@ class DoctorProfileService {
       profile = this.createDefaultProfileWithoutTemplates(id);
     }
 
-    // Update profile with database templates
+    // Update profile with Supabase templates
     profile.templates = templatesFromDB;
 
     this.profileCache.set(id, profile);
     localStorage.setItem(this.getStorageKey(id), JSON.stringify(profile));
-    logInfo('doctorProfile', 'Info message', {});
+    logInfo('doctorProfile', `Profile loaded with ${templatesFromDB.length} templates from Supabase`, {});
     return profile;
   }
 
@@ -196,25 +204,64 @@ class DoctorProfileService {
   }
 
   /**
-   * Load templates from database first, fallback to ensuring standard templates
-   * NEW: Database-first approach for template loading
+   * Load templates from Supabase database
+   * NEW: Supabase-first approach for template loading
    */
   private async loadTemplatesFromDatabase(doctorId: string): Promise<DoctorTemplate[]> {
     try {
-      logDebug('doctorProfile', 'Debug message', {});
+      logDebug('doctorProfile', 'Loading templates from Supabase', { doctorId });
 
-      // Try to get templates from MySQL database
-      const templates = await templateAPIService.getTemplates(doctorId);
+      // Get staff_id from medical_staff table
+      const { data: staffData, error: staffError } = await supabase
+        .from('medical_staff')
+        .select('id')
+        .eq('auth_user_id', doctorId)
+        .maybeSingle();
 
-      if (templates && templates.length > 0) {
-        logInfo('doctorProfile', 'Info message', {});
-        return templates;
+      if (staffError) {
+        logError('doctorProfile', 'Error finding medical staff', { error: staffError });
+        return [];
       }
 
-      logDebug('doctorProfile', 'Debug message', {});
+      if (!staffData) {
+        logWarn('doctorProfile', 'No medical staff record found', { doctorId });
+        return [];
+      }
+
+      // Load templates from Supabase
+      const { data: templates, error } = await supabase
+        .from('templates')
+        .select('*')
+        .or(`staff_id.eq.${staffData.id},is_system_template.eq.true`)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        logError('doctorProfile', 'Error loading templates from Supabase', { error });
+        return [];
+      }
+
+      if (templates && templates.length > 0) {
+        logInfo('doctorProfile', `Loaded ${templates.length} templates from Supabase`, {});
+
+        // Convert Supabase format to DoctorTemplate format
+        return templates.map(t => ({
+          id: t.id,
+          name: t.name,
+          description: t.description || '',
+          visitType: (t.template_type as DoctorTemplate['visitType']) || 'general',
+          isDefault: false, // Will be set from doctor settings
+          sections: t.sections || {},
+          generalInstructions: '',
+          createdAt: t.created_at,
+          updatedAt: t.updated_at,
+          usageCount: t.usage_count || 0,
+        }));
+      }
+
+      logDebug('doctorProfile', 'No templates found in Supabase', {});
       return [];
     } catch (error) {
-      logError('doctorProfile', 'Error message', {});
+      logError('doctorProfile', 'Exception loading templates', { error });
       return [];
     }
   }
@@ -364,10 +411,7 @@ class DoctorProfileService {
     // Save to localStorage immediately for offline access
     localStorage.setItem(key, JSON.stringify(profile));
 
-    // Save to API in background (don't block)
-    templateAPIService.saveProfile(profile).catch(error => {
-      logError('doctorProfile', 'Error message', {});
-    });
+    // Note: Templates are saved individually to Supabase via createTemplate/updateTemplate methods
   }
 
   /**
@@ -388,7 +432,7 @@ class DoctorProfileService {
   }
 
   /**
-   * Create a new template for doctor
+   * Create a new template for doctor (Supabase)
    */
   async createTemplate(
     template: Omit<DoctorTemplate, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'>,
@@ -402,35 +446,68 @@ class DoctorProfileService {
         throw new Error(`Maximum templates limit (${this.MAX_TEMPLATES_PER_DOCTOR}) reached`);
       }
 
-      const newTemplate: DoctorTemplate = {
-        ...template,
-        id: `template_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+      // Get staff_id from medical_staff table
+      const { data: staffData, error: staffError } = await supabase
+        .from('medical_staff')
+        .select('id')
+        .eq('auth_user_id', effectiveDoctorId)
+        .maybeSingle();
+
+      if (staffError || !staffData) {
+        throw new Error('Medical staff record not found');
+      }
+
+      // Insert into Supabase
+      const { data: newTemplate, error } = await supabase
+        .from('templates')
+        .insert({
+          staff_id: staffData.id,
+          name: template.name,
+          description: template.description,
+          template_type: template.visitType || 'general',
+          sections: template.sections,
+          macros: {},
+          quick_phrases: [],
+          is_system_template: false,
+          is_shared: false,
+          usage_count: 0,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        throw new Error(`Failed to create template: ${error.message}`);
+      }
+
+      logInfo('doctorProfile', 'Template created in Supabase', { templateId: newTemplate.id });
+
+      // Convert to DoctorTemplate format
+      const doctorTemplate: DoctorTemplate = {
+        id: newTemplate.id,
+        name: newTemplate.name,
+        description: newTemplate.description || '',
+        visitType: (newTemplate.template_type as DoctorTemplate['visitType']) || 'general',
+        isDefault: false,
+        sections: newTemplate.sections || {},
+        generalInstructions: template.generalInstructions || '',
+        createdAt: newTemplate.created_at,
+        updatedAt: newTemplate.updated_at,
         usageCount: 0,
       };
 
-      // Try to save to API first
-      try {
-        await templateAPIService.saveTemplate(newTemplate, effectiveDoctorId);
-        logInfo('doctorProfile', 'Info message', {});
-      } catch (apiError) {
-        logWarn('doctorProfile', 'Warning message', {});
-      }
-
-      // Update local profile
-      profile.templates.push(newTemplate);
+      // Update local profile cache
+      profile.templates.push(doctorTemplate);
       await this.saveProfile(profile);
 
-      return newTemplate;
+      return doctorTemplate;
     } catch (error) {
-      logError('doctorProfile', 'Error message', {});
+      logError('doctorProfile', 'Error creating template', { error });
       throw error;
     }
   }
 
   /**
-   * Update an existing template
+   * Update an existing template (Supabase)
    */
   async updateTemplate(
     templateId: string,
@@ -445,27 +522,36 @@ class DoctorProfileService {
       throw new Error('Template not found');
     }
 
+    // Update in Supabase
+    const { error } = await supabase
+      .from('templates')
+      .update({
+        name: updates.name,
+        description: updates.description,
+        template_type: updates.visitType,
+        sections: updates.sections,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', templateId);
+
+    if (error) {
+      throw new Error(`Failed to update template: ${error.message}`);
+    }
+
+    logInfo('doctorProfile', 'Template updated in Supabase', { templateId });
+
+    // Update local profile
     const updatedTemplate = {
       ...profile.templates[index],
       ...updates,
       updatedAt: new Date().toISOString(),
     };
-
-    // Try to update on API first
-    try {
-      await templateAPIService.updateTemplate(templateId, updatedTemplate);
-      logInfo('doctorProfile', 'Info message', {});
-    } catch (apiError) {
-      logWarn('doctorProfile', 'Warning message', {});
-    }
-
-    // Update local profile
     profile.templates[index] = updatedTemplate;
     await this.saveProfile(profile);
   }
 
   /**
-   * Delete a template (MySQL-first approach)
+   * Delete a template (Supabase)
    */
   async deleteTemplate(templateId: string, doctorId?: string): Promise<void> {
     const effectiveDoctorId = doctorId || this.currentDoctorId || 'default-doctor';
@@ -474,22 +560,30 @@ class DoctorProfileService {
       throw new Error('Please log in to delete templates');
     }
 
-    logDebug('doctorProfile', 'Debug message', {});
+    logDebug('doctorProfile', 'Deleting template from Supabase', { templateId });
 
     try {
-      // Use MySQL API directly - no localStorage fallback
-      await templateAPIService.deleteTemplate(templateId);
-      logInfo('doctorProfile', 'Info message', {});
+      // Delete from Supabase
+      const { error } = await supabase.from('templates').delete().eq('id', templateId);
+
+      if (error) {
+        throw new Error(`Failed to delete template: ${error.message}`);
+      }
+
+      logInfo('doctorProfile', 'Template deleted from Supabase', { templateId });
+
+      // Clear cache to force reload
+      this.clearCache(effectiveDoctorId);
     } catch (error) {
-      logError('doctorProfile', 'Error message', {});
+      logError('doctorProfile', 'Error deleting template', { error });
       throw new Error(
-        `Failed to delete template: ${error instanceof Error ? error.message : 'Database connection failed'}`
+        `Failed to delete template: ${error instanceof Error ? error.message : 'Database error'}`
       );
     }
   }
 
   /**
-   * Get all templates for doctor (MySQL-first approach)
+   * Get all templates for doctor (Supabase)
    */
   async getTemplates(doctorId?: string): Promise<DoctorTemplate[]> {
     const effectiveDoctorId = doctorId || this.currentDoctorId;
@@ -498,17 +592,17 @@ class DoctorProfileService {
       throw new Error('No doctor ID provided');
     }
 
-    logDebug('doctorProfile', 'Debug message', {});
+    logDebug('doctorProfile', 'Getting templates from Supabase', { doctorId: effectiveDoctorId });
 
     try {
-      // Use MySQL API directly - no localStorage fallback
-      const templates = await templateAPIService.getTemplates(effectiveDoctorId);
-      logInfo('doctorProfile', 'Info message', {});
+      // Load from database (this handles Supabase internally)
+      const templates = await this.loadTemplatesFromDatabase(effectiveDoctorId);
+      logInfo('doctorProfile', `Retrieved ${templates.length} templates`, {});
       return templates;
     } catch (error) {
-      logError('doctorProfile', 'Error message', {});
+      logError('doctorProfile', 'Error getting templates', { error });
       throw new Error(
-        `Failed to load templates: ${error instanceof Error ? error.message : 'Database connection failed'}`
+        `Failed to load templates: ${error instanceof Error ? error.message : 'Database error'}`
       );
     }
   }
@@ -522,7 +616,7 @@ class DoctorProfileService {
   }
 
   /**
-   * Set default template (MySQL-first approach)
+   * Set default template (localStorage-based)
    */
   async setDefaultTemplate(
     templateId: string,
@@ -535,16 +629,29 @@ class DoctorProfileService {
       throw new Error('Please log in to set default template');
     }
 
-    logDebug('doctorProfile', 'Debug message', {});
+    logDebug('doctorProfile', 'Setting default template', { templateId, visitType });
 
     try {
-      // Use MySQL API directly - no localStorage fallback
-      await templateAPIService.setDefaultTemplate(templateId, effectiveDoctorId, visitType);
-      logInfo('doctorProfile', 'Info message', {});
+      const profile = await this.getProfile(effectiveDoctorId);
+
+      // Update settings with default template
+      if (visitType) {
+        // Set default for specific visit type
+        if (!profile.settings.defaultTemplateByVisitType) {
+          profile.settings.defaultTemplateByVisitType = {};
+        }
+        profile.settings.defaultTemplateByVisitType[visitType] = templateId;
+      } else {
+        // Set general default template
+        profile.settings.defaultTemplateId = templateId;
+      }
+
+      await this.saveProfile(profile);
+      logInfo('doctorProfile', 'Default template set', { templateId, visitType });
     } catch (error) {
-      logError('doctorProfile', 'Error message', {});
+      logError('doctorProfile', 'Error setting default template', { error });
       throw new Error(
-        `Failed to set default template: ${error instanceof Error ? error.message : 'Database connection failed'}`
+        `Failed to set default template: ${error instanceof Error ? error.message : 'Failed to update settings'}`
       );
     }
   }
@@ -597,7 +704,7 @@ class DoctorProfileService {
   }
 
   /**
-   * Toggle favorite template (MySQL-first approach)
+   * Toggle favorite template (localStorage-based)
    */
   async toggleFavorite(templateId: string, doctorId?: string): Promise<boolean> {
     const effectiveDoctorId = doctorId || this.currentDoctorId || 'default-doctor';
@@ -606,17 +713,31 @@ class DoctorProfileService {
       throw new Error('Please log in to manage favorites');
     }
 
-    logDebug('doctorProfile', 'Debug message', {});
+    logDebug('doctorProfile', 'Toggling favorite template', { templateId });
 
     try {
-      // Use MySQL API directly - no localStorage fallback
-      const isFavorite = await templateAPIService.toggleFavorite(templateId, effectiveDoctorId);
-      logInfo('doctorProfile', 'Info message', {});
-      return isFavorite;
+      const profile = await this.getProfile(effectiveDoctorId);
+
+      // Check if template is already a favorite
+      const index = profile.favoriteTemplates.indexOf(templateId);
+
+      if (index > -1) {
+        // Remove from favorites
+        profile.favoriteTemplates.splice(index, 1);
+        await this.saveProfile(profile);
+        logInfo('doctorProfile', 'Template removed from favorites', { templateId });
+        return false;
+      } else {
+        // Add to favorites
+        profile.favoriteTemplates.push(templateId);
+        await this.saveProfile(profile);
+        logInfo('doctorProfile', 'Template added to favorites', { templateId });
+        return true;
+      }
     } catch (error) {
-      logError('doctorProfile', 'Error message', {});
+      logError('doctorProfile', 'Error toggling favorite', { error });
       throw new Error(
-        `Failed to update favorites: ${error instanceof Error ? error.message : 'Database connection failed'}`
+        `Failed to update favorites: ${error instanceof Error ? error.message : 'Failed to update profile'}`
       );
     }
   }
@@ -644,7 +765,7 @@ class DoctorProfileService {
   }
 
   /**
-   * Duplicate a template (MySQL-first approach)
+   * Duplicate a template (Supabase)
    */
   async duplicateTemplate(
     templateId: string,
@@ -657,30 +778,38 @@ class DoctorProfileService {
       throw new Error('Please log in to duplicate templates');
     }
 
-    logDebug('doctorProfile', 'Debug message', {});
+    logDebug('doctorProfile', 'Duplicating template', { templateId, newName });
 
     try {
-      // Use MySQL API directly - no localStorage fallback
-      const newTemplateId = await templateAPIService.duplicateTemplate(
-        templateId,
-        newName,
+      // Get the original template
+      const originalTemplate = await this.getTemplate(templateId, effectiveDoctorId);
+
+      if (!originalTemplate) {
+        throw new Error('Template not found');
+      }
+
+      // Create a new template based on the original
+      const newTemplate = await this.createTemplate(
+        {
+          name: newName,
+          description: originalTemplate.description,
+          visitType: originalTemplate.visitType,
+          sections: originalTemplate.sections,
+          generalInstructions: originalTemplate.generalInstructions,
+        },
         effectiveDoctorId
       );
-      logInfo('doctorProfile', 'Info message', {});
 
-      // Get the new template from API
-      const templates = await templateAPIService.getTemplates(effectiveDoctorId);
-      const newTemplate = templates.find(t => t.id === newTemplateId);
-
-      if (!newTemplate) {
-        throw new Error('Duplicated template not found in database');
-      }
+      logInfo('doctorProfile', 'Template duplicated successfully', {
+        originalId: templateId,
+        newId: newTemplate.id
+      });
 
       return newTemplate;
     } catch (error) {
-      logError('doctorProfile', 'Error message', {});
+      logError('doctorProfile', 'Error duplicating template', { error });
       throw new Error(
-        `Failed to duplicate template: ${error instanceof Error ? error.message : 'Database connection failed'}`
+        `Failed to duplicate template: ${error instanceof Error ? error.message : 'Duplication failed'}`
       );
     }
   }

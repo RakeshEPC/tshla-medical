@@ -4,7 +4,7 @@
  * Created: September 16, 2025
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FileText,
@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabaseAuthService as unifiedAuthService } from '../../services/supabaseAuth.service';
+import { doctorProfileService, type DoctorTemplate } from '../../services/doctorProfile.service';
 import { logError, logWarn, logInfo, logDebug } from '../../services/logger.service';
 
 interface DoctorNavBarProps {
@@ -44,14 +45,36 @@ export default function DoctorNavBar({
   const { user, logout } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showTemplateMenu, setShowTemplateMenu] = useState(false);
+  const [recentTemplates, setRecentTemplates] = useState<DoctorTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
   const currentUser = unifiedAuthService.getCurrentUser();
+
+  // Load recent templates on mount
+  useEffect(() => {
+    const loadRecentTemplates = async () => {
+      try {
+        setLoadingTemplates(true);
+        const doctorId = currentUser?.id || currentUser?.email || 'doctor-default-001';
+        doctorProfileService.initialize(doctorId);
+        const recent = await doctorProfileService.getRecentTemplates(doctorId);
+        setRecentTemplates(recent.slice(0, 5)); // Show top 5 recent
+      } catch (error) {
+        logError('DoctorNavBar', 'Error message', {});
+        setRecentTemplates([]);
+      } finally {
+        setLoadingTemplates(false);
+      }
+    };
+
+    loadRecentTemplates();
+  }, [currentUser?.id, currentUser?.email]);
 
   const handleQuickNote = () => {
     navigate('/quick-note');
   };
 
   const handleTemplates = () => {
-    navigate('/doctor/templates');
+    navigate('/templates/list');
   };
 
   const handleLogout = async () => {
@@ -63,11 +86,19 @@ export default function DoctorNavBar({
     }
   };
 
-  const recentTemplates = [
-    { id: '1', name: 'General SOAP Note', lastUsed: '2 hours ago' },
-    { id: '2', name: 'Follow-up Visit', lastUsed: 'Yesterday' },
-    { id: '3', name: 'Annual Physical', lastUsed: '3 days ago' },
-  ];
+  const formatLastUsed = (template: DoctorTemplate): string => {
+    const updated = new Date(template.updatedAt);
+    const now = new Date();
+    const diffMs = now.getTime() - updated.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffHours < 1) return 'Just now';
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return updated.toLocaleDateString();
+  };
 
   const getViewButtonClass = (view: string) => {
     const baseClass =
@@ -138,7 +169,7 @@ export default function DoctorNavBar({
                       <div className="space-y-1 mb-3">
                         <button
                           onClick={() => {
-                            // TODO: Create new template modal
+                            navigate('/templates/builder');
                             setShowTemplateMenu(false);
                           }}
                           className="w-full flex items-center space-x-2 p-2 rounded hover:bg-gray-50 text-left"
@@ -154,21 +185,49 @@ export default function DoctorNavBar({
                           Recent Templates
                         </h4>
                         <div className="space-y-1">
-                          {recentTemplates.map(template => (
-                            <button
-                              key={template.id}
-                              onClick={() => {
-                                // TODO: Load template
-                                setShowTemplateMenu(false);
-                              }}
-                              className="w-full text-left p-2 rounded hover:bg-gray-50"
-                            >
-                              <div className="text-sm font-medium text-gray-900">
-                                {template.name}
-                              </div>
-                              <div className="text-xs text-gray-500">Used {template.lastUsed}</div>
-                            </button>
-                          ))}
+                          {loadingTemplates ? (
+                            <div className="p-4 text-center">
+                              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+                              <p className="text-xs text-gray-500 mt-2">Loading templates...</p>
+                            </div>
+                          ) : recentTemplates.length > 0 ? (
+                            recentTemplates.map(template => (
+                              <button
+                                key={template.id}
+                                onClick={() => {
+                                  navigate(`/templates/doctor?edit=${template.id}`);
+                                  setShowTemplateMenu(false);
+                                }}
+                                className="w-full text-left p-2 rounded hover:bg-gray-50"
+                              >
+                                <div className="text-sm font-medium text-gray-900">
+                                  {template.name}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {template.visitType && (
+                                    <span className="text-blue-600 font-medium">
+                                      {template.visitType}
+                                    </span>
+                                  )}
+                                  {template.visitType && ' • '}
+                                  Used {formatLastUsed(template)}
+                                </div>
+                              </button>
+                            ))
+                          ) : (
+                            <div className="p-4 text-center">
+                              <p className="text-xs text-gray-500 mb-2">No recent templates</p>
+                              <button
+                                onClick={() => {
+                                  navigate('/templates/builder');
+                                  setShowTemplateMenu(false);
+                                }}
+                                className="text-xs text-blue-600 hover:text-blue-700"
+                              >
+                                Create your first template →
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
