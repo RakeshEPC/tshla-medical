@@ -3,8 +3,8 @@
  * Handles all voice recognition functionality
  */
 
-import { medicalVocabularyService } from './medicalVocabulary.service';
-import { logError, logWarn, logInfo, logDebug } from './logger.service';
+import { medicalVocabularyService } from '../medicalVocabulary.service';
+import { logError, logWarn, logInfo, logDebug } from '../logger.service';
 
 export class DictationService {
   private recognition: any = null;

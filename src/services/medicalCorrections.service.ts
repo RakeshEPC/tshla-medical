@@ -260,6 +260,24 @@ export class MedicalCorrectionsService {
     // Fix decimal numbers
     text = text.replace(/(\d+)\s+point\s+(\d+)/gi, '$1.$2');
 
+    // Fix temperature format (from highQualityDictation)
+    text = text.replace(/(\d+\.?\d*)\s+degrees?\s*(fahrenheit|f)?/gi, '$1°F');
+
+    // Fix blood pressure format (from highQualityDictation)
+    text = text.replace(/(\d+)\s+over\s+(\d+)/gi, '$1/$2');
+
+    // Fix times/frequency format (from highQualityDictation)
+    text = text.replace(/times\s+(\d+)/gi, 'x$1');
+
+    // Fix common medication abbreviations (from highQualityDictation)
+    text = text.replace(/\bp\.?o\.?\b/gi, 'PO');
+    text = text.replace(/\bb\.?i\.?d\.?\b/gi, 'BID');
+    text = text.replace(/\bt\.?i\.?d\.?\b/gi, 'TID');
+    text = text.replace(/\bq\.?d\.?\b/gi, 'QD');
+    text = text.replace(/\bp\.?r\.?n\.?\b/gi, 'PRN');
+    text = text.replace(/\bq\.?h\.?\b/gi, 'QH');
+    text = text.replace(/\bq\.?i\.?d\.?\b/gi, 'QID');
+
     // Fix lab value patterns
     text = text.replace(/A1C\s+(?:is|was)?\s*(\d+(?:\.\d+)?)/gi, 'A1C $1');
     text = text.replace(/blood sugar\s+(\d+)/gi, 'blood sugar $1');

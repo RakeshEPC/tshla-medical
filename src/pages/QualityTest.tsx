@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { HighQualityDictationService } from '../services/highQualityDictation.service';
+import { HighQualityDictationService } from '../services/_deprecated/highQualityDictation.service';
 import { HighQualityAIService } from '../services/highQualityAI.service';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
 

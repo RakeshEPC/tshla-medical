@@ -4,7 +4,7 @@
  */
 
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
-import { logError, logWarn, logInfo, logDebug } from './logger.service';
+import { logError, logWarn, logInfo, logDebug } from '../logger.service';
 
 interface TranscriptionConfig {
   // Use the BEST settings that worked before

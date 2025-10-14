@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { medicalCorrections } from '../services/medicalCorrections.service';
 import { speechServiceRouter } from '../services/speechServiceRouter.service';
 import { awsTranscribeService } from '../services/_deprecated/awsTranscribe.service';
@@ -29,6 +30,7 @@ interface MedicalDictationProps {
 
 export default function MedicalDictation({ patientId, preloadPatientData = false }: MedicalDictationProps) {
   const navigate = useNavigate();
+  const { logout } = useAuth();
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [interimText, setInterimText] = useState('');
@@ -38,8 +40,6 @@ export default function MedicalDictation({ patientId, preloadPatientData = false
   const [recordingError, setRecordingError] = useState<string>('');
   const [recordingMode, setRecordingMode] = useState<'dictation' | 'conversation' | null>(null); // Force selection
   const [audioLevel, setAudioLevel] = useState<number>(0);
-  const [isTestingMicrophone, setIsTestingMicrophone] = useState(false);
-  const [microphoneTestResult, setMicrophoneTestResult] = useState<string>('');
   // Speech recognition ref removed - using HIPAA-compliant services
   const [doctorSpecialty, setDoctorSpecialty] = useState<string>('');
   const [selectedTemplate, setSelectedTemplate] = useState<DoctorTemplate | null>(null);
@@ -477,64 +477,6 @@ export default function MedicalDictation({ patientId, preloadPatientData = false
     };
   }, [isRecording]);
 
-  // Test microphone function
-  const testMicrophone = async () => {
-    setIsTestingMicrophone(true);
-    setMicrophoneTestResult('');
-    setRecordingError('');
-
-    try {
-      logInfo('MedicalDictation', 'Starting microphone test...');
-
-      const service = speechServiceRouter.getStreamingService();
-      if (!service || typeof (service as any).testMicrophone !== 'function') {
-        throw new Error('Microphone test is not available for the current service');
-      }
-
-      const result = await (service as any).testMicrophone();
-
-      if (result.success) {
-        const deviceName = result.deviceInfo?.label || 'Unknown Device';
-        const audioLevel = result.audioLevel || 0;
-
-        let message = `✅ Microphone Test Successful!\n\n`;
-        message += `Device: ${deviceName}\n`;
-        message += `Audio Level: ${audioLevel}/255\n\n`;
-
-        if (audioLevel < 10) {
-          message += `⚠️ Warning: Audio level is very low (${audioLevel}/255).\n`;
-          message += `Please check:\n`;
-          message += `• Microphone is not muted\n`;
-          message += `• Microphone volume is turned up\n`;
-          message += `• You are speaking close to the microphone\n`;
-        } else if (audioLevel < 30) {
-          message += `⚠️ Audio level is low. Consider speaking closer to the microphone or increasing volume.\n`;
-        } else {
-          message += `🎉 Audio level is good! You're ready to record.`;
-        }
-
-        setMicrophoneTestResult(message);
-        logInfo('MedicalDictation', `Microphone test passed: ${deviceName}, level: ${audioLevel}`);
-        alert(message);
-      } else {
-        const errorMsg = result.error || 'Unknown error';
-        setMicrophoneTestResult(`❌ Microphone Test Failed\n\n${errorMsg}`);
-        setRecordingError(errorMsg);
-        logError('MedicalDictation', `Microphone test failed: ${errorMsg}`);
-        alert(`❌ Microphone Test Failed\n\n${errorMsg}`);
-      }
-    } catch (error: any) {
-      const errorMsg = error?.message || String(error) || 'Unknown error';
-      const message = `❌ Microphone Test Failed\n\n${errorMsg}`;
-      setMicrophoneTestResult(message);
-      setRecordingError(errorMsg);
-      logError('MedicalDictation', `Microphone test error: ${errorMsg}`);
-      alert(message);
-    } finally {
-      setIsTestingMicrophone(false);
-    }
-  };
-
   const startRecording = async () => {
     if (isRecording) return;
 
@@ -935,16 +877,15 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => navigate('/doctor')}
+                onClick={() => navigate('/dashboard')}
                 className="px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
               >
                 ← Dashboard
               </button>
               <button
-                onClick={() => {
-                  localStorage.removeItem('auth_token');
-                  localStorage.removeItem('session_expires');
-                  window.location.href = '/login';
+                onClick={async () => {
+                  await logout();
+                  navigate('/login');
                 }}
                 className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
               >
@@ -1065,16 +1006,6 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
 
             {/* Recording and Process Controls - Moved to Top */}
             <div className="flex items-center gap-2">
-              {/* Test Microphone Button */}
-              <button
-                onClick={testMicrophone}
-                disabled={isRecording || isTestingMicrophone || isProcessing}
-                className="px-4 py-3 bg-purple-100 text-purple-700 text-sm font-bold rounded-lg hover:bg-purple-200 disabled:bg-gray-300 disabled:cursor-not-allowed transition shadow"
-                title="Test your microphone before recording"
-              >
-                {isTestingMicrophone ? '🔄 TESTING...' : '🎤 TEST MIC'}
-              </button>
-
               <button
                 onClick={isRecording ? stopRecording : startRecording}
                 disabled={isProcessing || !recordingMode}
