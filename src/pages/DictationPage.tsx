@@ -4,6 +4,8 @@ import { getPatientData, type PatientData } from '../services/patientData.servic
 import { templateStorage } from '../lib/templateStorage';
 import type { Template } from '../types/template.types';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
+import { elevenLabsService, ELEVENLABS_VOICES } from '../services/elevenLabs.service';
+import { azureAIService } from '../services/_deprecated/azureAI.service';
 
 export default function DictationPage() {
   const { patientId } = useParams();
@@ -183,129 +185,64 @@ TODAY'S VISIT - ${new Date().toLocaleDateString()}
   };
 
   const processWithAI = async () => {
+    if (!transcript.trim()) {
+      elevenLabsService.speak('No transcript to process. Please record some dictation first.');
+      alert('No transcript to process');
+      return;
+    }
+
     setIsProcessing(true);
     elevenLabsService.speak('Processing with AI using selected template. Please wait.');
 
-    // Get the current template
-    const template = currentTemplate;
+    try {
+      // Prepare patient data for AI processing
+      const patientDataForAI = {
+        name: patientData?.name || 'Unknown Patient',
+        fullName: patientData?.name || 'Unknown Patient',
+        mrn: patientData?.mrn || 'Unknown',
+        dob: patientData?.dob || 'Unknown',
+        dateOfBirth: patientData?.dob || 'Unknown',
+        diagnosis: patientData?.diagnosis || [],
+        medications: patientData?.medications || [],
+        vitalSigns: patientData?.vitalSigns || {},
+        labResults: patientData?.labResults || [],
+      };
 
-    setTimeout(() => {
-      let processed = '';
+      // Build context with patient summary
+      const additionalContext = combinedNoteContent
+        ? `Patient Summary:\n${combinedNoteContent}\n\nToday's Dictation:\n${transcript}`
+        : transcript;
 
-      if (template && template.sections) {
-        // Build note based on template sections
-        processed = `**${template.name} - ${new Date().toLocaleDateString()}**
-**Patient:** ${patientData?.name || 'Unknown'}
-**MRN:** ${patientData?.mrn || 'Unknown'}
-**Provider:** Dr. ${localStorage.getItem('doctor_name') || 'Provider'}
+      logInfo('DictationPage', 'Processing with AI', {
+        templateId: currentTemplate?.id,
+        templateName: currentTemplate?.name,
+        transcriptLength: transcript.length,
+      });
 
-`;
+      // Call the real AI service with the selected template
+      const result = await azureAIService.processMedicalTranscription(
+        transcript,
+        patientDataForAI as any,
+        currentTemplate,
+        additionalContext
+      );
 
-        // Add each template section with content
-        if (template.sections.chief_complaint) {
-          processed += `**CHIEF COMPLAINT:**
-${template.sections.chief_complaint}${transcript.slice(0, 100)}
-
-`;
-        }
-
-        if (template.sections.history_present_illness) {
-          processed += `**HISTORY OF PRESENT ILLNESS:**
-${template.sections.history_present_illness}${transcript.slice(100, 300) || 'Patient reports symptoms as documented in chief complaint.'}
-
-`;
-        }
-
-        if (template.sections.review_of_systems) {
-          processed += `**REVIEW OF SYSTEMS:**
-${template.sections.review_of_systems}
-
-`;
-        }
-
-        if (template.sections.past_medical_history) {
-          processed += `**PAST MEDICAL HISTORY:**
-${patientData?.diagnosis.join(', ') || template.sections.past_medical_history}
-
-`;
-        }
-
-        if (template.sections.medications) {
-          processed += `**MEDICATIONS:**
-${patientData?.medications.map(m => `• ${m.name} ${m.dosage} - ${m.frequency}`).join('\n') || template.sections.medications}
-
-`;
-        }
-
-        if (template.sections.allergies) {
-          processed += `**ALLERGIES:**
-${template.sections.allergies}
-
-`;
-        }
-
-        if (template.sections.physical_exam) {
-          processed += `**PHYSICAL EXAMINATION:**
-${template.sections.physical_exam}
-${patientData ? `Current Vitals: BP ${patientData.vitalSigns.bp}, HR ${patientData.vitalSigns.hr}, Temp ${patientData.vitalSigns.temp}` : ''}
-
-`;
-        }
-
-        if (template.sections.assessment) {
-          processed += `**ASSESSMENT:**
-${template.sections.assessment || patientData?.diagnosis.join('\n') || 'Clinical assessment based on examination'}
-
-`;
-        }
-
-        if (template.sections.plan) {
-          processed += `**PLAN:**
-${template.sections.plan}
-${patientData?.medications.length ? '• Continue current medications' : ''}
-• Follow up as scheduled
-
-`;
-        }
-
-        processed += `**Dictation Notes:**
-${transcript}
-
-**Time:** ${new Date().toLocaleTimeString()}
-**Template Used:** ${template.name} (${template.specialty})`;
+      if (result.formatted) {
+        setProcessedNote(result.formatted);
+        setShowProcessed(true);
+        elevenLabsService.speak('AI processing complete. Note is ready for review.');
+        logInfo('DictationPage', 'AI processing completed successfully', {});
       } else {
-        // Fallback to basic SOAP note if no template
-        processed = `
-**SOAP Note - ${new Date().toLocaleDateString()}**
-**Patient:** ${patientData?.name || patientId}
-**MRN:** ${patientData?.mrn || 'Unknown'}
-
-**SUBJECTIVE:**
-${transcript.slice(0, 200) || 'Patient presents with chief complaint...'}
-
-**OBJECTIVE:**
-- Vital Signs: ${patientData ? `BP ${patientData.vitalSigns.bp}, HR ${patientData.vitalSigns.hr}, Temp ${patientData.vitalSigns.temp}` : 'See vitals'}
-- Current Medications: ${patientData?.medications.map(m => m.name).join(', ') || 'See medication list'}
-- Active Diagnoses: ${patientData?.diagnosis.join(', ') || 'See problem list'}
-
-**ASSESSMENT:**
-${patientData?.diagnosis[0] || 'Primary diagnosis'} - stable on current regimen
-
-**PLAN:**
-- Continue current medications
-- Follow up in 3 months
-- Labs: ${patientData?.labResults[0]?.test || 'Routine labs'} at next visit
-
-**Provider:** Dr. ${localStorage.getItem('doctor_name') || 'Provider'}
-**Time:** ${new Date().toLocaleTimeString()}
-      `.trim();
+        throw new Error('No formatted note returned from AI');
       }
-
-      setProcessedNote(processed);
-      setShowProcessed(true);
+    } catch (error) {
+      logError('DictationPage', 'AI processing failed', { error });
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      elevenLabsService.speak(`AI processing failed: ${errorMessage}`);
+      alert(`Failed to process with AI: ${errorMessage}\n\nPlease check your Azure/AWS credentials and try again.`);
+    } finally {
       setIsProcessing(false);
-      elevenLabsService.speak('AI processing complete. Note is ready for review.');
-    }, 2000);
+    }
   };
 
   const saveNote = async () => {
