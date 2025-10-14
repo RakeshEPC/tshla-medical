@@ -1,4 +1,4 @@
-import { logError, logWarn, logInfo, logDebug } from './logger.service';
+import { logError, logWarn, logInfo, logDebug } from '../logger.service';
 /**
  * AI Processing Service
  * Handles all AI-related operations

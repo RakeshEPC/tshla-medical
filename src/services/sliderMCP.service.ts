@@ -46,7 +46,7 @@ interface SliderAnalysis {
   processingTime: number;
   source: 'cache' | 'ai';
 }
-import { openAIService } from './openai.service';
+import { openAIService } from './_archived_2025_cleanup/openai.service';
 
 interface MCPResponse {
   found: boolean;

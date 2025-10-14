@@ -3,7 +3,7 @@
  * Uses intelligent field detection to parse appointment data flexibly
  */
 
-import { azureAIService } from './_deprecated/azureAI.service';
+import { azureAIService } from './azureAI.service';
 import { logError, logWarn, logInfo, logDebug } from './logger.service';
 
 export interface ParsedAppointment {

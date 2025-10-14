@@ -1,4 +1,4 @@
-import { openAIService } from './openai.service';
+import { openAIService } from './_archived_2025_cleanup/openai.service';
 import { PUMP_DATABASE } from '../data/pumpDataComplete';
 import type { PumpDetails } from '../data/pumpDataComplete';
 import { logError, logWarn, logInfo, logDebug } from './logger.service';

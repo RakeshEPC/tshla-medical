@@ -13,7 +13,7 @@ import { supabaseAuthService as unifiedAuthService } from '../services/supabaseA
 import { dictatedNotesService } from '../services/dictatedNotesService';
 import { scheduleService } from '../services/scheduleService';
 import { scheduleDatabaseService } from '../services/scheduleDatabase.service';
-import { azureAIService } from '../services/_deprecated/azureAI.service';
+import { azureAIService } from '../services/azureAI.service';
 import { ChevronDown, FileText, Star, Clock, Mic, MicOff, Brain, User, Trash2, Copy, Printer, Stethoscope, ArrowLeft } from 'lucide-react';
 import NoteFormatter from './NoteFormatter';
 import { NoteSharing } from './NoteSharing';

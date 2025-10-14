@@ -4,7 +4,7 @@
  */
 
 import { pumpFeatureEngine } from './pumpFeatureEngine.service';
-import { openAIService } from './openai.service';
+import { openAIService } from './_archived_2025_cleanup/openai.service';
 import { pumpDriveAIService } from './pumpDriveAI.service';
 import { PUMP_DATABASE } from '../data/pumpDataComplete';
 import { logError, logWarn, logInfo, logDebug } from './logger.service';

@@ -6,7 +6,7 @@
 import OpenAI from 'openai';
 import type { Template } from '../types/template.types';
 import type { PatientData } from './patientData.service';
-import { logError, logWarn, logInfo, logDebug } from './logger.service';
+import { logError, logWarn, logInfo, logDebug } from '../logger.service';
 
 export interface ProcessedNote {
   formatted: string;

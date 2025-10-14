@@ -5,7 +5,7 @@ import { templateStorage } from '../lib/templateStorage';
 import type { Template } from '../types/template.types';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
 import { elevenLabsService, ELEVENLABS_VOICES } from '../services/elevenLabs.service';
-import { azureAIService } from '../services/_deprecated/azureAI.service';
+import { azureAIService } from '../services/azureAI.service';
 
 export default function DictationPage() {
   const { patientId } = useParams();
@@ -23,7 +23,7 @@ export default function DictationPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showProcessed, setShowProcessed] = useState(false);
   const [patientData, setPatientData] = useState<PatientData | undefined>();
-  const [combinedNoteContent, setCombinedNoteContent] = useState('');
+  const [patientSummary, setPatientSummary] = useState('');
 
   // Load patient data
   useEffect(() => {
@@ -31,10 +31,9 @@ export default function DictationPage() {
       const data = getPatientData(patientId);
       setPatientData(data);
 
-      // Initialize combined note content with patient summary
+      // Build patient summary for AI context (NOT added to transcript)
       if (data) {
-        const patientSummary = `PATIENT SUMMARY
-====================
+        const summary = `PATIENT CONTEXT:
 Name: ${data.name}
 MRN: ${data.mrn}
 DOB: ${data.dob}
@@ -66,14 +65,8 @@ ${
 • GAD-7 Score: ${data.mentalHealth.gad7Score}
 • Last Screening: ${data.mentalHealth.lastScreening}`
     : ''
-}
-
-====================
-TODAY'S VISIT - ${new Date().toLocaleDateString()}
-====================
-
-`;
-        setCombinedNoteContent(patientSummary);
+}`;
+        setPatientSummary(summary);
       }
     }
   }, [patientId]);
@@ -123,8 +116,6 @@ TODAY'S VISIT - ${new Date().toLocaleDateString()}
 
         if (final) {
           setTranscript(prev => prev + final);
-          // Add to combined note content
-          setCombinedNoteContent(prev => prev + final);
           setInterimText('');
         } else {
           setInterimText(interim);
@@ -208,10 +199,8 @@ TODAY'S VISIT - ${new Date().toLocaleDateString()}
         labResults: patientData?.labResults || [],
       };
 
-      // Build context with patient summary
-      const additionalContext = combinedNoteContent
-        ? `Patient Summary:\n${combinedNoteContent}\n\nToday's Dictation:\n${transcript}`
-        : transcript;
+      // Pass patient summary as additional context (separate from transcript)
+      const additionalContext = patientSummary;
 
       logInfo('DictationPage', 'Processing with AI', {
         templateId: currentTemplate?.id,
@@ -246,7 +235,7 @@ TODAY'S VISIT - ${new Date().toLocaleDateString()}
   };
 
   const saveNote = async () => {
-    const noteToSave = showProcessed ? processedNote : combinedNoteContent + transcript;
+    const noteToSave = showProcessed ? processedNote : transcript;
     // Save to localStorage for now
     const visitId = `visit-${Date.now()}`;
     localStorage.setItem(
@@ -254,6 +243,7 @@ TODAY'S VISIT - ${new Date().toLocaleDateString()}
       JSON.stringify({
         patientId,
         note: noteToSave,
+        patientSummary, // Save patient context separately
         template: selectedTemplate,
         templateName: currentTemplate?.name,
         timestamp: new Date().toISOString(),
@@ -463,13 +453,11 @@ TODAY'S VISIT - ${new Date().toLocaleDateString()}
               )}
             </div>
 
-            {/* Combined Note Area */}
+            {/* Transcript / Processed Note Area */}
             <div className="bg-white rounded-lg shadow-sm p-4">
               <div className="flex justify-between items-center mb-3">
                 <h3 className="text-sm font-semibold">
-                  {showProcessed
-                    ? 'AI Processed Note'
-                    : "Note Content (Patient Summary + Today's Dictation)"}
+                  {showProcessed ? 'AI Processed Note' : 'Dictation Transcript'}
                 </h3>
                 <div className="space-x-2">
                   {showProcessed && (
@@ -477,35 +465,26 @@ TODAY'S VISIT - ${new Date().toLocaleDateString()}
                       onClick={() => setShowProcessed(false)}
                       className="text-xs text-blue-600 hover:text-blue-700"
                     >
-                      View Original
+                      View Original Transcript
                     </button>
                   )}
                   {!showProcessed && transcript && (
                     <button
-                      onClick={() =>
-                        setCombinedNoteContent(prev =>
-                          prev.replace(
-                            /TODAY'S VISIT.*$/s,
-                            `TODAY'S VISIT - ${new Date().toLocaleDateString()}\n====================\n\n`
-                          )
-                        )
-                      }
+                      onClick={() => setTranscript('')}
                       className="text-xs text-red-600 hover:text-red-700"
                     >
-                      Clear Today's Dictation
+                      Clear Transcript
                     </button>
                   )}
                 </div>
               </div>
               <textarea
-                value={showProcessed ? processedNote : combinedNoteContent}
+                value={showProcessed ? processedNote : transcript}
                 onChange={e =>
-                  showProcessed
-                    ? setProcessedNote(e.target.value)
-                    : setCombinedNoteContent(e.target.value)
+                  showProcessed ? setProcessedNote(e.target.value) : setTranscript(e.target.value)
                 }
                 className="w-full h-96 p-3 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
-                placeholder="Patient summary will appear here, followed by today's dictation..."
+                placeholder="Your dictation will appear here..."
               />
             </div>
 
@@ -517,27 +496,7 @@ TODAY'S VISIT - ${new Date().toLocaleDateString()}
                     setTranscript('');
                     setProcessedNote('');
                     setShowProcessed(false);
-                    // Reset to just patient summary
-                    if (patientData) {
-                      const patientSummary = `PATIENT SUMMARY
-====================
-Name: ${patientData.name}
-MRN: ${patientData.mrn}
-DOB: ${patientData.dob}
-
-ACTIVE DIAGNOSES:
-${patientData.diagnosis.map(d => `• ${d}`).join('\n')}
-
-CURRENT MEDICATIONS:
-${patientData.medications.map(m => `• ${m.name} ${m.dosage} - ${m.frequency} (${m.indication})`).join('\n')}
-
-====================
-TODAY'S VISIT - ${new Date().toLocaleDateString()}
-====================
-
-`;
-                      setCombinedNoteContent(patientSummary);
-                    }
+                    setInterimText('');
                   }}
                   className="px-4 py-2 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
                 >

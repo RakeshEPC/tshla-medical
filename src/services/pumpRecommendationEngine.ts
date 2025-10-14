@@ -3,7 +3,7 @@
 
 import { PUMP_DATABASE } from '../data/pumpDataComplete';
 import type { PumpDetails } from '../data/pumpDataComplete';
-import { azureAIService } from './_deprecated/azureAI.service';
+import { azureAIService } from './azureAI.service';
 
 export interface UserPreferences {
   // From questionnaire answers

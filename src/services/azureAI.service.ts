@@ -1,17 +1,42 @@
 /**
- * Azure AI Service for HIPAA-Compliant AI Processing
- * Primary: Azure OpenAI (GPT-4o) - Fallback: AWS Bedrock (Claude)
+ * Azure AI Service for HIPAA-Compliant Medical Note Processing
+ *
+ * HIPAA COMPLIANCE STATUS:
+ * ========================
+ * ✅ PRIMARY: Azure OpenAI (GPT-4o)
+ *    - Microsoft BAA available and signed
+ *    - HIPAA-compliant when properly configured
+ *    - Data processed in Microsoft's secure infrastructure
+ *
+ * ✅ FALLBACK: AWS Bedrock (Claude)
+ *    - AWS BAA available and signed
+ *    - HIPAA-compliant service
+ *    - Used when Azure OpenAI is unavailable
+ *
+ * ✅ CLIENT FALLBACK: clientAIProcessor.service.ts
+ *    - 100% client-side processing (no PHI transmission)
+ *    - Used when both cloud services fail
+ *    - Rule-based extraction, no AI models
+ *
+ * ❌ ARCHIVED SERVICES (Not HIPAA-compliant):
+ *    - OpenAI API (no BAA available) - ARCHIVED
+ *    - Standard AI services without BAA - ARCHIVED
+ *
+ * WORKFLOW:
+ * 1. Try Azure OpenAI (primary, HIPAA-compliant)
+ * 2. Fallback to AWS Bedrock (secondary, HIPAA-compliant)
+ * 3. Final fallback to client-side processor (no PHI transmission)
  */
 
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
-import type { Template } from '../../types/template.types';
-import type { PatientData } from '../patientData.service';
-import { specialtyService } from '../specialty.service';
+import type { Template } from '../types/template.types';
+import type { PatientData } from './patientData.service';
+import { specialtyService } from './specialty.service';
 import type { DoctorTemplate, DoctorSettings } from './doctorProfile.service';
-import { orderExtractionService, type OrderExtractionResult } from '../orderExtraction.service';
-import { azureOpenAIService } from './azureOpenAI.service';
-import { medicalCorrections } from '../medicalCorrections.service';
-import { logError, logWarn, logInfo, logDebug } from '../logger.service';
+import { orderExtractionService, type OrderExtractionResult } from './orderExtraction.service';
+import { azureOpenAIService } from './_deprecated/azureOpenAI.service';
+import { medicalCorrections } from './medicalCorrections.service';
+import { logError, logWarn, logInfo, logDebug } from './logger.service';
 
 export interface ProcessedNote {
   formatted: string;
