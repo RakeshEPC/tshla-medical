@@ -65,6 +65,9 @@ const SimranPumpLLM = lazy(() => import('./pages/SimranPumpLLM'));
 const SimranPumpLLMDebug = lazy(() => import('./pages/SimranPumpLLMDebug'));
 const SimranPumpLLMSimple = lazy(() => import('./pages/SimranPumpLLMSimple'));
 
+// Analytics & Reporting
+const TemplateAnalytics = lazy(() => import('./pages/TemplateAnalytics'));
+
 // Templates & Documentation
 const TemplatesBundle = lazy(() => import('./components/bundles/TemplatesBundle'));
 
@@ -351,6 +354,18 @@ function App() {
                   <ProtectedRoute>
                     <Suspense fallback={<LoadingSpinner />}>
                       <SimranPumpLLMSimple />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* ===== ANALYTICS & REPORTING ===== */}
+              <Route
+                path="/analytics"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <TemplateAnalytics />
                     </Suspense>
                   </ProtectedRoute>
                 }

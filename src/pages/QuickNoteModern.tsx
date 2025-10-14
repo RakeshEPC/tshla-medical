@@ -31,6 +31,9 @@ import { logError, logWarn, logInfo, logDebug } from '../services/logger.service
 import TemplatePreviewModal from '../components/TemplatePreviewModal';
 import { retryStrategyService } from '../services/retryStrategy.service';
 import { classifyError, formatErrorForUser } from '../services/aiErrors';
+import { NoteQualityRating, type QualityRating as QualityRatingType } from '../components/NoteQualityRating';
+import { noteQualityRatingService } from '../services/noteQualityRating.service';
+import { analyticsDatabaseService } from '../services/analyticsDatabase.service';
 
 interface PatientDetails {
   name: string;
@@ -78,6 +81,13 @@ export default function QuickNoteModern() {
   const [wordCount, setWordCount] = useState(0);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Note metadata for quality rating
+  const [noteMetadata, setNoteMetadata] = useState<{
+    noteId: string;
+    promptVersionId?: string;
+    modelUsed?: string;
+  } | null>(null);
 
   // Load user and templates
   useEffect(() => {
@@ -352,6 +362,13 @@ Visit Date: ${patientDetails.visitDate}
         });
       }
 
+      // Capture note metadata for quality rating
+      setNoteMetadata({
+        noteId: `note_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        promptVersionId: result.metadata?.promptVersionId,
+        modelUsed: result.metadata?.model
+      });
+
       clearInterval(progressInterval);
     } catch (error) {
       clearInterval(progressInterval);
@@ -399,6 +416,33 @@ Visit Date: ${patientDetails.visitDate}
     }
   };
 
+  const handleQualityRating = async (rating: QualityRatingType) => {
+    try {
+      // Save to localStorage
+      const ratingId = noteQualityRatingService.submitRating(
+        rating,
+        currentUser?.id || currentUser?.email,
+        patientDetails.mrn || undefined
+      );
+
+      logInfo('QuickNoteModern', 'Quality rating submitted', { ratingId });
+
+      // Also save to database if available
+      try {
+        await analyticsDatabaseService.saveQualityRating(
+          rating,
+          currentUser?.id || currentUser?.email,
+          patientDetails.mrn || undefined
+        );
+        logInfo('QuickNoteModern', 'Quality rating saved to database');
+      } catch (dbError) {
+        logWarn('QuickNoteModern', 'Failed to save rating to database (will retry later)', { dbError });
+      }
+    } catch (error) {
+      logError('QuickNoteModern', 'Failed to submit quality rating', { error });
+    }
+  };
+
   const clearAll = () => {
     setTranscript('');
     setInterimText('');
@@ -409,6 +453,7 @@ Visit Date: ${patientDetails.visitDate}
     setWordCount(0);
     setRecordingDuration(0);
     setQualityRating(null);
+    setNoteMetadata(null);
   };
 
   return (
@@ -1064,6 +1109,18 @@ Visit Date: ${patientDetails.visitDate}
               )}
             </div>
             </div>
+
+            {/* Note Quality Rating */}
+            {showProcessed && noteMetadata && (
+              <NoteQualityRating
+                noteId={noteMetadata.noteId}
+                templateId={selectedTemplate?.id}
+                promptVersionId={noteMetadata.promptVersionId}
+                modelUsed={noteMetadata.modelUsed}
+                onSubmitRating={handleQualityRating}
+                compact={false}
+              />
+            )}
           </div>
         </div>
       </div>
