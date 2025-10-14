@@ -11,40 +11,30 @@ export default function TemplateList() {
   const [templates, setTemplates] = useState<DoctorTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const currentUser = unifiedAuthService.getCurrentUser();
-  const currentDoctor = currentUser?.name || 'Dr. Smith';
+  const doctorId = currentUser?.id || currentUser?.email || 'doctor-default-001';
 
   useEffect(() => {
     loadTemplates();
   }, []);
 
   const loadTemplates = async () => {
-    if (!currentDoctor) {
+    if (!doctorId) {
       setLoading(false);
       return;
     }
 
     try {
-      doctorProfileService.initialize(currentDoctor.id);
-      const allTemplates = await doctorProfileService.getTemplates();
+      doctorProfileService.initialize(doctorId);
+      const allTemplates = await doctorProfileService.getTemplates(doctorId);
 
       // If no templates exist, create default ones
       if (allTemplates.length === 0) {
-        logDebug('TemplateList', 'Debug message', {});
-        const defaults = getDefaultTemplatesForDoctor(currentDoctor.id);
-
-        // Save each default template
-        for (const template of defaults) {
-          await doctorProfileService.createTemplate(template, currentDoctor.id);
-        }
-
-        // Reload templates
-        const updatedTemplates = await doctorProfileService.getTemplates();
-        setTemplates(updatedTemplates);
-      } else {
-        setTemplates(allTemplates);
+        logDebug('TemplateList', 'No templates found, will show load button', {});
       }
+
+      setTemplates(allTemplates);
     } catch (error) {
-      logError('TemplateList', 'Error message', {});
+      logError('TemplateList', 'Failed to load templates', { error });
     } finally {
       setLoading(false);
     }
@@ -54,10 +44,10 @@ export default function TemplateList() {
     if (!confirm('Are you sure you want to delete this template?')) return;
 
     try {
-      await doctorProfileService.deleteTemplate(templateId, currentDoctor?.id);
+      await doctorProfileService.deleteTemplate(templateId, doctorId);
       await loadTemplates();
     } catch (error) {
-      logError('TemplateList', 'Error message', {});
+      logError('TemplateList', 'Failed to delete template', { error });
     }
   };
 
@@ -66,14 +56,14 @@ export default function TemplateList() {
     if (!newName) return;
 
     try {
-      await doctorProfileService.duplicateTemplate(template.id, newName, currentDoctor?.id);
+      await doctorProfileService.duplicateTemplate(template.id, newName, doctorId);
       await loadTemplates();
     } catch (error) {
-      logError('TemplateList', 'Error message', {});
+      logError('TemplateList', 'Failed to duplicate template', { error });
     }
   };
 
-  if (!currentDoctor) {
+  if (!currentUser) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -194,10 +184,10 @@ export default function TemplateList() {
                 <p className="text-gray-600 mb-4">No templates found</p>
                 <button
                   onClick={async () => {
-                    if (currentDoctor) {
-                      const defaults = getDefaultTemplatesForDoctor(currentDoctor.id);
+                    if (doctorId) {
+                      const defaults = getDefaultTemplatesForDoctor(doctorId);
                       for (const template of defaults) {
-                        await doctorProfileService.createTemplate(template, currentDoctor.id);
+                        await doctorProfileService.createTemplate(template, doctorId);
                       }
                       await loadTemplates();
                     }
