@@ -4,7 +4,11 @@
  * Fallback for AWS Bedrock when unavailable
  */
 
-import { logInfo, logError, logDebug, logPerformance } from '../logger.service';
+import { logInfo, logError, logDebug, logPerformance, logWarn } from '../logger.service';
+import { modelSelectionService, type ComplexityScore, AIModel } from '../modelSelection.service';
+import type { DoctorTemplate } from '../doctorProfile.service';
+import { tokenManagementService } from '../tokenManagement.service';
+import { promptVersionControlService } from '../promptVersionControl.service';
 
 interface ProcessedNote {
   formattedNote: string;
@@ -20,6 +24,13 @@ interface ProcessedNote {
     processingTime: number;
     model: string;
     tokenCount?: number;
+    complexityLevel?: string;
+    complexityScore?: number;
+    tokenEstimate?: number;
+    tokenWarning?: string;
+    transcriptTruncated?: boolean;
+    promptVersionId?: string;
+    promptVersion?: string;
   };
 }
 
@@ -71,6 +82,9 @@ class AzureOpenAIService {
         logError('AzureOpenAI', 'VITE_AZURE_OPENAI_KEY environment variable is required', {});
       }
     }
+
+    // Initialize prompt version control
+    promptVersionControlService.initializeDefaultVersions();
   }
 
   async processMedicalTranscription(
@@ -80,76 +94,24 @@ class AzureOpenAIService {
     patientContext?: string,
     templateInstructions?: string
   ): Promise<{ formatted: string }> {
-    // Build enhanced medical prompt with clinical expertise
-    let prompt = `You are an expert medical scribe and clinical documentation specialist with 15+ years of experience in medical note generation. You excel at creating comprehensive, accurate, and clinically relevant SOAP notes from dictated content.
+    // Build simplified, focused medical prompt
+    let prompt = `You are an expert medical scribe. Create a professional medical note from this dictation.
 
-TRANSCRIPTION TO PROCESS:
-${transcription}
+${templateInstructions ? `TEMPLATE INSTRUCTIONS (follow these exactly):\n${templateInstructions}\n` : ''}
+PATIENT CONTEXT:
+${patientContext || 'No additional context provided'}
 
-PATIENT INFORMATION:
-${patientContext || 'No additional patient context provided'}
+TRANSCRIPTION:
+"${transcription}"
 
-CLINICAL DOCUMENTATION REQUIREMENTS:
-${templateInstructions || 'Use comprehensive medical documentation standards'}
+CORE RULES:
+1. Extract ONLY information explicitly stated in the transcription
+2. Never add information not mentioned - use "Not mentioned" for missing sections
+3. Include exact numeric values (e.g., blood sugar 400, A1C 9.5, age 45)
+4. Use professional medical terminology and standard abbreviations
+5. Format as clear SOAP note with distinct sections
 
-INSTRUCTION: Create a detailed, professional medical note following these guidelines:
-
-🏥 **SOAP NOTE FORMAT**:
-1. **CHIEF COMPLAINT**: Extract the primary reason for visit (1-2 sentences)
-2. **SUBJECTIVE**:
-   - History of Present Illness (HPI): Detailed narrative with timing, quality, severity, context
-   - Review of Systems (ROS): Extract any mentioned systems review
-   - Past Medical History (PMH): Include relevant past medical conditions
-   - Medications: List current medications with dosages when mentioned
-   - Allergies: Note any mentioned allergies or state "NKDA" if none
-   - Social History: Include relevant social factors (smoking, alcohol, etc.)
-   - Family History: Include relevant family medical history
-
-3. **OBJECTIVE**:
-   - Vital Signs: Extract any mentioned vital signs with units
-   - Physical Examination: Organize by body systems, be specific about findings
-   - Diagnostic Results: Include any mentioned lab results, imaging, or test results
-
-4. **ASSESSMENT**:
-   - Primary diagnosis with ICD-10 code when appropriate
-   - Differential diagnoses when mentioned
-   - Clinical reasoning and severity assessment
-
-5. **PLAN**:
-   - Medications: Include drug names, dosages, frequencies, and durations
-   - Diagnostic Orders: Labs, imaging, or tests ordered
-   - Follow-up Instructions: When and where to return
-   - Patient Education: Instructions given to patient
-   - Referrals: Any specialist referrals mentioned
-
-💊 **MEDICAL TERMINOLOGY**:
-- Use proper medical abbreviations (e.g., "b.i.d." not "twice daily")
-- Include specific medication dosages and routes when mentioned
-- Use exact vital sign measurements with units
-- Include severity scales when mentioned (e.g., "7/10 pain")
-- Spell out medical conditions formally
-
-🔢 **BILLING & CODING SUPPORT**:
-- Suggest appropriate ICD-10 codes in brackets after diagnoses
-- Include CPT code suggestions for procedures mentioned
-- Note level of medical decision making when apparent
-
-📋 **QUALITY STANDARDS**:
-- Be thorough but concise
-- Use professional medical language
-- Maintain chronological flow in HPI
-- Separate subjective vs objective findings clearly
-- Ensure all dictated information is captured
-- Add clinical context when medically appropriate
-
-⚠️ **CRITICAL REQUIREMENTS**:
-- NEVER add information not mentioned in the transcription
-- Use "Not mentioned" or "Not assessed" for missing elements
-- Maintain medical accuracy and professional tone
-- Format consistently with standard medical documentation
-- Include timing and duration of symptoms when provided
-
-Generate a comprehensive, medically accurate SOAP note that would meet hospital documentation standards:`;
+Generate the formatted medical note now:`;
 
     const result = await this.processTranscriptionWithCustomPrompt(
       transcription,
@@ -166,7 +128,9 @@ Generate a comprehensive, medically accurate SOAP note that would meet hospital 
       name?: string;
       mrn?: string;
       dob?: string;
-    }
+    },
+    template?: DoctorTemplate,
+    additionalContext?: string
   ): Promise<ProcessedNote> {
     const startTime = Date.now();
 
@@ -182,17 +146,96 @@ Generate a comprehensive, medically accurate SOAP note that would meet hospital 
     }
 
     try {
-      const url = `${this.endpoint}/openai/deployments/${this.deploymentName}/chat/completions?api-version=${this.apiVersion}`;
+      // Calculate complexity and select optimal model
+      const complexity = modelSelectionService.calculateComplexity(
+        transcription,
+        template,
+        additionalContext
+      );
+
+      logInfo('AzureOpenAI', modelSelectionService.getModelExplanation(complexity), {
+        complexityLevel: complexity.level,
+        score: complexity.score,
+        estimatedTokens: complexity.factors.estimatedTokens
+      });
+
+      // Select model based on complexity
+      const selectedModel = this.getModelForComplexity(complexity.recommendedModel);
+
+      // Estimate tokens for the request
+      const systemPromptLength = 200; // Approximate system prompt length
+      const tokenEstimate = tokenManagementService.estimateRequestTokens(
+        transcription,
+        template,
+        patientContext ? `${patientContext.name} ${patientContext.mrn}` : undefined,
+        additionalContext,
+        customPrompt.length + systemPromptLength
+      );
+
+      logDebug('AzureOpenAI', 'Token estimate', {
+        totalTokens: tokenEstimate.totalTokens,
+        inputTokens: tokenEstimate.inputTokens,
+        limitUsage: `${tokenEstimate.limitUsagePercent.toFixed(1)}%`
+      });
+
+      // Check if we need to truncate
+      let processedTranscription = transcription;
+      let transcriptTruncated = false;
+      let tokenWarning: string | undefined;
+
+      if (tokenEstimate.exceedsLimit) {
+        // Calculate available tokens for transcript
+        const tokenBudget = tokenManagementService.calculateTokenBudget(
+          selectedModel === 'gpt-4o-mini' ? 'gpt-4o-mini' : 'gpt-4o',
+          template
+        );
+
+        logWarn('AzureOpenAI', 'Token limit exceeded, truncating transcript', {
+          originalTokens: tokenEstimate.totalTokens,
+          budgetedTranscriptTokens: tokenBudget.allocated.transcript
+        });
+
+        // Truncate transcript using smart summary strategy
+        const truncationResult = tokenManagementService.truncateTranscript(
+          transcription,
+          tokenBudget.allocated.transcript,
+          'smart-summary'
+        );
+
+        processedTranscription = truncationResult.truncatedText;
+        transcriptTruncated = truncationResult.truncated;
+        tokenWarning = truncationResult.truncated
+          ? `Transcript truncated: Removed ${truncationResult.tokensRemoved} tokens to fit within limits`
+          : undefined;
+      }
+
+      const url = `${this.endpoint}/openai/deployments/${selectedModel}/chat/completions?api-version=${this.apiVersion}`;
+
+      // Select prompt version for this request
+      const promptVersion = template
+        ? promptVersionControlService.selectVersionForRequest('custom-template')
+        : promptVersionControlService.selectVersionForRequest('system');
+
+      // Update custom prompt to use processed transcription if truncated
+      const finalPrompt = transcriptTruncated
+        ? customPrompt.replace(transcription, processedTranscription)
+        : customPrompt;
+
+      // Use versioned system prompt if available
+      const systemPromptContent = promptVersion
+        ? promptVersionControlService.renderPrompt(promptVersion.id, {}) ||
+          'You are an expert medical scribe with extensive experience in clinical documentation. Generate comprehensive, accurate SOAP notes that meet hospital documentation standards. Focus on medical accuracy, proper terminology, and complete information capture.'
+        : 'You are an expert medical scribe with extensive experience in clinical documentation. Generate comprehensive, accurate SOAP notes that meet hospital documentation standards. Focus on medical accuracy, proper terminology, and complete information capture.';
 
       const response = await this.makeAPICall(url, {
         messages: [
           {
             role: 'system',
-            content: 'You are an expert medical scribe with extensive experience in clinical documentation. Generate comprehensive, accurate SOAP notes that meet hospital documentation standards. Focus on medical accuracy, proper terminology, and complete information capture.'
+            content: systemPromptContent
           },
           {
             role: 'user',
-            content: customPrompt
+            content: finalPrompt
           }
         ],
         temperature: 0.5, // Increased for more detailed and varied responses
@@ -200,7 +243,7 @@ Generate a comprehensive, medically accurate SOAP note that would meet hospital 
         top_p: 0.9, // Slightly lower for more focused responses
         frequency_penalty: 0.1, // Slight penalty to avoid repetition
         presence_penalty: 0.1, // Encourage diverse vocabulary
-      });
+      }, selectedModel);
 
       if (!response.ok) {
         const error = await response.text();
@@ -213,13 +256,36 @@ Generate a comprehensive, medically accurate SOAP note that would meet hospital 
       // Parse the note into sections
       const sections = this.parseNoteIntoSections(formattedNote);
 
+      const processingTime = Date.now() - startTime;
+      const actualTokens = data.usage?.total_tokens || 0;
+
+      // Record prompt usage
+      if (promptVersion) {
+        promptVersionControlService.recordUsage({
+          versionId: promptVersion.id,
+          success: true,
+          qualityScore: 0.9, // Will be updated based on validation
+          processingTime,
+          tokenUsage: actualTokens,
+          templateId: template?.id,
+          modelUsed: selectedModel
+        });
+      }
+
       return {
         formattedNote,
         sections,
         metadata: {
-          processingTime: Date.now() - startTime,
-          model: `Azure OpenAI ${this.deploymentName}`,
-          tokenCount: data.usage?.total_tokens,
+          processingTime,
+          model: `Azure OpenAI ${selectedModel}`,
+          tokenCount: actualTokens,
+          complexityLevel: complexity.level,
+          complexityScore: complexity.score,
+          tokenEstimate: tokenEstimate.totalTokens,
+          tokenWarning,
+          transcriptTruncated,
+          promptVersionId: promptVersion?.id,
+          promptVersion: promptVersion?.version
         },
       };
     } catch (error) {
@@ -555,12 +621,34 @@ Output only the formatted medical note with clear section headers (Chief Complai
   }
 
   /**
+   * Map AI model enum to actual deployment/model name
+   */
+  private getModelForComplexity(recommendedModel: AIModel): string {
+    if (this.useStandardOpenAI) {
+      // For standard OpenAI API
+      if (recommendedModel === AIModel.GPT4O_MINI) {
+        return 'gpt-4o-mini';
+      } else {
+        return this.standardOpenAIModel; // gpt-4o or configured model
+      }
+    } else {
+      // For Azure OpenAI, use deployment names
+      // Assuming deployments are named similarly to models
+      if (recommendedModel === AIModel.GPT4O_MINI) {
+        return 'gpt-4o-mini'; // Azure deployment for mini model
+      } else {
+        return this.deploymentName; // Default to gpt-4o deployment
+      }
+    }
+  }
+
+  /**
    * Make API call with retry logic (supports both Azure and standard OpenAI)
    */
-  private async makeAPICall(url: string, body: any): Promise<Response> {
+  private async makeAPICall(url: string, body: any, selectedModel?: string): Promise<Response> {
     // Use standard OpenAI if Azure not configured
     if (this.useStandardOpenAI) {
-      return this.makeStandardOpenAICall(body);
+      return this.makeStandardOpenAICall(body, selectedModel);
     }
 
     return this.retryWithBackoff(async () => {
@@ -592,7 +680,9 @@ Output only the formatted medical note with clear section headers (Chief Complai
   /**
    * Make standard OpenAI API call
    */
-  private async makeStandardOpenAICall(body: any): Promise<Response> {
+  private async makeStandardOpenAICall(body: any, selectedModel?: string): Promise<Response> {
+    const modelToUse = selectedModel || this.standardOpenAIModel;
+
     return this.retryWithBackoff(async () => {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -601,7 +691,7 @@ Output only the formatted medical note with clear section headers (Chief Complai
           'Authorization': `Bearer ${this.standardOpenAIKey}`,
         },
         body: JSON.stringify({
-          model: this.standardOpenAIModel,
+          model: modelToUse,
           messages: body.messages,
           temperature: body.temperature,
           max_tokens: body.max_tokens,

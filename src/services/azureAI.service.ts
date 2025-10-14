@@ -60,6 +60,13 @@ export interface ProcessedNote {
     processedAt: string;
     model: string;
     confidence?: number;
+    complexityLevel?: string;
+    complexityScore?: number;
+    tokenEstimate?: number;
+    tokenWarning?: string;
+    transcriptTruncated?: boolean;
+    promptVersionId?: string;
+    promptVersion?: string;
   };
 }
 
@@ -499,7 +506,9 @@ class AzureAIService {
             name: patient.fullName,
             mrn: patient.mrn,
             dob: patient.dateOfBirth
-          }
+          },
+          customTemplate.template,
+          additionalContext
         );
       } else {
         // For standard templates, use the standard method
@@ -514,10 +523,18 @@ class AzureAIService {
           }
         );
       }
-        
+
         // Convert Azure OpenAI result to our ProcessedNote format
         const processedNote: ProcessedNote = this.convertAzureToProcessedNote(azureResult, patient);
-        return this.enhanceWithOrderExtraction(processedNote, transcript);
+
+        // Pass template data for validation and retry logic
+        return await this.enhanceWithOrderExtraction(
+          processedNote,
+          transcript,
+          customTemplate?.template,
+          patient,
+          customTemplate?.doctorSettings
+        );
     } catch (azureError: any) {
       logError('azureAI', 'Error message', {});
       logDebug('azureAI', 'Debug message', {});
@@ -552,19 +569,32 @@ class AzureAIService {
       metadata: {
         processedAt: new Date().toISOString(),
         model: `Azure OpenAI ${azureResult.metadata?.model || 'GPT-4o'}`,
-        confidence: 0.95
+        confidence: 0.95,
+        complexityLevel: azureResult.metadata?.complexityLevel,
+        complexityScore: azureResult.metadata?.complexityScore,
+        tokenEstimate: azureResult.metadata?.tokenEstimate,
+        tokenWarning: azureResult.metadata?.tokenWarning,
+        transcriptTruncated: azureResult.metadata?.transcriptTruncated,
+        promptVersionId: azureResult.metadata?.promptVersionId,
+        promptVersion: azureResult.metadata?.promptVersion
       }
     };
   }
 
   /**
-   * Enhance ProcessedNote with order extraction
+   * Enhance ProcessedNote with order extraction and validation
    */
-  private enhanceWithOrderExtraction(processedNote: ProcessedNote, transcript: string): ProcessedNote {
-    logDebug('azureAI', 'Debug message', {});
+  private async enhanceWithOrderExtraction(
+    processedNote: ProcessedNote,
+    transcript: string,
+    template?: DoctorTemplate,
+    patient?: PatientData,
+    settings?: DoctorSettings
+  ): Promise<ProcessedNote> {
+    logDebug('azureAI', 'Enhancing note with order extraction and validation');
     const correctedTranscript = medicalCorrections.correctTranscription(transcript);
     const extractedOrders = orderExtractionService.extractOrders(correctedTranscript);
-    
+
     if (extractedOrders && (
       extractedOrders.medications.length > 0 ||
       extractedOrders.labs.length > 0 ||
@@ -576,14 +606,99 @@ class AzureAIService {
       processedNote.sections.ordersAndActions = ordersAndActions;
       processedNote.extractedOrders = extractedOrders;
       processedNote.formatted += `\n\n**ORDERS & ACTIONS:**\n${ordersAndActions}`;
-      logInfo('azureAI', 'Info message', {});
+      logInfo('azureAI', 'Enhanced note with extracted orders', { orderCount: extractedOrders.medications.length + extractedOrders.labs.length });
     }
 
-    logInfo('azureAI', 'Info message', {});
-    logDebug('azureAI', 'Debug message', {});
-    logDebug('azureAI', 'Debug message', {});
-    
+    // Validate template compliance if template provided
+    if (template) {
+      const complianceCheck = this.validateTemplateCompliance(processedNote, template);
+
+      // If compliance fails and we have the necessary data, retry once
+      if (!complianceCheck.compliant && patient && settings) {
+        logWarn('azureAI', 'Template compliance failed, retrying with emphasis', {
+          missingSections: complianceCheck.missingSections.length,
+          partialSections: complianceCheck.partialSections.length
+        });
+
+        // Retry with emphasis on missing sections
+        const retryResult = await this.retryWithEmphasis(
+          transcript,
+          patient,
+          template,
+          settings,
+          complianceCheck.missingSections,
+          complianceCheck.partialSections
+        );
+
+        if (retryResult) {
+          logInfo('azureAI', 'Retry successful - compliance improved');
+          return this.validateAndCleanProcessedNote(retryResult, transcript);
+        }
+      }
+    }
+
+    // Validate output quality
+    const qualityCheck = this.validateOutputQuality(processedNote, transcript);
+    if (qualityCheck.quality === 'poor') {
+      logWarn('azureAI', 'Output quality poor', {
+        issues: qualityCheck.issues.length,
+        confidence: Math.round(qualityCheck.confidence * 100) + '%'
+      });
+    }
+
     return this.validateAndCleanProcessedNote(processedNote, transcript);
+  }
+
+  /**
+   * Retry AI processing with emphasis on missing/partial sections
+   */
+  private async retryWithEmphasis(
+    transcript: string,
+    patient: PatientData,
+    template: DoctorTemplate,
+    settings: DoctorSettings,
+    missingSections: string[],
+    partialSections: string[]
+  ): Promise<ProcessedNote | null> {
+    try {
+      // Build emphasized prompt
+      const emphasisNote = missingSections.length > 0
+        ? `\n⚠️ CRITICAL: The following REQUIRED sections were missing in the previous attempt:\n${missingSections.map(s => `- ${s}`).join('\n')}\nYou MUST extract information for these sections from the transcription.\n`
+        : '';
+
+      const partialNote = partialSections.length > 0
+        ? `\n⚠️ WARNING: The following sections had incomplete information:\n${partialSections.map(s => `- ${s}`).join('\n')}\nPlease provide more detailed information for these sections.\n`
+        : '';
+
+      const emphasizedPrompt = this.buildCustomPrompt(transcript, patient, template, settings);
+      const finalPrompt = emphasizedPrompt.replace(
+        'CORE EXTRACTION RULES:',
+        `${emphasisNote}${partialNote}\nCORE EXTRACTION RULES:`
+      );
+
+      logDebug('azureAI', 'Retrying with emphasized prompt', {
+        missingSectionsCount: missingSections.length,
+        partialSectionsCount: partialSections.length
+      });
+
+      // Use Azure OpenAI with slightly higher temperature for retry
+      const azureResult = await azureOpenAIService.processTranscriptionWithCustomPrompt(
+        transcript,
+        finalPrompt,
+        {
+          name: patient.fullName,
+          mrn: patient.mrn,
+          dob: patient.dateOfBirth
+        },
+        template,
+        undefined // No additional context for retry
+      );
+
+      return this.convertAzureToProcessedNote(azureResult, patient);
+    } catch (error) {
+      logError('azureAI', 'Retry with emphasis failed', { error });
+      return null; // Return null to use original result
+    }
   }
 
   /**
@@ -632,6 +747,157 @@ class AzureAIService {
 
     logInfo('azureAI', 'Info message', {});
     return processedNote;
+  }
+
+  /**
+   * Validate template compliance - check if AI followed the template requirements
+   */
+  private validateTemplateCompliance(
+    processedNote: ProcessedNote,
+    template?: DoctorTemplate
+  ): { compliant: boolean; missingSections: string[]; partialSections: string[] } {
+    if (!template) {
+      return { compliant: true, missingSections: [], partialSections: [] };
+    }
+
+    const missingSections: string[] = [];
+    const partialSections: string[] = [];
+
+    // Check each required section
+    Object.entries(template.sections).forEach(([key, section]) => {
+      if (section.required) {
+        const noteSection = processedNote.sections[key as keyof typeof processedNote.sections];
+
+        if (!noteSection || noteSection.trim() === '') {
+          missingSections.push(section.title);
+          logWarn('azureAI', `Missing required section: ${section.title}`, { templateName: template.name });
+        } else if (
+          noteSection.toLowerCase().includes('not provided') ||
+          noteSection.toLowerCase().includes('not mentioned') ||
+          noteSection.toLowerCase().includes('see transcript') ||
+          noteSection.length < 10 // Too short to be meaningful
+        ) {
+          partialSections.push(section.title);
+          logDebug('azureAI', `Partial content in required section: ${section.title}`, { content: noteSection });
+        }
+      }
+    });
+
+    const compliant = missingSections.length === 0 && partialSections.length === 0;
+
+    if (!compliant) {
+      logInfo('azureAI', 'Template compliance check failed', {
+        templateName: template.name,
+        missingSections: missingSections.length,
+        partialSections: partialSections.length
+      });
+    } else {
+      logInfo('azureAI', 'Template compliance check passed', { templateName: template.name });
+    }
+
+    return { compliant, missingSections, partialSections };
+  }
+
+  /**
+   * Validate output quality - detect hallucinations and ensure numeric accuracy
+   */
+  private validateOutputQuality(
+    processedNote: ProcessedNote,
+    originalTranscript: string
+  ): { quality: 'excellent' | 'good' | 'poor'; issues: string[]; confidence: number } {
+    const issues: string[] = [];
+    let confidence = 1.0;
+
+    // 1. Check for hallucination indicators
+    const hallucinationPhrases = [
+      'for example',
+      'such as',
+      'including but not limited to',
+      'typically',
+      'generally',
+      'may include',
+      'could indicate',
+      'suggests possible'
+    ];
+
+    const noteText = processedNote.formatted.toLowerCase();
+    hallucinationPhrases.forEach(phrase => {
+      if (noteText.includes(phrase)) {
+        issues.push(`Potential hallucination: Contains speculative phrase "${phrase}"`);
+        confidence -= 0.1;
+      }
+    });
+
+    // 2. Validate numeric values are preserved
+    const numericPatterns = [
+      /\b(\d+)\s*(?:year|yr)s?\s+old/gi,
+      /blood\s+(?:sugar|glucose)[:\s]+(\d+)/gi,
+      /a1c[:\s]+(\d+\.?\d*)/gi,
+      /bp[:\s]+(\d+\/\d+)/gi,
+      /weight[:\s]+(\d+)\s*(?:lbs?|kg)/gi,
+      /(\d+)\s*(?:mg|mcg|units?|ml)/gi
+    ];
+
+    const transcriptLower = originalTranscript.toLowerCase();
+    numericPatterns.forEach(pattern => {
+      const transcriptMatches = [...transcriptLower.matchAll(pattern)];
+      transcriptMatches.forEach(match => {
+        const value = match[1];
+        if (!noteText.includes(value)) {
+          issues.push(`Missing numeric value: ${value} from transcript`);
+          confidence -= 0.15;
+        }
+      });
+    });
+
+    // 3. Check for generic placeholder text
+    const placeholders = [
+      'not specified',
+      '[insert',
+      '[fill in',
+      'tbd',
+      'to be determined',
+      'n/a',
+      'see above',
+      'as discussed'
+    ];
+
+    placeholders.forEach(placeholder => {
+      if (noteText.includes(placeholder)) {
+        issues.push(`Contains placeholder text: "${placeholder}"`);
+        confidence -= 0.1;
+      }
+    });
+
+    // 4. Check for excessive duplication
+    const sections = Object.values(processedNote.sections).filter(s => s && s.trim());
+    for (let i = 0; i < sections.length - 1; i++) {
+      for (let j = i + 1; j < sections.length; j++) {
+        if (sections[i] && sections[j]) {
+          const overlap = this.calculateTextOverlap(sections[i].toLowerCase(), sections[j].toLowerCase());
+          if (overlap > 0.7) {
+            issues.push(`High duplication between sections (${Math.round(overlap * 100)}% overlap)`);
+            confidence -= 0.2;
+            break;
+          }
+        }
+      }
+    }
+
+    // Clamp confidence between 0 and 1
+    confidence = Math.max(0, Math.min(1, confidence));
+
+    const quality = confidence >= 0.9 ? 'excellent' : confidence >= 0.7 ? 'good' : 'poor';
+
+    if (issues.length > 0) {
+      logInfo('azureAI', 'Output quality validation found issues', {
+        quality,
+        issueCount: issues.length,
+        confidence: Math.round(confidence * 100) + '%'
+      });
+    }
+
+    return { quality, issues, confidence };
   }
 
   /**
@@ -719,28 +985,27 @@ Date: ${date}
     settings: DoctorSettings,
     additionalContext?: string
   ): string {
-    logDebug('azureAI', 'Debug message', {});
-    
+    logDebug('azureAI', 'Building custom prompt for template', { templateName: template.name });
+
     // Build section instructions from doctor's custom template
     const sectionPrompts: string[] = [];
-    
+
     Object.entries(template.sections).forEach(([key, section]) => {
       const format = section.format || 'paragraph';
       const formatInstruction = format === 'bullets' ? 'Use bullet points.' :
                                format === 'numbered' ? 'Use numbered list.' :
                                'Use paragraph format.';
-      
+
       sectionPrompts.push(`
-### ${section.title}
-Instructions: ${section.aiInstructions}
+### ${section.title}${section.required ? ' (REQUIRED)' : ''}
+${section.aiInstructions}
 Format: ${formatInstruction}
-${section.keywords ? `Keywords to look for: ${section.keywords.join(', ')}` : ''}
-${section.exampleText ? `Example format: ${section.exampleText}` : ''}
-${section.required ? 'This section is REQUIRED.' : 'This section is optional.'}
+${section.keywords ? `Focus on: ${section.keywords.join(', ')}` : ''}
+${section.exampleText ? `Example: ${section.exampleText}` : ''}
 `);
     });
-    
-    logInfo('azureAI', 'Info message', {});
+
+    logInfo('azureAI', 'Custom prompt built with template', { sectionCount: Object.keys(template.sections).length });
 
     // Get AI style preferences
     const styleGuide = {
@@ -750,40 +1015,33 @@ ${section.required ? 'This section is REQUIRED.' : 'This section is optional.'}
       detailed: 'Include comprehensive details and thorough documentation.'
     };
 
-    return `You are a medical scribe AI configured for Dr. ${patient.name || 'Unknown'}'s specific preferences.
+    // PRIORITY: Template instructions at the TOP
+    return `You are an expert medical scribe. Create a note following this doctor's custom template exactly.
 
-PATIENT INFORMATION:
-- Name: ${patient.name}
-- MRN: ${patient.mrn}
-- DOB: ${patient.dob || 'Not provided'}
-${additionalContext ? `\nADDITIONAL CONTEXT:\n${additionalContext}\n` : ''}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 TEMPLATE: "${template.name}"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-MEDICAL DICTATION:
-"${transcript}"
+${template.generalInstructions ? `🎯 DOCTOR'S GENERAL INSTRUCTIONS:\n${template.generalInstructions}\n\n` : ''}✍️ WRITING STYLE: ${styleGuide[settings.aiStyle]}
 
-${template.generalInstructions ? `\nGENERAL INSTRUCTIONS FROM DOCTOR:\n${template.generalInstructions}\n` : ''}
-
-WRITING STYLE: ${styleGuide[settings.aiStyle]}
-
-SECTION-SPECIFIC INSTRUCTIONS:
-Process the dictation into the following sections, following each section's specific instructions:
-
+📝 SECTION REQUIREMENTS:
 ${sectionPrompts.join('\n')}
 
-OUTPUT REQUIREMENTS:
-1. Generate a well-formatted clinical note following the template structure
-2. Follow the specified format for each section (bullets, numbered, or paragraph)
-3. Use the specified writing style throughout
-4. Include all required sections; optional sections only if relevant information is present
-5. Extract ACTUAL information from the dictation - do not use placeholder text
-6. Maintain medical accuracy and appropriate terminology
-7. CRITICAL: Only extract information that is explicitly present in the dictation transcript
-8. Do NOT add information that is not stated in the dictation (no hallucinations)
-9. If specific numeric values are mentioned (blood sugar, A1C, age, etc.), include them exactly as stated
-10. If patient demographics are mentioned (age, gender), include them in the assessment
-11. If no relevant information exists for a section, write "Not provided" or "See transcript"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Please process the dictation now.`;
+PATIENT: ${patient.name} (MRN: ${patient.mrn})${patient.dob ? ` | DOB: ${patient.dob}` : ''}
+${additionalContext ? `CONTEXT: ${additionalContext}\n` : ''}
+TRANSCRIPTION:
+"${transcript}"
+
+CORE EXTRACTION RULES:
+1. Extract ONLY information explicitly stated in transcription
+2. Never add information not mentioned
+3. Include exact numbers (blood sugar 400, A1C 9.5, age 45)
+4. Use "Not mentioned" for missing required sections
+5. Follow the template structure and format exactly
+
+Generate the note now:`;
   }
 
   private buildPrompt(
@@ -814,28 +1072,28 @@ Please process the dictation now.`;
       // Get general AI instructions if available
       const generalInstructions = template.generalInstructions || '';
       
-      return `You are a medical scribe. Create a professional medical note from this dictation.
+      // SIMPLIFIED: Concise prompt for templates
+      return `You are a medical scribe. Create a professional note following this template.
 
-PATIENT: ${patient.name} (MRN: ${patient.mrn})
+${generalInstructions ? `TEMPLATE INSTRUCTIONS:\n${generalInstructions}\n\n` : ''}PATIENT: ${patient.name} (MRN: ${patient.mrn})
 
-DICTATION:
+TRANSCRIPTION:
 "${transcript}"
 
-Generate a JSON response with these sections:
+Generate JSON with these sections:
 {
   "sections": {
     ${templateSections}
   }
 }
 
-CRITICAL EXTRACTION RULES:
-1. Only extract information explicitly present in the dictation
-2. Do NOT add information not stated in the dictation (no hallucinations)
-3. Include exact numeric values mentioned (blood sugar, A1C, age, vital signs)
-4. Capture patient demographics if mentioned (age, gender)
-5. If no information exists for a section, write "Not provided"
+RULES:
+1. Extract ONLY information explicitly stated
+2. Never add information not mentioned
+3. Include exact numbers (blood sugar 400, A1C 9.5)
+4. Use "Not provided" for missing sections
 
-IMPORTANT: Only return the medical note content. Do not include any instructions, explanations, or meta-commentary in your response.`;
+Return ONLY the formatted note - no instructions or meta-commentary.`;
     }
     
     // Check if this is a conversation transcript
@@ -848,52 +1106,42 @@ IMPORTANT: Only return the medical note content. Do not include any instructions
       specialtyService.getAIPrompt().role : 
       'an ENDOCRINOLOGIST';
     
-    // Default prompt - adjusted for conversation or dictation
-    const prompt = isConversation 
-      ? `You are an experienced medical scribe working for ${specialtyRole}. Extract medical information from this doctor-patient conversation and create a structured SOAP note.
+    // SIMPLIFIED: Focused default prompt
+    const prompt = isConversation
+      ? `You are a medical scribe for ${specialtyRole}. Extract information from this conversation and create a SOAP note.
 
 CONVERSATION:
-"${transcript}"
-
-IMPORTANT: This is a conversation between a doctor and patient. Extract the medical information from their dialogue.`
-      : `You are an experienced medical scribe working for ${specialtyRole}. Convert this medical dictation into a structured SOAP note with special attention to ${currentDoctor ? specialtyService.getAIPrompt().specialty : 'endocrine conditions'}.
+"${transcript}"`
+      : `You are a medical scribe for ${specialtyRole}. Convert this dictation into a SOAP note.
 
 DICTATION:
 "${transcript}"`;
-    
-    return prompt + (additionalContext ? `\n\n--- PATIENT BACKGROUND (FOR REFERENCE ONLY - DO NOT COPY INTO NOTE) ---
-${additionalContext}
---- END OF BACKGROUND CONTEXT ---
 
-IMPORTANT: The above context is provided for your reference to understand the patient's history.
-Extract information ONLY from the DICTATION transcript above. Do NOT copy the background context into any note sections.` : '') + `
+    return prompt + (additionalContext ? `\n\nCONTEXT (for reference - don't copy verbatim):\n${additionalContext}\n` : '') + `
 
-Create a medical note in JSON format:
+Generate JSON:
 {
   "sections": {
-    "chiefComplaint": "[reason for visit]",
-    "historyOfPresentIllness": "[story of current illness]",
-    "reviewOfSystems": "[review of symptoms]",
-    "pastMedicalHistory": "[chronic conditions]",
-    "medications": "[current medications with doses]",
-    "allergies": "[drug allergies]",
-    "socialHistory": "[smoking, alcohol, drug use]",
-    "familyHistory": "[family medical history]",
-    "physicalExam": "[exam findings, vitals]",
-    "assessment": "[today's problems]",
-    "plan": "[treatment plan, medications, labs, follow-up]",
-    "patientSummary": "[2-3 sentence summary]"
+    "chiefComplaint": "",
+    "historyOfPresentIllness": "",
+    "reviewOfSystems": "",
+    "pastMedicalHistory": "",
+    "medications": "",
+    "allergies": "",
+    "socialHistory": "",
+    "familyHistory": "",
+    "physicalExam": "",
+    "assessment": "",
+    "plan": "",
+    "patientSummary": ""
   }
 }
 
-CRITICAL EXTRACTION RULES:
-1. Only extract information explicitly present in the dictation
-2. Do NOT hallucinate or add information not stated
-3. Include exact numeric values (blood sugar 400, A1C 9, age 45)
-4. Capture demographics if mentioned (45 year old female)
-5. If no information exists for a section, write "Not provided"
-
-IMPORTANT: Only return the medical note content. Do not include instructions or explanations in your response.`;
+RULES:
+1. Extract ONLY stated information
+2. Include exact numbers (blood sugar 400, A1C 9, age 45)
+3. Use "Not provided" for missing sections
+4. Return only the note - no explanations`;
   }
 
   private parseResponse(
@@ -1328,47 +1576,225 @@ Processed: ${new Date().toLocaleString()}`;
 
 
   /**
-   * Create a basic formatted note when Bedrock is not available
+   * Create an enhanced formatted note with intelligent extraction when AI is unavailable
+   * Uses regex patterns and medical terminology extraction
    */
   private createBasicFormattedNote(transcript: string, patient: PatientData): ProcessedNote {
     const timestamp = new Date().toISOString();
-    
-    // Basic formatting - just clean up the transcript
-    const lines = transcript.split(/[.!?]+/).filter(line => line.trim());
+    const correctedTranscript = medicalCorrections.correctTranscription(transcript);
+
+    logInfo('azureAI', 'Creating enhanced fallback note with pattern extraction');
+
+    // Extract sections using intelligent patterns
+    const sections = this.extractSectionsFromTranscript(correctedTranscript);
+
+    // Build formatted output
     const formatted = `
-**PATIENT INFORMATION:**
+╔════════════════════════════════════════════════════════╗
+║           CLINICAL NOTE - Client-Side Extraction        ║
+╚════════════════════════════════════════════════════════╝
+
+PATIENT INFORMATION:
 Name: ${patient.name || 'Not provided'}
 MRN: ${patient.mrn || 'Not provided'}
 DOB: ${patient.dob || 'Not provided'}
 Visit Date: ${new Date().toLocaleDateString()}
 
-**CLINICAL NOTE:**
-${lines.map(line => line.trim()).join('. ')}.
+${sections.chiefComplaint ? `CHIEF COMPLAINT:\n${sections.chiefComplaint}\n\n` : ''}${sections.historyOfPresentIllness ? `HISTORY OF PRESENT ILLNESS:\n${sections.historyOfPresentIllness}\n\n` : ''}${sections.medications ? `MEDICATIONS:\n${sections.medications}\n\n` : ''}${sections.allergies ? `ALLERGIES:\n${sections.allergies}\n\n` : ''}${sections.assessment ? `ASSESSMENT/DIAGNOSES:\n${sections.assessment}\n\n` : ''}${sections.plan ? `PLAN:\n${sections.plan}\n\n` : ''}${sections.physicalExam ? `VITAL SIGNS/EXAM:\n${sections.physicalExam}\n\n` : ''}
+════════════════════════════════════════════════════════
 
-**NOTE:** This is a basic transcription without AI processing. 
-To enable AI-powered medical note formatting:
-1. Go to https://console.aws.amazon.com/bedrock/
-2. Enable Claude models
-3. Try processing again
+ℹ️  NOTE: This note was generated using client-side extraction (AI services unavailable).
+   Key information has been extracted, but manual review is recommended.
 
----
-*Transcribed at ${new Date().toLocaleString()}*
+   To enable full AI processing:
+   • Verify API credentials are configured
+   • Check network connection
+   • Contact support if the issue persists
+
+Generated: ${new Date().toLocaleString()} | Confidence: Medium
     `.trim();
 
     return {
       formatted,
-      sections: {
-        chiefComplaint: '',
-        historyOfPresentIllness: transcript,
-        assessment: '',
-        plan: ''
-      },
+      sections,
       metadata: {
         processedAt: timestamp,
-        model: 'basic-formatter',
-        confidence: 0.5
+        model: 'enhanced-fallback-extractor',
+        confidence: 0.65
       }
     };
+  }
+
+  /**
+   * Extract medical sections from transcript using regex patterns
+   */
+  private extractSectionsFromTranscript(transcript: string): {
+    chiefComplaint?: string;
+    historyOfPresentIllness?: string;
+    reviewOfSystems?: string;
+    pastMedicalHistory?: string;
+    medications?: string;
+    allergies?: string;
+    physicalExam?: string;
+    assessment?: string;
+    plan?: string;
+  } {
+    const sections: any = {};
+
+    // 1. Extract Chief Complaint (first sentence or explicit mention)
+    const ccMatch = transcript.match(/(?:chief complaint|presenting with|here for|comes in (?:with|for))\s*:?\s*([^.!?]+)/i);
+    if (ccMatch) {
+      sections.chiefComplaint = ccMatch[1].trim();
+    } else {
+      // Use first sentence as chief complaint
+      const firstSentence = transcript.split(/[.!?]+/)[0];
+      if (firstSentence && firstSentence.length < 150) {
+        sections.chiefComplaint = firstSentence.trim();
+      }
+    }
+
+    // 2. Extract Diagnoses/Conditions
+    const diagnoses: string[] = [];
+    const diagnosisPatterns = [
+      /(?:diabetes|diabetic|dm|type 2 diabetes|type 1 diabetes)/gi,
+      /(?:hypertension|htn|high blood pressure)/gi,
+      /(?:hyperlipidemia|high cholesterol)/gi,
+      /(?:hypothyroid|hyperthyroid|thyroid disorder)/gi,
+      /(?:nausea|vomiting|diarrhea)/gi,
+      /(?:infection|uti|upper respiratory infection|uri)/gi
+    ];
+
+    const transcriptLower = transcript.toLowerCase();
+    diagnosisPatterns.forEach(pattern => {
+      const matches = transcript.match(pattern);
+      if (matches) {
+        matches.forEach(match => {
+          if (!diagnoses.some(d => d.toLowerCase() === match.toLowerCase())) {
+            diagnoses.push(match);
+          }
+        });
+      }
+    });
+
+    if (diagnoses.length > 0) {
+      sections.assessment = diagnoses.map((d, i) => `${i + 1}. ${d}`).join('\n');
+    }
+
+    // 3. Extract Medications
+    const medications: string[] = [];
+    const medPatterns = [
+      /(?:lantus|humalog|novolog|metformin|ozempic|mounjaro|jardiance|farxiga)\s*(?:\d+\s*(?:mg|units?|mcg))?/gi,
+      /(?:levothyroxine|synthroid)\s*\d+\s*mcg/gi,
+      /(?:lisinopril|losartan|amlodipine)\s*\d+\s*mg/gi,
+      /(?:atorvastatin|rosuvastatin|simvastatin)\s*\d+\s*mg/gi
+    ];
+
+    medPatterns.forEach(pattern => {
+      const matches = transcript.match(pattern);
+      if (matches) {
+        matches.forEach(match => {
+          if (!medications.some(m => m.toLowerCase() === match.toLowerCase())) {
+            medications.push(match);
+          }
+        });
+      }
+    });
+
+    if (medications.length > 0) {
+      sections.medications = medications.map((m, i) => `${i + 1}. ${m}`).join('\n');
+    }
+
+    // 4. Extract Allergies
+    const allergyMatch = transcript.match(/(?:allergies?|allergic to)\s*:?\s*([^.!?]+)/i);
+    if (allergyMatch) {
+      sections.allergies = allergyMatch[1].trim();
+    } else if (transcriptLower.includes('nkda') || transcriptLower.includes('no known')) {
+      sections.allergies = 'NKDA (No Known Drug Allergies)';
+    }
+
+    // 5. Extract Vital Signs and Lab Values
+    const vitalsData: string[] = [];
+
+    // Blood pressure
+    const bpMatch = transcript.match(/(?:bp|blood pressure)[:\s]*(\d+\/\d+)/i);
+    if (bpMatch) vitalsData.push(`BP: ${bpMatch[1]}`);
+
+    // Blood sugar / Glucose
+    const bsMatch = transcript.match(/(?:blood sugar|glucose|bg)[:\s]*(\d+)/i);
+    if (bsMatch) vitalsData.push(`Blood Glucose: ${bsMatch[1]} mg/dL`);
+
+    // A1C
+    const a1cMatch = transcript.match(/(?:a1c|hemoglobin a1c|hba1c)[:\s]*(\d+\.?\d*)/i);
+    if (a1cMatch) vitalsData.push(`A1C: ${a1cMatch[1]}%`);
+
+    // Weight
+    const weightMatch = transcript.match(/(?:weight|wt)[:\s]*(\d+)\s*(?:lbs?|pounds?)/i);
+    if (weightMatch) vitalsData.push(`Weight: ${weightMatch[1]} lbs`);
+
+    // Age
+    const ageMatch = transcript.match(/(\d+)\s*(?:year|yr)s?\s*old/i);
+    if (ageMatch) vitalsData.push(`Age: ${ageMatch[1]} years`);
+
+    if (vitalsData.length > 0) {
+      sections.physicalExam = vitalsData.join('\n');
+    }
+
+    // 6. Extract Plan Items
+    const planItems: string[] = [];
+
+    // Look for plan section
+    const planMatch = transcript.match(/(?:plan|treatment|management)\s*:?\s*([^]+?)(?:\n\n|$)/i);
+    if (planMatch) {
+      sections.plan = planMatch[1].trim();
+    } else {
+      // Extract common plan patterns
+      if (transcriptLower.includes('increase') || transcriptLower.includes('adjust')) {
+        const adjustMatch = transcript.match(/(?:increase|adjust|change)\s+([^.!?]+)/i);
+        if (adjustMatch) planItems.push(`• ${adjustMatch[0]}`);
+      }
+
+      if (transcriptLower.includes('start') || transcriptLower.includes('begin')) {
+        const startMatch = transcript.match(/(?:start|begin)\s+([^.!?]+)/i);
+        if (startMatch) planItems.push(`• ${startMatch[0]}`);
+      }
+
+      if (transcriptLower.includes('follow up') || transcriptLower.includes('follow-up')) {
+        planItems.push('• Follow up as scheduled');
+      }
+
+      if (transcriptLower.includes('lab') || transcriptLower.includes('blood work')) {
+        planItems.push('• Labs ordered');
+      }
+
+      if (planItems.length > 0) {
+        sections.plan = planItems.join('\n');
+      }
+    }
+
+    // 7. Extract HPI (everything not yet categorized)
+    if (!sections.historyOfPresentIllness) {
+      // Remove chief complaint from transcript for HPI
+      let hpiText = transcript;
+      if (sections.chiefComplaint) {
+        hpiText = hpiText.replace(sections.chiefComplaint, '').trim();
+      }
+
+      // Take first 300 characters as HPI summary
+      if (hpiText.length > 300) {
+        sections.historyOfPresentIllness = hpiText.substring(0, 300) + '... (see full transcript for details)';
+      } else if (hpiText.length > 50) {
+        sections.historyOfPresentIllness = hpiText;
+      }
+    }
+
+    logInfo('azureAI', 'Extracted sections from transcript', {
+      sectionsFound: Object.keys(sections).length,
+      hasChiefComplaint: !!sections.chiefComplaint,
+      hasMedications: !!sections.medications,
+      hasAssessment: !!sections.assessment
+    });
+
+    return sections;
   }
 }
 

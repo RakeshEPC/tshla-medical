@@ -310,6 +310,106 @@ button[class*='pulse'] {
   background: rgba(255, 255, 255, 0.5);
 }
 
+/* ====== Template Selector Enhancements ====== */
+.template-selector-prominent {
+  position: relative;
+  border: 2px solid rgba(59, 130, 246, 0.15);
+}
+
+.template-selector-prominent::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(99, 102, 241, 0.1));
+  border-radius: 0.75rem;
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.template-selector-prominent:hover::before {
+  opacity: 1;
+}
+
+/* Fade-in animation for active badge */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Line clamp for descriptions */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Enhanced glass button styles */
+.glass-button {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  transition: all 0.2s ease;
+}
+
+.glass-button:hover {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+/* Slide-in animation for dropdown */
+.slide-in-right {
+  animation: slideInRight 0.2s ease-out;
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Enhanced hover effects for template list items */
+.group:hover .text-gray-700 {
+  color: #1f2937;
+}
+
+/* Modern scrollbar for template list */
+.modern-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.modern-scrollbar::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.modern-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.modern-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
 /* ====== Responsive Design ====== */
 @media (max-width: 768px) {
   .glass-card-calm {
@@ -325,5 +425,9 @@ button[class*='pulse'] {
 
   .edit-indicator {
     display: none; /* Hide on mobile to save space */
+  }
+
+  .template-selector-prominent {
+    border-width: 1px;
   }
 }

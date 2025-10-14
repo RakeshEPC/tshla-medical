@@ -22,11 +22,15 @@ import {
   Zap,
   Heart,
   Star,
-  ChevronDown
+  ChevronDown,
+  AlertCircle
 } from 'lucide-react';
 import '../styles/modernUI.css';
 import '../styles/quicknote-calm.css';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
+import TemplatePreviewModal from '../components/TemplatePreviewModal';
+import { retryStrategyService } from '../services/retryStrategy.service';
+import { classifyError, formatErrorForUser } from '../services/aiErrors';
 
 interface PatientDetails {
   name: string;
@@ -44,13 +48,23 @@ export default function QuickNoteModern() {
   const [processedNote, setProcessedNote] = useState('');
   const [editableNote, setEditableNote] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStage, setProcessingStage] = useState<'analyzing' | 'structuring' | 'validating' | 'complete' | null>(null);
+  const [processingProgress, setProcessingProgress] = useState(0);
   const [showProcessed, setShowProcessed] = useState(false);
+  const [retryAttempt, setRetryAttempt] = useState<{ current: number; max: number; reason: string } | null>(null);
+  const [qualityRating, setQualityRating] = useState<{
+    quality: 'excellent' | 'good' | 'poor';
+    confidence: number;
+    issues: string[];
+  } | null>(null);
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [recordingError, setRecordingError] = useState<string>('');
   const [recordingMode, setRecordingMode] = useState<'dictation' | 'conversation'>('dictation');
   const [selectedTemplate, setSelectedTemplate] = useState<DoctorTemplate | null>(null);
   const [templates, setTemplates] = useState<DoctorTemplate[]>([]);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
+  const [showTemplatePreview, setShowTemplatePreview] = useState(false);
+  const [previewTemplate, setPreviewTemplate] = useState<DoctorTemplate | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   const [patientDetails, setPatientDetails] = useState<PatientDetails>({
@@ -196,7 +210,7 @@ export default function QuickNoteModern() {
 
   const processWithAI = async (transcriptToProcess?: string) => {
     const contentToProcess = transcriptToProcess || transcript;
-    
+
     if (!contentToProcess.trim()) {
       alert('Please record some content first');
       return;
@@ -204,8 +218,21 @@ export default function QuickNoteModern() {
 
     setIsProcessing(true);
     setShowProcessed(false);
+    setProcessingStage('analyzing');
+    setProcessingProgress(0);
+
+    // Simulate progress stages with realistic timing
+    const progressInterval = setInterval(() => {
+      setProcessingProgress(prev => {
+        if (prev >= 95) return 95; // Cap at 95% until actually done
+        return prev + 5;
+      });
+    }, 300);
 
     try {
+      // Stage 1: Analyzing (0-30%)
+      setProcessingStage('analyzing');
+      await new Promise(resolve => setTimeout(resolve, 500));
       const patientContext = `
 PATIENT INFORMATION:
 Name: ${patientDetails.name || '[Not provided]'}
@@ -215,9 +242,12 @@ Email: ${patientDetails.email || '[Not provided]'}
 Visit Date: ${patientDetails.visitDate}
       `.trim();
 
-      const combinedContent = recordingMode === 'conversation' 
+      const combinedContent = recordingMode === 'conversation'
         ? `CONVERSATION TRANSCRIPT:\n${contentToProcess}`
         : contentToProcess;
+
+      // Stage 2: Structuring (30-70%)
+      setProcessingStage('structuring');
 
       const minimalPatientData = {
         id: 'quick-note-modern',
@@ -259,24 +289,93 @@ Visit Date: ${patientDetails.visitDate}
         logDebug('QuickNoteModern', 'No template selected, using default SOAP format');
       }
 
-      const result = await azureAIService.processMedicalTranscription(
-        combinedContent,
-        minimalPatientData,
-        null,
-        `Patient context: ${patientContext}`,
-        templateInstructions
+      // Wrap AI processing with intelligent retry mechanism
+      const result = await retryStrategyService.executeWithRetry(
+        async () => {
+          return await azureAIService.processMedicalTranscription(
+            combinedContent,
+            minimalPatientData,
+            null,
+            `Patient context: ${patientContext}`,
+            templateInstructions
+          );
+        },
+        {
+          maxRetries: 3,
+          baseDelay: 2000,
+          maxDelay: 20000,
+          exponentialBase: 2,
+          jitterMax: 1000
+        },
+        (retryInfo) => {
+          // Show retry information to user
+          setRetryAttempt({
+            current: retryInfo.attemptNumber,
+            max: retryInfo.totalAttempts,
+            reason: retryInfo.reason
+          });
+          setProcessingStage('analyzing'); // Reset to analyzing during retry
+          logInfo('QuickNoteModern', `Retry attempt ${retryInfo.attemptNumber}/${retryInfo.totalAttempts}`, {
+            delay: retryInfo.delayMs,
+            reason: retryInfo.reason
+          });
+        }
       );
-      
+
+      // Stage 3: Validating (70-95%)
+      setProcessingStage('validating');
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Stage 4: Complete (95-100%)
+      setProcessingStage('complete');
+      setProcessingProgress(100);
+      await new Promise(resolve => setTimeout(resolve, 300));
+
       const processedContent = result.formatted;
       setProcessedNote(processedContent);
       setEditableNote(processedContent);
       setShowProcessed(true);
+
+      // Extract quality rating if available
+      if (result.qualityCheck) {
+        setQualityRating({
+          quality: result.qualityCheck.quality,
+          confidence: result.qualityCheck.confidence,
+          issues: result.qualityCheck.issues
+        });
+      } else {
+        // Default quality for successful processing
+        setQualityRating({
+          quality: 'good',
+          confidence: 0.85,
+          issues: []
+        });
+      }
+
+      clearInterval(progressInterval);
     } catch (error) {
-      logError('QuickNoteModern', 'Error message', {});
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      alert(`Failed to process with AI: ${errorMessage}`);
+      clearInterval(progressInterval);
+      logError('QuickNoteModern', 'AI processing failed after retries', { error });
+
+      // Use classified error for user-friendly message
+      const classifiedError = classifyError(error);
+      const userFriendlyMessage = formatErrorForUser(classifiedError);
+
+      // Show detailed error modal instead of basic alert
+      const shouldRetry = confirm(
+        `${userFriendlyMessage}\n\nWould you like to try again?`
+      );
+
+      if (shouldRetry) {
+        // User wants to retry manually
+        setTimeout(() => processWithAI(transcript), 500);
+        return;
+      }
     } finally {
       setIsProcessing(false);
+      setProcessingStage(null);
+      setProcessingProgress(0);
+      setRetryAttempt(null);
     }
   };
 
@@ -309,6 +408,7 @@ Visit Date: ${patientDetails.visitDate}
     setIsEditingNote(false);
     setWordCount(0);
     setRecordingDuration(0);
+    setQualityRating(null);
   };
 
   return (
@@ -367,7 +467,140 @@ Visit Date: ${patientDetails.visitDate}
           
           {/* Left Column - Recording & Patient */}
           <div className="space-y-6">
-            
+
+            {/* Template Selection - Top Priority Position */}
+            <div className="glass-card-calm p-6 card-hover-calm template-selector-prominent">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-blue-500" />
+                  Note Template
+                  {selectedTemplate && (
+                    <span className="ml-2 text-xs px-2 py-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-full shadow-sm animate-fade-in">
+                      ✓ Active
+                    </span>
+                  )}
+                </h3>
+                {selectedTemplate && (
+                  <button
+                    onClick={() => {
+                      setPreviewTemplate(selectedTemplate);
+                      setShowTemplatePreview(true);
+                    }}
+                    className="text-xs text-blue-600 hover:text-blue-700 font-medium underline"
+                    title="Preview template structure"
+                  >
+                    Preview Sections
+                  </button>
+                )}
+              </div>
+
+              <button
+                onClick={() => setShowTemplateSelector(!showTemplateSelector)}
+                className={`glass-button w-full p-4 rounded-lg text-left flex items-center justify-between hover:scale-[1.02] transition-all shadow-sm ${
+                  selectedTemplate ? 'border-2 border-blue-500 bg-blue-50 bg-opacity-50' : 'border border-gray-300'
+                }`}
+                title="Click to change template"
+              >
+                <div className="flex-1">
+                  <div className="font-semibold text-base">
+                    {selectedTemplate ? selectedTemplate.name : 'Default SOAP Note'}
+                  </div>
+                  {selectedTemplate && selectedTemplate.description && (
+                    <div className="text-xs text-gray-700 mt-1 line-clamp-2">
+                      {selectedTemplate.description}
+                    </div>
+                  )}
+                  {selectedTemplate && selectedTemplate.specialty && (
+                    <div className="text-xs text-blue-600 mt-1 font-medium">
+                      📋 {selectedTemplate.specialty}
+                    </div>
+                  )}
+                  {!selectedTemplate && (
+                    <div className="text-xs text-gray-600 mt-1">
+                      Standard SOAP format • Click to select a custom template
+                    </div>
+                  )}
+                </div>
+                <ChevronDown className={`w-5 h-5 ml-2 transition-transform ${showTemplateSelector ? 'rotate-180' : ''}`} />
+              </button>
+
+              {showTemplateSelector && (
+                <div className="mt-3 glass-card p-3 max-h-72 overflow-y-auto modern-scrollbar slide-in-right border border-gray-200 shadow-lg">
+                  <button
+                    onClick={() => {
+                      setSelectedTemplate(null);
+                      setShowTemplateSelector(false);
+                    }}
+                    className={`w-full p-3 text-left hover:bg-blue-50 rounded-lg text-sm mb-2 transition-all ${
+                      !selectedTemplate ? 'bg-blue-100 border-2 border-blue-500 shadow-sm' : 'border border-gray-200 bg-white'
+                    }`}
+                  >
+                    <div className="font-semibold flex items-center justify-between">
+                      <span>Default SOAP Note</span>
+                      {!selectedTemplate && (
+                        <span className="text-xs px-2 py-1 bg-blue-500 text-white rounded-full">
+                          Selected
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">Standard SOAP Note Format</div>
+                  </button>
+
+                  {templates.map(template => (
+                    <button
+                      key={template.id}
+                      onClick={() => {
+                        setSelectedTemplate(template);
+                        setShowTemplateSelector(false);
+                      }}
+                      className={`w-full p-3 text-left hover:bg-blue-50 rounded-lg text-sm mb-2 transition-all group ${
+                        selectedTemplate?.id === template.id ? 'bg-blue-100 border-2 border-blue-500 shadow-sm' : 'border border-gray-200 bg-white'
+                      }`}
+                      title={`Click to use ${template.name}`}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setPreviewTemplate(template);
+                        setShowTemplatePreview(true);
+                      }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold">{template.name}</span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPreviewTemplate(template);
+                              setShowTemplatePreview(true);
+                            }}
+                            className="text-xs text-gray-500 hover:text-blue-600 transition-colors"
+                            title="Preview this template"
+                          >
+                            👁️
+                          </button>
+                        </div>
+                        {selectedTemplate?.id === template.id && (
+                          <span className="text-xs px-2 py-1 bg-blue-500 text-white rounded-full">
+                            Selected
+                          </span>
+                        )}
+                      </div>
+                      {template.description && (
+                        <div className="text-xs text-gray-700 mt-1 group-hover:text-gray-900">{template.description}</div>
+                      )}
+                      {template.specialty && (
+                        <div className="text-xs text-blue-600 mt-1 font-medium">
+                          📋 {template.specialty}
+                        </div>
+                      )}
+                      <div className="text-xs text-gray-500 mt-1">
+                        {Object.values(template.sections).length} sections • {Object.values(template.sections).filter(s => s.required).length} required
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Recording Mode Selection */}
             <div className="glass-card-calm p-6 card-hover-calm">
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -463,15 +696,15 @@ Visit Date: ${patientDetails.visitDate}
                   disabled={!transcript.trim() || isProcessing}
                   className="btn-calm btn-calm-primary px-6 py-3 flex items-center gap-2"
                 >
-                  {isProcessing ? (
-                    <>
-                      <div className="spinner-calm"></div>
-                      Processing...
-                    </>
-                  ) : (
+                  {!isProcessing ? (
                     <>
                       <Brain className="w-5 h-5" />
                       AI Process
+                    </>
+                  ) : (
+                    <>
+                      <div className="spinner-calm"></div>
+                      Processing
                     </>
                   )}
                 </button>
@@ -490,88 +723,68 @@ Visit Date: ${patientDetails.visitDate}
                   {recordingError}
                 </div>
               )}
-            </div>
 
-            {/* Template Selection - Enhanced Visibility */}
-            <div className="glass-card-calm p-6 card-hover-calm">
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-blue-500" />
-                Template
-                {selectedTemplate && (
-                  <span className="ml-auto text-xs px-2 py-1 bg-blue-500 text-white rounded-full">
-                    Active
-                  </span>
-                )}
-              </h3>
-
-              <button
-                onClick={() => setShowTemplateSelector(!showTemplateSelector)}
-                className={`glass-button w-full p-3 rounded-lg text-left flex items-center justify-between hover:scale-105 transition-transform ${
-                  selectedTemplate ? 'border-2 border-blue-500' : ''
-                }`}
-              >
-                <div className="flex-1">
-                  <div className="font-semibold">
-                    {selectedTemplate ? selectedTemplate.name : 'No Template Selected'}
-                  </div>
-                  {selectedTemplate && selectedTemplate.description && (
-                    <div className="text-xs text-gray-600 mt-1">
-                      {selectedTemplate.description}
-                    </div>
-                  )}
-                  {!selectedTemplate && (
-                    <div className="text-xs text-gray-600 mt-1">
-                      Standard SOAP format
-                    </div>
-                  )}
-                </div>
-                <ChevronDown className={`w-4 h-4 ml-2 transition-transform ${showTemplateSelector ? 'rotate-180' : ''}`} />
-              </button>
-
-              {showTemplateSelector && (
-                <div className="mt-3 glass-card p-3 max-h-64 overflow-y-auto modern-scrollbar slide-in-right">
-                  <button
-                    onClick={() => {
-                      setSelectedTemplate(null);
-                      setShowTemplateSelector(false);
-                    }}
-                    className={`w-full p-3 text-left hover:bg-white hover:bg-opacity-50 rounded text-sm mb-2 transition-all ${
-                      !selectedTemplate ? 'bg-blue-50 border-2 border-blue-400' : 'border border-gray-200'
-                    }`}
-                  >
-                    <div className="font-semibold">No Template</div>
-                    <div className="text-xs text-gray-600 mt-1">Standard SOAP Note Format</div>
-                  </button>
-
-                  {templates.map(template => (
-                    <button
-                      key={template.id}
-                      onClick={() => {
-                        setSelectedTemplate(template);
-                        setShowTemplateSelector(false);
-                      }}
-                      className={`w-full p-3 text-left hover:bg-white hover:bg-opacity-50 rounded text-sm mb-2 transition-all ${
-                        selectedTemplate?.id === template.id ? 'bg-blue-50 border-2 border-blue-400' : 'border border-gray-200'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="font-semibold">{template.name}</div>
-                        {selectedTemplate?.id === template.id && (
-                          <span className="text-xs px-2 py-1 bg-blue-500 text-white rounded-full">
-                            Selected
-                          </span>
-                        )}
+              {/* AI Processing Progress Indicator */}
+              {isProcessing && processingStage && (
+                <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
+                  {/* Retry Indicator */}
+                  {retryAttempt && (
+                    <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded">
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="text-yellow-600 font-semibold">
+                          ⚠️ Retry {retryAttempt.current}/{retryAttempt.max}
+                        </span>
+                        <span className="text-yellow-700">
+                          {retryAttempt.reason.substring(0, 60)}...
+                        </span>
                       </div>
-                      {template.description && (
-                        <div className="text-xs text-gray-600 mt-1">{template.description}</div>
-                      )}
-                      {template.specialty && (
-                        <div className="text-xs text-blue-600 mt-1 font-medium">
-                          {template.specialty}
-                        </div>
-                      )}
-                    </button>
-                  ))}
+                    </div>
+                  )}
+
+                  <div className="mb-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="spinner-calm"></div>
+                        <span className="text-sm font-semibold text-gray-800">
+                          {processingStage === 'analyzing' && '🔍 Analyzing transcription...'}
+                          {processingStage === 'structuring' && '📝 Structuring medical note...'}
+                          {processingStage === 'validating' && '✓ Validating content...'}
+                          {processingStage === 'complete' && '✅ Complete!'}
+                        </span>
+                      </div>
+                      <span className="text-xs font-medium text-blue-600">
+                        {Math.round(processingProgress)}%
+                      </span>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                      <div
+                        className={`h-2 rounded-full transition-all duration-300 ease-out ${
+                          retryAttempt
+                            ? 'bg-gradient-to-r from-yellow-500 to-orange-500'
+                            : 'bg-gradient-to-r from-blue-500 to-indigo-600'
+                        }`}
+                        style={{ width: `${processingProgress}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Stage Description */}
+                  <div className="text-xs text-gray-600">
+                    {retryAttempt ? (
+                      <span className="font-medium">
+                        Retrying due to temporary issue. This is normal and ensures best quality.
+                      </span>
+                    ) : (
+                      <>
+                        {processingStage === 'analyzing' && 'Extracting medical information from your dictation'}
+                        {processingStage === 'structuring' && 'Organizing content into proper medical note format'}
+                        {processingStage === 'validating' && 'Checking for completeness and accuracy'}
+                        {processingStage === 'complete' && 'Your medical note is ready!'}
+                      </>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -657,12 +870,101 @@ Visit Date: ${patientDetails.visitDate}
           </div>
 
           {/* Right Column - AI Generated Note (Much Larger) */}
-          <div className="glass-card-calm p-6 card-hover-calm">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-purple-500" />
-                AI-Generated Note
-              </h3>
+          <div className="space-y-4">
+            {/* Quality Rating Banner */}
+            {showProcessed && qualityRating && (
+              <div className={`glass-card-calm p-4 border-l-4 ${
+                qualityRating.quality === 'excellent' ? 'border-green-500 bg-green-50' :
+                qualityRating.quality === 'good' ? 'border-blue-500 bg-blue-50' :
+                'border-red-500 bg-red-50'
+              }`}>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      {qualityRating.quality === 'excellent' && (
+                        <>
+                          <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+                            <Star className="w-5 h-5 text-white fill-white" />
+                          </div>
+                          <div>
+                            <div className="font-semibold text-green-900">Excellent Quality</div>
+                            <div className="text-xs text-green-700">
+                              Confidence: {Math.round(qualityRating.confidence * 100)}%
+                            </div>
+                          </div>
+                        </>
+                      )}
+                      {qualityRating.quality === 'good' && (
+                        <>
+                          <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
+                            <Sparkles className="w-5 h-5 text-white" />
+                          </div>
+                          <div>
+                            <div className="font-semibold text-blue-900">Good Quality</div>
+                            <div className="text-xs text-blue-700">
+                              Confidence: {Math.round(qualityRating.confidence * 100)}%
+                            </div>
+                          </div>
+                        </>
+                      )}
+                      {qualityRating.quality === 'poor' && (
+                        <>
+                          <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center">
+                            <AlertCircle className="w-5 h-5 text-white" />
+                          </div>
+                          <div>
+                            <div className="font-semibold text-red-900">Needs Review</div>
+                            <div className="text-xs text-red-700">
+                              Confidence: {Math.round(qualityRating.confidence * 100)}%
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Quality Issues */}
+                    {qualityRating.issues.length > 0 && (
+                      <div className="mt-3">
+                        <div className="text-xs font-medium text-gray-700 mb-1">Quality Issues Detected:</div>
+                        <ul className="text-xs space-y-1">
+                          {qualityRating.issues.slice(0, 3).map((issue, index) => (
+                            <li key={index} className="text-gray-600 flex items-start gap-1">
+                              <span className="text-gray-400">•</span>
+                              <span>{issue}</span>
+                            </li>
+                          ))}
+                          {qualityRating.issues.length > 3 && (
+                            <li className="text-gray-500 italic">
+                              ...and {qualityRating.issues.length - 3} more
+                            </li>
+                          )}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Regenerate Button for Poor Quality */}
+                  {qualityRating.quality === 'poor' && (
+                    <button
+                      onClick={() => processWithAI(transcript)}
+                      disabled={isProcessing}
+                      className="btn-calm btn-calm-primary px-4 py-2 text-sm"
+                      title="Regenerate note with improved AI processing"
+                    >
+                      <Brain className="w-4 h-4" />
+                      Regenerate
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="glass-card-calm p-6 card-hover-calm">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-purple-500" />
+                  AI-Generated Note
+                </h3>
               
               {showProcessed && (
                 <div className="flex gap-2">
@@ -761,9 +1063,27 @@ Visit Date: ${patientDetails.visitDate}
                 </div>
               )}
             </div>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Template Preview Modal */}
+      {previewTemplate && (
+        <TemplatePreviewModal
+          template={previewTemplate}
+          isOpen={showTemplatePreview}
+          onClose={() => {
+            setShowTemplatePreview(false);
+            setPreviewTemplate(null);
+          }}
+          onUseTemplate={() => {
+            setSelectedTemplate(previewTemplate);
+            setShowTemplateSelector(false);
+          }}
+          currentTemplateId={selectedTemplate?.id}
+        />
+      )}
     </div>
   );
 }

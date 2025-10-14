@@ -24,6 +24,16 @@ export interface DoctorTemplate {
   createdAt: string;
   updatedAt: string;
   usageCount: number;
+  complexity?: {
+    score: number; // 0-100
+    level: 'simple' | 'moderate' | 'complex' | 'very_complex';
+    recommendedModel: 'gpt-4o-mini' | 'gpt-4o';
+    factors: {
+      sectionCount: number;
+      requiredSections: number;
+      instructionLength: number;
+    };
+  };
 }
 
 export interface DoctorSettings {
@@ -504,6 +514,9 @@ class DoctorProfileService {
         usageCount: 0,
       };
 
+      // Calculate and add complexity
+      doctorTemplate.complexity = this.calculateTemplateComplexity(doctorTemplate);
+
       // Update local profile cache
       profile.templates.push(doctorTemplate);
       await this.saveProfile(profile);
@@ -555,6 +568,12 @@ class DoctorProfileService {
       ...updates,
       updatedAt: new Date().toISOString(),
     };
+
+    // Recalculate complexity if sections or instructions changed
+    if (updates.sections || updates.generalInstructions) {
+      updatedTemplate.complexity = this.calculateTemplateComplexity(updatedTemplate);
+    }
+
     profile.templates[index] = updatedTemplate;
     await this.saveProfile(profile);
   }
@@ -922,6 +941,100 @@ class DoctorProfileService {
 
     keysToRemove.forEach(key => localStorage.removeItem(key));
     logDebug('doctorProfile', 'Debug message', {});
+  }
+
+  /**
+   * Calculate template complexity for cost optimization
+   * Returns score, level, and recommended model
+   */
+  calculateTemplateComplexity(template: DoctorTemplate): DoctorTemplate['complexity'] {
+    let score = 0;
+    const factors = {
+      sectionCount: 0,
+      requiredSections: 0,
+      instructionLength: 0,
+    };
+
+    // 1. Section Count (30 points max)
+    const sectionCount = Object.keys(template.sections).length;
+    factors.sectionCount = sectionCount;
+
+    if (sectionCount <= 5) {
+      score += 5;
+    } else if (sectionCount <= 8) {
+      score += 15;
+    } else {
+      score += 30;
+    }
+
+    // 2. Required Sections (15 points max)
+    const requiredCount = Object.values(template.sections).filter(s => s.required).length;
+    factors.requiredSections = requiredCount;
+    score += Math.min(requiredCount * 3, 15);
+
+    // 3. Custom AI Instructions Length (25 points max)
+    let totalInstructionLength = 0;
+
+    if (template.generalInstructions) {
+      totalInstructionLength += template.generalInstructions.length;
+      score += Math.min(template.generalInstructions.length / 50, 10);
+    }
+
+    Object.values(template.sections).forEach(section => {
+      if (section.aiInstructions) {
+        totalInstructionLength += section.aiInstructions.length;
+        score += Math.min(section.aiInstructions.length / 100, 5);
+      }
+    });
+
+    factors.instructionLength = totalInstructionLength;
+
+    // 4. Specialty-specific complexity (10 points max)
+    const complexSpecialties = ['cardiology', 'neurology', 'oncology', 'psychiatry'];
+    const templateName = template.name.toLowerCase();
+    if (complexSpecialties.some(s => templateName.includes(s))) {
+      score += 10;
+    }
+
+    // Cap score at 100
+    score = Math.min(score, 100);
+
+    // Determine complexity level and recommended model
+    let level: 'simple' | 'moderate' | 'complex' | 'very_complex';
+    let recommendedModel: 'gpt-4o-mini' | 'gpt-4o';
+
+    if (score < 30) {
+      level = 'simple';
+      recommendedModel = 'gpt-4o-mini';
+    } else if (score < 50) {
+      level = 'moderate';
+      recommendedModel = 'gpt-4o-mini';
+    } else if (score < 70) {
+      level = 'complex';
+      recommendedModel = 'gpt-4o';
+    } else {
+      level = 'very_complex';
+      recommendedModel = 'gpt-4o';
+    }
+
+    // Override for templates with extensive instructions (>500 chars)
+    if (totalInstructionLength > 500) {
+      recommendedModel = 'gpt-4o';
+    }
+
+    logDebug('doctorProfile', 'Template complexity calculated', {
+      templateName: template.name,
+      score,
+      level,
+      recommendedModel,
+    });
+
+    return {
+      score,
+      level,
+      recommendedModel,
+      factors,
+    };
   }
 }
 
