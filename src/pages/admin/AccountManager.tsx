@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase/client';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { supabaseAuthService } from '../../services/supabaseAuth.service';
 
 interface NewAccount {
   accountType: 'admin' | 'staff' | 'patient' | 'pumpdrive';
@@ -75,8 +76,6 @@ export default function AccountManager() {
   const [resetMessage, setResetMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [newPassword, setNewPassword] = useState<string | null>(null);
 
-  const API_URL = import.meta.env.VITE_ADMIN_ACCOUNT_API_URL || 'http://localhost:3004';
-
   // Check if user is admin
   if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {
     return (
@@ -134,29 +133,34 @@ export default function AccountManager() {
     setCreatedCredentials(null);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('No active session');
+      let result;
+
+      // Create account based on type
+      if (newAccount.accountType === 'admin' || newAccount.accountType === 'staff') {
+        // Create medical staff account
+        result = await supabaseAuthService.registerMedicalStaff({
+          email: newAccount.email,
+          password: newAccount.password,
+          firstName: newAccount.firstName,
+          lastName: newAccount.lastName,
+          role: newAccount.accountType === 'admin' ? 'admin' : (newAccount.role || 'doctor'),
+          specialty: newAccount.specialty,
+          practice: newAccount.practice,
+        });
+      } else {
+        // Create patient account (includes pumpdrive)
+        result = await supabaseAuthService.registerPatient({
+          email: newAccount.email,
+          password: newAccount.password,
+          firstName: newAccount.firstName,
+          lastName: newAccount.lastName,
+          phoneNumber: newAccount.phoneNumber,
+          dateOfBirth: newAccount.dateOfBirth,
+          enablePumpDrive: newAccount.accountType === 'pumpdrive' ? true : newAccount.enablePumpDrive,
+        });
       }
 
-      const accountData = {
-        ...newAccount,
-        enablePumpDrive: newAccount.accountType === 'pumpdrive' ? true : newAccount.enablePumpDrive,
-        accountType: newAccount.accountType === 'pumpdrive' ? 'patient' : newAccount.accountType
-      };
-
-      const response = await fetch(`${API_URL}/api/accounts/create`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify(accountData)
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
+      if (!result.success) {
         throw new Error(result.error || 'Failed to create account');
       }
 
@@ -165,10 +169,22 @@ export default function AccountManager() {
         text: `Account created successfully for ${newAccount.email}!`
       });
 
+      // Get AVA ID from the created user (only for patients)
+      let avaId;
+      if (newAccount.accountType === 'patient' || newAccount.accountType === 'pumpdrive') {
+        // Query the patients table to get the AVA ID
+        const { data: patientData } = await supabase
+          .from('patients')
+          .select('ava_id')
+          .eq('auth_user_id', result.user?.authUserId)
+          .single();
+        avaId = patientData?.ava_id;
+      }
+
       setCreatedCredentials({
         email: newAccount.email,
         password: newAccount.password,
-        avaId: result.user.avaId,
+        avaId: avaId,
         accountType: newAccount.accountType
       });
 
@@ -184,6 +200,11 @@ export default function AccountManager() {
         practice: 'TSHLA Medical',
         enablePumpDrive: true
       });
+
+      // Reload accounts list if on manage tab
+      if (activeTab === 'manage') {
+        loadAccounts();
+      }
     } catch (error: any) {
       setCreateMessage({
         type: 'error',
@@ -199,76 +220,95 @@ export default function AccountManager() {
     setAccountsError(null);
 
     console.log('🔍 [AccountManager] Starting loadAccounts...');
-    console.log('🔍 [AccountManager] API URL:', API_URL);
 
     try {
-      // Check session first
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      let allAccounts: Account[] = [];
 
-      if (sessionError || !session) {
-        const errorMsg = 'No active session found. Please log in again.';
-        console.error('❌ [AccountManager]', errorMsg, sessionError);
-        setAccountsError(errorMsg);
-        setIsLoadingAccounts(false);
-        return;
-      }
+      // Load medical staff accounts
+      if (filterType === 'all' || filterType === 'admin' || filterType === 'staff') {
+        console.log('📡 [AccountManager] Fetching medical_staff...');
+        let staffQuery = supabase
+          .from('medical_staff')
+          .select('*')
+          .order('created_at', { ascending: false });
 
-      console.log('✅ [AccountManager] Session valid');
-      console.log('   User:', session.user.email);
-      console.log('   Token exists:', !!session.access_token);
-
-      const params = new URLSearchParams();
-      if (filterType !== 'all') params.append('accountType', filterType);
-      if (searchQuery) params.append('search', searchQuery);
-
-      const url = `${API_URL}/api/accounts/list?${params.toString()}`;
-      console.log('📡 [AccountManager] Fetching:', url);
-
-      // Use fetch with manual error handling to prevent authInterceptor redirect
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        },
-        // Prevent the authInterceptor from auto-redirecting
-        signal: AbortSignal.timeout(10000) // 10 second timeout
-      }).catch(fetchError => {
-        console.error('❌ [AccountManager] Fetch failed:', fetchError);
-        throw new Error(`Network error: ${fetchError.message}`);
-      });
-
-      console.log('📥 [AccountManager] Response status:', response.status);
-
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => 'Unknown error');
-        let errorData;
-        try {
-          errorData = JSON.parse(errorText);
-        } catch {
-          errorData = { error: errorText };
+        if (searchQuery) {
+          staffQuery = staffQuery.or(`email.ilike.%${searchQuery}%,first_name.ilike.%${searchQuery}%,last_name.ilike.%${searchQuery}%`);
         }
 
-        const errorMsg = `API Error (${response.status}): ${errorData.error || response.statusText}`;
-        console.error('❌ [AccountManager]', errorMsg);
-        console.error('   Full response:', errorData);
+        if (filterType === 'admin') {
+          staffQuery = staffQuery.eq('role', 'admin');
+        }
 
-        setAccountsError(errorMsg);
-        setIsLoadingAccounts(false);
-        return;
+        const { data: staffData, error: staffError } = await staffQuery;
+
+        if (staffError) {
+          throw new Error(`Failed to load staff: ${staffError.message}`);
+        }
+
+        if (staffData) {
+          const staffAccounts = staffData.map(staff => ({
+            id: staff.id,
+            email: staff.email,
+            first_name: staff.first_name,
+            last_name: staff.last_name,
+            fullName: `${staff.first_name} ${staff.last_name}`,
+            accountType: staff.role === 'admin' ? 'admin' : 'staff',
+            role: staff.role,
+            specialty: staff.specialty,
+            practice: staff.practice,
+            is_active: staff.is_active,
+            created_at: staff.created_at,
+            auth_user_id: staff.auth_user_id,
+          }));
+          allAccounts = [...allAccounts, ...staffAccounts];
+        }
       }
 
-      const result = await response.json();
-      console.log('✅ [AccountManager] Got', result.accounts?.length || 0, 'accounts');
+      // Load patient accounts
+      if (filterType === 'all' || filterType === 'patient' || filterType === 'pumpdrive') {
+        console.log('📡 [AccountManager] Fetching patients...');
+        let patientQuery = supabase
+          .from('patients')
+          .select('*')
+          .order('created_at', { ascending: false });
 
-      if (result.success) {
-        setAccounts(result.accounts || []);
-        setAccountsError(null);
-      } else {
-        const errorMsg = result.error || 'Failed to load accounts';
-        console.error('❌ [AccountManager]', errorMsg);
-        setAccountsError(errorMsg);
+        if (searchQuery) {
+          patientQuery = patientQuery.or(`email.ilike.%${searchQuery}%,first_name.ilike.%${searchQuery}%,last_name.ilike.%${searchQuery}%,ava_id.ilike.%${searchQuery}%,mrn.ilike.%${searchQuery}%`);
+        }
+
+        if (filterType === 'pumpdrive') {
+          patientQuery = patientQuery.eq('pumpdrive_enabled', true);
+        }
+
+        const { data: patientData, error: patientError } = await patientQuery;
+
+        if (patientError) {
+          throw new Error(`Failed to load patients: ${patientError.message}`);
+        }
+
+        if (patientData) {
+          const patientAccounts = patientData.map(patient => ({
+            id: patient.id,
+            email: patient.email,
+            first_name: patient.first_name,
+            last_name: patient.last_name,
+            fullName: `${patient.first_name} ${patient.last_name}`,
+            accountType: patient.pumpdrive_enabled ? 'pumpdrive' : 'patient',
+            ava_id: patient.ava_id,
+            phone: patient.phone,
+            pumpdrive_enabled: patient.pumpdrive_enabled,
+            is_active: patient.is_active,
+            created_at: patient.created_at,
+            auth_user_id: patient.auth_user_id,
+          }));
+          allAccounts = [...allAccounts, ...patientAccounts];
+        }
       }
+
+      console.log('✅ [AccountManager] Loaded', allAccounts.length, 'accounts');
+      setAccounts(allAccounts);
+      setAccountsError(null);
     } catch (error: any) {
       const errorMsg = `Error: ${error.message || 'Unknown error occurred'}`;
       console.error('❌ [AccountManager] Exception:', error);
@@ -285,36 +325,27 @@ export default function AccountManager() {
     setNewPassword(null);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('No active session');
-      }
-
-      const response = await fetch(`${API_URL}/api/accounts/reset-password`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({ email: resetEmail })
+      // Send password reset email via Supabase
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo: `${window.location.origin}/auth-redirect`,
       });
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to reset password');
+      if (error) {
+        throw new Error(error.message);
       }
 
       setResetMessage({
         type: 'success',
-        text: `Password reset successfully for ${resetEmail}`
+        text: `Password reset email sent to ${resetEmail}. The user will receive an email with instructions to reset their password.`
       });
-      setNewPassword(result.newPassword);
+
+      // Note: We can't generate a new password directly from client-side
+      // The user will receive an email with a secure reset link
       setResetEmail('');
     } catch (error: any) {
       setResetMessage({
         type: 'error',
-        text: error.message || 'Failed to reset password'
+        text: error.message || 'Failed to send password reset email'
       });
     } finally {
       setIsResetting(false);
@@ -672,27 +703,16 @@ export default function AccountManager() {
                     <div className="flex-1">
                       <h3 className="text-lg font-semibold text-red-900 mb-2">Failed to Load Accounts</h3>
                       <p className="text-red-800 mb-4">{accountsError}</p>
-                      <div className="flex gap-3">
-                        <button
-                          onClick={loadAccounts}
-                          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                        >
-                          Try Again
-                        </button>
-                        <button
-                          onClick={() => window.open('https://tshla-admin-api-container.redpebble-e4551b7a.eastus.azurecontainerapps.io/api/health', '_blank')}
-                          className="px-4 py-2 bg-white text-red-600 border border-red-600 rounded-lg hover:bg-red-50"
-                        >
-                          Check API Status
-                        </button>
-                      </div>
+                      <button
+                        onClick={loadAccounts}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                      >
+                        Try Again
+                      </button>
                       <div className="mt-4 p-3 bg-white rounded border border-red-200">
-                        <p className="text-sm text-gray-700 mb-2"><strong>Debug Info:</strong></p>
-                        <p className="text-xs text-gray-600 font-mono break-all">
-                          API URL: {API_URL}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-2">
-                          Open browser Console (F12) to see detailed error logs
+                        <p className="text-sm text-gray-700 mb-2"><strong>Troubleshooting:</strong></p>
+                        <p className="text-xs text-gray-500">
+                          Open browser Console (F12) to see detailed error logs. This may be a Row Level Security (RLS) policy issue in Supabase.
                         </p>
                       </div>
                     </div>
@@ -800,28 +820,6 @@ export default function AccountManager() {
                   </div>
                 )}
 
-                {newPassword && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-                    <h3 className="font-bold text-blue-900 mb-4">🔑 New Password Generated</h3>
-                    <div className="flex items-center justify-between bg-white rounded p-4">
-                      <div>
-                        <div className="text-xs text-gray-500 mb-1">New Password</div>
-                        <div className="font-mono text-lg font-bold">{newPassword}</div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => copyToClipboard(newPassword)}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                      >
-                        📋 Copy
-                      </button>
-                    </div>
-                    <p className="text-sm text-blue-700 mt-4">
-                      ⚠️ Save this password securely and share it with the user. It won't be shown again.
-                    </p>
-                  </div>
-                )}
-
                 <button
                   type="submit"
                   disabled={isResetting}
@@ -829,17 +827,17 @@ export default function AccountManager() {
                     isResetting ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
                   }`}
                 >
-                  {isResetting ? 'Resetting Password...' : 'Reset Password'}
+                  {isResetting ? 'Sending Reset Email...' : 'Send Password Reset Email'}
                 </button>
               </form>
 
               <div className="mt-8 p-4 bg-amber-50 border border-amber-200 rounded-lg">
                 <h4 className="font-semibold text-amber-900 mb-2">ℹ️ Password Reset Process</h4>
                 <ul className="text-sm text-amber-800 space-y-1">
-                  <li>• A new secure password will be automatically generated</li>
-                  <li>• The user's current password will be immediately replaced</li>
-                  <li>• Share the new password with the user securely</li>
-                  <li>• The user can change their password after logging in</li>
+                  <li>• A secure password reset email will be sent to the user</li>
+                  <li>• The user will receive an email with a password reset link</li>
+                  <li>• The link is valid for a limited time (typically 1 hour)</li>
+                  <li>• The user can set a new password by clicking the link</li>
                 </ul>
               </div>
             </div>
