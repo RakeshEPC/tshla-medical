@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { speechServiceRouter } from '../services/speechServiceRouter.service';
-import { bedrockService } from '../services/bedrock.service';
+import { azureAIService } from '../services/azureAI.service';
 import { medicalCorrections } from '../services/medicalCorrections.service';
 import { doctorProfileService, type DoctorTemplate } from '../services/doctorProfile.service';
 import { supabaseAuthService as unifiedAuthService } from '../services/supabaseAuth.service';
@@ -259,7 +259,7 @@ Visit Date: ${patientDetails.visitDate}
         logDebug('QuickNoteModern', 'No template selected, using default SOAP format');
       }
 
-      const result = await bedrockService.processMedicalTranscription(
+      const result = await azureAIService.processMedicalTranscription(
         combinedContent,
         minimalPatientData,
         null,
