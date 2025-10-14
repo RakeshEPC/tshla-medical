@@ -220,20 +220,29 @@ class DoctorProfileService {
 
       if (staffError) {
         logError('doctorProfile', 'Error finding medical staff', { error: staffError });
-        return [];
+        // Still try to load system templates even if there's an error
       }
 
-      if (!staffData) {
-        logWarn('doctorProfile', 'No medical staff record found', { doctorId });
-        return [];
+      // Build query to load templates from Supabase
+      let query;
+      if (staffData?.id) {
+        // User has medical_staff record: load their templates AND system templates
+        query = supabase
+          .from('templates')
+          .select('*')
+          .or(`staff_id.eq.${staffData.id},is_system_template.eq.true`)
+          .order('created_at', { ascending: false });
+      } else {
+        // No medical_staff record: load only system templates
+        logWarn('doctorProfile', 'No medical staff record found, loading system templates only', { doctorId });
+        query = supabase
+          .from('templates')
+          .select('*')
+          .eq('is_system_template', true)
+          .order('created_at', { ascending: false });
       }
 
-      // Load templates from Supabase
-      const { data: templates, error } = await supabase
-        .from('templates')
-        .select('*')
-        .or(`staff_id.eq.${staffData.id},is_system_template.eq.true`)
-        .order('created_at', { ascending: false });
+      const { data: templates, error } = await query;
 
       if (error) {
         logError('doctorProfile', 'Error loading templates from Supabase', { error });
