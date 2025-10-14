@@ -861,7 +861,12 @@ IMPORTANT: This is a conversation between a doctor and patient. Extract the medi
 DICTATION:
 "${transcript}"`;
     
-    return prompt + (additionalContext ? `\n\nCONTEXT: ${additionalContext}` : '') + `
+    return prompt + (additionalContext ? `\n\n--- PATIENT BACKGROUND (FOR REFERENCE ONLY - DO NOT COPY INTO NOTE) ---
+${additionalContext}
+--- END OF BACKGROUND CONTEXT ---
+
+IMPORTANT: The above context is provided for your reference to understand the patient's history.
+Extract information ONLY from the DICTATION transcript above. Do NOT copy the background context into any note sections.` : '') + `
 
 Create a medical note in JSON format:
 {
@@ -1008,12 +1013,15 @@ IMPORTANT: Only return the medical note content. Do not include instructions or 
     // For markdown responses, just use the text as-is
     // since it's already formatted nicely by the AI
     return {
-      patient,
-      sections: {
-        fullNote: markdownText
-      },
       formatted: markdownText,
-      timestamp: new Date().toISOString()
+      sections: {
+        historyOfPresentIllness: markdownText
+      },
+      metadata: {
+        processedAt: new Date().toISOString(),
+        model: 'markdown-parser',
+        confidence: 0.7
+      }
     };
   }
 
@@ -1104,10 +1112,10 @@ REVIEW OF SYSTEMS:
 ${this.highlightEndocrineTerms(sections.reviewOfSystems || 'Negative except as noted in HPI')}
 
 PAST MEDICAL HISTORY:
-${this.highlightEndocrineTerms(sections.pastMedicalHistory || patient.diagnosis.join(', '))}
+${this.highlightEndocrineTerms(sections.pastMedicalHistory || 'Not documented in this visit')}
 
 MEDICATIONS:
-${this.highlightEndocrineTerms(sections.medications || patient.medications.map(m => `- ${m.name} ${m.dosage} - ${m.frequency}`).join('\n'))}
+${this.highlightEndocrineTerms(sections.medications || 'Not documented in this visit')}
 
 ALLERGIES:
 ${sections.allergies || 'NKDA'}
