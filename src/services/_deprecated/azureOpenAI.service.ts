@@ -28,6 +28,9 @@ class AzureOpenAIService {
   private apiKey: string;
   private deploymentName: string;
   private apiVersion = '2024-02-01';
+  private useStandardOpenAI = false;
+  private standardOpenAIKey: string;
+  private standardOpenAIModel: string;
 
   constructor() {
     // Azure OpenAI configuration - PRODUCTION ENVIRONMENT
@@ -36,21 +39,37 @@ class AzureOpenAIService {
     this.deploymentName = import.meta.env.VITE_AZURE_OPENAI_DEPLOYMENT || 'gpt-4o';
     this.apiVersion = import.meta.env.VITE_AZURE_OPENAI_API_VERSION || '2024-02-01';
 
+    // Standard OpenAI fallback configuration
+    this.standardOpenAIKey = import.meta.env.VITE_OPENAI_API_KEY || '';
+    this.standardOpenAIModel = import.meta.env.VITE_OPENAI_MODEL_STAGE5 || 'gpt-4o';
+
+    // If Azure not configured, use standard OpenAI
+    if ((!this.endpoint || !this.apiKey) && this.standardOpenAIKey) {
+      this.useStandardOpenAI = true;
+      logInfo('AzureOpenAI', 'Azure OpenAI not configured, using standard OpenAI API as fallback', {
+        model: this.standardOpenAIModel
+      });
+    }
+
     // Log configuration for debugging (without exposing keys)
     logDebug('AzureOpenAI', 'Service initialization', {
-      hasEndpoint: !!this.endpoint,
-      hasApiKey: !!this.apiKey,
+      useStandardOpenAI: this.useStandardOpenAI,
+      hasAzureEndpoint: !!this.endpoint,
+      hasAzureApiKey: !!this.apiKey,
+      hasStandardAPIKey: !!this.standardOpenAIKey,
       deploymentName: this.deploymentName,
       apiVersion: this.apiVersion,
       endpointUrl: this.endpoint ? this.endpoint.substring(0, 30) + '...' : 'not set'
     });
 
     // Validate required environment variables - Don't throw, just log warning
-    if (!this.endpoint) {
-      logError('AzureOpenAI', 'VITE_AZURE_OPENAI_ENDPOINT environment variable is required', {});
-    }
-    if (!this.apiKey) {
-      logError('AzureOpenAI', 'VITE_AZURE_OPENAI_KEY environment variable is required', {});
+    if (!this.useStandardOpenAI) {
+      if (!this.endpoint) {
+        logError('AzureOpenAI', 'VITE_AZURE_OPENAI_ENDPOINT environment variable is required', {});
+      }
+      if (!this.apiKey) {
+        logError('AzureOpenAI', 'VITE_AZURE_OPENAI_KEY environment variable is required', {});
+      }
     }
   }
 
@@ -151,10 +170,12 @@ Generate a comprehensive, medically accurate SOAP note that would meet hospital 
   ): Promise<ProcessedNote> {
     const startTime = Date.now();
 
-    if (!this.endpoint || !this.apiKey) {
-      logError('AzureOpenAI', 'Azure OpenAI not configured', {
-        hasEndpoint: !!this.endpoint,
-        hasApiKey: !!this.apiKey
+    // Check if neither Azure nor standard OpenAI is configured
+    if (!this.useStandardOpenAI && (!this.endpoint || !this.apiKey)) {
+      logError('AzureOpenAI', 'No AI service configured', {
+        hasAzureEndpoint: !!this.endpoint,
+        hasAzureApiKey: !!this.apiKey,
+        hasStandardAPIKey: !!this.standardOpenAIKey
       });
       // Return fallback instead of throwing
       return this.createBasicFormattedNote(transcription, patientContext);
@@ -224,10 +245,12 @@ Generate a comprehensive, medically accurate SOAP note that would meet hospital 
   ): Promise<ProcessedNote> {
     const startTime = Date.now();
 
-    if (!this.endpoint || !this.apiKey) {
-      logError('AzureOpenAI', 'Azure OpenAI not configured', {
-        hasEndpoint: !!this.endpoint,
-        hasApiKey: !!this.apiKey
+    // Check if neither Azure nor standard OpenAI is configured
+    if (!this.useStandardOpenAI && (!this.endpoint || !this.apiKey)) {
+      logError('AzureOpenAI', 'No AI service configured', {
+        hasAzureEndpoint: !!this.endpoint,
+        hasAzureApiKey: !!this.apiKey,
+        hasStandardAPIKey: !!this.standardOpenAIKey
       });
       // Return fallback instead of throwing
       return this.createBasicFormattedNote(transcription, patientContext);
@@ -423,11 +446,12 @@ Output only the formatted medical note with clear section headers (Chief Complai
   async processConversationalPrompt(prompt: string): Promise<string> {
     const startTime = performance.now();
 
-    // Check configuration first
-    if (!this.endpoint || !this.apiKey) {
-      logError('AzureOpenAI', 'Azure OpenAI not configured for conversational prompt', {
-        hasEndpoint: !!this.endpoint,
-        hasApiKey: !!this.apiKey
+    // Check if neither Azure nor standard OpenAI is configured
+    if (!this.useStandardOpenAI && (!this.endpoint || !this.apiKey)) {
+      logError('AzureOpenAI', 'No AI service configured for conversational prompt', {
+        hasAzureEndpoint: !!this.endpoint,
+        hasAzureApiKey: !!this.apiKey,
+        hasStandardAPIKey: !!this.standardOpenAIKey
       });
       // Return a helpful fallback response
       return "I understand your question about pump selection. Let me help you find the best option based on your needs.";
@@ -531,9 +555,14 @@ Output only the formatted medical note with clear section headers (Chief Complai
   }
 
   /**
-   * Make API call with retry logic
+   * Make API call with retry logic (supports both Azure and standard OpenAI)
    */
   private async makeAPICall(url: string, body: any): Promise<Response> {
+    // Use standard OpenAI if Azure not configured
+    if (this.useStandardOpenAI) {
+      return this.makeStandardOpenAICall(body);
+    }
+
     return this.retryWithBackoff(async () => {
       const response = await fetch(url, {
         method: 'POST',
@@ -552,6 +581,45 @@ Output only the formatted medical note with clear section headers (Chief Complai
 
       if (!response.ok) {
         const apiError = new Error(`API call failed: ${response.status} ${response.statusText}`);
+        (apiError as any).status = response.status;
+        throw apiError;
+      }
+
+      return response;
+    });
+  }
+
+  /**
+   * Make standard OpenAI API call
+   */
+  private async makeStandardOpenAICall(body: any): Promise<Response> {
+    return this.retryWithBackoff(async () => {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.standardOpenAIKey}`,
+        },
+        body: JSON.stringify({
+          model: this.standardOpenAIModel,
+          messages: body.messages,
+          temperature: body.temperature,
+          max_tokens: body.max_tokens,
+          top_p: body.top_p,
+          frequency_penalty: body.frequency_penalty,
+          presence_penalty: body.presence_penalty,
+        }),
+      });
+
+      if (response.status === 429) {
+        const rateLimitError = new Error(`Rate limited: ${response.status}`);
+        (rateLimitError as any).status = 429;
+        throw rateLimitError;
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        const apiError = new Error(`OpenAI API call failed: ${response.status} - ${errorText}`);
         (apiError as any).status = response.status;
         throw apiError;
       }
