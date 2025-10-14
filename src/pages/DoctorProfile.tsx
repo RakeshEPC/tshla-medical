@@ -299,7 +299,7 @@ export default function DoctorProfile() {
 
           <div className="space-y-4">
             <button
-              onClick={() => navigate('/doctor/templates')}
+              onClick={() => navigate('/templates/doctor')}
               className="w-full px-4 py-3 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition text-left"
             >
               <div className="font-medium">Manage My Templates</div>
@@ -309,7 +309,7 @@ export default function DoctorProfile() {
             </button>
 
             <button
-              onClick={() => navigate('/doctor/templates/import')}
+              onClick={() => navigate('/templates/import-export')}
               className="w-full px-4 py-3 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 transition text-left"
             >
               <div className="font-medium">Import/Export Templates</div>
