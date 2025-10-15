@@ -8,7 +8,20 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <title>TSHLA Medical</title>
-    <!-- Cache bust: 2025-10-14-v2 -->
+    <!-- Cache bust: 2025-10-15-template-cleanup -->
+    <script>
+      // Force cache clear on version mismatch
+      const APP_VERSION = '2025-10-15-templates';
+      const currentVersion = localStorage.getItem('app-version');
+      if (currentVersion !== APP_VERSION) {
+        localStorage.setItem('app-version', APP_VERSION);
+        if ('caches' in window) {
+          caches.keys().then(names => {
+            names.forEach(name => caches.delete(name));
+          });
+        }
+      }
+    </script>
     <script>
       // Comprehensive polyfill for process required by AWS SDK
       if (typeof global === 'undefined') {
