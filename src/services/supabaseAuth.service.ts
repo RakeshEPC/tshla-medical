@@ -7,6 +7,22 @@
 import { supabase } from '../lib/supabase';
 import { logDebug, logError, logInfo } from './logger.service';
 
+/**
+ * Timeout wrapper to prevent infinite hangs
+ * Rejects if promise doesn't resolve within timeout
+ */
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, operation: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`${operation} timed out after ${timeoutMs/1000} seconds. Please check your internet connection and try again.`)),
+        timeoutMs
+      )
+    )
+  ]);
+}
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -54,13 +70,20 @@ class SupabaseAuthService {
    */
   async loginMedicalStaff(email: string, password: string): Promise<AuthResult> {
     try {
+      console.log('🚀 [SupabaseAuth] Starting medical staff login...', { email });
       logInfo('SupabaseAuth', 'Medical staff login attempt', { email });
 
-      // Step 1: Authenticate with Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      // Step 1: Authenticate with Supabase Auth (with 15s timeout)
+      console.log('⏳ [SupabaseAuth] Calling Supabase signInWithPassword...');
+      const { data: authData, error: authError } = await withTimeout(
+        supabase.auth.signInWithPassword({
+          email,
+          password,
+        }),
+        15000,
+        'Supabase authentication'
+      );
+      console.log('✅ [SupabaseAuth] Supabase auth call completed');
 
       if (authError) {
         logError('SupabaseAuth', 'Auth failed', { error: authError.message });
@@ -77,12 +100,18 @@ class SupabaseAuthService {
         };
       }
 
-      // Step 2: Get medical_staff record
-      const { data: staffData, error: staffError } = await supabase
-        .from('medical_staff')
-        .select('*')
-        .eq('auth_user_id', authData.user.id)
-        .single();
+      // Step 2: Get medical_staff record (with 10s timeout)
+      console.log('⏳ [SupabaseAuth] Querying medical_staff table...');
+      const { data: staffData, error: staffError } = await withTimeout(
+        supabase
+          .from('medical_staff')
+          .select('*')
+          .eq('auth_user_id', authData.user.id)
+          .single(),
+        10000,
+        'Medical staff profile lookup'
+      );
+      console.log('✅ [SupabaseAuth] medical_staff query completed');
 
       if (staffError || !staffData) {
         logError('SupabaseAuth', 'Medical staff record not found', {
@@ -135,10 +164,17 @@ class SupabaseAuthService {
         token: authData.session?.access_token,
       };
     } catch (error) {
+      console.error('❌ [SupabaseAuth] Medical staff login error:', error);
       logError('SupabaseAuth', 'Login error', { error });
+
+      const errorMessage = error instanceof Error ? error.message : 'Login failed';
+      const isTimeout = errorMessage.includes('timed out');
+
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Login failed',
+        error: isTimeout
+          ? errorMessage
+          : 'Login failed. Please check your credentials and try again.',
       };
     }
   }
@@ -148,13 +184,20 @@ class SupabaseAuthService {
    */
   async loginPatient(email: string, password: string): Promise<AuthResult> {
     try {
+      console.log('🚀 [SupabaseAuth] Starting patient login...', { email });
       logInfo('SupabaseAuth', 'Patient login attempt', { email });
 
-      // Step 1: Authenticate with Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      // Step 1: Authenticate with Supabase Auth (with 15s timeout)
+      console.log('⏳ [SupabaseAuth] Calling Supabase signInWithPassword...');
+      const { data: authData, error: authError } = await withTimeout(
+        supabase.auth.signInWithPassword({
+          email,
+          password,
+        }),
+        15000,
+        'Supabase authentication'
+      );
+      console.log('✅ [SupabaseAuth] Supabase auth call completed');
 
       if (authError) {
         return {
@@ -170,12 +213,18 @@ class SupabaseAuthService {
         };
       }
 
-      // Step 2: Get patients record (unified - includes PumpDrive)
-      const { data: patientData, error: patientError } = await supabase
-        .from('patients')
-        .select('*')
-        .eq('auth_user_id', authData.user.id)
-        .single();
+      // Step 2: Get patients record (unified - includes PumpDrive) (with 10s timeout)
+      console.log('⏳ [SupabaseAuth] Querying patients table...');
+      const { data: patientData, error: patientError } = await withTimeout(
+        supabase
+          .from('patients')
+          .select('*')
+          .eq('auth_user_id', authData.user.id)
+          .single(),
+        10000,
+        'Patient profile lookup'
+      );
+      console.log('✅ [SupabaseAuth] patients query completed');
 
       if (patientError || !patientData) {
         // Sign out since we couldn't find their patient record
@@ -221,10 +270,17 @@ class SupabaseAuthService {
         token: authData.session?.access_token,
       };
     } catch (error) {
+      console.error('❌ [SupabaseAuth] Patient login error:', error);
       logError('SupabaseAuth', 'Patient login error', { error });
+
+      const errorMessage = error instanceof Error ? error.message : 'Login failed';
+      const isTimeout = errorMessage.includes('timed out');
+
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Login failed',
+        error: isTimeout
+          ? errorMessage
+          : 'Login failed. Please check your credentials and try again.',
       };
     }
   }
@@ -529,7 +585,11 @@ class SupabaseAuthService {
   async getCurrentUser(): Promise<AuthResult> {
     try {
       console.log('🔍 [SupabaseAuth] getCurrentUser() - Checking Supabase session...');
-      const { data: { user }, error } = await supabase.auth.getUser();
+      const { data: { user }, error } = await withTimeout(
+        supabase.auth.getUser(),
+        10000,
+        'Get current user session'
+      );
 
       if (error || !user) {
         console.error('❌ [SupabaseAuth] No Supabase auth user found:', error?.message);
@@ -546,11 +606,15 @@ class SupabaseAuthService {
 
       // Try medical_staff first
       console.log('🔍 [SupabaseAuth] Querying medical_staff table...');
-      const { data: staffData, error: staffError } = await supabase
-        .from('medical_staff')
-        .select('*')
-        .eq('auth_user_id', user.id)
-        .single();
+      const { data: staffData, error: staffError } = await withTimeout(
+        supabase
+          .from('medical_staff')
+          .select('*')
+          .eq('auth_user_id', user.id)
+          .single(),
+        10000,
+        'Medical staff profile query'
+      );
 
       if (staffError) {
         console.warn('⚠️ [SupabaseAuth] medical_staff query error:', {
@@ -586,11 +650,15 @@ class SupabaseAuthService {
       console.log('⚠️ [SupabaseAuth] No medical_staff record found, trying patients...');
 
       // Try patients (unified - includes PumpDrive)
-      const { data: patientData, error: patientError } = await supabase
-        .from('patients')
-        .select('*')
-        .eq('auth_user_id', user.id)
-        .single();
+      const { data: patientData, error: patientError } = await withTimeout(
+        supabase
+          .from('patients')
+          .select('*')
+          .eq('auth_user_id', user.id)
+          .single(),
+        10000,
+        'Patient profile query'
+      );
 
       if (patientError) {
         console.warn('⚠️ [SupabaseAuth] patients query error:', {
@@ -628,9 +696,15 @@ class SupabaseAuthService {
       };
     } catch (error) {
       console.error('❌ [SupabaseAuth] Exception in getCurrentUser:', error);
+
+      const errorMessage = error instanceof Error ? error.message : 'Failed to get user';
+      const isTimeout = errorMessage.includes('timed out');
+
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to get user',
+        error: isTimeout
+          ? errorMessage
+          : 'Failed to get user profile. Please try again.',
       };
     }
   }

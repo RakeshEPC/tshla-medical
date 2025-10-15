@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { speechServiceRouter } from '../services/speechServiceRouter.service';
+import { azureAIService } from '../services/azureAI.service';
 import { supabaseAuthService as unifiedAuthService } from '../services/supabaseAuth.service';
 import { doctorProfileService, type DoctorTemplate } from '../services/doctorProfile.service';
 import styles from '../styles/MedicalDictation.module.css';
-import { 
+import {
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
-  Activity, Mic, MicOff, Users, FileText, Save, Copy, 
-  Share2, ChevronLeft, Download, Loader, Check, AlertCircle 
+  Activity, Mic, MicOff, Users, FileText, Save, Copy,
+  Share2, ChevronLeft, Download, Loader, Check, AlertCircle
 } from 'lucide-react';
 
 interface MedicalDictationProps {
@@ -151,6 +152,7 @@ export default function MedicalDictationModern({ patientId, preloadPatientData =
         email: patientDetails.email
       };
 
+      const result = await azureAIService.processMedicalTranscription(
         transcript,
         patientData,
         null,
