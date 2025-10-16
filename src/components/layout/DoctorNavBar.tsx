@@ -56,8 +56,12 @@ export default function DoctorNavBar({
         setLoadingTemplates(true);
         const doctorId = currentUser?.id || currentUser?.email || 'doctor-default-001';
         doctorProfileService.initialize(doctorId);
-        const recent = await doctorProfileService.getRecentTemplates(doctorId);
-        setRecentTemplates(recent.slice(0, 5)); // Show top 5 recent
+        const allTemplates = await doctorProfileService.getTemplates(doctorId);
+        // Sort by most recently updated and take top 10
+        const sorted = allTemplates.sort((a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        );
+        setRecentTemplates(sorted.slice(0, 10));
       } catch (error) {
         logError('DoctorNavBar', 'Error message', {});
         setRecentTemplates([]);
@@ -179,10 +183,10 @@ export default function DoctorNavBar({
                         </button>
                       </div>
 
-                      {/* Recent Templates */}
+                      {/* My Templates */}
                       <div className="border-t border-gray-100 pt-3">
                         <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
-                          Recent Templates
+                          My Templates
                         </h4>
                         <div className="space-y-1">
                           {loadingTemplates ? (
