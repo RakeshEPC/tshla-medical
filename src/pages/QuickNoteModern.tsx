@@ -89,12 +89,23 @@ export default function QuickNoteModern() {
     modelUsed?: string;
   } | null>(null);
 
-  // Load user and templates
+  // Load user
   useEffect(() => {
-    const user = unifiedAuthService.getCurrentUser();
-    setCurrentUser(user);
-    loadTemplates();
+    const loadUser = async () => {
+      const result = await unifiedAuthService.getCurrentUser();
+      if (result.success && result.user) {
+        setCurrentUser(result.user);
+      }
+    };
+    loadUser();
   }, []);
+
+  // Load templates when user is ready
+  useEffect(() => {
+    if (currentUser) {
+      loadTemplates();
+    }
+  }, [currentUser]);
 
   // Update word count
   useEffect(() => {
@@ -123,20 +134,21 @@ export default function QuickNoteModern() {
   }, [isRecording]);
 
   const loadTemplates = async () => {
+    if (!currentUser) return;
+
     try {
-      const currentUser = unifiedAuthService.getCurrentUser();
-      const doctorId = currentUser?.id || currentUser?.email || 'doctor-default-001';
-      
+      const doctorId = currentUser.authUserId || currentUser.id || currentUser.email || 'doctor-default-001';
+
       doctorProfileService.initialize(doctorId);
       const allTemplates = await doctorProfileService.getTemplates(doctorId);
       setTemplates(allTemplates);
 
-      const defaultTemplate = await doctorProfileService.getDefaultTemplate(doctorId);
+      const defaultTemplate = await doctorProfileService.getDefaultTemplate(undefined, doctorId);
       if (defaultTemplate) {
         setSelectedTemplate(defaultTemplate);
       }
     } catch (error) {
-      logError('QuickNoteModern', 'Error message', {});
+      logError('QuickNoteModern', 'Error loading templates', { error });
     }
   };
 
