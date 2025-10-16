@@ -61,7 +61,7 @@ export default function DoctorTemplates() {
   const currentUser = unifiedAuthService.getCurrentUser();
   const currentDoctor = currentUser
     ? {
-        id: currentUser.email || currentUser.id || 'default-doctor',
+        id: currentUser.id || currentUser.email || 'default-doctor',
         name: currentUser.name || 'Dr. Smith',
         email: currentUser.email || 'doctor@tshla.ai',
       }
@@ -655,7 +655,7 @@ export default function DoctorTemplates() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
               <button
-                onClick={() => navigate('/doctor')}
+                onClick={() => navigate('/dashboard')}
                 className="mr-4 p-2 hover:bg-gray-100 rounded-lg transition"
               >
                 <ArrowLeft className="w-5 h-5" />
