@@ -53,8 +53,16 @@ export default function DoctorNavBar({
   useEffect(() => {
     const loadUser = async () => {
       const result = await unifiedAuthService.getCurrentUser();
+      console.log('🔍 [DoctorNavBar] getCurrentUser result:', result);
       if (result.success && result.user) {
+        console.log('✅ [DoctorNavBar] Setting currentUser:', {
+          authUserId: result.user.authUserId,
+          id: result.user.id,
+          email: result.user.email
+        });
         setCurrentUser(result.user);
+      } else {
+        console.error('❌ [DoctorNavBar] Failed to get current user:', result);
       }
     };
     loadUser();
@@ -63,15 +71,23 @@ export default function DoctorNavBar({
   // Load recent templates on mount
   useEffect(() => {
     const loadRecentTemplates = async () => {
-      if (!currentUser) return;
+      if (!currentUser) {
+        console.log('⏳ [DoctorNavBar] Waiting for currentUser...');
+        return;
+      }
 
       try {
         setLoadingTemplates(true);
         const doctorId = currentUser.authUserId || currentUser.id || currentUser.email || 'doctor-default-001';
-        logDebug('DoctorNavBar', 'Loading templates for doctor', { doctorId });
+        console.log('🔍 [DoctorNavBar] Loading templates with doctorId:', doctorId);
+        console.log('🔍 [DoctorNavBar] currentUser values:', {
+          authUserId: currentUser.authUserId,
+          id: currentUser.id,
+          email: currentUser.email
+        });
         doctorProfileService.initialize(doctorId);
         const allTemplates = await doctorProfileService.getTemplates(doctorId);
-        logInfo('DoctorNavBar', `Loaded ${allTemplates.length} templates`, {});
+        console.log(`✅ [DoctorNavBar] Loaded ${allTemplates.length} templates from Supabase`);
         // Sort by most recently updated and take top 10
         const sorted = allTemplates.sort((a, b) =>
           new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
