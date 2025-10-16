@@ -11,8 +11,9 @@ import {
   Star,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { templateStorage } from '../lib/templateStorage';
-import type { Template } from '../types/template.types';
+import { doctorProfileService, type DoctorTemplate } from '../services/doctorProfile.service';
+import { supabaseAuthService } from '../services/supabaseAuth.service';
+import { logError, logInfo, logDebug } from '../services/logger.service';
 
 interface TemplateSection {
   id: string;
@@ -25,6 +26,7 @@ export default function SimplifiedTemplateBuilder() {
   const navigate = useNavigate();
   const [templateName, setTemplateName] = useState('');
   const [generalInstructions, setGeneralInstructions] = useState('');
+  const [visitType, setVisitType] = useState<'general' | 'new-patient' | 'follow-up' | 'consultation' | 'emergency'>('general');
   const [sections, setSections] = useState<TemplateSection[]>([
     {
       id: 'section-1',
@@ -33,30 +35,61 @@ export default function SimplifiedTemplateBuilder() {
       order: 0,
     },
   ]);
-  const [savedTemplates, setSavedTemplates] = useState<Template[]>([]);
+  const [savedTemplates, setSavedTemplates] = useState<DoctorTemplate[]>([]);
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const [defaultTemplateId, setDefaultTemplateId] = useState<string>('');
+  const [currentDoctor, setCurrentDoctor] = useState<any>(null);
+  const [saving, setSaving] = useState(false);
+
+  // Load current user
+  useEffect(() => {
+    async function loadUser() {
+      const result = await supabaseAuthService.getCurrentUser();
+      if (result.success && result.user) {
+        setCurrentDoctor({
+          id: result.user.authUserId || result.user.id || result.user.email || 'default-doctor',
+        });
+        logDebug('SimplifiedTemplateBuilder', 'User loaded', { doctorId: result.user.id });
+      }
+    }
+    loadUser();
+  }, []);
 
   // Load saved templates and default template
   useEffect(() => {
-    loadSavedTemplates();
-    const storedDefault = localStorage.getItem('defaultTemplateId');
-    if (storedDefault) {
-      setDefaultTemplateId(storedDefault);
+    if (currentDoctor) {
+      loadSavedTemplates();
     }
-  }, []);
+  }, [currentDoctor]);
 
-  const loadSavedTemplates = () => {
-    const allTemplates = templateStorage.getTemplates();
-    const customTemplates = allTemplates.filter(t => !t.is_system_template);
-    setSavedTemplates(customTemplates);
+  const loadSavedTemplates = async () => {
+    if (!currentDoctor) return;
+    try {
+      doctorProfileService.initialize(currentDoctor.id);
+      const allTemplates = await doctorProfileService.getTemplates(currentDoctor.id);
+      setSavedTemplates(allTemplates);
+
+      // Get default template from profile
+      const profile = await doctorProfileService.getProfile(currentDoctor.id);
+      if (profile.settings.defaultTemplateId) {
+        setDefaultTemplateId(profile.settings.defaultTemplateId);
+      }
+    } catch (error) {
+      logError('SimplifiedTemplateBuilder', 'Failed to load templates', { error });
+    }
   };
 
   // Set default template
-  const setAsDefault = (templateId: string) => {
-    localStorage.setItem('defaultTemplateId', templateId);
-    setDefaultTemplateId(templateId);
-    alert('Default template set successfully!');
+  const setAsDefault = async (templateId: string) => {
+    if (!currentDoctor) return;
+    try {
+      await doctorProfileService.setDefaultTemplate(templateId, undefined, currentDoctor.id);
+      setDefaultTemplateId(templateId);
+      alert('Default template set successfully!');
+    } catch (error) {
+      logError('SimplifiedTemplateBuilder', 'Failed to set default template', { error });
+      alert('Failed to set default template');
+    }
   };
 
   // Add new section
@@ -102,6 +135,11 @@ export default function SimplifiedTemplateBuilder() {
 
   // Save template
   const saveTemplate = async () => {
+    if (!currentDoctor) {
+      alert('Please log in to save templates');
+      return;
+    }
+
     if (!templateName || sections.length === 0) {
       alert('Please provide a template name and at least one section');
       return;
@@ -114,43 +152,67 @@ export default function SimplifiedTemplateBuilder() {
       return;
     }
 
-    // Convert sections to template format
-    const templateSections: any = {};
-    sections.forEach(section => {
-      const key = section.title.toLowerCase().replace(/\s+/g, '_');
-      templateSections[key] = {
-        title: section.title,
-        aiInstructions: section.aiInstructions,
-        order: section.order,
-      };
-    });
+    setSaving(true);
+    try {
+      // Convert sections to DoctorTemplate format
+      const templateSections: any = {};
+      sections.forEach(section => {
+        const key = section.title.toLowerCase().replace(/\s+/g, '_');
+        templateSections[key] = {
+          title: section.title,
+          aiInstructions: section.aiInstructions,
+          required: true,
+          order: section.order,
+          keywords: [],
+          format: 'paragraph' as const,
+          exampleText: '',
+        };
+      });
 
-    const template: Omit<Template, 'id' | 'created_at' | 'usage_count'> = {
-      name: templateName,
-      specialty: 'General',
-      template_type: 'custom',
-      sections: templateSections,
-      generalInstructions: generalInstructions,
-      is_shared: false,
-      is_system_template: false,
-    };
+      if (editingTemplateId) {
+        // Update existing template
+        await doctorProfileService.updateTemplate(
+          editingTemplateId,
+          {
+            name: templateName,
+            description: 'Custom template',
+            visitType: visitType,
+            sections: templateSections,
+            generalInstructions: generalInstructions,
+          },
+          currentDoctor.id
+        );
+        alert(`✅ Template "${templateName}" updated successfully!`);
+      } else {
+        // Create new template
+        const savedTemplate = await doctorProfileService.createTemplate(
+          {
+            name: templateName,
+            description: 'Custom template',
+            visitType: visitType,
+            sections: templateSections,
+            generalInstructions: generalInstructions,
+          },
+          currentDoctor.id
+        );
 
-    if (editingTemplateId) {
-      // Update existing template
-      templateStorage.updateTemplate(editingTemplateId, template);
-      alert('Template updated successfully!');
-    } else {
-      // Create new template
-      const savedTemplate = templateStorage.createTemplate(template);
-      if (!defaultTemplateId) {
-        // If no default template, set this as default
-        setAsDefault(savedTemplate.id);
+        if (!defaultTemplateId) {
+          // If no default template, set this as default
+          await setAsDefault(savedTemplate.id);
+        }
+        alert(`✅ Template "${templateName}" created successfully!`);
+        logInfo('SimplifiedTemplateBuilder', 'Template created', { templateId: savedTemplate.id });
       }
-      alert('Template created successfully!');
-    }
 
-    loadSavedTemplates();
-    clearForm();
+      await loadSavedTemplates();
+      clearForm();
+    } catch (error) {
+      logError('SimplifiedTemplateBuilder', 'Failed to save template', { error });
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`❌ Failed to save template: ${errorMessage}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Clear form
@@ -169,10 +231,13 @@ export default function SimplifiedTemplateBuilder() {
   };
 
   // Load template for editing
-  const loadTemplate = (template: Template) => {
+  const loadTemplate = (template: DoctorTemplate) => {
     setEditingTemplateId(template.id);
     setTemplateName(template.name);
-    setGeneralInstructions((template as any).generalInstructions || '');
+    setGeneralInstructions(template.generalInstructions || '');
+    if (template.visitType) {
+      setVisitType(template.visitType);
+    }
 
     // Convert template sections back to editable format
     const loadedSections: TemplateSection[] = [];
@@ -196,14 +261,20 @@ export default function SimplifiedTemplateBuilder() {
   };
 
   // Delete template
-  const deleteTemplate = (id: string) => {
+  const deleteTemplate = async (id: string) => {
+    if (!currentDoctor) return;
     if (confirm('Are you sure you want to delete this template?')) {
-      templateStorage.deleteTemplate(id);
-      if (defaultTemplateId === id) {
-        localStorage.removeItem('defaultTemplateId');
-        setDefaultTemplateId('');
+      try {
+        await doctorProfileService.deleteTemplate(id, currentDoctor.id);
+        if (defaultTemplateId === id) {
+          setDefaultTemplateId('');
+        }
+        await loadSavedTemplates();
+        alert('✅ Template deleted successfully!');
+      } catch (error) {
+        logError('SimplifiedTemplateBuilder', 'Failed to delete template', { error });
+        alert('❌ Failed to delete template');
       }
-      loadSavedTemplates();
     }
   };
 
@@ -283,11 +354,11 @@ export default function SimplifiedTemplateBuilder() {
               </button>
               <button
                 onClick={saveTemplate}
-                disabled={!templateName || sections.length === 0}
+                disabled={saving || !templateName || sections.length === 0}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
                 <Save className="h-5 w-5" />
-                {editingTemplateId ? 'Update' : 'Save'} Template
+                {saving ? 'Saving...' : editingTemplateId ? 'Update' : 'Save'} Template
               </button>
             </div>
           </div>
@@ -297,18 +368,36 @@ export default function SimplifiedTemplateBuilder() {
           {/* Main Editor */}
           <div className="lg:col-span-2">
             <div className="bg-white rounded-2xl shadow-lg p-6">
-              {/* Template Name */}
-              <div className="mb-6">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Template Name
-                </label>
-                <input
-                  type="text"
-                  value={templateName}
-                  onChange={e => setTemplateName(e.target.value)}
-                  placeholder="e.g., Diabetes Follow-up, Cardiology Consult"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
-                />
+              {/* Template Name and Visit Type */}
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Template Name
+                  </label>
+                  <input
+                    type="text"
+                    value={templateName}
+                    onChange={e => setTemplateName(e.target.value)}
+                    placeholder="e.g., Diabetes Follow-up"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Visit Type
+                  </label>
+                  <select
+                    value={visitType}
+                    onChange={e => setVisitType(e.target.value as any)}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                  >
+                    <option value="general">General</option>
+                    <option value="new-patient">New Patient</option>
+                    <option value="follow-up">Follow-up</option>
+                    <option value="consultation">Consultation</option>
+                    <option value="emergency">Emergency</option>
+                  </select>
+                </div>
               </div>
 
               {/* General AI Instructions */}
