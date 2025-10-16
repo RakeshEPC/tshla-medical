@@ -992,16 +992,32 @@ Date: ${date}
 
     Object.entries(template.sections).forEach(([key, section]) => {
       const format = section.format || 'paragraph';
-      const formatInstruction = format === 'bullets' ? 'Use bullet points.' :
-                               format === 'numbered' ? 'Use numbered list.' :
-                               'Use paragraph format.';
+
+      // Build instructions WITHOUT literal "Format:" and "Focus:" labels that AI might echo
+      let instructions = section.aiInstructions || '';
+
+      // Add format guidance naturally (not as labeled metadata)
+      if (format === 'bullets') {
+        instructions += ' Present this information as bullet points.';
+      } else if (format === 'numbered') {
+        instructions += ' Present this information as a numbered list.';
+      } else {
+        instructions += ' Present this information in paragraph format.';
+      }
+
+      // Add keyword focus naturally (not as labeled metadata)
+      if (section.keywords && section.keywords.length > 0) {
+        instructions += ` Pay special attention to: ${section.keywords.join(', ')}.`;
+      }
+
+      // Add example naturally (not as labeled metadata)
+      if (section.exampleText) {
+        instructions += ` Example style: "${section.exampleText}"`;
+      }
 
       sectionPrompts.push(`
 ### ${section.title}${section.required ? ' (REQUIRED)' : ''}
-${section.aiInstructions}
-Format: ${formatInstruction}
-${section.keywords ? `Focus on: ${section.keywords.join(', ')}` : ''}
-${section.exampleText ? `Example: ${section.exampleText}` : ''}
+INSTRUCTIONS: ${instructions}
 `);
     });
 
