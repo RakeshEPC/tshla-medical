@@ -477,12 +477,12 @@ class DoctorProfileService {
       }
 
       // Insert into Supabase
-      const { data: newTemplate, error } = await supabase
+      const { data: newTemplate, error} = await supabase
         .from('templates')
         .insert({
           staff_id: staffData.id,
           name: template.name,
-          description: template.description,
+          specialty: template.description || 'General',
           template_type: template.visitType || 'general',
           sections: template.sections,
           macros: {},
@@ -504,7 +504,7 @@ class DoctorProfileService {
       const doctorTemplate: DoctorTemplate = {
         id: newTemplate.id,
         name: newTemplate.name,
-        description: newTemplate.description || '',
+        description: newTemplate.specialty || template.description || '',
         visitType: (newTemplate.template_type as DoctorTemplate['visitType']) || 'general',
         isDefault: false,
         sections: newTemplate.sections || {},
@@ -549,7 +549,7 @@ class DoctorProfileService {
       .from('templates')
       .update({
         name: updates.name,
-        description: updates.description,
+        specialty: updates.description,
         template_type: updates.visitType,
         sections: updates.sections,
         updated_at: new Date().toISOString(),
