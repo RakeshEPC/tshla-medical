@@ -328,8 +328,10 @@ function NewTemplateModal({ onClose, onSuccess, currentUser }: { onClose: () => 
       // Generate new template ID
       const templateId = uuidv4();
 
-      // Get doctor ID from current user
-      const doctorId = currentUser.email || currentUser.id || 'default-doctor';
+      // Get staff ID from current user (medical_staff table ID)
+      const doctorId = currentUser.staffId || currentUser.id || currentUser.email || 'default-doctor';
+
+      logInfo('TemplatesPage', 'Using doctorId for template', { doctorId, currentUser });
 
       // Transform content into sections structure expected by backend
       const sections = {
