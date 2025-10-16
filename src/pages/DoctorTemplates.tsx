@@ -58,14 +58,8 @@ const DEFAULT_SECTIONS = [
 export default function DoctorTemplates() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const currentUser = unifiedAuthService.getCurrentUser();
-  const currentDoctor = currentUser
-    ? {
-        id: currentUser.id || currentUser.email || 'default-doctor',
-        name: currentUser.name || 'Dr. Smith',
-        email: currentUser.email || 'doctor@tshla.ai',
-      }
-    : null;
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentDoctor, setCurrentDoctor] = useState<any>(null);
   const [templates, setTemplates] = useState<DoctorTemplate[]>([]);
   const [editingTemplate, setEditingTemplate] = useState<EditingTemplate | null>(null);
   const [showEditor, setShowEditor] = useState(false);
@@ -74,6 +68,29 @@ export default function DoctorTemplates() {
   const [loading, setLoading] = useState(true);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+
+  // Load current user from auth service
+  useEffect(() => {
+    async function loadUser() {
+      const result = await unifiedAuthService.getCurrentUser();
+      if (result.success && result.user) {
+        setCurrentUser(result.user);
+        setCurrentDoctor({
+          id: result.user.authUserId || result.user.id || result.user.email || 'default-doctor',
+          name: result.user.name || 'Dr. Smith',
+          email: result.user.email || 'doctor@tshla.ai',
+        });
+        console.log('✅ DoctorTemplates - User loaded:', {
+          authUserId: result.user.authUserId,
+          id: result.user.id,
+          email: result.user.email,
+        });
+      } else {
+        console.error('❌ DoctorTemplates - Failed to load user:', result.error);
+      }
+    }
+    loadUser();
+  }, []);
 
   useEffect(() => {
     const loadData = async () => {
