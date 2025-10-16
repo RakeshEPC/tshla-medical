@@ -47,23 +47,38 @@ export default function DoctorNavBar({
   const [showTemplateMenu, setShowTemplateMenu] = useState(false);
   const [recentTemplates, setRecentTemplates] = useState<DoctorTemplate[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
-  const currentUser = unifiedAuthService.getCurrentUser();
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Load current user
+  useEffect(() => {
+    const loadUser = async () => {
+      const result = await unifiedAuthService.getCurrentUser();
+      if (result.success && result.user) {
+        setCurrentUser(result.user);
+      }
+    };
+    loadUser();
+  }, []);
 
   // Load recent templates on mount
   useEffect(() => {
     const loadRecentTemplates = async () => {
+      if (!currentUser) return;
+
       try {
         setLoadingTemplates(true);
-        const doctorId = currentUser?.id || currentUser?.email || 'doctor-default-001';
+        const doctorId = currentUser.authUserId || currentUser.id || currentUser.email || 'doctor-default-001';
+        logDebug('DoctorNavBar', 'Loading templates for doctor', { doctorId });
         doctorProfileService.initialize(doctorId);
         const allTemplates = await doctorProfileService.getTemplates(doctorId);
+        logInfo('DoctorNavBar', `Loaded ${allTemplates.length} templates`, {});
         // Sort by most recently updated and take top 10
         const sorted = allTemplates.sort((a, b) =>
           new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
         );
         setRecentTemplates(sorted.slice(0, 10));
       } catch (error) {
-        logError('DoctorNavBar', 'Error message', {});
+        logError('DoctorNavBar', 'Error loading templates', { error });
         setRecentTemplates([]);
       } finally {
         setLoadingTemplates(false);
@@ -71,7 +86,7 @@ export default function DoctorNavBar({
     };
 
     loadRecentTemplates();
-  }, [currentUser?.id, currentUser?.email]);
+  }, [currentUser]);
 
   const handleQuickNote = () => {
     navigate('/quick-note');
