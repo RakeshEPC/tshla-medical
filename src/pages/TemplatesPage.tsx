@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Plus, Edit2, Copy, Trash2, Search, Filter } from 'lucide-react';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
+import { supabaseAuthService } from '../services/supabaseAuth.service';
+import { v4 as uuidv4 } from 'uuid';
 
 interface Template {
   id: string;
@@ -21,6 +23,7 @@ export default function TemplatesPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [showNewTemplateModal, setShowNewTemplateModal] = useState(false);
   const [loading, setLoading] = useState(true);
+  const currentUser = supabaseAuthService.getCurrentUser();
 
   useEffect(() => {
     fetchTemplates();
@@ -218,6 +221,7 @@ export default function TemplatesPage() {
       {/* New Template Modal */}
       {showNewTemplateModal && (
         <NewTemplateModal
+          currentUser={currentUser}
           onClose={() => setShowNewTemplateModal(false)}
           onSuccess={() => {
             setShowNewTemplateModal(false);
@@ -296,24 +300,63 @@ function TemplatePreviewModal({ template, onClose }: { template: Template; onClo
   );
 }
 
-function NewTemplateModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+function NewTemplateModal({ onClose, onSuccess, currentUser }: { onClose: () => void; onSuccess: () => void; currentUser: any }) {
   const [formData, setFormData] = useState({
     name: '',
     category: 'SOAP',
     content: '',
     variables: [] as string[],
   });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!currentUser) {
+      setError('You must be logged in to create templates');
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+
     try {
       const token = localStorage.getItem('auth_token') || localStorage.getItem('doctor_token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8001';
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://tshla-pump-api-container.redpebble-e4551b7a.eastus.azurecontainerapps.io';
 
-      // Extract variables from content
-      const variableMatches = formData.content.match(/\{([^}]+)\}/g) || [];
-      const variables = variableMatches.map(v => v.slice(1, -1));
+      // Generate new template ID
+      const templateId = uuidv4();
+
+      // Get doctor ID from current user
+      const doctorId = currentUser.email || currentUser.id || 'default-doctor';
+
+      // Transform content into sections structure expected by backend
+      const sections = {
+        content: {
+          title: 'Template Content',
+          aiInstructions: 'Generate medical note based on this template',
+          required: true,
+          order: 1,
+          format: 'paragraph' as const,
+          keywords: [],
+          exampleText: formData.content,
+        }
+      };
+
+      // Build payload matching backend API contract
+      const payload = {
+        id: templateId,
+        doctorId: doctorId,
+        name: formData.name,
+        description: `${formData.category} template`,
+        visitType: formData.category.toLowerCase(),
+        sections: sections,
+        generalInstructions: 'Follow template structure for medical documentation',
+        usageCount: 0,
+      };
+
+      logInfo('TemplatesPage', 'Saving template to API', { apiUrl, doctorId });
 
       const response = await fetch(`${apiUrl}/api/templates`, {
         method: 'POST',
@@ -321,17 +364,22 @@ function NewTemplateModal({ onClose, onSuccess }: { onClose: () => void; onSucce
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          ...formData,
-          variables,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (response.ok) {
+        logInfo('TemplatesPage', 'Template saved successfully', {});
         onSuccess();
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to save template (${response.status})`);
       }
     } catch (error) {
-      logError('TemplatesPage', 'Error message', {});
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      logError('TemplatesPage', 'Failed to save template', { error: errorMessage });
+      setError(`Failed to save template: ${errorMessage}`);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -339,6 +387,12 @@ function NewTemplateModal({ onClose, onSuccess }: { onClose: () => void; onSucce
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <h2 className="text-2xl font-bold mb-4">Create New Template</h2>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -401,15 +455,17 @@ PLAN:
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+              disabled={saving}
+              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              disabled={saving || !formData.name || !formData.content}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Create Template
+              {saving ? 'Saving...' : 'Create Template'}
             </button>
           </div>
         </form>
