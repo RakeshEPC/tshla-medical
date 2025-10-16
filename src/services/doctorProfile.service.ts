@@ -240,7 +240,7 @@ class DoctorProfileService {
         query = supabase
           .from('templates')
           .select('*')
-          .or(`doctor_id.eq.${staffData.id},is_system_template.eq.true`)
+          .or(`staff_id.eq.${staffData.id},is_system_template.eq.true`)
           .order('created_at', { ascending: false });
       } else {
         // No medical_staff record: load only system templates
@@ -480,7 +480,7 @@ class DoctorProfileService {
       const { data: newTemplate, error} = await supabase
         .from('templates')
         .insert({
-          doctor_id: staffData.id,
+          staff_id: staffData.id,
           name: template.name,
           specialty: template.description || 'General',
           template_type: template.visitType || 'general',
