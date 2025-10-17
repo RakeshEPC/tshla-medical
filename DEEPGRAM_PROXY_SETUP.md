@@ -88,7 +88,7 @@ VITE_USE_DEEPGRAM_PROXY=true
 VITE_DEEPGRAM_PROXY_URL=ws://localhost:8080
 
 # Model Configuration
-VITE_DEEPGRAM_MODEL=nova-2-medical
+VITE_DEEPGRAM_MODEL=nova-3-medical
 VITE_DEEPGRAM_LANGUAGE=en-US
 VITE_DEEPGRAM_TIER=enhanced
 ```
@@ -112,7 +112,7 @@ The browser creates a WebSocket connection to the proxy:
 
 ```javascript
 // In deepgramSDK.service.ts
-const wsUrl = 'ws://localhost:8080?model=nova-2-medical&language=en-US&...'
+const wsUrl = 'ws://localhost:8080?model=nova-3-medical&language=en-US&...'
 const connection = new WebSocket(wsUrl)
 ```
 
@@ -159,7 +159,7 @@ curl http://localhost:8080/health
 
 ```javascript
 // In browser console
-const ws = new WebSocket('ws://localhost:8080?model=nova-2-medical&language=en-US')
+const ws = new WebSocket('ws://localhost:8080?model=nova-3-medical&language=en-US')
 
 ws.onopen = () => console.log('✅ Connected to proxy')
 ws.onmessage = (event) => console.log('📝 Received:', event.data)
@@ -382,7 +382,7 @@ The proxy doesn't add any extra Deepgram costs - you still pay the same per-minu
 
 🎯 **Result**:
 - ✅ Real-time transcription works
-- ✅ Medical-grade accuracy (Deepgram nova-2-medical)
+- ✅ Medical-grade accuracy (Deepgram nova-3-medical)
 - ✅ HIPAA-compliant architecture
 - ✅ Ready for production deployment
 
