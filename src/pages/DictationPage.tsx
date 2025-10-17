@@ -399,7 +399,7 @@ ${
                   ))}
                 </select>
                 <button
-                  onClick={() => navigate('/templates/builder')}
+                  onClick={() => navigate('/templates/doctor')}
                   className="px-3 py-2 text-xs bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200"
                 >
                   Create Template

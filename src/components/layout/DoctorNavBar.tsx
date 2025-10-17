@@ -204,7 +204,7 @@ export default function DoctorNavBar({
                       <div className="space-y-1 mb-3">
                         <button
                           onClick={() => {
-                            navigate('/templates/builder');
+                            navigate('/templates/doctor');
                             setShowTemplateMenu(false);
                           }}
                           className="w-full flex items-center space-x-2 p-2 rounded hover:bg-gray-50 text-left"
@@ -254,7 +254,7 @@ export default function DoctorNavBar({
                               <p className="text-xs text-gray-500 mb-2">No recent templates</p>
                               <button
                                 onClick={() => {
-                                  navigate('/templates/builder');
+                                  navigate('/templates/doctor');
                                   setShowTemplateMenu(false);
                                 }}
                                 className="text-xs text-blue-600 hover:text-blue-700"

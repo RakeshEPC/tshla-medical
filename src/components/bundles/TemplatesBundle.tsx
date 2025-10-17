@@ -20,7 +20,6 @@ const TemplatesLoader = () => (
 const DoctorTemplates = lazy(() => import('../../pages/DoctorTemplates'));
 const TemplateList = lazy(() => import('../../pages/TemplateList'));
 const TemplateImportExport = lazy(() => import('../../pages/TemplateImportExport'));
-const SimplifiedTemplateBuilder = lazy(() => import('../../pages/SimplifiedTemplateBuilder'));
 const TemplateDebug = lazy(() => import('../../pages/TemplateDebug'));
 const FixTemplateIssues = lazy(() => import('../../pages/FixTemplateIssues'));
 const RestoreTemplate = lazy(() => import('../../pages/RestoreTemplate'));
@@ -34,7 +33,6 @@ export default function TemplatesBundle() {
         <Route index element={<Navigate to="/templates/list" replace />} />
         <Route path="list" element={<TemplateList />} />
         <Route path="doctor" element={<DoctorTemplates />} />
-        <Route path="builder" element={<SimplifiedTemplateBuilder />} />
         <Route path="add-custom" element={<AddCustomTemplate />} />
 
         {/* Import/Export */}

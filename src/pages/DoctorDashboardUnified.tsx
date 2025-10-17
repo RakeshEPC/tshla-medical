@@ -168,7 +168,7 @@ export default function DoctorDashboardUnified() {
               </p>
             </div>
             <button
-              onClick={() => navigate('/templates/builder')}
+              onClick={() => navigate('/templates/doctor')}
               className="btn-tesla btn-tesla-secondary flex items-center gap-2"
             >
               <Plus className="w-4 h-4" />
@@ -198,7 +198,7 @@ export default function DoctorDashboardUnified() {
                 Build custom templates with AI guidance
               </p>
               <button
-                onClick={() => navigate('/templates/builder')}
+                onClick={() => navigate('/templates/doctor')}
                 className="text-sm text-green-600 hover:text-green-700 font-medium"
               >
                 Start Building →
