@@ -172,6 +172,11 @@ if (!DEEPGRAM_API_KEY) {
       });
 
       deepgramConnection.on(LiveTranscriptionEvents.Transcript, (data) => {
+        // Log transcript for debugging
+        const transcript = data.channel?.alternatives?.[0]?.transcript || '';
+        if (transcript) {
+          console.log('📝 Transcript:', transcript.substring(0, 50), `(${transcript.length} chars, final: ${data.is_final})`);
+        }
         // Forward transcript to client
         clientWs.send(JSON.stringify(data));
       });
