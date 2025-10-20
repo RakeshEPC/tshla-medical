@@ -74,11 +74,11 @@ jobs:
           --query "name" -o tsv 2>/dev/null || echo "")
 
         if [ -z "$PLAN_EXISTS" ]; then
-          echo "Creating App Service Plan..."
+          echo "Creating App Service Plan (Free tier)..."
           az appservice plan create \
             --name tshla-unified-plan \
             --resource-group ${{ env.RESOURCE_GROUP }} \
-            --sku B1 \
+            --sku F1 \
             --is-linux
         else
           echo "App Service Plan already exists"
