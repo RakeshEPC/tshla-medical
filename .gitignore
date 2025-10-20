@@ -49,3 +49,4 @@ yarn-error.log*
 package-lock.json.backup
 yarn.lock.backup
 .DS_Store
+node_modules

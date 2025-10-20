@@ -57,7 +57,18 @@ export default function MedicalDictation({ patientId, preloadPatientData = false
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [databaseAutoSaveStatus, setDatabaseAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [lastDatabaseSaveTime, setLastDatabaseSaveTime] = useState<Date | null>(null);
-  
+
+  // AI Processing Version History
+  interface ProcessedNoteVersion {
+    id: string;
+    timestamp: Date;
+    processedContent: string;
+    templateUsed: string | null;
+    templateId: string | null;
+  }
+  const [processedNoteVersions, setProcessedNoteVersions] = useState<ProcessedNoteVersion[]>([]);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
+
   // Patient details for live editing
   const [patientDetails, setPatientDetails] = useState({
     name: '',
@@ -243,44 +254,52 @@ export default function MedicalDictation({ patientId, preloadPatientData = false
   // Auto-save to database every 30 seconds with changes detected
   useEffect(() => {
     const databaseAutoSaveInterval = setInterval(async () => {
-      if ((transcript || processedNote) && patientDetails.name && databaseAutoSaveStatus !== 'saving') {
+      // Auto-save now works even without patient name (patient name is optional)
+      // Only auto-save if we have content and already have a saved note ID (avoid creating duplicates)
+      if ((transcript || processedNote) && databaseAutoSaveStatus !== 'saving' && lastSavedNoteId) {
         try {
           setDatabaseAutoSaveStatus('saving');
 
-          const noteId = await scheduleDatabaseService.saveNote(
-            providerId,
-            providerName,
-            {
-              patientName: patientDetails.name,
-              patientMrn: patientDetails.mrn,
-              rawTranscript: transcript,
-              aiProcessedNote: processedNote,
-              recordingMode: recordingMode || 'dictation',
-              isQuickNote: !patientId
-            }
-          );
+          // TODO: Implement UPDATE endpoint instead of creating new notes
+          // For now, auto-save is disabled to prevent duplicates
+          // User must click "Save to Database" manually
 
-          if (noteId) {
-            setLastSavedNoteId(String(noteId));
-            setLastDatabaseSaveTime(new Date());
-            setDatabaseAutoSaveStatus('saved');
-            logDebug('MedicalDictation', `Auto-saved at ${new Date().toLocaleTimeString()}`);
+          setDatabaseAutoSaveStatus('idle');
+          logDebug('MedicalDictation', 'Auto-save skipped - manual save required to prevent duplicates');
 
-            setTimeout(() => setDatabaseAutoSaveStatus('idle'), 3000);
-          } else {
-            setDatabaseAutoSaveStatus('error');
-            setTimeout(() => setDatabaseAutoSaveStatus('idle'), 5000);
-          }
+          // const noteId = await scheduleDatabaseService.saveNote(
+          //   providerId,
+          //   providerName,
+          //   {
+          //     patientName: patientDetails.name || '',
+          //     patientMrn: patientDetails.mrn,
+          //     rawTranscript: transcript,
+          //     aiProcessedNote: processedNote,
+          //     recordingMode: recordingMode || 'dictation',
+          //     isQuickNote: !patientId
+          //   }
+          // );
+
+          // if (noteId) {
+          //   setLastSavedNoteId(String(noteId));
+          //   setLastDatabaseSaveTime(new Date());
+          //   setDatabaseAutoSaveStatus('saved');
+          //   logDebug('MedicalDictation', `Auto-saved at ${new Date().toLocaleTimeString()}`);
+          //   setTimeout(() => setDatabaseAutoSaveStatus('idle'), 3000);
+          // } else {
+          //   setDatabaseAutoSaveStatus('error');
+          //   setTimeout(() => setDatabaseAutoSaveStatus('idle'), 5000);
+          // }
         } catch (error) {
           logError('MedicalDictation', 'Error message', {});
           setDatabaseAutoSaveStatus('error');
           setTimeout(() => setDatabaseAutoSaveStatus('idle'), 5000);
         }
       }
-    }, 30000); // Save every 30 seconds
+    }, 30000); // Check every 30 seconds
 
     return () => clearInterval(databaseAutoSaveInterval);
-  }, [transcript, processedNote, patientDetails.name, patientDetails.mrn, recordingMode, patientId, providerId, providerName, databaseAutoSaveStatus]);
+  }, [transcript, processedNote, patientDetails.name, patientDetails.mrn, recordingMode, patientId, providerId, providerName, databaseAutoSaveStatus, lastSavedNoteId]);
 
   // Restore auto-saved data on mount with improved UX
   useEffect(() => {
@@ -760,9 +779,19 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
 
       // Extract just the formatted note from the result
       const processedContent = result.formatted;
-      
+
       logDebug('MedicalDictation', 'Debug message', {});
 
+      // Save version to history before updating current
+      const newVersion: ProcessedNoteVersion = {
+        id: `version-${Date.now()}`,
+        timestamp: new Date(),
+        processedContent: processedContent,
+        templateUsed: selectedTemplate?.name || 'Standard SOAP Note',
+        templateId: selectedTemplate?.id || null,
+      };
+
+      setProcessedNoteVersions(prev => [...prev, newVersion]);
       setProcessedNote(processedContent);
       setShowProcessed(true);
     } catch (error) {
@@ -797,9 +826,20 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
       return;
     }
 
-    if (!patientDetails.name) {
-      alert('Please enter patient name before saving to database.');
-      return;
+    // Patient name is now optional - will be saved with placeholder if missing
+    const hasPatientName = patientDetails.name && patientDetails.name.trim() !== '';
+
+    // Warn user if saving without patient name
+    if (!hasPatientName) {
+      const confirmSave = window.confirm(
+        '⚠️ No Patient Name Entered\n\n' +
+        'This note will be saved as "Unidentified Patient" and flagged for identification.\n\n' +
+        'You can add the patient name later before finalizing the note.\n\n' +
+        'Continue saving?'
+      );
+      if (!confirmSave) {
+        return;
+      }
     }
 
     setIsSavingToDatabase(true);
@@ -897,6 +937,39 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
           {/* Patient info moved to bottom */}
         </div>
       </div>
+
+      {/* Patient Identification Warning Banner */}
+      {(transcript || processedNote) && (!patientDetails.name || patientDetails.name.trim() === '') && (
+        <div className="bg-yellow-50 border-b-2 border-yellow-400">
+          <div className="max-w-7xl mx-auto px-4 py-3">
+            <div className="flex items-center gap-3">
+              <svg className="w-5 h-5 text-yellow-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-yellow-900">⚠️ No Patient Name</h3>
+                <p className="text-xs text-yellow-800">
+                  This note is being auto-saved as "Unidentified Patient". Please add patient information before finalizing.
+                  {databaseAutoSaveStatus === 'saved' && ' (Auto-saved to database with placeholder name)'}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  // Focus on patient name input
+                  const nameInput = document.querySelector('input[placeholder="Enter patient name"]') as HTMLInputElement;
+                  if (nameInput) {
+                    nameInput.focus();
+                    nameInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }
+                }}
+                className="px-3 py-1 text-xs bg-yellow-600 text-white rounded hover:bg-yellow-700 font-medium"
+              >
+                Add Patient Name
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Auto-save Status & Data Restored Notifications */}
       {showDataRestored && (
@@ -1052,9 +1125,9 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
 
               <button
                 onClick={saveToDatabase}
-                disabled={(!transcript.trim() && !processedNote.trim()) || !patientDetails.name.trim() || isSavingToDatabase}
+                disabled={(!transcript.trim() && !processedNote.trim()) || isSavingToDatabase}
                 className="px-6 py-3 bg-green-600 text-white text-base font-bold rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all flex items-center gap-2 shadow-lg"
-                title="Save note and create appointment in database"
+                title={patientDetails.name.trim() ? "Save note and create appointment in database" : "Save note (patient name will be required before finalizing)"}
               >
                 {isSavingToDatabase ? '💾 SAVING...' : '💾 SAVE TO DATABASE'}
               </button>
@@ -1308,6 +1381,14 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
                 </h2>
                 {showProcessed && (
                   <div className="flex gap-2">
+                    {processedNoteVersions.length > 1 && (
+                      <button
+                        onClick={() => setShowVersionHistory(!showVersionHistory)}
+                        className="px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200 flex items-center gap-1"
+                      >
+                        📚 Versions ({processedNoteVersions.length})
+                      </button>
+                    )}
                     <button
                       onClick={() => copyToClipboard(processedNote.replace(/###\s*/g, '').replace(/\*\*(.*?)\*\*/g, '$1'))}
                       className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
@@ -1353,6 +1434,74 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
                 )}
               </div>
             </div>
+
+            {/* Version History Panel */}
+            {showVersionHistory && processedNoteVersions.length > 0 && (
+              <div className="bg-white rounded-lg shadow-sm p-4 border-2 border-purple-300">
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="text-md font-semibold text-purple-900 flex items-center gap-2">
+                    📚 Processing History ({processedNoteVersions.length} versions)
+                  </h3>
+                  <button
+                    onClick={() => setShowVersionHistory(false)}
+                    className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                  >
+                    Hide
+                  </button>
+                </div>
+
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {processedNoteVersions.slice().reverse().map((version, index) => {
+                    const versionNumber = processedNoteVersions.length - index;
+                    const isCurrentVersion = version.processedContent === processedNote;
+
+                    return (
+                      <div
+                        key={version.id}
+                        className={`p-3 rounded-lg border ${
+                          isCurrentVersion
+                            ? 'bg-purple-50 border-purple-400 border-2'
+                            : 'bg-gray-50 border-gray-300'
+                        }`}
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <span className={`text-sm font-bold ${isCurrentVersion ? 'text-purple-900' : 'text-gray-700'}`}>
+                              Version {versionNumber} {isCurrentVersion && '(Current)'}
+                            </span>
+                            <p className="text-xs text-gray-600 mt-1">
+                              Template: {version.templateUsed}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {version.timestamp.toLocaleString()}
+                            </p>
+                          </div>
+                          {!isCurrentVersion && (
+                            <button
+                              onClick={() => {
+                                setProcessedNote(version.processedContent);
+                                setShowVersionHistory(false);
+                              }}
+                              className="px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700"
+                            >
+                              Load This Version
+                            </button>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-700 bg-white p-2 rounded border max-h-32 overflow-y-auto">
+                          {version.processedContent.substring(0, 200)}
+                          {version.processedContent.length > 200 && '...'}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
+                  💡 Tip: You can process with AI multiple times using different templates. Each version is saved here.
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

@@ -3,8 +3,13 @@
 -- Complete schema for dictation and notes management
 -- ============================================
 -- Created: 2025-10-17
+-- Updated: 2025-10-17 - Allow unidentified patient dictations
 -- Database: Supabase PostgreSQL
 -- Purpose: Store medical dictations with full audit trail
+--
+-- CHANGES:
+-- - patient_name is now nullable (allows unidentified dictations)
+-- - Added requires_patient_identification flag to track notes needing patient info
 -- ============================================
 
 -- ============================================
@@ -20,11 +25,12 @@ CREATE TABLE IF NOT EXISTS dictated_notes (
   provider_specialty VARCHAR(100),
 
   -- Patient Information
-  patient_name VARCHAR(255) NOT NULL,
+  patient_name VARCHAR(255),                  -- Made nullable to allow unidentified dictations
   patient_phone VARCHAR(50),
   patient_email VARCHAR(255),
   patient_mrn VARCHAR(50),
   patient_dob DATE,
+  requires_patient_identification BOOLEAN DEFAULT false,  -- Flag for notes needing patient info
 
   -- Visit Details
   appointment_id BIGINT,

@@ -153,7 +153,7 @@ if (!DEEPGRAM_API_KEY) {
     try {
       // Create Deepgram live transcription connection
       deepgramConnection = deepgram.listen.live({
-        model: process.env.VITE_DEEPGRAM_MODEL || 'nova-3-medical',
+        model: process.env.VITE_DEEPGRAM_MODEL || 'nova-2',
         language: process.env.VITE_DEEPGRAM_LANGUAGE || 'en-US',
         smart_format: true,
         interim_results: true,

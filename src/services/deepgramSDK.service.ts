@@ -57,7 +57,7 @@ class DeepgramSDKService implements SpeechServiceInterface {
   constructor() {
     this.config = {
       apiKey: import.meta.env.VITE_DEEPGRAM_API_KEY,
-      model: import.meta.env.VITE_DEEPGRAM_MODEL || 'nova-3-medical',
+      model: import.meta.env.VITE_DEEPGRAM_MODEL || 'nova-2',
       language: import.meta.env.VITE_DEEPGRAM_LANGUAGE || 'en-US',
       tier: import.meta.env.VITE_DEEPGRAM_TIER || 'enhanced',
       encoding: 'linear16',
