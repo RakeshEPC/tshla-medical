@@ -751,13 +751,28 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
       };
       
       // Use selected template if available
-      // TEMPORARILY SKIP doctor settings to avoid Supabase auth issues
       let templateInstructions = undefined;
       if (selectedTemplate) {
-        logInfo('MedicalDictation', 'Using selected template without settings to avoid auth issues');
+        // Provide default doctor settings to avoid Supabase auth query
+        // This allows custom template sections to work while avoiding login redirects
+        const defaultSettings = {
+          aiStyle: 'formal' as const, // Use formal medical terminology
+          defaultTemplates: {},
+          preferences: {
+            autoSave: true,
+            showKeyboardShortcuts: true,
+            theme: 'light' as const
+          }
+        };
+
+        logInfo('MedicalDictation', 'Using selected template with default settings', {
+          templateName: selectedTemplate.name,
+          sectionCount: Object.keys(selectedTemplate.sections || {}).length
+        });
+
         templateInstructions = {
           template: selectedTemplate,
-          doctorSettings: null // Skip settings call that causes auth redirect
+          doctorSettings: defaultSettings
         };
       }
 
