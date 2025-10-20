@@ -179,8 +179,13 @@ class DeepgramSDKService implements SpeechServiceInterface {
     // Set up WebSocket event handlers
     ws.onopen = () => {
       logInfo('deepgramSDK', 'Proxy WebSocket connection opened');
+      console.log('✅ WebSocket onopen fired! ReadyState:', ws.readyState);
+      console.log('   Event handlers for Open event:', eventHandlers[LiveTranscriptionEvents.Open]?.length || 0);
       const handlers = eventHandlers[LiveTranscriptionEvents.Open] || [];
-      handlers.forEach(handler => handler());
+      handlers.forEach(handler => {
+        console.log('   Calling Open event handler...');
+        handler();
+      });
     };
 
     ws.onmessage = async (event) => {
@@ -376,8 +381,10 @@ class DeepgramSDKService implements SpeechServiceInterface {
       this.connection = this.createProxyConnection(wsUrl);
 
       // Set up event listeners
+      console.log('📝 Registering LiveTranscriptionEvents.Open handler...');
       this.connection.on(LiveTranscriptionEvents.Open, () => {
         logInfo('deepgramSDK', 'Deepgram connection opened successfully');
+        console.log('🎉 LiveTranscriptionEvents.Open handler called! Setting isRecording = true');
         this.isRecording = true;
         this.reconnectAttempts = 0; // Reset reconnect counter on successful connection
       });
@@ -454,8 +461,18 @@ class DeepgramSDKService implements SpeechServiceInterface {
       const processorBufferSize = 4096;
       const processor = audioContext.createScriptProcessor(processorBufferSize, 1, 1);
 
+      let audioChunksSent = 0;
       processor.onaudioprocess = (e) => {
-        if (!this.isRecording || !this.connection) return;
+        if (!this.isRecording || !this.connection) {
+          if (audioChunksSent === 0) {
+            console.log('⏸️ Audio process: waiting for recording to start', {
+              isRecording: this.isRecording,
+              hasConnection: !!this.connection,
+              connectionState: this.connection ? this.connection.getReadyState() : 'no connection'
+            });
+          }
+          return;
+        }
 
         // Get raw PCM data
         const inputData = e.inputBuffer.getChannelData(0);
@@ -471,6 +488,12 @@ class DeepgramSDKService implements SpeechServiceInterface {
         // Send raw PCM data to Deepgram
         if (this.connection.getReadyState() === 1) {
           this.connection.send(int16Data.buffer);
+          audioChunksSent++;
+          if (audioChunksSent === 1 || audioChunksSent % 100 === 0) {
+            console.log(`🎤 Sent audio chunk #${audioChunksSent} (${int16Data.length} samples)`);
+          }
+        } else {
+          console.log('⚠️ Cannot send audio - WebSocket not OPEN:', this.connection.getReadyState());
         }
       };
 

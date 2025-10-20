@@ -110,7 +110,10 @@ jobs:
             "DEEPGRAM_API_KEY=${{ secrets.DEEPGRAM_API_KEY }}" \
             "VITE_DEEPGRAM_API_KEY=${{ secrets.DEEPGRAM_API_KEY }}" \
             "VITE_OPENAI_API_KEY=${{ secrets.VITE_OPENAI_API_KEY }}" \
-            "NODE_ENV=production"
+            "VITE_DEEPGRAM_MODEL=nova-3-medical" \
+            "VITE_DEEPGRAM_LANGUAGE=en-US" \
+            "NODE_ENV=production" \
+            "PORT=3000"
 
     - name: Get Container App URL
       id: get_url

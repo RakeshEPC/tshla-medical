@@ -17,6 +17,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
+const cors = require('cors');
 const { createClient, LiveTranscriptionEvents } = require('@deepgram/sdk');
 
 // Create main Express app
@@ -25,6 +26,22 @@ const PORT = process.env.PORT || 3000;
 
 // Trust proxy (important for Azure App Service)
 app.set('trust proxy', 1);
+
+// Enable CORS for all routes
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:3000',
+    'https://www.tshla.ai',
+    'https://tshla.ai',
+    /\.tshla\.ai$/,
+    /\.azurecontainerapps\.io$/
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
 
 console.log('🚀 TSHLA Medical Unified API Server');
 console.log('========================================');
@@ -78,6 +95,9 @@ app.get('/', (req, res) => {
 const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY || process.env.VITE_DEEPGRAM_API_KEY;
 if (DEEPGRAM_API_KEY) {
   app.get('/ws/deepgram/health', (req, res) => {
+    // Manually set CORS headers to ensure they're present
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Credentials', 'true');
     res.json({
       status: 'healthy',
       service: 'deepgram-proxy',
