@@ -103,6 +103,16 @@ if (!DEEPGRAM_API_KEY) {
   console.log('✅ Deepgram WebSocket Proxy enabled');
   console.log(`   API Key: ${keyPreview}`);
 
+  // Health check endpoint for Deepgram proxy
+  // Frontend checks this before attempting WebSocket connection
+  app.get('/ws/deepgram/health', (req, res) => {
+    res.json({
+      status: 'healthy',
+      service: 'deepgram-proxy',
+      timestamp: new Date().toISOString()
+    });
+  });
+
   // Create WebSocket server on /ws path
   const wss = new WebSocket.Server({
     server,
