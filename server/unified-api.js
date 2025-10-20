@@ -29,19 +29,8 @@ app.set('trust proxy', 1);
 console.log('🚀 TSHLA Medical Unified API Server');
 console.log('========================================');
 
-// Import individual API apps
-// Each API file exports its Express app when imported (dual-mode pattern)
-const pumpApi = require('./pump-report-api');
-const authApi = require('./medical-auth-api');
-const scheduleApi = require('./enhanced-schedule-notes-api');
-const adminApi = require('./admin-account-api');
-
-// Mount each API (they already have their own route prefixes like /api/*)
-// Since each API has its own namespace, we can mount them directly
-app.use(pumpApi);    // Routes: /api/auth/*, /api/stripe/*, /api/provider/*, /api/pump-*
-app.use(authApi);     // Routes: /api/medical/*
-app.use(scheduleApi); // Routes: /api/providers/*, /api/appointments/*, /api/schedule/*, /api/notes/*
-app.use(adminApi);    // Routes: /api/accounts/*
+// Define unified routes FIRST (before mounting other APIs)
+// This ensures our unified routes take precedence over conflicting routes in sub-APIs
 
 // Unified health check endpoint
 app.get('/health', (req, res) => {
@@ -59,11 +48,12 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Unified API health endpoint
+// Unified API health endpoint (override individual API health checks)
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    service: 'tshla-unified-api'
   });
 });
 
@@ -82,6 +72,20 @@ app.get('/', (req, res) => {
     }
   });
 });
+
+// Now mount the individual API apps
+// Import individual API apps (they export Express app when required)
+const pumpApi = require('./pump-report-api');
+const authApi = require('./medical-auth-api');
+const scheduleApi = require('./enhanced-schedule-notes-api');
+const adminApi = require('./admin-account-api');
+
+// Mount each API (they already have their own route prefixes like /api/*)
+// Since each API has its own namespace, we can mount them directly
+app.use(pumpApi);    // Routes: /api/auth/*, /api/stripe/*, /api/provider/*, /api/pump-*
+app.use(authApi);     // Routes: /api/medical/*
+app.use(scheduleApi); // Routes: /api/providers/*, /api/appointments/*, /api/schedule/*, /api/notes/*
+app.use(adminApi);    // Routes: /api/accounts/*
 
 // Create HTTP server (needed for WebSocket upgrade)
 const server = http.createServer(app);
