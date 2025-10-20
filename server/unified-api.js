@@ -106,8 +106,7 @@ const server = http.createServer(app);
 // ============================================
 // DEEPGRAM WEBSOCKET PROXY
 // ============================================
-
-const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY || process.env.VITE_DEEPGRAM_API_KEY;
+// Note: DEEPGRAM_API_KEY is already declared above (before sub-API mounting)
 
 if (!DEEPGRAM_API_KEY) {
   console.warn('⚠️  Deepgram API key not found - WebSocket proxy will not be available');
