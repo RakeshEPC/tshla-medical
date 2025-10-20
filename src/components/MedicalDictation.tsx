@@ -751,22 +751,14 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
       };
       
       // Use selected template if available
+      // TEMPORARILY SKIP doctor settings to avoid Supabase auth issues
       let templateInstructions = undefined;
       if (selectedTemplate) {
-        try {
-          const settings = await doctorProfileService.getSettings();
-          templateInstructions = {
-            template: selectedTemplate,
-            doctorSettings: settings
-          };
-        } catch (error) {
-          logError('MedicalDictation', 'Error message', {});
-          // Continue without custom settings
-          templateInstructions = {
-            template: selectedTemplate,
-            doctorSettings: null
-          };
-        }
+        logInfo('MedicalDictation', 'Using selected template without settings to avoid auth issues');
+        templateInstructions = {
+          template: selectedTemplate,
+          doctorSettings: null // Skip settings call that causes auth redirect
+        };
       }
 
       const result = await azureAIService.processMedicalTranscription(
