@@ -49,7 +49,7 @@ class SpeechServiceRouter {
     // Deepgram is now the only supported STT provider
     // AWS and Azure services have been moved to _deprecated/
     this.primaryProvider = 'deepgram';
-    logInfo('speechServiceRouter', 'Primary STT provider: Deepgram (nova-2-medical)');
+    logInfo('speechServiceRouter', `Primary STT provider: Deepgram (${import.meta.env.VITE_DEEPGRAM_MODEL || 'nova-2'})`);
   }
 
   /**
@@ -116,7 +116,7 @@ class SpeechServiceRouter {
       primaryProvider: 'deepgram',
       deepgram: {
         configured: deepgramSDKService.isConfigured(),
-        model: 'nova-2-medical',
+        model: import.meta.env.VITE_DEEPGRAM_MODEL || 'nova-2',
         status: 'active'
       },
       deprecated: {
