@@ -73,11 +73,11 @@ export interface ProcessedNote {
 class AzureAIService {
   private client: BedrockRuntimeClient;
   // MIGRATION PHASE 1: Azure OpenAI PRIMARY, AWS Bedrock FALLBACK ONLY
-  private primaryProvider = 'azure'; // FORCED TO AZURE FOR MIGRATION
+  private primaryProvider = import.meta.env.VITE_PRIMARY_AI_PROVIDER || 'openai'; // Use env var for provider
   private modelId = 'us.anthropic.claude-opus-4-1-20250805-v1:0'; // AWS Bedrock fallback model
   private fallbackModelId = 'anthropic.claude-3-5-sonnet-20241022-v2:0'; // AWS Bedrock secondary fallback
   private workingModelId: string | null = null;
-  private migrationMode = true; // Phase 1 of migration active
+  private migrationMode = false; // Phase 1 of migration DISABLED - use env var instead
 
   constructor() {
     if (this.migrationMode) {
@@ -146,6 +146,19 @@ class AzureAIService {
     additionalContext?: string,
     customTemplate?: { template: DoctorTemplate; doctorSettings: DoctorSettings }
   ): Promise<ProcessedNote> {
+    // Check primary provider from environment variable
+    if (this.primaryProvider === 'openai') {
+      try {
+        logInfo('azureAI', 'Using OpenAI API as primary provider (from VITE_PRIMARY_AI_PROVIDER)');
+        const openaiResult = await this.processWithOpenAI(transcript, patient, template, additionalContext, customTemplate);
+        logInfo('azureAI', 'OpenAI processing completed successfully');
+        return openaiResult;
+      } catch (openaiError) {
+        logWarn('azureAI', `OpenAI failed: ${openaiError}, falling back to Azure OpenAI`);
+        // Fall through to Azure OpenAI below
+      }
+    }
+
     // MIGRATION PHASE 1: Azure OpenAI is now PRIMARY provider
     if (this.migrationMode || this.primaryProvider === 'azure') {
       try {
@@ -405,6 +418,86 @@ class AzureAIService {
 
         return this.validateAndCleanProcessedNote(basicNote, transcript);
       }
+    }
+  }
+
+  /**
+   * Process with standard OpenAI API
+   * NOTE: NOT HIPAA-compliant (no BAA available)
+   * Use for testing or non-PHI data only
+   */
+  private async processWithOpenAI(
+    transcript: string,
+    patient: PatientData,
+    template: Template | null,
+    additionalContext?: string,
+    customTemplate?: { template: DoctorTemplate; doctorSettings: DoctorSettings }
+  ): Promise<ProcessedNote> {
+    logInfo('azureAI', 'Processing with OpenAI API');
+
+    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error('OpenAI API key not configured (VITE_OPENAI_API_KEY)');
+    }
+
+    // Build prompt using same logic as Azure
+    const prompt = customTemplate
+      ? this.buildCustomPrompt(transcript, patient, customTemplate.template, customTemplate.doctorSettings, additionalContext)
+      : this.buildPrompt(transcript, patient, template, additionalContext);
+
+    // Use GPT-4 for note processing
+    const model = import.meta.env.VITE_OPENAI_MODEL_STAGE5 || 'gpt-4o';
+
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a medical scribe assistant helping format clinical notes. Respond ONLY with the formatted note, no preamble or explanation.'
+            },
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          temperature: 0.3,
+          max_tokens: 2000
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`OpenAI API error (${response.status}): ${errorText}`);
+      }
+
+      const data = await response.json();
+      const formattedNote = data.choices[0]?.message?.content || '';
+
+      if (!formattedNote.trim()) {
+        throw new Error('OpenAI returned empty response');
+      }
+
+      logInfo('azureAI', 'OpenAI processing successful');
+
+      return {
+        formatted: formattedNote,
+        sections: this.extractSections(formattedNote),
+        metadata: {
+          processedAt: new Date().toISOString(),
+          model: model,
+          promptVersionId: 'openai-standard-v1'
+        }
+      };
+    } catch (error: any) {
+      logError('azureAI', `OpenAI processing failed: ${error.message}`);
+      throw error;
     }
   }
 
