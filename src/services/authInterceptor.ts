@@ -126,16 +126,21 @@ export const setupFetchInterceptor = () => {
       const isAdminApi = requestUrl.includes('tshla-admin-api-container') ||
                          requestUrl.includes('/api/accounts/');
 
+      // SKIP auth interception for Supabase API calls
+      // Supabase has its own auth handling and we don't want to interfere
+      const isSupabaseApi = requestUrl.includes('supabase.co') ||
+                            requestUrl.includes('.supabase.');
+
       // SKIP auth interception for admin routes
       const currentPath = window.location.pathname;
       const isAdminRoute = currentPath.startsWith('/admin');
 
-      if (isAdminApi || isAdminRoute) {
+      if (isAdminApi || isAdminRoute || isSupabaseApi) {
         console.log('🔓 [AuthInterceptor] SKIPPING interception for:', {
           url: requestUrl,
           path: currentPath,
           status: response.status,
-          reason: isAdminApi ? 'Admin API call' : 'Admin route'
+          reason: isAdminApi ? 'Admin API call' : isAdminRoute ? 'Admin route' : 'Supabase API call'
         });
         // Return the response as-is, let the calling code handle errors
         return response;
