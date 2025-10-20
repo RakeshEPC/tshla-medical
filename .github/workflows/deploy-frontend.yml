@@ -49,10 +49,10 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          VITE_PUMP_API_URL: https://tshla-pump-api-container.redpebble-e4551b7a.eastus.azurecontainerapps.io
-          VITE_SCHEDULE_API_URL: https://tshla-schedule-api-container.redpebble-e4551b7a.eastus.azurecontainerapps.io
-          VITE_AUTH_API_URL: https://tshla-auth-api-container.redpebble-e4551b7a.eastus.azurecontainerapps.io
-          VITE_ADMIN_ACCOUNT_API_URL: https://tshla-admin-api-container.redpebble-e4551b7a.eastus.azurecontainerapps.io
+          VITE_PUMP_API_URL: https://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io
+          VITE_SCHEDULE_API_URL: https://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io
+          VITE_AUTH_API_URL: https://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io
+          VITE_ADMIN_ACCOUNT_API_URL: https://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io
           VITE_OPENAI_API_KEY: ${{ secrets.VITE_OPENAI_API_KEY }}
           VITE_OPENAI_MODEL_STAGE4: gpt-4o-mini
           VITE_OPENAI_MODEL_STAGE5: gpt-4o
@@ -70,7 +70,7 @@ jobs:
           VITE_USE_DEEPGRAM_SDK: "true"
           VITE_PRIMARY_SPEECH_PROVIDER: deepgram
           VITE_USE_DEEPGRAM_PROXY: "true"
-          VITE_DEEPGRAM_PROXY_URL: wss://tshla-deepgram-proxy.redpebble-e4551b7a.eastus.azurecontainerapps.io
+          VITE_DEEPGRAM_PROXY_URL: wss://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io/ws/deepgram
         run: npm run build
 
       - name: Post-Build Validation
