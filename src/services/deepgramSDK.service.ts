@@ -206,12 +206,22 @@ class DeepgramSDKService implements SpeechServiceInterface {
 
         const data = JSON.parse(messageText);
 
+        // DEBUG: Log all messages from Deepgram
+        console.log('📨 Received from Deepgram:', {
+          type: data.type,
+          hasTranscript: !!data.channel?.alternatives?.[0]?.transcript,
+          transcriptLength: data.channel?.alternatives?.[0]?.transcript?.length || 0,
+          isFinal: data.is_final,
+          speechFinal: data.speech_final
+        });
+
         // Handle different message types from proxy
         if (data.type === 'open') {
           // Connection opened message
           logInfo('deepgramSDK', 'Deepgram connection established via proxy');
         } else if (data.type === 'error') {
           // Error message
+          console.error('❌ Deepgram error message:', data);
           const handlers = eventHandlers[LiveTranscriptionEvents.Error] || [];
           handlers.forEach(handler => handler(new Error(data.error)));
         } else if (data.type === 'close') {
@@ -224,6 +234,7 @@ class DeepgramSDKService implements SpeechServiceInterface {
           handlers.forEach(handler => handler(data.metadata));
         } else {
           // Transcription data
+          console.log('🎙️ Processing transcript, handlers:', eventHandlers[LiveTranscriptionEvents.Transcript]?.length || 0);
           const handlers = eventHandlers[LiveTranscriptionEvents.Transcript] || [];
           handlers.forEach(handler => handler(data));
         }
