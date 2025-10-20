@@ -73,6 +73,19 @@ app.get('/', (req, res) => {
   });
 });
 
+// Deepgram proxy health endpoint
+// Must be registered BEFORE sub-APIs to avoid being caught by their 404 handlers
+const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY || process.env.VITE_DEEPGRAM_API_KEY;
+if (DEEPGRAM_API_KEY) {
+  app.get('/ws/deepgram/health', (req, res) => {
+    res.json({
+      status: 'healthy',
+      service: 'deepgram-proxy',
+      timestamp: new Date().toISOString()
+    });
+  });
+}
+
 // Now mount the individual API apps
 // Import individual API apps (they export Express app when required)
 const pumpApi = require('./pump-report-api');
@@ -103,17 +116,8 @@ if (!DEEPGRAM_API_KEY) {
   console.log('✅ Deepgram WebSocket Proxy enabled');
   console.log(`   API Key: ${keyPreview}`);
 
-  // Health check endpoint for Deepgram proxy
-  // Frontend checks this before attempting WebSocket connection
-  app.get('/ws/deepgram/health', (req, res) => {
-    res.json({
-      status: 'healthy',
-      service: 'deepgram-proxy',
-      timestamp: new Date().toISOString()
-    });
-  });
-
   // Create WebSocket server on /ws path
+  // Note: Health endpoint is registered earlier (before sub-APIs mount) to avoid 404 handler conflicts
   const wss = new WebSocket.Server({
     server,
     path: '/ws/deepgram'
