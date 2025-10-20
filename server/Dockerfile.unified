@@ -1,0 +1,41 @@
+# TSHLA Medical Unified API Dockerfile
+# Combines all microservices into one container
+FROM node:20-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package.json package-lock.json ./
+
+# Install dependencies + curl for healthcheck
+RUN npm ci --only=production && \
+    apk add --no-cache curl
+
+# Copy all application files
+COPY unified-api.js ./
+COPY pump-report-api.js ./
+COPY medical-auth-api.js ./
+COPY enhanced-schedule-notes-api.js ./
+COPY admin-account-api.js ./
+COPY pump-recommendation-engine-ai.js ./
+COPY logger.js ./
+COPY services/ ./services/
+COPY utils/ ./utils/
+
+# Expose port (Azure App Service will set PORT env var)
+EXPOSE 3000
+
+# Set environment to production
+ENV NODE_ENV=production
+
+# Build argument for deployment timestamp (to force new builds)
+ARG DEPLOY_TIMESTAMP
+ENV DEPLOY_TIMESTAMP=${DEPLOY_TIMESTAMP}
+
+# Health check - auto-restart if unhealthy
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:${PORT:-3000}/health || exit 1
+
+# Start the unified application
+CMD ["node", "unified-api.js"]

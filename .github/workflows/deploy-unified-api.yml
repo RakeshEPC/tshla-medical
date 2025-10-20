@@ -1,0 +1,234 @@
+name: Deploy Unified API to Azure App Service
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'server/**'
+      - '.github/workflows/deploy-unified-api.yml'
+  workflow_dispatch:
+
+env:
+  ACR_LOGIN_SERVER: tshlaregistry.azurecr.io
+  APP_SERVICE_NAME: tshla-unified-api
+  RESOURCE_GROUP: tshla-backend-rg
+  IMAGE_NAME: tshla-unified-api
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Build and push Docker image
+      working-directory: ./server
+      run: |
+        # Login to ACR
+        az acr login --name tshlaregistry
+
+        # Build with timestamp to ensure unique image
+        DEPLOY_TIMESTAMP=$(date +%s)
+        docker build -f Dockerfile.unified \
+          --platform linux/amd64 \
+          --no-cache \
+          --build-arg DEPLOY_TIMESTAMP=$DEPLOY_TIMESTAMP \
+          -t ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+          -t ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest \
+          .
+
+        # Push image to ACR
+        docker push ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        docker push ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest
+
+    - name: Check if App Service exists
+      id: check_app
+      run: |
+        EXISTS=$(az webapp show \
+          --name ${{ env.APP_SERVICE_NAME }} \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --query "name" -o tsv 2>/dev/null || echo "")
+
+        if [ -z "$EXISTS" ]; then
+          echo "exists=false" >> $GITHUB_OUTPUT
+          echo "App Service does not exist, will create"
+        else
+          echo "exists=true" >> $GITHUB_OUTPUT
+          echo "App Service exists, will update"
+        fi
+
+    - name: Create App Service Plan (if needed)
+      if: steps.check_app.outputs.exists == 'false'
+      run: |
+        # Check if App Service Plan exists
+        PLAN_EXISTS=$(az appservice plan show \
+          --name tshla-unified-plan \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --query "name" -o tsv 2>/dev/null || echo "")
+
+        if [ -z "$PLAN_EXISTS" ]; then
+          echo "Creating App Service Plan..."
+          az appservice plan create \
+            --name tshla-unified-plan \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --sku B1 \
+            --is-linux
+        else
+          echo "App Service Plan already exists"
+        fi
+
+    - name: Create App Service (if not exists)
+      if: steps.check_app.outputs.exists == 'false'
+      run: |
+        echo "Creating new App Service..."
+        az webapp create \
+          --name ${{ env.APP_SERVICE_NAME }} \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --plan tshla-unified-plan \
+          --deployment-container-image-name ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest
+
+        # Configure App Service for ACR
+        az webapp config container set \
+          --name ${{ env.APP_SERVICE_NAME }} \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --docker-custom-image-name ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest \
+          --docker-registry-server-url https://${{ env.ACR_LOGIN_SERVER }}
+
+        # Enable WebSocket support
+        az webapp config set \
+          --name ${{ env.APP_SERVICE_NAME }} \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --web-sockets-enabled true
+
+        # Configure environment variables
+        az webapp config appsettings set \
+          --name ${{ env.APP_SERVICE_NAME }} \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --settings \
+            "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" \
+            "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" \
+            "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            "JWT_SECRET=${{ secrets.JWT_SECRET }}" \
+            "DEEPGRAM_API_KEY=${{ secrets.DEEPGRAM_API_KEY }}" \
+            "VITE_DEEPGRAM_API_KEY=${{ secrets.DEEPGRAM_API_KEY }}" \
+            "VITE_OPENAI_API_KEY=${{ secrets.VITE_OPENAI_API_KEY }}" \
+            "VITE_DEEPGRAM_MODEL=nova-3-medical" \
+            "VITE_DEEPGRAM_LANGUAGE=en-US" \
+            "NODE_ENV=production" \
+            "PORT=8080" \
+            "WEBSITES_PORT=8080"
+
+    - name: Update App Service (if exists)
+      if: steps.check_app.outputs.exists == 'true'
+      run: |
+        echo "Updating existing App Service..."
+
+        # Update container image
+        az webapp config container set \
+          --name ${{ env.APP_SERVICE_NAME }} \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --docker-custom-image-name ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+        # Update environment variables
+        az webapp config appsettings set \
+          --name ${{ env.APP_SERVICE_NAME }} \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --settings \
+            "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" \
+            "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" \
+            "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            "JWT_SECRET=${{ secrets.JWT_SECRET }}" \
+            "DEEPGRAM_API_KEY=${{ secrets.DEEPGRAM_API_KEY }}" \
+            "VITE_DEEPGRAM_API_KEY=${{ secrets.DEEPGRAM_API_KEY }}" \
+            "VITE_OPENAI_API_KEY=${{ secrets.VITE_OPENAI_API_KEY }}" \
+            "NODE_ENV=production"
+
+        # Restart app to pick up new image
+        az webapp restart \
+          --name ${{ env.APP_SERVICE_NAME }} \
+          --resource-group ${{ env.RESOURCE_GROUP }}
+
+    - name: Wait for deployment
+      run: |
+        echo "⏳ Waiting 60 seconds for App Service to start..."
+        sleep 60
+
+    - name: Get App Service URL
+      id: get_url
+      run: |
+        URL=$(az webapp show \
+          --name ${{ env.APP_SERVICE_NAME }} \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --query "defaultHostName" -o tsv)
+        echo "url=$URL" >> $GITHUB_OUTPUT
+        echo "🌐 App Service URL: https://$URL"
+
+    - name: Verify deployment
+      run: |
+        API_URL="https://${{ steps.get_url.outputs.url }}"
+
+        echo "🔍 Validating unified API deployment..."
+        echo "Testing: $API_URL/health"
+
+        # Test health endpoint with retries
+        for i in {1..10}; do
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/health" --max-time 10)
+
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ Health check passed (attempt $i)"
+            HEALTH_RESPONSE=$(curl -s "$API_URL/health")
+            echo "Response: $HEALTH_RESPONSE"
+            break
+          else
+            echo "⏳ Health check returned $HTTP_CODE, retrying... (attempt $i/10)"
+            sleep 10
+          fi
+
+          if [ $i -eq 10 ]; then
+            echo "❌ Health check failed after 10 attempts"
+            exit 1
+          fi
+        done
+
+        # Test API endpoints
+        echo ""
+        echo "✅ Testing individual API endpoints..."
+
+        # Test pump API
+        curl -f -s "$API_URL/api/health" > /dev/null && echo "  ✅ Pump API: /api/health"
+
+        # Test medical auth API
+        curl -f -s "$API_URL/api/medical/health" > /dev/null && echo "  ✅ Medical Auth API: /api/medical/health"
+
+        # Test admin API
+        curl -f -s "$API_URL/api/health" > /dev/null && echo "  ✅ Admin API: /api/health"
+
+        echo ""
+        echo "🎉 Deployment completed successfully!"
+        echo "📍 Unified API URL: $API_URL"
+        echo "🎤 WebSocket URL: wss://${{ steps.get_url.outputs.url }}/ws/deepgram"
+
+    - name: Deployment summary
+      run: |
+        echo "=========================================="
+        echo "🚀 TSHLA Medical Unified API Deployed"
+        echo "=========================================="
+        echo ""
+        echo "📋 Endpoints:"
+        echo "  Health:        https://${{ steps.get_url.outputs.url }}/health"
+        echo "  Pump API:      https://${{ steps.get_url.outputs.url }}/api/pump-*"
+        echo "  Auth API:      https://${{ steps.get_url.outputs.url }}/api/auth/*"
+        echo "  Medical API:   https://${{ steps.get_url.outputs.url }}/api/medical/*"
+        echo "  Schedule API:  https://${{ steps.get_url.outputs.url }}/api/schedule/*"
+        echo "  Admin API:     https://${{ steps.get_url.outputs.url }}/api/accounts/*"
+        echo "  WebSocket:     wss://${{ steps.get_url.outputs.url }}/ws/deepgram"
+        echo ""
+        echo "✅ All services consolidated into ONE App Service!"
+        echo "=========================================="

@@ -698,6 +698,12 @@ app.post('/api/dictated-notes', async (req, res) => {
       status,
     } = req.body;
 
+    // Handle missing patient name - create placeholder and flag for identification
+    const isPatientUnidentified = !patient_name || patient_name.trim() === '';
+    const finalPatientName = isPatientUnidentified
+      ? `[Unidentified Patient - ${new Date().toISOString().split('T')[0]} ${new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' })}]`
+      : patient_name;
+
     const { data: noteData, error: noteError } = await unifiedSupabase
       .from('dictated_notes')
       .insert({
@@ -705,7 +711,8 @@ app.post('/api/dictated-notes', async (req, res) => {
         provider_name,
         provider_email,
         provider_specialty,
-        patient_name,
+        patient_name: finalPatientName,
+        // requires_patient_identification: isPatientUnidentified,  // TODO: Uncomment after running migration
         patient_phone,
         patient_email,
         patient_mrn,
@@ -790,7 +797,11 @@ app.post('/api/dictated-notes', async (req, res) => {
     res.json({
       success: true,
       noteId,
-      message: 'Dictated note saved successfully',
+      message: isPatientUnidentified
+        ? 'Dictated note saved successfully (patient identification required)'
+        : 'Dictated note saved successfully',
+      requiresPatientIdentification: isPatientUnidentified,
+      patientNameUsed: finalPatientName,
     });
   } catch (error) {
     logger.error('API', error.message, { error });
@@ -1136,22 +1147,27 @@ process.on('SIGINT', async () => {
   }
 });
 
-// Start server
-const server = app.listen(PORT, () => {
-  console.log('\n' + '='.repeat(80));
-  console.log(`🏥 TSHLA Enhanced Schedule & Notes API Server`);
-  console.log(`📍 Port: ${PORT}`);
-  console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`💾 Database: ${dbConfig.host}/${dbConfig.database}`);
-  console.log('='.repeat(80) + '\n');
-  logger.info('SERVER', `Schedule API listening on port ${PORT}`);
-});
+// Start server (only if running directly, not when imported)
+if (require.main === module) {
+  const server = app.listen(PORT, () => {
+    console.log('\n' + '='.repeat(80));
+    console.log(`🏥 TSHLA Enhanced Schedule & Notes API Server`);
+    console.log(`📍 Port: ${PORT}`);
+    console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`💾 Database: Supabase`);
+    console.log('='.repeat(80) + '\n');
+    logger.info('SERVER', `Schedule API listening on port ${PORT}`);
+  });
 
-// Handle server errors
-server.on('error', error => {
-  logger.error('SERVER', 'Server error occurred', { error: error.message, code: error.code });
-  if (error.code === 'EADDRINUSE') {
-    logger.error('SERVER', `Port ${PORT} is already in use`, { error });
-    process.exit(1);
-  }
-});
+  // Handle server errors
+  server.on('error', error => {
+    logger.error('SERVER', 'Server error occurred', { error: error.message, code: error.code });
+    if (error.code === 'EADDRINUSE') {
+      logger.error('SERVER', `Port ${PORT} is already in use`, { error });
+      process.exit(1);
+    }
+  });
+}
+
+// Export app for use in unified server
+module.exports = app;

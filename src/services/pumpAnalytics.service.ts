@@ -65,7 +65,7 @@ class PumpAnalyticsService {
   constructor() {
     // Use environment variable or default to production URL
     this.API_BASE = import.meta.env.VITE_API_BASE_URL ||
-      'https://tshla-pump-api-container.redpebble-e4551b7a.eastus.azurecontainerapps.io';
+      'https://tshla-unified-api.azurewebsites.net';
   }
 
   /**

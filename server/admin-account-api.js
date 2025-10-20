@@ -422,13 +422,16 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', service: 'admin-account-api' });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🔐 Admin Account API running on port ${PORT}`);
-  console.log(`📝 Endpoints:`);
-  console.log(`   POST /api/accounts/create`);
-  console.log(`   GET  /api/accounts/list`);
-  console.log(`   POST /api/accounts/reset-password`);
-});
+// Start server (only if running directly, not when imported)
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`🔐 Admin Account API running on port ${PORT}`);
+    console.log(`📝 Endpoints:`);
+    console.log(`   POST /api/accounts/create`);
+    console.log(`   GET  /api/accounts/list`);
+    console.log(`   POST /api/accounts/reset-password`);
+  });
+}
 
+// Export app for use in unified server
 module.exports = app;
