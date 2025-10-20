@@ -42,7 +42,7 @@ interface UserStats {
 }
 
 const API_BASE_URL = import.meta.env.VITE_PUMP_API_URL ||
-  'https://tshla-unified-api.azurewebsites.net';
+  'https://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io';
 
 export default function PumpDriveUserDashboard() {
   const [users, setUsers] = useState<PumpDriveUser[]>([]);

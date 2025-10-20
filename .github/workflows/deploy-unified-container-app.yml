@@ -1,0 +1,183 @@
+name: Deploy Unified API to Azure Container App
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'server/**'
+      - '.github/workflows/deploy-unified-container-app.yml'
+  workflow_dispatch:
+
+env:
+  ACR_LOGIN_SERVER: tshlaregistry.azurecr.io
+  CONTAINER_APP_NAME: tshla-unified-api
+  RESOURCE_GROUP: tshla-backend-rg
+  IMAGE_NAME: tshla-unified-api
+  CONTAINER_ENV: tshla-container-env
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Build and push Docker image
+      working-directory: ./server
+      run: |
+        # Login to ACR
+        az acr login --name tshlaregistry
+
+        # Build with timestamp to force new revision
+        DEPLOY_TIMESTAMP=$(date +%s)
+        docker build -f Dockerfile.unified \
+          --platform linux/amd64 \
+          --no-cache \
+          --build-arg DEPLOY_TIMESTAMP=$DEPLOY_TIMESTAMP \
+          -t ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+          -t ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest \
+          .
+
+        # Push image to ACR
+        docker push ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        docker push ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest
+
+    - name: Check if Container App exists
+      id: check_app
+      run: |
+        EXISTS=$(az containerapp show \
+          --name ${{ env.CONTAINER_APP_NAME }} \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --query "name" -o tsv 2>/dev/null || echo "")
+
+        if [ -z "$EXISTS" ]; then
+          echo "exists=false" >> $GITHUB_OUTPUT
+          echo "Container app does not exist, will create"
+        else
+          echo "exists=true" >> $GITHUB_OUTPUT
+          echo "Container app exists, will update"
+        fi
+
+    - name: Create Container App (if not exists)
+      if: steps.check_app.outputs.exists == 'false'
+      run: |
+        echo "Creating new Container App..."
+        az containerapp create \
+          --name ${{ env.CONTAINER_APP_NAME }} \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --environment ${{ env.CONTAINER_ENV }} \
+          --image ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+          --target-port 3000 \
+          --ingress external \
+          --min-replicas 1 \
+          --max-replicas 3 \
+          --cpu 0.5 \
+          --memory 1.0Gi \
+          --registry-server ${{ env.ACR_LOGIN_SERVER }} \
+          --env-vars \
+            "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" \
+            "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" \
+            "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            "JWT_SECRET=${{ secrets.JWT_SECRET }}" \
+            "DEEPGRAM_API_KEY=${{ secrets.DEEPGRAM_API_KEY }}" \
+            "VITE_DEEPGRAM_API_KEY=${{ secrets.DEEPGRAM_API_KEY }}" \
+            "VITE_OPENAI_API_KEY=${{ secrets.VITE_OPENAI_API_KEY }}" \
+            "VITE_DEEPGRAM_MODEL=nova-3-medical" \
+            "VITE_DEEPGRAM_LANGUAGE=en-US" \
+            "NODE_ENV=production" \
+            "PORT=3000"
+
+    - name: Update Container App (if exists)
+      if: steps.check_app.outputs.exists == 'true'
+      run: |
+        echo "Updating existing Container App..."
+        az containerapp update \
+          --name ${{ env.CONTAINER_APP_NAME }} \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --image ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+          --set-env-vars \
+            "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" \
+            "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" \
+            "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            "JWT_SECRET=${{ secrets.JWT_SECRET }}" \
+            "DEEPGRAM_API_KEY=${{ secrets.DEEPGRAM_API_KEY }}" \
+            "VITE_DEEPGRAM_API_KEY=${{ secrets.DEEPGRAM_API_KEY }}" \
+            "VITE_OPENAI_API_KEY=${{ secrets.VITE_OPENAI_API_KEY }}" \
+            "NODE_ENV=production"
+
+    - name: Get Container App URL
+      id: get_url
+      run: |
+        FQDN=$(az containerapp show \
+          --name ${{ env.CONTAINER_APP_NAME }} \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --query "properties.configuration.ingress.fqdn" -o tsv)
+        echo "url=$FQDN" >> $GITHUB_OUTPUT
+        echo "🌐 Container App URL: https://$FQDN"
+
+    - name: Wait for deployment
+      run: |
+        echo "⏳ Waiting 60 seconds for Container App to start..."
+        sleep 60
+
+    - name: Verify deployment
+      run: |
+        API_URL="https://${{ steps.get_url.outputs.url }}"
+
+        echo "🔍 Validating unified API deployment..."
+        echo "Testing: $API_URL/health"
+
+        # Test health endpoint with retries
+        for i in {1..10}; do
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/health" --max-time 10)
+
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ Health check passed (attempt $i)"
+            HEALTH_RESPONSE=$(curl -s "$API_URL/health")
+            echo "Response: $HEALTH_RESPONSE"
+            break
+          else
+            echo "⏳ Health check returned $HTTP_CODE, retrying... (attempt $i/10)"
+            sleep 10
+          fi
+
+          if [ $i -eq 10 ]; then
+            echo "❌ Health check failed after 10 attempts"
+            exit 1
+          fi
+        done
+
+        echo ""
+        echo "✅ Testing individual API endpoints..."
+        curl -f -s "$API_URL/api/health" > /dev/null && echo "  ✅ Pump API: /api/health"
+        curl -f -s "$API_URL/api/medical/health" > /dev/null && echo "  ✅ Medical Auth API: /api/medical/health"
+
+        echo ""
+        echo "🎉 Deployment completed successfully!"
+        echo "📍 Unified API URL: $API_URL"
+        echo "🎤 WebSocket URL: wss://${{ steps.get_url.outputs.url }}/ws/deepgram"
+
+    - name: Deployment summary
+      run: |
+        echo "=========================================="
+        echo "🚀 TSHLA Medical Unified Container App"
+        echo "=========================================="
+        echo ""
+        echo "📋 Endpoints:"
+        echo "  Health:        https://${{ steps.get_url.outputs.url }}/health"
+        echo "  Pump API:      https://${{ steps.get_url.outputs.url }}/api/pump-*"
+        echo "  Auth API:      https://${{ steps.get_url.outputs.url }}/api/auth/*"
+        echo "  Medical API:   https://${{ steps.get_url.outputs.url }}/api/medical/*"
+        echo "  Schedule API:  https://${{ steps.get_url.outputs.url }}/api/schedule/*"
+        echo "  Admin API:     https://${{ steps.get_url.outputs.url }}/api/accounts/*"
+        echo "  WebSocket:     wss://${{ steps.get_url.outputs.url }}/ws/deepgram"
+        echo ""
+        echo "✅ All services consolidated into ONE Container App!"
+        echo "=========================================="
