@@ -57,7 +57,7 @@ class DeepgramSDKService implements SpeechServiceInterface {
   constructor() {
     this.config = {
       apiKey: import.meta.env.VITE_DEEPGRAM_API_KEY,
-      model: import.meta.env.VITE_DEEPGRAM_MODEL || 'nova-2',
+      model: import.meta.env.VITE_DEEPGRAM_MODEL || 'nova-2-medical',
       language: import.meta.env.VITE_DEEPGRAM_LANGUAGE || 'en-US',
       tier: import.meta.env.VITE_DEEPGRAM_TIER || 'enhanced',
       encoding: 'linear16',
@@ -206,14 +206,27 @@ class DeepgramSDKService implements SpeechServiceInterface {
 
         const data = JSON.parse(messageText);
 
-        // DEBUG: Log all messages from Deepgram
+        // DEBUG: Enhanced logging to diagnose "No Audio Captured" issue
         console.log('📨 Received from Deepgram:', {
           type: data.type,
           hasTranscript: !!data.channel?.alternatives?.[0]?.transcript,
           transcriptLength: data.channel?.alternatives?.[0]?.transcript?.length || 0,
           isFinal: data.is_final,
-          speechFinal: data.speech_final
+          speechFinal: data.speech_final,
+          // Log first 100 chars of full response to see structure
+          fullDataPreview: JSON.stringify(data).substring(0, 200)
         });
+
+        // CRITICAL: Log the actual transcript content if present
+        if (data.channel?.alternatives?.[0]?.transcript) {
+          console.log('✅ TRANSCRIPT RECEIVED:', {
+            text: data.channel.alternatives[0].transcript,
+            confidence: data.channel.alternatives[0].confidence,
+            isFinal: data.is_final
+          });
+        } else {
+          console.warn('⚠️ NO TRANSCRIPT in message:', JSON.stringify(data));
+        }
 
         // Handle different message types from proxy
         if (data.type === 'open') {
@@ -488,6 +501,26 @@ class DeepgramSDKService implements SpeechServiceInterface {
         // Get raw PCM data
         const inputData = e.inputBuffer.getChannelData(0);
 
+        // DIAGNOSTIC: Calculate audio level to verify microphone is capturing audio
+        let sum = 0;
+        let maxSample = 0;
+        for (let i = 0; i < inputData.length; i++) {
+          const absValue = Math.abs(inputData[i]);
+          sum += absValue;
+          if (absValue > maxSample) maxSample = absValue;
+        }
+        const avgLevel = sum / inputData.length;
+        const audioLevelPercent = Math.floor(maxSample * 100);
+
+        // Log audio level periodically to verify capture
+        if (audioChunksSent === 0 || audioChunksSent % 50 === 0) {
+          console.log(`🔊 Audio level check: max=${maxSample.toFixed(4)}, avg=${avgLevel.toFixed(4)}, percent=${audioLevelPercent}%`);
+
+          if (maxSample < 0.001 && audioChunksSent > 10) {
+            console.warn('⚠️ VERY LOW AUDIO LEVEL - Microphone may not be working or volume too low!');
+          }
+        }
+
         // Convert float32 PCM to int16 PCM (required by Deepgram)
         const int16Data = new Int16Array(inputData.length);
         for (let i = 0; i < inputData.length; i++) {
@@ -496,12 +529,23 @@ class DeepgramSDKService implements SpeechServiceInterface {
           int16Data[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
         }
 
+        // DIAGNOSTIC: Log first audio chunk data to verify format
+        if (audioChunksSent === 0) {
+          console.log('🎵 First audio chunk details:', {
+            bufferSize: int16Data.length,
+            sampleFormat: 'int16',
+            firstSamples: Array.from(int16Data.slice(0, 10)),
+            maxValue: Math.max(...Array.from(int16Data)),
+            minValue: Math.min(...Array.from(int16Data))
+          });
+        }
+
         // Send raw PCM data to Deepgram
         if (this.connection.getReadyState() === 1) {
           this.connection.send(int16Data.buffer);
           audioChunksSent++;
           if (audioChunksSent === 1 || audioChunksSent % 100 === 0) {
-            console.log(`🎤 Sent audio chunk #${audioChunksSent} (${int16Data.length} samples)`);
+            console.log(`🎤 Sent audio chunk #${audioChunksSent} (${int16Data.length} samples, level=${audioLevelPercent}%)`);
           }
         } else {
           console.log('⚠️ Cannot send audio - WebSocket not OPEN:', this.connection.getReadyState());

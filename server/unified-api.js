@@ -104,6 +104,53 @@ if (DEEPGRAM_API_KEY) {
       timestamp: new Date().toISOString()
     });
   });
+
+  // Deepgram API key verification endpoint (for debugging)
+  app.get('/api/deepgram/verify', async (req, res) => {
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Credentials', 'true');
+
+    try {
+      console.log('🔑 Testing Deepgram API key...');
+
+      // Test API key with Deepgram Projects API
+      const response = await fetch('https://api.deepgram.com/v1/projects', {
+        headers: {
+          'Authorization': `Token ${DEEPGRAM_API_KEY}`
+        }
+      });
+
+      const isValid = response.ok;
+      const keyPreview = DEEPGRAM_API_KEY.substring(0, 8) + '...' + DEEPGRAM_API_KEY.substring(DEEPGRAM_API_KEY.length - 4);
+
+      if (isValid) {
+        console.log('✅ Deepgram API key is valid');
+        const data = await response.json();
+        res.json({
+          status: 'valid',
+          keyPreview,
+          projects: data.projects?.length || 0,
+          model: process.env.VITE_DEEPGRAM_MODEL || 'nova-2-medical',
+          message: 'Deepgram API key is valid and working'
+        });
+      } else {
+        console.error('❌ Deepgram API key is INVALID:', response.status);
+        res.status(401).json({
+          status: 'invalid',
+          keyPreview,
+          error: `API key validation failed: ${response.status} ${response.statusText}`,
+          message: 'Please check your DEEPGRAM_API_KEY environment variable'
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error verifying Deepgram key:', error);
+      res.status(500).json({
+        status: 'error',
+        error: error.message,
+        message: 'Failed to verify Deepgram API key'
+      });
+    }
+  });
 }
 
 // Now mount the individual API apps
@@ -151,32 +198,72 @@ if (!DEEPGRAM_API_KEY) {
     let deepgramConnection = null;
 
     try {
-      // Create Deepgram live transcription connection
-      deepgramConnection = deepgram.listen.live({
-        model: process.env.VITE_DEEPGRAM_MODEL || 'nova-2',
-        language: process.env.VITE_DEEPGRAM_LANGUAGE || 'en-US',
-        smart_format: true,
-        interim_results: true,
-        utterance_end_ms: 1000,
-        vad_events: true,
-        endpointing: 300,
+      // FIXED: Use medical model with full parameters from client's query string
+      // The client sends all parameters via query string - parse them here
+      const url = new URL(clientWs.upgradeReq?.url || '/ws/deepgram', 'http://localhost');
+      const params = url.searchParams;
+
+      const deepgramConfig = {
+        model: params.get('model') || process.env.VITE_DEEPGRAM_MODEL || 'nova-2-medical',
+        language: params.get('language') || process.env.VITE_DEEPGRAM_LANGUAGE || 'en-US',
+        encoding: params.get('encoding') || 'linear16',
+        sample_rate: parseInt(params.get('sample_rate') || '48000'),
+        channels: parseInt(params.get('channels') || '1'),
+        smart_format: params.get('smart_format') !== 'false',
+        interim_results: params.get('interim_results') !== 'false',
+        vad_events: params.get('vad_events') !== 'false',
+        endpointing: parseInt(params.get('endpointing') || '300'),
+        punctuate: params.get('punctuate') !== 'false',
+        utterances: params.get('utterances') !== 'false',
+        diarize: params.get('diarize') === 'true'
+      };
+
+      // Add keywords if provided
+      const keywords = params.getAll('keywords');
+      if (keywords.length > 0) {
+        deepgramConfig.keywords = keywords;
+      }
+
+      console.log('🎯 Deepgram config:', {
+        model: deepgramConfig.model,
+        sample_rate: deepgramConfig.sample_rate,
+        keywords: keywords.length,
+        encoding: deepgramConfig.encoding
       });
+
+      // Create Deepgram live transcription connection with client parameters
+      deepgramConnection = deepgram.listen.live(deepgramConfig);
 
       // Forward Deepgram events to client
       deepgramConnection.on(LiveTranscriptionEvents.Open, () => {
-        console.log('✅ Deepgram connection opened');
+        console.log('✅ Deepgram connection opened with model:', deepgramConfig.model);
         clientWs.send(JSON.stringify({
           type: 'deepgram_ready',
-          message: 'Connected to Deepgram'
+          message: 'Connected to Deepgram',
+          model: deepgramConfig.model
         }));
       });
 
       deepgramConnection.on(LiveTranscriptionEvents.Transcript, (data) => {
-        // Log transcript for debugging
+        // DIAGNOSTIC: Enhanced logging to debug "No Audio Captured"
         const transcript = data.channel?.alternatives?.[0]?.transcript || '';
-        if (transcript) {
-          console.log('📝 Transcript:', transcript.substring(0, 50), `(${transcript.length} chars, final: ${data.is_final})`);
+        const hasTranscript = transcript && transcript.trim().length > 0;
+
+        if (hasTranscript) {
+          console.log('✅ TRANSCRIPT:', {
+            text: transcript.substring(0, 100),
+            length: transcript.length,
+            isFinal: data.is_final,
+            confidence: data.channel.alternatives[0].confidence
+          });
+        } else {
+          console.log('⚠️ Empty transcript received from Deepgram:', {
+            type: data.type,
+            isFinal: data.is_final,
+            dataKeys: Object.keys(data)
+          });
         }
+
         // Forward transcript to client
         clientWs.send(JSON.stringify(data));
       });
@@ -201,11 +288,28 @@ if (!DEEPGRAM_API_KEY) {
         console.log('🔌 Deepgram connection closed');
       });
 
-      // Forward client audio to Deepgram
+      // Forward client audio to Deepgram with validation
+      let audioChunksReceived = 0;
       clientWs.on('message', (message) => {
         if (deepgramConnection && deepgramConnection.getReadyState() === 1) {
+          // DIAGNOSTIC: Log audio data reception
+          audioChunksReceived++;
+
+          if (audioChunksReceived === 1) {
+            console.log('🎤 First audio chunk received:', {
+              type: typeof message,
+              size: message.length || message.byteLength || 'unknown',
+              isBuffer: Buffer.isBuffer(message),
+              isArrayBuffer: message instanceof ArrayBuffer
+            });
+          } else if (audioChunksReceived % 100 === 0) {
+            console.log(`🎤 Audio chunks received: ${audioChunksReceived}`);
+          }
+
           // Forward audio data to Deepgram
           deepgramConnection.send(message);
+        } else {
+          console.warn('⚠️ Cannot forward audio - Deepgram connection not ready:', deepgramConnection?.getReadyState());
         }
       });
 
