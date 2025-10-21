@@ -19,6 +19,11 @@ interface ProcessedNote {
     physicalExam?: string;
     assessment?: string;
     plan?: string;
+    medications?: string;
+    priorAuth?: string;
+    patientSummary?: string;
+    thyroidUsFna?: string;
+    [key: string]: string | undefined; // Allow any custom section
   };
   metadata?: {
     processingTime: number;
@@ -253,8 +258,8 @@ Generate the formatted medical note now:`;
       const data = await response.json();
       const formattedNote = data.choices[0].message.content;
 
-      // Parse the note into sections
-      const sections = this.parseNoteIntoSections(formattedNote);
+      // Parse the note into sections - use template if provided for custom sections
+      const sections = this.parseNoteIntoSections(formattedNote, template);
 
       const processingTime = Date.now() - startTime;
       const actualTokens = data.usage?.total_tokens || 0;
@@ -406,11 +411,28 @@ Output only the formatted medical note with clear section headers (Chief Complai
     return prompt;
   }
 
-  private parseNoteIntoSections(note: string): any {
+  private parseNoteIntoSections(note: string, template?: DoctorTemplate): any {
     const sections: any = {};
 
-    // Common section headers to look for
-    const sectionHeaders = [
+    // Build section headers list from template if provided, otherwise use defaults
+    let sectionHeaders: string[] = [];
+
+    if (template && template.sections) {
+      // Extract section titles from custom template
+      Object.entries(template.sections).forEach(([_key, section]) => {
+        if (section.title) {
+          sectionHeaders.push(section.title.toLowerCase());
+        }
+      });
+
+      logDebug('AzureOpenAI', 'Parsing with custom template sections', {
+        templateName: template.name,
+        sectionCount: sectionHeaders.length
+      });
+    }
+
+    // Add common section headers as fallback
+    const defaultHeaders = [
       'chief complaint',
       'hpi',
       'history of present illness',
@@ -420,7 +442,17 @@ Output only the formatted medical note with clear section headers (Chief Complai
       'physical examination',
       'assessment',
       'plan',
+      'medications',
+      'prior auth',
+      'prior authorization',
+      'patient summary',
+      'thyroid us fna',
+      'thyroid ultrasound',
+      'fna',
     ];
+
+    // Combine custom and default headers (custom takes priority)
+    sectionHeaders = [...new Set([...sectionHeaders, ...defaultHeaders])];
 
     const lines = note.split('\n');
     let currentSection = '';
@@ -434,7 +466,7 @@ Output only the formatted medical note with clear section headers (Chief Complai
         if (lowerLine.includes(header)) {
           // Save previous section
           if (currentSection && currentContent.length > 0) {
-            sections[this.normalizeSection(currentSection)] = currentContent.join('\n').trim();
+            sections[this.normalizeSection(currentSection, template)] = currentContent.join('\n').trim();
           }
 
           currentSection = header;
@@ -451,13 +483,23 @@ Output only the formatted medical note with clear section headers (Chief Complai
 
     // Save last section
     if (currentSection && currentContent.length > 0) {
-      sections[this.normalizeSection(currentSection)] = currentContent.join('\n').trim();
+      sections[this.normalizeSection(currentSection, template)] = currentContent.join('\n').trim();
     }
 
     return sections;
   }
 
-  private normalizeSection(section: string): string {
+  private normalizeSection(section: string, template?: DoctorTemplate): string {
+    // First, check if this section exists in the custom template
+    if (template && template.sections) {
+      for (const [key, templateSection] of Object.entries(template.sections)) {
+        if (templateSection.title && templateSection.title.toLowerCase() === section.toLowerCase()) {
+          return key; // Return the template section key
+        }
+      }
+    }
+
+    // Standard mapping for common sections
     const mapping: { [key: string]: string } = {
       'chief complaint': 'chiefComplaint',
       hpi: 'hpi',
@@ -468,6 +510,13 @@ Output only the formatted medical note with clear section headers (Chief Complai
       'physical examination': 'physicalExam',
       assessment: 'assessment',
       plan: 'plan',
+      medications: 'medications',
+      'prior auth': 'priorAuth',
+      'prior authorization': 'priorAuth',
+      'patient summary': 'patientSummary',
+      'thyroid us fna': 'thyroidUsFna',
+      'thyroid ultrasound': 'thyroidUltrasound',
+      fna: 'fna',
     };
 
     return mapping[section.toLowerCase()] || section;

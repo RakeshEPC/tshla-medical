@@ -644,21 +644,31 @@ class AzureAIService {
    * Convert Azure OpenAI result to ProcessedNote format
    */
   private convertAzureToProcessedNote(azureResult: any, patient: PatientData): ProcessedNote {
+    // Start with standard sections
+    const sections: any = {
+      chiefComplaint: azureResult.sections.chiefComplaint || '',
+      historyOfPresentIllness: azureResult.sections.hpi || azureResult.sections.historyOfPresentIllness || '',
+      reviewOfSystems: azureResult.sections.reviewOfSystems || azureResult.sections.ros || '',
+      pastMedicalHistory: azureResult.sections.pastMedicalHistory || '',
+      medications: azureResult.sections.medications || '',
+      allergies: azureResult.sections.allergies || '',
+      socialHistory: azureResult.sections.socialHistory || '',
+      familyHistory: azureResult.sections.familyHistory || '',
+      physicalExam: azureResult.sections.physicalExam || azureResult.sections.physicalExamination || '',
+      assessment: azureResult.sections.assessment || '',
+      plan: azureResult.sections.plan || ''
+    };
+
+    // Add any custom sections from the Azure result
+    Object.keys(azureResult.sections).forEach(key => {
+      if (!sections[key] && azureResult.sections[key]) {
+        sections[key] = azureResult.sections[key];
+      }
+    });
+
     return {
       formatted: azureResult.formattedNote,
-      sections: {
-        chiefComplaint: azureResult.sections.chiefComplaint || '',
-        historyOfPresentIllness: azureResult.sections.hpi || azureResult.sections.historyOfPresentIllness || '',
-        reviewOfSystems: azureResult.sections.reviewOfSystems || azureResult.sections.ros || '',
-        pastMedicalHistory: azureResult.sections.pastMedicalHistory || '',
-        medications: azureResult.sections.medications || '',
-        allergies: azureResult.sections.allergies || '',
-        socialHistory: azureResult.sections.socialHistory || '',
-        familyHistory: azureResult.sections.familyHistory || '',
-        physicalExam: azureResult.sections.physicalExam || azureResult.sections.physicalExamination || '',
-        assessment: azureResult.sections.assessment || '',
-        plan: azureResult.sections.plan || ''
-      },
+      sections,
       metadata: {
         processedAt: new Date().toISOString(),
         model: `Azure OpenAI ${azureResult.metadata?.model || 'GPT-4o'}`,
