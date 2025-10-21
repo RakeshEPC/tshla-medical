@@ -830,6 +830,9 @@ class DoctorProfileService {
         effectiveDoctorId
       );
 
+      // Clear cache to ensure new template appears in lists
+      this.clearCache(effectiveDoctorId);
+
       logInfo('doctorProfile', 'Template duplicated successfully', {
         originalId: templateId,
         newId: newTemplate.id
