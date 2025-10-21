@@ -267,7 +267,7 @@ class DoctorProfileService {
         const { data: legacyTemplates, error: legacyError } = await supabase
           .from('templates')
           .select('*')
-          .is('created_by', null)
+          .is('created_by', 'null')  // PostgREST requires string 'null', not actual null
           .order('created_at', { ascending: false });
 
         console.log('🔍 [doctorProfile] Query results:', {
@@ -275,9 +275,24 @@ class DoctorProfileService {
           systemTemplates: systemTemplates?.length || 0,
           legacyTemplates: legacyTemplates?.length || 0,
           errors: {
-            user: userError?.message || null,
-            system: systemError?.message || null,
-            legacy: legacyError?.message || null
+            user: userError ? {
+              message: userError.message,
+              code: userError.code,
+              details: userError.details,
+              hint: userError.hint
+            } : null,
+            system: systemError ? {
+              message: systemError.message,
+              code: systemError.code,
+              details: systemError.details,
+              hint: systemError.hint
+            } : null,
+            legacy: legacyError ? {
+              message: legacyError.message,
+              code: legacyError.code,
+              details: legacyError.details,
+              hint: legacyError.hint
+            } : null
           }
         });
 

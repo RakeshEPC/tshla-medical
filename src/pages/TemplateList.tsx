@@ -10,12 +10,36 @@ export default function TemplateList() {
   const navigate = useNavigate();
   const [templates, setTemplates] = useState<DoctorTemplate[]>([]);
   const [loading, setLoading] = useState(true);
-  const currentUser = unifiedAuthService.getCurrentUser();
-  const doctorId = currentUser?.id || currentUser?.email || 'doctor-default-001';
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [doctorId, setDoctorId] = useState<string>('');
 
+  // Load current user
   useEffect(() => {
-    loadTemplates();
+    async function loadUser() {
+      const result = await unifiedAuthService.getCurrentUser();
+      if (result.success && result.user) {
+        console.log('✅ [TemplateList] User loaded:', {
+          id: result.user.id,
+          email: result.user.email,
+          authUserId: result.user.authUserId
+        });
+        setCurrentUser(result.user);
+        setDoctorId(result.user.id || result.user.email || 'doctor-default-001');
+      } else {
+        console.error('❌ [TemplateList] Failed to load user:', result.error);
+        // Still try to load with default ID
+        setDoctorId('doctor-default-001');
+      }
+    }
+    loadUser();
   }, []);
+
+  // Load templates when doctorId is available
+  useEffect(() => {
+    if (doctorId) {
+      loadTemplates();
+    }
+  }, [doctorId]);
 
   const loadTemplates = async () => {
     if (!doctorId) {
