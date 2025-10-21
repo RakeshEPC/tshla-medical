@@ -239,39 +239,104 @@ class DoctorProfileService {
       }
 
       // Build query to load templates from Supabase
-      let query;
+      // NOTE: The .or() syntax was causing 400 errors, so we split into separate queries
+      let templates: any[] = [];
+
       if (staffData?.id) {
         // User has medical_staff record: load their templates AND system templates
-        // NOTE: Include templates with NULL created_by (legacy templates before migration)
         console.log(`✅ [doctorProfile] Found staff_id: ${staffData.id}, loading user + system templates`);
-        query = supabase
+
+        // Query 1: User's own templates
+        console.log('🔍 [doctorProfile] Querying user templates...');
+        const { data: userTemplates, error: userError } = await supabase
           .from('templates')
           .select('*')
-          .or(`created_by.eq.${staffData.id},created_by.is.null,is_system_template.eq.true`)
+          .eq('created_by', staffData.id)
           .order('created_at', { ascending: false });
-      } else {
-        // No medical_staff record: load only system templates
-        console.warn('⚠️ [doctorProfile] No medical staff record found, loading system templates only');
-        logWarn('doctorProfile', 'No medical staff record found, loading system templates only', { doctorId });
-        query = supabase
+
+        // Query 2: System templates
+        console.log('🔍 [doctorProfile] Querying system templates...');
+        const { data: systemTemplates, error: systemError } = await supabase
           .from('templates')
           .select('*')
           .eq('is_system_template', true)
           .order('created_at', { ascending: false });
-      }
 
-      console.log('🔍 [doctorProfile] Executing templates query...');
-      const { data: templates, error } = await query;
+        // Query 3: Legacy templates (created_by is null - from before migration)
+        console.log('🔍 [doctorProfile] Querying legacy templates...');
+        const { data: legacyTemplates, error: legacyError } = await supabase
+          .from('templates')
+          .select('*')
+          .is('created_by', null)
+          .order('created_at', { ascending: false });
 
-      console.log('🔍 [doctorProfile] Templates query result:', {
-        templateCount: templates?.length || 0,
-        error: error ? error.message : null
-      });
+        console.log('🔍 [doctorProfile] Query results:', {
+          userTemplates: userTemplates?.length || 0,
+          systemTemplates: systemTemplates?.length || 0,
+          legacyTemplates: legacyTemplates?.length || 0,
+          errors: {
+            user: userError?.message || null,
+            system: systemError?.message || null,
+            legacy: legacyError?.message || null
+          }
+        });
 
-      if (error) {
-        console.error('❌ [doctorProfile] Error loading templates from Supabase:', error);
-        logError('doctorProfile', 'Error loading templates from Supabase', { error });
-        return [];
+        // Check for errors
+        if (userError || systemError || legacyError) {
+          const firstError = userError || systemError || legacyError;
+          console.error('❌ [doctorProfile] Error loading templates:', {
+            error: firstError,
+            message: firstError?.message,
+            details: firstError?.details,
+            hint: firstError?.hint,
+            code: firstError?.code
+          });
+          logError('doctorProfile', 'Error loading templates from Supabase', {
+            error: firstError,
+            userError,
+            systemError,
+            legacyError
+          });
+          return [];
+        }
+
+        // Merge all templates
+        const allTemplates = [
+          ...(userTemplates || []),
+          ...(systemTemplates || []),
+          ...(legacyTemplates || [])
+        ];
+
+        // Deduplicate by ID (in case a template appears in multiple queries)
+        const uniqueTemplatesMap = new Map(allTemplates.map(t => [t.id, t]));
+        templates = Array.from(uniqueTemplatesMap.values());
+
+        console.log(`✅ [doctorProfile] Merged ${templates.length} unique templates from ${allTemplates.length} total`);
+      } else {
+        // No medical_staff record: load only system templates
+        console.warn('⚠️ [doctorProfile] No medical staff record found, loading system templates only');
+        logWarn('doctorProfile', 'No medical staff record found, loading system templates only', { doctorId });
+
+        const { data: systemTemplates, error } = await supabase
+          .from('templates')
+          .select('*')
+          .eq('is_system_template', true)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('❌ [doctorProfile] Error loading system templates:', {
+            error,
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code
+          });
+          logError('doctorProfile', 'Error loading templates from Supabase', { error });
+          return [];
+        }
+
+        templates = systemTemplates || [];
+        console.log(`✅ [doctorProfile] Loaded ${templates.length} system templates`);
       }
 
       if (templates && templates.length > 0) {
