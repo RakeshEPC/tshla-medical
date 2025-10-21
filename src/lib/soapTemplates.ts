@@ -1,8 +1,10 @@
 /**
- * SOAP Templates - Now uses Template Studio Enhanced as the single source of truth
+ * SOAP Templates - Now uses Supabase via doctorProfileService as the single source of truth
+ * NOTE: This is a compatibility layer for legacy code. New code should use doctorProfileService directly.
  */
 
-import { templateStorage } from './templateStorage';
+import { doctorProfileService } from '../services/doctorProfile.service';
+import { supabaseAuthService } from '../services/supabaseAuth.service';
 
 export interface SOAPTemplate {
   id: string;
@@ -15,28 +17,43 @@ export interface SOAPTemplate {
   plan: any;
 }
 
-// Get all templates from Template Studio Enhanced
-export function getAllTemplates(): SOAPTemplate[] {
-  const studioTemplates = templateStorage.getTemplates();
+// Get all templates from Supabase
+export async function getAllTemplates(): Promise<SOAPTemplate[]> {
+  try {
+    // Get current user
+    const result = await supabaseAuthService.getCurrentUser();
+    if (!result.success || !result.user) {
+      console.warn('[soapTemplates] No authenticated user, returning empty templates');
+      return [];
+    }
 
-  // Convert studio templates to SOAP format
-  return studioTemplates.map(template => ({
-    id: template.id,
-    name: template.name,
-    specialty: template.specialty || 'General',
-    description: `${template.name} template`,
-    subjective: template.sections?.subjective || {},
-    objective: template.sections?.objective || {},
-    assessment: template.sections?.assessment || {},
-    plan: template.sections?.plan || {},
-  }));
+    const doctorId = result.user.authUserId || result.user.id || result.user.email || 'doctor-default-001';
+    doctorProfileService.initialize(doctorId);
+
+    const studioTemplates = await doctorProfileService.getTemplates(doctorId);
+
+    // Convert studio templates to SOAP format
+    return studioTemplates.map(template => ({
+      id: template.id,
+      name: template.name,
+      specialty: 'General',
+      description: template.description || `${template.name} template`,
+      subjective: template.sections?.subjective || {},
+      objective: template.sections?.objective || {},
+      assessment: template.sections?.assessment || {},
+      plan: template.sections?.plan || {},
+    }));
+  } catch (error) {
+    console.error('[soapTemplates] Error loading templates:', error);
+    return [];
+  }
 }
 
 // Get saved template preference
-export function getSavedTemplate(): string {
+export async function getSavedTemplate(): Promise<string> {
   if (typeof window !== 'undefined') {
     const savedId = localStorage.getItem('preferred_soap_template');
-    const templates = getAllTemplates();
+    const templates = await getAllTemplates();
 
     // Verify the saved template still exists
     if (savedId && templates.find(t => t.id === savedId)) {
@@ -56,26 +73,37 @@ export function saveTemplatePreference(templateId: string): void {
   }
 }
 
-// Get custom templates (now returns empty since all templates are in Template Studio)
-export function getCustomTemplates(): SOAPTemplate[] {
+// Get custom templates (now returns empty since all templates are in Supabase)
+export async function getCustomTemplates(): Promise<SOAPTemplate[]> {
   return [];
 }
 
-// Save custom template (redirects to Template Studio)
-export function saveCustomTemplate(template: SOAPTemplate): void {
-  // Convert to studio format and save
-  templateStorage.createTemplate({
-    name: template.name,
-    specialty: template.specialty || 'General',
-    template_type: 'soap',
-    sections: {
-      subjective: template.subjective,
-      objective: template.objective,
-      assessment: template.assessment,
-      plan: template.plan,
-    },
-    is_shared: false,
-    macros: {},
-    quick_phrases: [],
-  });
+// Save custom template (saves to Supabase)
+export async function saveCustomTemplate(template: SOAPTemplate): Promise<void> {
+  try {
+    const result = await supabaseAuthService.getCurrentUser();
+    if (!result.success || !result.user) {
+      throw new Error('No authenticated user');
+    }
+
+    const doctorId = result.user.authUserId || result.user.id || result.user.email || 'doctor-default-001';
+    doctorProfileService.initialize(doctorId);
+
+    // Convert to DoctorTemplate format and save to Supabase
+    await doctorProfileService.createTemplate({
+      name: template.name,
+      description: template.description || `${template.name} template`,
+      visitType: 'general',
+      isDefault: false,
+      sections: {
+        subjective: template.subjective,
+        objective: template.objective,
+        assessment: template.assessment,
+        plan: template.plan,
+      }
+    }, doctorId);
+  } catch (error) {
+    console.error('[soapTemplates] Error saving template:', error);
+    throw error;
+  }
 }

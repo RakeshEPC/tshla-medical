@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { templateStorage } from '../lib/templateStorage';
+import { doctorProfileService, type DoctorTemplate } from '../services/doctorProfile.service';
+import { supabaseAuthService } from '../services/supabaseAuth.service';
 import type { Template } from '../types/template.types';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
 
@@ -7,50 +8,81 @@ export default function TemplateDebug() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [rawJson, setRawJson] = useState<string>('');
+  const [doctorId, setDoctorId] = useState<string>('');
 
   useEffect(() => {
-    loadTemplates();
+    initializeAndLoadTemplates();
   }, []);
 
-  const loadTemplates = () => {
-    const allTemplates = templateStorage.getTemplates();
-    setTemplates(allTemplates);
-
-    // Log all templates for debugging
-    logDebug('TemplateDebug', 'Debug message', {});
-    allTemplates.forEach(template => {
-      logDebug('TemplateDebug', 'Debug message', {});
-      if (template.sections) {
-        logDebug('TemplateDebug', 'Debug message', {});
-        Object.entries(template.sections).forEach(([key, section]) => {
-          if (typeof section === 'object' && section !== null) {
-            logDebug('TemplateDebug', 'Debug message', {});
-            logDebug('TemplateDebug', 'Debug message', {});
-          }
-        });
+  const initializeAndLoadTemplates = async () => {
+    try {
+      const result = await supabaseAuthService.getCurrentUser();
+      if (result.success && result.user) {
+        const id = result.user.authUserId || result.user.id || result.user.email || 'doctor-default-001';
+        setDoctorId(id);
+        doctorProfileService.initialize(id);
+        await loadTemplates(id);
       }
-    });
+    } catch (error) {
+      logError('TemplateDebug', 'Error initializing', { error });
+    }
+  };
 
-    // Find rakesh 222 or any template with 222 in name
-    const rakesh222 = allTemplates.find(
-      t =>
-        t.name.toLowerCase().includes('222') ||
-        t.name.toLowerCase() === 'rakesh 222' ||
-        t.name.toLowerCase() === 'rakesh222'
-    );
+  const loadTemplates = async (id: string) => {
+    try {
+      const doctorTemplates = await doctorProfileService.getTemplates(id);
+      // Convert DoctorTemplate to Template format
+      const allTemplates: Template[] = doctorTemplates.map((dt: DoctorTemplate) => ({
+        id: dt.id,
+        name: dt.name,
+        description: dt.description || '',
+        specialty: 'General',
+        template_type: 'custom',
+        sections: dt.sections || {},
+        created_at: dt.createdAt,
+        usage_count: dt.usageCount || 0,
+      }));
+      setTemplates(allTemplates);
 
-    if (rakesh222) {
-      setSelectedTemplate(rakesh222);
-      setRawJson(JSON.stringify(rakesh222, null, 2));
+      // Log all templates for debugging
       logDebug('TemplateDebug', 'Debug message', {});
-    } else {
-      // Try to find any rakesh template
-      const rakeshTemplate = allTemplates.find(t => t.name.toLowerCase().includes('rakesh'));
-      if (rakeshTemplate) {
-        setSelectedTemplate(rakeshTemplate);
-        setRawJson(JSON.stringify(rakeshTemplate, null, 2));
+      allTemplates.forEach(template => {
         logDebug('TemplateDebug', 'Debug message', {});
+        if (template.sections) {
+          logDebug('TemplateDebug', 'Debug message', {});
+          Object.entries(template.sections).forEach(([key, section]) => {
+            if (typeof section === 'object' && section !== null) {
+              logDebug('TemplateDebug', 'Debug message', {});
+              logDebug('TemplateDebug', 'Debug message', {});
+            }
+          });
+        }
+      });
+
+      // Find rakesh 222 or any template with 222 in name
+      const rakesh222 = allTemplates.find(
+        t =>
+          t.name.toLowerCase().includes('222') ||
+          t.name.toLowerCase() === 'rakesh 222' ||
+          t.name.toLowerCase() === 'rakesh222'
+      );
+
+      if (rakesh222) {
+        setSelectedTemplate(rakesh222);
+        setRawJson(JSON.stringify(rakesh222, null, 2));
+        logDebug('TemplateDebug', 'Debug message', {});
+      } else {
+        // Try to find any rakesh template
+        const rakeshTemplate = allTemplates.find(t => t.name.toLowerCase().includes('rakesh'));
+        if (rakeshTemplate) {
+          setSelectedTemplate(rakeshTemplate);
+          setRawJson(JSON.stringify(rakeshTemplate, null, 2));
+          logDebug('TemplateDebug', 'Debug message', {});
+        }
       }
+    } catch (error) {
+      logError('TemplateDebug', 'Error loading templates', { error });
+      setTemplates([]);
     }
   };
 

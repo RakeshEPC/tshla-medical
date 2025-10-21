@@ -35,7 +35,7 @@ export * from './security/pumpSecureStorage';
 export * from './security/clientSecureStorage';
 
 // Templates and Storage
-export { templateStorage } from './templateStorage';
+// templateStorage has been removed - use doctorProfileService instead
 export type { Template } from '../types/template.types';
 export { default as templateStore } from './templateStore';
 export * from './templates/defaultTemplates';

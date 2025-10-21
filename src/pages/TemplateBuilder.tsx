@@ -212,10 +212,16 @@ export default function TemplateBuilder() {
   };
 
   // Delete template
-  const deleteTemplate = (id: string) => {
+  const deleteTemplate = async (id: string) => {
     if (confirm('Are you sure you want to delete this template?')) {
-      templateStorage.deleteTemplate(id);
-      loadSavedTemplates();
+      try {
+        await doctorProfileService.deleteTemplate(id, doctorId);
+        await loadSavedTemplates();
+        logInfo('TemplateBuilder', 'Template deleted', { id });
+      } catch (error) {
+        logError('TemplateBuilder', 'Error deleting template', { error });
+        alert(`Failed to delete template: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
     }
   };
 

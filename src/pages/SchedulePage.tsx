@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabaseAuthService as unifiedAuthService } from '../services/supabaseAuth.service';
-import { templateStorage } from '../lib/templateStorage';
+import { doctorProfileService, type DoctorTemplate } from '../services/doctorProfile.service';
 import type { Template } from '../types/template.types';
 
 interface Appointment {
@@ -22,17 +22,49 @@ export default function SchedulePage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [showTemplateSelector, setShowTemplateSelector] = useState<string | null>(null);
-  const currentUser = unifiedAuthService.getCurrentUser();
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [doctorId, setDoctorId] = useState<string>('');
   const currentDoctor = currentUser?.name || 'Dr. Smith';
 
   useEffect(() => {
-    // Load templates
-    const loadedTemplates = templateStorage.getTemplates();
-    setTemplates(loadedTemplates);
+    const loadUser = async () => {
+      const result = await unifiedAuthService.getCurrentUser();
+      if (result.success && result.user) {
+        setCurrentUser(result.user);
+        const id = result.user.authUserId || result.user.id || result.user.email || 'doctor-default-001';
+        setDoctorId(id);
+        doctorProfileService.initialize(id);
+        await loadTemplates(id);
+      }
+    };
+    loadUser();
+  }, []);
 
+  useEffect(() => {
     // Load appointments for the selected date
     loadAppointments();
   }, [selectedDate]);
+
+  const loadTemplates = async (id: string) => {
+    try {
+      const doctorTemplates = await doctorProfileService.getTemplates(id);
+      // Convert DoctorTemplate to Template format
+      const convertedTemplates: Template[] = doctorTemplates.map((dt: DoctorTemplate) => ({
+        id: dt.id,
+        name: dt.name,
+        description: dt.description || '',
+        specialty: 'General',
+        template_type: 'custom',
+        sections: dt.sections || {},
+        created_at: dt.createdAt,
+        usage_count: dt.usageCount || 0,
+      }));
+      setTemplates(convertedTemplates);
+    } catch (error) {
+      console.error('Error loading templates:', error);
+      setTemplates([]);
+    }
+  };
 
   const loadAppointments = () => {
     // Mock appointments - in production, fetch from backend
@@ -126,9 +158,15 @@ export default function SchedulePage() {
     setAppointments(mockAppointments);
   };
 
-  const startDictationWithTemplate = (appointmentId: string, template: Template) => {
-    // Save template selection
-    templateStorage.trackUsage(template.id);
+  const startDictationWithTemplate = async (appointmentId: string, template: Template) => {
+    // Track template usage in Supabase
+    if (doctorId) {
+      try {
+        await doctorProfileService.trackTemplateUsage(template.id, doctorId);
+      } catch (error) {
+        console.error('Error tracking template usage:', error);
+      }
+    }
 
     // Navigate to dictation with template
     navigate(`/dictation/${appointmentId}`, {

@@ -1,94 +1,129 @@
-import React from 'react';
-import { templateStorage } from '../lib/templateStorage';
+import React, { useState, useEffect } from 'react';
+import { doctorProfileService, type DoctorTemplate } from '../services/doctorProfile.service';
+import { supabaseAuthService } from '../services/supabaseAuth.service';
 import { useNavigate } from 'react-router-dom';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
 
 export default function RestoreTemplate() {
   const navigate = useNavigate();
+  const [doctorId, setDoctorId] = useState<string>('');
 
-  const restoreRakesh222Template = () => {
-    const rakesh222Template = {
+  useEffect(() => {
+    const initDoctor = async () => {
+      const result = await supabaseAuthService.getCurrentUser();
+      if (result.success && result.user) {
+        const id = result.user.authUserId || result.user.id || result.user.email || 'doctor-default-001';
+        setDoctorId(id);
+        doctorProfileService.initialize(id);
+      }
+    };
+    initDoctor();
+  }, []);
+
+  const restoreRakesh222Template = async () => {
+    if (!doctorId) {
+      alert('Please wait, initializing...');
+      return;
+    }
+
+    const rakesh222Template: Omit<DoctorTemplate, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'> = {
       name: 'rakesh 222',
-      specialty: 'Endocrinology',
-      template_type: 'custom',
+      description: 'Endocrinology template - third person, bullet points, professional',
+      visitType: 'follow-up',
+      isDefault: false,
       generalInstructions: 'third person, professional, all of this is bullet points, not prose or sentences, so have bullet points that has all pertinent info',
       sections: {
         subjective: {
           title: 'R: SUBJECTIVE',
           aiInstructions: 'This is the part where they tell you the story of what happened since last time medically. include everything. If it\'s endocrine related, make it bold, keep it organized and in chronological order as much as possible. Do not put labs or medications here. put what the sugars are here from CGM or fingersticks.',
-          order: 0
+          required: true,
+          order: 0,
+          format: 'paragraph'
         },
         current_status: {
           title: 'R: CURRENT STATUS',
           aiInstructions: 'This is where we want to know what meds that they are taking. We want to know what the labs were done and the results here. bullet points, not prose. we want to know what they stopped or not compliant with here. We want a summary of the main endocrine problem.',
-          order: 1
+          required: true,
+          order: 1,
+          format: 'paragraph'
         },
         plan: {
           title: 'R: PLAN',
           aiInstructions: 'This is what we are going to do. What meds are we starting. What meds are we changing the dose up or down. What meds are we stopping. What labs are we ordering.',
-          order: 2
+          required: true,
+          order: 2,
+          format: 'paragraph'
         },
         follow_up: {
           title: 'R: FOLLOW UP',
           aiInstructions: 'When do we want to see the patient again. What are we going to do next time',
-          order: 3
+          required: true,
+          order: 3,
+          format: 'paragraph'
         },
         ultrasound: {
           title: 'R: ULTRASOUND',
           aiInstructions: 'If ultrasound was done, include this section. If no ultrasound done, ignore and do not include this section. Put summary of the results of the ultrasound here.',
-          order: 4
+          required: false,
+          order: 4,
+          format: 'paragraph'
         },
         cpt: {
           title: 'R: CPT',
           aiInstructions: 'From the dictation, grab all the diagnosis you can and list them here in icd-10 format. It\'s ok to infer, if we are starting a statin, it\'s ok to add hyperlipidemia or hyperTG or goiter, or nodules or diabetes controlled or uncontrolled, etc... start with diagnosis to consider',
-          order: 5
+          required: true,
+          order: 5,
+          format: 'paragraph'
         }
-      },
-      is_shared: false,
-      is_system_template: false
+      }
     };
 
     try {
       // First, delete any existing rakesh 222 template
-      const existingTemplates = templateStorage.getTemplates();
+      const existingTemplates = await doctorProfileService.getTemplates(doctorId);
       const existingRakesh = existingTemplates.find(t => t.name === 'rakesh 222');
       if (existingRakesh) {
-        templateStorage.deleteTemplate(existingRakesh.id);
-        logDebug('RestoreTemplate', 'Debug message', {});
+        await doctorProfileService.deleteTemplate(existingRakesh.id, doctorId);
+        logDebug('RestoreTemplate', 'Deleted existing rakesh 222 template', {});
       }
-      
-      // Create the template
-      const created = templateStorage.createTemplate(rakesh222Template);
-      logDebug('RestoreTemplate', 'Debug message', {});
-      logDebug('RestoreTemplate', 'Debug message', {});
-      
+
+      // Create the template in Supabase
+      const created = await doctorProfileService.createTemplate(rakesh222Template, doctorId);
+      logDebug('RestoreTemplate', 'Created rakesh 222 template in Supabase', { id: created.id });
+
       // Verify the template has AI instructions
       Object.entries(created.sections).forEach(([key, section]) => {
-        logDebug('RestoreTemplate', 'Debug message', {});
         if (typeof section === 'object' && section.aiInstructions) {
-          logDebug("RestoreTemplate", "Section has AI instructions");
+          logDebug("RestoreTemplate", "Section has AI instructions", { section: key });
         } else {
-          logWarn('RestoreTemplate', 'Warning message', {});
+          logWarn('RestoreTemplate', 'Section missing AI instructions', { section: key });
         }
       });
-      
-      // Set as default
-      localStorage.setItem('defaultTemplateId', created.id);
-      
-      alert('✅ rakesh 222 template has been restored successfully!\n\nThe template has been created and set as your default.\n\nCheck the console to verify AI instructions are present.');
-      
-      // Navigate to dictation page
-      navigate('/');
+
+      alert('✅ rakesh 222 template has been restored successfully to Supabase!\n\nThe template has been created and is ready to use.\n\nCheck the console to verify AI instructions are present.');
+
+      // Navigate to templates page
+      navigate('/templates');
     } catch (error) {
-      logError('RestoreTemplate', 'Error message', {});
-      alert('Error creating template. Please check the console.');
+      logError('RestoreTemplate', 'Error restoring template', { error });
+      alert(`Error creating template: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
-  const checkExistingTemplates = () => {
-    const templates = templateStorage.getTemplates();
-    logDebug('RestoreTemplate', 'Debug message', {});
-    alert(`Found ${templates.length} templates:\n${templates.map(t => `- ${t.name} (${t.id})`).join('\n')}`);
+  const checkExistingTemplates = async () => {
+    if (!doctorId) {
+      alert('Please wait, initializing...');
+      return;
+    }
+
+    try {
+      const templates = await doctorProfileService.getTemplates(doctorId);
+      logDebug('RestoreTemplate', 'Retrieved templates from Supabase', { count: templates.length });
+      alert(`Found ${templates.length} templates in Supabase:\n${templates.map(t => `- ${t.name} (${t.id})`).join('\n')}`);
+    } catch (error) {
+      logError('RestoreTemplate', 'Error loading templates', { error });
+      alert('Error loading templates');
+    }
   };
 
   return (

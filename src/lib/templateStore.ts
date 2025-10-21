@@ -1,15 +1,32 @@
 /**
- * Template Store - Redirects to Template Studio Enhanced
+ * Template Store - Compatibility layer for Supabase templates
+ * NOTE: This is a legacy compatibility layer. New code should use doctorProfileService directly.
  */
 
 import { getAllTemplates } from './soapTemplates';
-import { templateStorage } from './templateStorage';
+import { doctorProfileService } from '../services/doctorProfile.service';
+import { supabaseAuthService } from '../services/supabaseAuth.service';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
 
 class TemplateStore {
   private static instance: TemplateStore;
+  private doctorId: string = '';
 
-  private constructor() {}
+  private constructor() {
+    this.initializeDoctorId();
+  }
+
+  private async initializeDoctorId() {
+    try {
+      const result = await supabaseAuthService.getCurrentUser();
+      if (result.success && result.user) {
+        this.doctorId = result.user.authUserId || result.user.id || result.user.email || 'doctor-default-001';
+        doctorProfileService.initialize(this.doctorId);
+      }
+    } catch (error) {
+      console.error('[templateStore] Error initializing doctor ID:', error);
+    }
+  }
 
   static getInstance(): TemplateStore {
     if (!TemplateStore.instance) {
@@ -23,15 +40,15 @@ class TemplateStore {
     return () => {};
   }
 
-  // Get all templates from Template Studio
-  getAllTemplates() {
-    return getAllTemplates();
+  // Get all templates from Supabase (async)
+  async getAllTemplates() {
+    return await getAllTemplates();
   }
 
   // Refresh templates
-  refreshTemplates() {
-    // Templates are always fresh from templateStorage
-    logDebug('App', 'Debug message', {});
+  async refreshTemplates() {
+    // Templates are always fresh from Supabase
+    logDebug('TemplateStore', 'Refreshing templates from Supabase', {});
   }
 
   // Check authentication status
@@ -61,48 +78,64 @@ class TemplateStore {
   }
 
   // Get template by ID
-  getTemplateById(templateId: string) {
-    const templates = this.getAllTemplates();
+  async getTemplateById(templateId: string) {
+    const templates = await this.getAllTemplates();
     return templates.find(t => t.id === templateId) || null;
   }
 
   // Get default template
-  getDefaultTemplate() {
+  async getDefaultTemplate() {
     const defaultId = this.getDefaultTemplateId();
     if (defaultId) {
-      return this.getTemplateById(defaultId);
+      return await this.getTemplateById(defaultId);
     }
-    const all = this.getAllTemplates();
+    const all = await this.getAllTemplates();
     return all[0] || null;
   }
 
-  // Save custom template (redirects to Template Studio)
-  saveCustomTemplate(template: any) {
-    templateStorage.createTemplate({
-      name: template.name,
-      specialty: template.specialty || 'General',
-      template_type: 'soap',
-      sections: {
-        subjective: template.subjective || {},
-        objective: template.objective || {},
-        assessment: template.assessment || {},
-        plan: template.plan || {},
-      },
-      is_shared: false,
-      macros: {},
-      quick_phrases: [],
-    });
+  // Save custom template (saves to Supabase)
+  async saveCustomTemplate(template: any) {
+    try {
+      if (!this.doctorId) {
+        await this.initializeDoctorId();
+      }
+
+      await doctorProfileService.createTemplate({
+        name: template.name,
+        description: `${template.specialty || 'General'} template`,
+        visitType: 'general',
+        isDefault: false,
+        sections: {
+          subjective: template.subjective || {},
+          objective: template.objective || {},
+          assessment: template.assessment || {},
+          plan: template.plan || {},
+        }
+      }, this.doctorId);
+    } catch (error) {
+      logError('TemplateStore', 'Error saving template', { error });
+      throw error;
+    }
   }
 
   // Delete custom template
-  deleteCustomTemplate(templateId: string) {
-    templateStorage.deleteTemplate(templateId);
+  async deleteCustomTemplate(templateId: string) {
+    try {
+      if (!this.doctorId) {
+        await this.initializeDoctorId();
+      }
+      await doctorProfileService.deleteTemplate(templateId, this.doctorId);
+    } catch (error) {
+      logError('TemplateStore', 'Error deleting template', { error });
+      throw error;
+    }
   }
 
   // Export settings
-  exportSettings() {
+  async exportSettings() {
+    const templates = await doctorProfileService.getTemplates(this.doctorId);
     return {
-      templates: templateStorage.getTemplates(),
+      templates,
       defaultTemplateId: this.getDefaultTemplateId(),
       timestamp: new Date().toISOString(),
     };

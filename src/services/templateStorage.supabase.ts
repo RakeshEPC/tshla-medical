@@ -1,6 +1,7 @@
 import { supabaseService } from './supabase.service';
+import { doctorProfileService, type DoctorTemplate } from './doctorProfile.service';
+import { supabaseAuthService } from './supabaseAuth.service';
 import type { Template as SupabaseTemplate } from '../lib/supabase';
-import { templateStorage } from './templateStorage';
 import type { Template } from '../types/template.types';
 import { logError, logWarn, logInfo, logDebug } from './logger.service';
 
@@ -42,51 +43,62 @@ const convertFromSupabaseTemplate = (template: SupabaseTemplate): Template => {
 };
 
 /**
- * Template storage service that syncs with Supabase
+ * Template storage service that syncs with Supabase via doctorProfileService
+ * NOTE: This is a compatibility layer for legacy code. New code should use doctorProfileService directly.
  */
 class SupabaseTemplateStorage {
   private cache: Map<string, Template> = new Map();
   private initialized = false;
+  private doctorId: string = '';
 
   /**
-   * Initialize templates from Supabase
+   * Initialize doctor ID and templates from Supabase
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
-    if (supabaseService.isConfigured()) {
-      try {
-        const result = await supabaseService.getTemplates();
-        if (result.success && result.templates) {
-          // Clear cache and load from Supabase
-          this.cache.clear();
-          result.templates.forEach(template => {
-            const converted = convertFromSupabaseTemplate(template);
-            this.cache.set(template.id, converted);
-          });
-          this.initialized = true;
-        }
-      } catch (error) {
-        logError('templateStorage.supabase', 'Error message', {});
-        // Fallback to local templates
-        this.loadLocalTemplates();
+    try {
+      // Get current user
+      const result = await supabaseAuthService.getCurrentUser();
+      if (result.success && result.user) {
+        this.doctorId = result.user.authUserId || result.user.id || result.user.email || 'doctor-default-001';
+        doctorProfileService.initialize(this.doctorId);
+
+        // Load templates from Supabase
+        const templates = await doctorProfileService.getTemplates(this.doctorId);
+
+        // Clear cache and populate
+        this.cache.clear();
+        templates.forEach(template => {
+          const converted = this.convertDoctorTemplateToTemplate(template);
+          this.cache.set(template.id, converted);
+        });
+        this.initialized = true;
+      } else {
+        logError('templateStorage.supabase', 'No authenticated user found', {});
       }
-    } else {
-      // Load local templates if Supabase not configured
-      this.loadLocalTemplates();
+    } catch (error) {
+      logError('templateStorage.supabase', 'Error initializing templates', { error });
     }
   }
 
   /**
-   * Load templates from localStorage
+   * Convert DoctorTemplate to Template format
    */
-  private loadLocalTemplates(): void {
-    const localTemplates = templateStorage.getTemplates();
-    this.cache.clear();
-    localTemplates.forEach(template => {
-      this.cache.set(template.id, template);
-    });
-    this.initialized = true;
+  private convertDoctorTemplateToTemplate(dt: DoctorTemplate): Template {
+    return {
+      id: dt.id,
+      name: dt.name,
+      description: dt.description || '',
+      specialty: 'General',
+      template_type: 'custom',
+      sections: dt.sections || {},
+      created_at: dt.createdAt,
+      usage_count: dt.usageCount || 0,
+      macros: {},
+      quick_phrases: [],
+      is_system_template: false
+    };
   }
 
   /**
@@ -113,55 +125,65 @@ class SupabaseTemplateStorage {
    * Add a new template
    */
   async addTemplate(template: Omit<Template, 'id'>): Promise<Template> {
-    if (supabaseService.isConfigured()) {
-      try {
-        const result = await supabaseService.createTemplate(
-          convertToSupabaseTemplate(template as Template)
-        );
-        if (result.success && result.template) {
-          const converted = convertFromSupabaseTemplate(result.template);
-          this.cache.set(result.template.id, converted);
-          return converted;
-        }
-      } catch (error) {
-        logError('templateStorage.supabase', 'Error message', {});
+    try {
+      if (!this.doctorId) {
+        await this.initialize();
       }
-    }
 
-    // Fallback to local storage
-    const newTemplate = templateStorage.addTemplate(template);
-    this.cache.set(newTemplate.id, newTemplate);
-    return newTemplate;
+      const newTemplate = await doctorProfileService.createTemplate({
+        name: template.name,
+        description: template.description || '',
+        visitType: 'general',
+        isDefault: false,
+        sections: template.sections || {}
+      }, this.doctorId);
+
+      const converted = this.convertDoctorTemplateToTemplate(newTemplate);
+      this.cache.set(newTemplate.id, converted);
+      return converted;
+    } catch (error) {
+      logError('templateStorage.supabase', 'Error adding template', { error });
+      throw error;
+    }
   }
 
   /**
    * Update template usage count
    */
   async trackUsage(templateId: string): Promise<void> {
-    // Update in Supabase if configured
-    if (supabaseService.isConfigured()) {
-      await supabaseService.updateTemplateUsage(templateId);
-    }
+    try {
+      if (!this.doctorId) {
+        await this.initialize();
+      }
 
-    // Also update local cache
-    const template = this.cache.get(templateId);
-    if (template) {
-      template.usage_count = (template.usage_count || 0) + 1;
-      this.cache.set(templateId, template);
-    }
+      await doctorProfileService.trackTemplateUsage(templateId, this.doctorId);
 
-    // Update localStorage as well
-    templateStorage.trackUsage(templateId);
+      // Also update local cache
+      const template = this.cache.get(templateId);
+      if (template) {
+        template.usage_count = (template.usage_count || 0) + 1;
+        this.cache.set(templateId, template);
+      }
+    } catch (error) {
+      logError('templateStorage.supabase', 'Error tracking usage', { error });
+    }
   }
 
   /**
    * Delete a template
    */
   async deleteTemplate(id: string): Promise<void> {
-    // For now, only delete from local storage
-    // Supabase deletion would need additional API method
-    templateStorage.deleteTemplate(id);
-    this.cache.delete(id);
+    try {
+      if (!this.doctorId) {
+        await this.initialize();
+      }
+
+      await doctorProfileService.deleteTemplate(id, this.doctorId);
+      this.cache.delete(id);
+    } catch (error) {
+      logError('templateStorage.supabase', 'Error deleting template', { error });
+      throw error;
+    }
   }
 }
 
