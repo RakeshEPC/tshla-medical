@@ -44,9 +44,16 @@ export const handleAuthError = (error: any, isRetry = false): Promise<never> => 
     const currentPath = window.location.pathname;
     const isPumpDrive = currentPath.startsWith('/pumpdrive');
 
-    // IMPORTANT: Don't clear tokens on results/assessment pages
+    // IMPORTANT: Don't clear tokens on results/assessment/dictation pages
     // Let the page handle auth errors gracefully without losing user's work
-    const protectedPaths = ['/pumpdrive/results', '/pumpdrive/assessment', '/pumpdrive/report'];
+    const protectedPaths = [
+      '/pumpdrive/results',
+      '/pumpdrive/assessment',
+      '/pumpdrive/report',
+      '/quick-note',
+      '/quick-note-modern',
+      '/dictation'
+    ];
     const isProtectedPath = protectedPaths.some(path => currentPath.startsWith(path));
 
     if (isProtectedPath) {
@@ -131,16 +138,26 @@ export const setupFetchInterceptor = () => {
       const isSupabaseApi = requestUrl.includes('supabase.co') ||
                             requestUrl.includes('.supabase.');
 
+      // SKIP auth interception for Deepgram proxy calls
+      // Deepgram health checks should never trigger auth redirects
+      const isDeepgramProxy = requestUrl.includes('deepgram') ||
+                             requestUrl.includes(':8080') ||
+                             requestUrl.includes('localhost:8080') ||
+                             requestUrl.includes('/health');
+
       // SKIP auth interception for admin routes
       const currentPath = window.location.pathname;
       const isAdminRoute = currentPath.startsWith('/admin');
 
-      if (isAdminApi || isAdminRoute || isSupabaseApi) {
+      if (isAdminApi || isAdminRoute || isSupabaseApi || isDeepgramProxy) {
         console.log('🔓 [AuthInterceptor] SKIPPING interception for:', {
           url: requestUrl,
           path: currentPath,
           status: response.status,
-          reason: isAdminApi ? 'Admin API call' : isAdminRoute ? 'Admin route' : 'Supabase API call'
+          reason: isAdminApi ? 'Admin API call' :
+                  isAdminRoute ? 'Admin route' :
+                  isSupabaseApi ? 'Supabase API call' :
+                  'Deepgram proxy call'
         });
         // Return the response as-is, let the calling code handle errors
         return response;
