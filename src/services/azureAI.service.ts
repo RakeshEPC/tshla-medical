@@ -591,7 +591,10 @@ class AzureAIService {
       let azureResult;
       if (customTemplate) {
         // For custom templates, use the custom prompt with detailed instructions
-        logDebug('azureAI', 'Debug message', {});
+        logInfo('azureAI', '🔥 USING CUSTOM TEMPLATE PATH', {
+          templateName: customTemplate.template.name,
+          sectionsCount: Object.keys(customTemplate.template.sections).length
+        });
         azureResult = await azureOpenAIService.processTranscriptionWithCustomPrompt(
           transcript,
           prompt, // Use the detailed custom prompt we built
@@ -603,9 +606,13 @@ class AzureAIService {
           customTemplate.template,
           additionalContext
         );
+        logInfo('azureAI', '✅ Custom template AI processing complete', {
+          hasFormattedNote: !!azureResult.formattedNote,
+          sectionsInResult: Object.keys(azureResult.sections || {}).length
+        });
       } else {
         // For standard templates, use the standard method
-        logDebug('azureAI', 'Debug message', {});
+        logInfo('azureAI', '⚠️ USING STANDARD TEMPLATE PATH (not custom)');
         azureResult = await azureOpenAIService.processTranscription(
           transcript,
           templateString,
@@ -1092,9 +1099,11 @@ Date: ${date}
 
     // Build section instructions from doctor's custom template
     const sectionPrompts: string[] = [];
+    const sectionTitles: string[] = [];
 
     Object.entries(template.sections).forEach(([key, section]) => {
       const format = section.format || 'paragraph';
+      sectionTitles.push(section.title);
 
       // Build instructions WITHOUT literal "Format:" and "Focus:" labels that AI might echo
       let instructions = section.aiInstructions || '';
@@ -1124,7 +1133,11 @@ INSTRUCTIONS: ${instructions}
 `);
     });
 
-    logInfo('azureAI', 'Custom prompt built with template', { sectionCount: Object.keys(template.sections).length });
+    logInfo('azureAI', 'Custom prompt built with template', {
+      templateName: template.name,
+      sectionCount: Object.keys(template.sections).length,
+      sectionTitles: sectionTitles.join(', ')
+    });
 
     // Get AI style preferences
     const styleGuide = {
