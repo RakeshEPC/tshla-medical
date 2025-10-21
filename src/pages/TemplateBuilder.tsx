@@ -15,7 +15,9 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { templateStorage } from '../lib/templateStorage';
+import { doctorProfileService, type DoctorTemplate } from '../services/doctorProfile.service';
+import { supabaseAuthService as unifiedAuthService } from '../services/supabaseAuth.service';
+import { logError, logInfo } from '../services/logger.service';
 import type { Template } from '../types/template.types';
 
 interface TemplateSection {
@@ -39,18 +41,45 @@ export default function TemplateBuilder() {
     },
   ]);
   const [showPreview, setShowPreview] = useState(false);
-  const [savedTemplates, setSavedTemplates] = useState<Template[]>([]);
-  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+  const [savedTemplates, setSavedTemplates] = useState<DoctorTemplate[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<DoctorTemplate | null>(null);
+  const [doctorId, setDoctorId] = useState<string>('');
 
-  // Load saved templates
+  // Load saved templates from Supabase
   useEffect(() => {
-    loadSavedTemplates();
+    initializeAndLoadTemplates();
   }, []);
 
-  const loadSavedTemplates = () => {
-    const allTemplates = templateStorage.getTemplates();
-    const customTemplates = allTemplates.filter(t => !t.is_system_template);
-    setSavedTemplates(customTemplates);
+  const initializeAndLoadTemplates = async () => {
+    try {
+      const currentUser = await unifiedAuthService.getCurrentUser();
+      if (!currentUser) {
+        logError('TemplateBuilder', 'No authenticated user found');
+        return;
+      }
+
+      const id = currentUser.authUserId || currentUser.id || currentUser.email || 'doctor-default-001';
+      setDoctorId(id);
+      doctorProfileService.initialize(id);
+
+      await loadSavedTemplates(id);
+    } catch (error) {
+      logError('TemplateBuilder', 'Error initializing', { error });
+    }
+  };
+
+  const loadSavedTemplates = async (id?: string) => {
+    try {
+      const effectiveDoctorId = id || doctorId;
+      const allTemplates = await doctorProfileService.getTemplates(effectiveDoctorId);
+      // Filter out system templates to show only custom ones
+      const customTemplates = allTemplates.filter(t => t.id && !t.id.startsWith('system_'));
+      setSavedTemplates(customTemplates);
+      logInfo('TemplateBuilder', `Loaded ${customTemplates.length} custom templates from Supabase`);
+    } catch (error) {
+      logError('TemplateBuilder', 'Error loading templates', { error });
+      setSavedTemplates([]);
+    }
   };
 
   // Add new section
@@ -92,39 +121,52 @@ export default function TemplateBuilder() {
     setSections(newSections);
   };
 
-  // Save template
+  // Save template to Supabase
   const saveTemplate = async () => {
     if (!templateName || sections.length === 0) {
       alert('Please provide a template name and at least one section');
       return;
     }
 
-    // Convert sections to template format
-    const templateSections: any = {};
-    sections.forEach(section => {
-      if (section.title) {
-        const key = section.title.toLowerCase().replace(/\s+/g, '_');
-        templateSections[key] = {
-          title: section.title,
-          aiInstructions: section.aiInstructions,
-          order: section.order,
-        };
-      }
-    });
+    if (!doctorId) {
+      alert('Please log in to save templates');
+      return;
+    }
 
-    const template: Omit<Template, 'id' | 'created_at' | 'usage_count'> = {
-      name: templateName,
-      specialty: specialty,
-      template_type: 'custom',
-      sections: templateSections,
-      is_shared: false,
-      is_system_template: false,
-    };
+    try {
+      // Convert sections to DoctorTemplate format
+      const templateSections: DoctorTemplate['sections'] = {};
+      sections.forEach(section => {
+        if (section.title) {
+          const key = section.title.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+          templateSections[key] = {
+            title: section.title,
+            aiInstructions: section.aiInstructions,
+            required: true,
+            order: section.order,
+            format: 'paragraph'
+          };
+        }
+      });
 
-    const savedTemplate = templateStorage.createTemplate(template);
-    loadSavedTemplates();
-    alert('Template saved successfully!');
-    clearForm();
+      const newTemplate: Omit<DoctorTemplate, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'> = {
+        name: templateName,
+        description: `Custom ${specialty} template`,
+        visitType: 'general',
+        isDefault: false,
+        sections: templateSections,
+        generalInstructions: ''
+      };
+
+      await doctorProfileService.createTemplate(newTemplate, doctorId);
+      await loadSavedTemplates();
+      alert('Template saved successfully to Supabase!');
+      logInfo('TemplateBuilder', 'Template saved', { templateName });
+      clearForm();
+    } catch (error) {
+      logError('TemplateBuilder', 'Error saving template', { error });
+      alert(`Failed to save template: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   };
 
   // Clear form

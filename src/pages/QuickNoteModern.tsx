@@ -238,6 +238,17 @@ export default function QuickNoteModern() {
       return;
     }
 
+    // Track template usage to update "last used" timestamp
+    if (selectedTemplate) {
+      try {
+        await doctorProfileService.trackTemplateUsage(selectedTemplate.id);
+        logInfo('QuickNoteModern', 'Template usage tracked', { templateId: selectedTemplate.id });
+      } catch (error) {
+        logWarn('QuickNoteModern', 'Failed to track template usage', { error });
+        // Don't block AI processing if tracking fails
+      }
+    }
+
     setIsProcessing(true);
     setShowProcessed(false);
     setProcessingStage('analyzing');
