@@ -187,30 +187,44 @@ export default function MedicalDictation({ patientId, preloadPatientData = false
   // Load doctor templates
   useEffect(() => {
     const loadTemplates = async () => {
-      const currentUser = unifiedAuthService.getCurrentUser();
-      // Always use a default doctor ID if no user is logged in
-      const doctorId = currentUser?.id || currentUser?.email || 'doctor-default-001';
-      
-      logDebug('MedicalDictation', 'Debug message', {});
-      doctorProfileService.initialize(doctorId);
-      
       try {
+        // CRITICAL: Must await getCurrentUser() to get actual user object, not Promise
+        const result = await unifiedAuthService.getCurrentUser();
+        if (!result.success || !result.user) {
+          console.error('❌ [MedicalDictation] No authenticated user found');
+          logError('MedicalDictation', 'Failed to get current user', { error: result.error });
+          setTemplates([]);
+          setRecentTemplates([]);
+          setFavoriteTemplates([]);
+          return;
+        }
+
+        const doctorId = result.user.authUserId || result.user.id || result.user.email || 'doctor-default-001';
+        console.log('✅ [MedicalDictation] Loading templates for doctor:', { id: doctorId, email: result.user.email });
+
+        doctorProfileService.initialize(doctorId);
+
         const allTemplates = await doctorProfileService.getTemplates(doctorId);
         const recent = await doctorProfileService.getRecentTemplates(doctorId);
         const favorites = await doctorProfileService.getFavoriteTemplates(doctorId);
-        
-        logDebug('MedicalDictation', 'Debug message', {});
+
+        console.log(`✅ [MedicalDictation] Loaded ${allTemplates.length} templates from Supabase`);
         setTemplates(allTemplates);
         setRecentTemplates(recent);
         setFavoriteTemplates(favorites);
-        
+
         // Set default template if available
         const defaultTemplate = await doctorProfileService.getDefaultTemplate(doctorId);
         if (defaultTemplate) {
+          console.log('✅ [MedicalDictation] Set default template:', defaultTemplate.name);
           setSelectedTemplate(defaultTemplate);
+        } else if (allTemplates.length > 0) {
+          console.log('✅ [MedicalDictation] Set first template as default:', allTemplates[0].name);
+          setSelectedTemplate(allTemplates[0]);
         }
       } catch (error) {
-        logError('MedicalDictation', 'Error message', {});
+        console.error('❌ [MedicalDictation] Failed to load templates:', error);
+        logError('MedicalDictation', 'Failed to load templates from Supabase', { error });
         // Load empty array as fallback, don't block dictation
         setTemplates([]);
         setRecentTemplates([]);
