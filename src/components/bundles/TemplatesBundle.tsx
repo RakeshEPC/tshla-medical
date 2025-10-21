@@ -18,7 +18,6 @@ const TemplatesLoader = () => (
 
 // Lazy load template components
 const DoctorTemplates = lazy(() => import('../../pages/DoctorTemplates'));
-const TemplateList = lazy(() => import('../../pages/TemplateList'));
 const TemplateImportExport = lazy(() => import('../../pages/TemplateImportExport'));
 const TemplateDebug = lazy(() => import('../../pages/TemplateDebug'));
 const FixTemplateIssues = lazy(() => import('../../pages/FixTemplateIssues'));
@@ -29,10 +28,14 @@ export default function TemplatesBundle() {
   return (
     <Suspense fallback={<TemplatesLoader />}>
       <Routes>
-        {/* Main Templates Routes */}
-        <Route index element={<Navigate to="/templates/list" replace />} />
-        <Route path="list" element={<TemplateList />} />
-        <Route path="doctor" element={<DoctorTemplates />} />
+        {/* Main Templates Route - DoctorTemplates is the single template management page */}
+        <Route index element={<DoctorTemplates />} />
+
+        {/* Redirects for legacy routes */}
+        <Route path="list" element={<Navigate to="/templates" replace />} />
+        <Route path="doctor" element={<Navigate to="/templates" replace />} />
+
+        {/* Additional template management */}
         <Route path="add-custom" element={<AddCustomTemplate />} />
 
         {/* Import/Export */}
@@ -44,7 +47,7 @@ export default function TemplatesBundle() {
         <Route path="restore" element={<RestoreTemplate />} />
 
         {/* Fallback */}
-        <Route path="*" element={<Navigate to="/templates/list" replace />} />
+        <Route path="*" element={<Navigate to="/templates" replace />} />
       </Routes>
     </Suspense>
   );

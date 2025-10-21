@@ -109,7 +109,7 @@ export default function DoctorNavBar({
   };
 
   const handleTemplates = () => {
-    navigate('/templates/list');
+    navigate('/templates');
   };
 
   const handleLogout = async () => {
@@ -204,7 +204,7 @@ export default function DoctorNavBar({
                       <div className="space-y-1 mb-3">
                         <button
                           onClick={() => {
-                            navigate('/templates/doctor');
+                            navigate('/templates');
                             setShowTemplateMenu(false);
                           }}
                           className="w-full flex items-center space-x-2 p-2 rounded hover:bg-gray-50 text-left"
@@ -230,7 +230,7 @@ export default function DoctorNavBar({
                               <button
                                 key={template.id}
                                 onClick={() => {
-                                  navigate(`/templates/doctor?edit=${template.id}`);
+                                  navigate(`/templates?edit=${template.id}`);
                                   setShowTemplateMenu(false);
                                 }}
                                 className="w-full text-left p-2 rounded hover:bg-gray-50"
@@ -254,7 +254,7 @@ export default function DoctorNavBar({
                               <p className="text-xs text-gray-500 mb-2">No recent templates</p>
                               <button
                                 onClick={() => {
-                                  navigate('/templates/doctor');
+                                  navigate('/templates');
                                   setShowTemplateMenu(false);
                                 }}
                                 className="text-xs text-blue-600 hover:text-blue-700"

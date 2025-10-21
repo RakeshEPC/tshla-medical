@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getPatientData, type PatientData } from '../services/patientData.service';
-import { templateStorage } from '../lib/templateStorage';
+import { doctorProfileService, type DoctorTemplate } from '../services/doctorProfile.service';
+import { supabaseAuthService } from '../services/supabaseAuth.service';
 import type { Template } from '../types/template.types';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
 import { elevenLabsService, ELEVENLABS_VOICES } from '../services/elevenLabs.service';
@@ -24,6 +25,7 @@ export default function DictationPage() {
   const [showProcessed, setShowProcessed] = useState(false);
   const [patientData, setPatientData] = useState<PatientData | undefined>();
   const [patientSummary, setPatientSummary] = useState('');
+  const [doctorId, setDoctorId] = useState<string>('');
 
   // Load patient data
   useEffect(() => {
@@ -71,16 +73,60 @@ ${
     }
   }, [patientId]);
 
-  // Load templates
+  // Load doctor ID from auth
   useEffect(() => {
-    const allTemplates = templateStorage.getTemplates();
-    setTemplates(allTemplates);
-    // Set first template as default if available
-    if (allTemplates.length > 0 && !selectedTemplate) {
-      setSelectedTemplate(allTemplates[0].id);
-      setCurrentTemplate(allTemplates[0]);
+    async function loadDoctor() {
+      const result = await supabaseAuthService.getCurrentUser();
+      if (result.success && result.user) {
+        const id = result.user.authUserId || result.user.id || result.user.email;
+        console.log('✅ [DictationPage] Doctor loaded:', { id, email: result.user.email });
+        setDoctorId(id);
+      } else {
+        console.error('❌ [DictationPage] Failed to load doctor:', result.error);
+      }
     }
+    loadDoctor();
   }, []);
+
+  // Load templates from Supabase (not localStorage!)
+  useEffect(() => {
+    async function loadTemplates() {
+      if (!doctorId) return;
+
+      try {
+        console.log('🔍 [DictationPage] Loading templates from Supabase for doctor:', doctorId);
+        doctorProfileService.initialize(doctorId);
+        const doctorTemplates = await doctorProfileService.getTemplates(doctorId);
+
+        console.log(`✅ [DictationPage] Loaded ${doctorTemplates.length} templates from Supabase`);
+
+        // Convert DoctorTemplate to Template format for compatibility
+        const convertedTemplates: Template[] = doctorTemplates.map((dt: DoctorTemplate) => ({
+          id: dt.id,
+          name: dt.name,
+          description: dt.description || '',
+          sections: dt.sections || {},
+          created_at: dt.createdAt,
+          usage_count: dt.usageCount || 0,
+        }));
+
+        setTemplates(convertedTemplates);
+
+        // Set first template as default if available
+        if (convertedTemplates.length > 0 && !selectedTemplate) {
+          setSelectedTemplate(convertedTemplates[0].id);
+          setCurrentTemplate(convertedTemplates[0]);
+          console.log('✅ [DictationPage] Selected default template:', convertedTemplates[0].name);
+        }
+      } catch (error) {
+        console.error('❌ [DictationPage] Failed to load templates:', error);
+        logError('DictationPage', 'Failed to load templates from Supabase', { error, doctorId });
+        setTemplates([]);
+      }
+    }
+
+    loadTemplates();
+  }, [doctorId]);
 
   // Update current template when selection changes
   useEffect(() => {
@@ -171,8 +217,13 @@ ${
     setSelectedTemplate(templateId);
     const template = templates.find(t => t.id === templateId);
     setCurrentTemplate(template || null);
-    // Track template usage
-    templateStorage.trackUsage(templateId);
+
+    // Track template usage in Supabase
+    if (doctorId && templateId) {
+      doctorProfileService.trackTemplateUsage(templateId, doctorId).catch(error => {
+        console.error('Failed to track template usage:', error);
+      });
+    }
   };
 
   const processWithAI = async () => {
