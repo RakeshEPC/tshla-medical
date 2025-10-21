@@ -219,16 +219,21 @@ class DoctorProfileService {
    */
   private async loadTemplatesFromDatabase(doctorId: string): Promise<DoctorTemplate[]> {
     try {
+      console.log('🔍 [doctorProfile] Loading templates from Supabase', { doctorId });
       logDebug('doctorProfile', 'Loading templates from Supabase', { doctorId });
 
       // Get staff_id from medical_staff table
+      console.log('🔍 [doctorProfile] Querying medical_staff for auth_user_id:', doctorId);
       const { data: staffData, error: staffError } = await supabase
         .from('medical_staff')
         .select('id')
         .eq('auth_user_id', doctorId)
         .maybeSingle();
 
+      console.log('🔍 [doctorProfile] medical_staff query result:', { staffData, staffError });
+
       if (staffError) {
+        console.error('❌ [doctorProfile] Error finding medical staff:', staffError);
         logError('doctorProfile', 'Error finding medical staff', { error: staffError });
         // Still try to load system templates even if there's an error
       }
@@ -238,6 +243,7 @@ class DoctorProfileService {
       if (staffData?.id) {
         // User has medical_staff record: load their templates AND system templates
         // NOTE: Include templates with NULL created_by (legacy templates before migration)
+        console.log(`✅ [doctorProfile] Found staff_id: ${staffData.id}, loading user + system templates`);
         query = supabase
           .from('templates')
           .select('*')
@@ -245,6 +251,7 @@ class DoctorProfileService {
           .order('created_at', { ascending: false });
       } else {
         // No medical_staff record: load only system templates
+        console.warn('⚠️ [doctorProfile] No medical staff record found, loading system templates only');
         logWarn('doctorProfile', 'No medical staff record found, loading system templates only', { doctorId });
         query = supabase
           .from('templates')
@@ -253,14 +260,22 @@ class DoctorProfileService {
           .order('created_at', { ascending: false });
       }
 
+      console.log('🔍 [doctorProfile] Executing templates query...');
       const { data: templates, error } = await query;
 
+      console.log('🔍 [doctorProfile] Templates query result:', {
+        templateCount: templates?.length || 0,
+        error: error ? error.message : null
+      });
+
       if (error) {
+        console.error('❌ [doctorProfile] Error loading templates from Supabase:', error);
         logError('doctorProfile', 'Error loading templates from Supabase', { error });
         return [];
       }
 
       if (templates && templates.length > 0) {
+        console.log(`✅ [doctorProfile] Successfully loaded ${templates.length} templates from Supabase`);
         logInfo('doctorProfile', `Loaded ${templates.length} templates from Supabase`, {});
 
         // Convert Supabase format to DoctorTemplate format
@@ -278,11 +293,15 @@ class DoctorProfileService {
         }));
       }
 
+      console.warn('⚠️ [doctorProfile] No templates found in Supabase');
       logDebug('doctorProfile', 'No templates found in Supabase', {});
       return [];
     } catch (error) {
+      console.error('❌ [doctorProfile] Exception loading templates:', error);
       logError('doctorProfile', 'Exception loading templates', { error });
-      return [];
+
+      // Re-throw the error so it can be caught by the calling function
+      throw error;
     }
   }
 

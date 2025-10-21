@@ -66,6 +66,7 @@ export default function DoctorTemplates() {
   const [saving, setSaving] = useState(false);
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -95,18 +96,33 @@ export default function DoctorTemplates() {
   useEffect(() => {
     const loadData = async () => {
       if (currentDoctor) {
-        // Clear cache to ensure fresh templates including Tess and Nikki
-        doctorProfileService.clearCache(currentDoctor.id);
-
-        doctorProfileService.initialize(currentDoctor.id);
-        await loadTemplates();
         try {
+          console.log('🔍 [DoctorTemplates] Loading data for doctor:', {
+            id: currentDoctor.id,
+            email: currentDoctor.email,
+            name: currentDoctor.name
+          });
+
+          // Clear cache to ensure fresh templates including Tess and Nikki
+          doctorProfileService.clearCache(currentDoctor.id);
+
+          doctorProfileService.initialize(currentDoctor.id);
+          await loadTemplates();
+
           const doctorProfile = await doctorProfileService.getProfile(currentDoctor.id);
           setProfile(doctorProfile);
+
+          console.log('✅ [DoctorTemplates] Data loaded successfully');
         } catch (error) {
-          logError('DoctorTemplates', 'Error message', {});
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
+          console.error('❌ [DoctorTemplates] Failed to load data:', error);
+          logError('DoctorTemplates', 'Failed to load templates', { error, doctorId: currentDoctor?.id });
+          setLoadError(errorMsg);
+        } finally {
+          // Always set loading to false, even if there's an error
+          setLoading(false);
+          console.log('🏁 [DoctorTemplates] Loading complete');
         }
-        setLoading(false);
       }
     };
     loadData();
@@ -138,28 +154,43 @@ export default function DoctorTemplates() {
   }, [searchParams, templates]);
 
   const loadTemplates = async () => {
-    if (!currentDoctor) return;
+    if (!currentDoctor) {
+      console.warn('⚠️ [DoctorTemplates] loadTemplates called without currentDoctor');
+      return;
+    }
 
-    logDebug('DoctorTemplates', 'Debug message', {});
+    const doctorId = currentDoctor.id || currentDoctor.email || currentDoctor.name || 'default-doctor';
+
+    console.log('🔍 [DoctorTemplates] Loading templates for doctorId:', doctorId);
 
     try {
-      const doctorId =
-        currentDoctor.id || currentDoctor.email || currentDoctor.name || 'default-doctor';
-      logDebug('DoctorTemplates', 'Debug message', {});
-
-      // Load templates directly from MySQL
+      // Load templates from Supabase
       const doctorTemplates = await doctorProfileService.getTemplates(doctorId);
-      logInfo('DoctorTemplates', 'Info message', {});
+
+      console.log(`✅ [DoctorTemplates] Successfully loaded ${doctorTemplates.length} templates`);
+      logInfo('DoctorTemplates', `Loaded ${doctorTemplates.length} templates`, { doctorId });
 
       setTemplates(doctorTemplates);
     } catch (error) {
-      logError('DoctorTemplates', 'Error message', {});
+      const errorMsg = error instanceof Error ? error.message : 'Database connection failed';
 
-      // Show user-friendly error message
-      alert(
-        `❌ Failed to load templates: ${error instanceof Error ? error.message : 'Database connection failed'}. Please ensure the Template API server is running.`
-      );
+      console.error('❌ [DoctorTemplates] Failed to load templates:', {
+        error,
+        errorMessage: errorMsg,
+        doctorId
+      });
+
+      logError('DoctorTemplates', 'Failed to load templates', {
+        error,
+        doctorId,
+        errorMessage: errorMsg
+      });
+
+      // Set empty array so the page can still render (not stuck in loading)
       setTemplates([]);
+
+      // Don't throw - let the error be handled by the parent try/catch
+      throw new Error(`Failed to load templates: ${errorMsg}`);
     }
   };
 
@@ -425,7 +456,59 @@ export default function DoctorTemplates() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading templates...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-red-50 border-2 border-red-200 rounded-lg shadow-lg p-6">
+          <div className="flex items-start mb-4">
+            <div className="flex-shrink-0">
+              <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div className="ml-3 flex-1">
+              <h3 className="text-lg font-semibold text-red-800 mb-2">Failed to Load Templates</h3>
+              <p className="text-sm text-red-700 mb-4">{loadError}</p>
+              <div className="text-xs text-red-600 mb-4">
+                <p className="font-medium mb-1">Possible causes:</p>
+                <ul className="list-disc list-inside space-y-1">
+                  <li>Database connection issue</li>
+                  <li>No medical staff record found</li>
+                  <li>Supabase access permissions</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={() => {
+                setLoadError(null);
+                setLoading(true);
+                window.location.reload();
+              }}
+              className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+            >
+              Retry
+            </button>
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="flex-1 px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-100 transition-colors font-medium"
+            >
+              Back to Dashboard
+            </button>
+          </div>
+          <div className="mt-4 pt-4 border-t border-red-200">
+            <p className="text-xs text-red-600">
+              Check browser console (F12) for detailed error information
+            </p>
+          </div>
         </div>
       </div>
     );
