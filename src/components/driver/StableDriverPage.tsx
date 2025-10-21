@@ -60,7 +60,6 @@ export default function StableDriverPage() {
   const router = useRouter();
   const [transcript, setTranscript] = useState('');
   const [patientId, setPatientId] = useState(`PT-${Date.now().toString(36).toUpperCase()}`);
-  const [sessionTimeRemaining, setSessionTimeRemaining] = useState(30 * 60);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [savedNotes, setSavedNotes] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -92,7 +91,6 @@ export default function StableDriverPage() {
   const [activeMedication, setActiveMedication] = useState<string>('');
   const [interimText, setInterimText] = useState('');
 
-  const sessionTimerRef = useRef<NodeJS.Timeout>();
   const recognitionRef = useRef<any>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
@@ -350,35 +348,8 @@ export default function StableDriverPage() {
     });
   };
 
-  // Session timeout
-  useEffect(() => {
-    sessionTimerRef.current = setInterval(() => {
-      setSessionTimeRemaining(prev => {
-        if (prev <= 0) {
-          handleSessionTimeout();
-          return 0;
-        }
-        if (prev === 120) {
-          alert('Your session will expire in 2 minutes. Please save your work.');
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => {
-      if (sessionTimerRef.current) {
-        clearInterval(sessionTimerRef.current);
-      }
-    };
-  }, []);
-
-  const handleSessionTimeout = () => {
-    alert('Your session has expired for security. Please log in again.');
-    if (typeof window !== 'undefined') {
-      sessionStorage.clear();
-    }
-    router.push('/');
-  };
+  // Session timeout is now handled by SessionMonitor component
+  // (removed duplicate logic to prevent conflicts)
 
   // Recording functions
   const startRecording = async () => {

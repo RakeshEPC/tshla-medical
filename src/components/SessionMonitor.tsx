@@ -12,7 +12,7 @@ const SESSION_TIMEOUT_MS =
   parseInt(import.meta.env.VITE_SESSION_TIMEOUT_MINUTES || '30') * 60 * 1000;
 const WARNING_BEFORE_TIMEOUT_MS =
   parseInt(import.meta.env.VITE_SESSION_WARNING_MINUTES || '2') * 60 * 1000;
-const CHECK_INTERVAL_MS = 10 * 1000; // Check every 10 seconds
+const CHECK_INTERVAL_MS = 30 * 1000; // Check every 30 seconds (reduced from 10s to prevent aggressive checking)
 
 export default function SessionMonitor({ children }: SessionMonitorProps) {
   const navigate = useNavigate();
@@ -23,6 +23,8 @@ export default function SessionMonitor({ children }: SessionMonitorProps) {
   const warningTimeoutRef = useRef<NodeJS.Timeout>();
   const logoutTimeoutRef = useRef<NodeJS.Timeout>();
   const isActivelyUsing = useRef<boolean>(false);
+  const validationFailureCount = useRef<number>(0);
+  const lastValidationFailure = useRef<number>(0);
 
   // Handle automatic logout
   const handleLogout = useCallback(
@@ -166,11 +168,30 @@ export default function SessionMonitor({ children }: SessionMonitorProps) {
           .then(result => {
             // Properly check AuthResult structure: { success: boolean, user?: AuthUser, error?: string }
             if (!result.success || !result.user) {
-              logError('SessionMonitor', `Session validation failed: ${result.error || 'User not found'}`, {
+              const now = Date.now();
+
+              // Implement grace period: only logout after 3 consecutive failures within 2 minutes
+              if (now - lastValidationFailure.current > 120000) {
+                // Reset counter if last failure was more than 2 minutes ago
+                validationFailureCount.current = 0;
+              }
+
+              validationFailureCount.current++;
+              lastValidationFailure.current = now;
+
+              logError('SessionMonitor', `Session validation failed (${validationFailureCount.current}/3): ${result.error || 'User not found'}`, {
                 hasToken: !!token,
-                errorMessage: result.error
+                errorMessage: result.error,
+                failureCount: validationFailureCount.current
               });
-              handleLogout();
+
+              // Only logout after 3 consecutive failures
+              if (validationFailureCount.current >= 3) {
+                handleLogout();
+              }
+            } else {
+              // Reset failure counter on successful validation
+              validationFailureCount.current = 0;
             }
           })
           .catch(error => {

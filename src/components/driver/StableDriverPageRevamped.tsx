@@ -77,7 +77,6 @@ export default function StableDriverPageRevamped() {
   const router = useRouter();
   const [transcript, setTranscript] = useState('');
   const [patientId, setPatientId] = useState(`PT-${Date.now().toString(36).toUpperCase()}`);
-  const [sessionTimeRemaining, setSessionTimeRemaining] = useState(30 * 60);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [todayPatients, setTodayPatients] = useState<PatientRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -108,10 +107,10 @@ export default function StableDriverPageRevamped() {
   const [activeMedication, setActiveMedication] = useState<string>('');
   const [interimText, setInterimText] = useState('');
 
-  const sessionTimerRef = useRef<NodeJS.Timeout>();
   const recognitionRef = useRef<any>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
+  const isStoppingRecording = useRef<boolean>(false);
 
   // Load templates and today's patients on mount
   useEffect(() => {
@@ -368,35 +367,8 @@ export default function StableDriverPageRevamped() {
     });
   };
 
-  // Session timeout
-  useEffect(() => {
-    sessionTimerRef.current = setInterval(() => {
-      setSessionTimeRemaining(prev => {
-        if (prev <= 0) {
-          handleSessionTimeout();
-          return 0;
-        }
-        if (prev === 120) {
-          alert('Your session will expire in 2 minutes. Please save your work.');
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => {
-      if (sessionTimerRef.current) {
-        clearInterval(sessionTimerRef.current);
-      }
-    };
-  }, []);
-
-  const handleSessionTimeout = () => {
-    alert('Your session has expired for security. Please log in again.');
-    if (typeof window !== 'undefined') {
-      sessionStorage.clear();
-    }
-    router.push('/');
-  };
+  // Session timeout is now handled by SessionMonitor component
+  // (removed duplicate logic to prevent conflicts)
 
   // Recording functions
   const startRecording = async () => {
@@ -449,20 +421,53 @@ export default function StableDriverPageRevamped() {
   };
 
   const stopRecording = () => {
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (e) {}
+    // Prevent multiple simultaneous stop calls
+    if (isStoppingRecording.current) {
+      return;
     }
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-      if (mediaRecorderRef.current.stream) {
-        mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+
+    try {
+      isStoppingRecording.current = true;
+
+      // Stop speech recognition
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {
+          logError('StableDriverPageRevamped', 'Error stopping speech recognition', { error: e });
+        }
       }
+
+      // Stop media recorder
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        try {
+          mediaRecorderRef.current.stop();
+          if (mediaRecorderRef.current.stream) {
+            mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+          }
+        } catch (e) {
+          logError('StableDriverPageRevamped', 'Error stopping media recorder', { error: e });
+        }
+      }
+
+      // Update state
+      setIsRecording(false);
+      setIsPaused(false);
+      setInterimText('');
+
+      logInfo('StableDriverPageRevamped', 'Recording stopped successfully', {});
+    } catch (error) {
+      logError('StableDriverPageRevamped', 'Error in stopRecording', { error });
+      // Still update state even if there was an error
+      setIsRecording(false);
+      setIsPaused(false);
+      setInterimText('');
+    } finally {
+      // Reset the flag after a short delay to allow state updates to complete
+      setTimeout(() => {
+        isStoppingRecording.current = false;
+      }, 500);
     }
-    setIsRecording(false);
-    setIsPaused(false);
-    setInterimText('');
   };
 
   // Save note to database
@@ -698,18 +703,6 @@ export default function StableDriverPageRevamped() {
                     Dashboard
                   </Link>
                 </div>
-              </div>
-              <div className="flex items-center gap-3 text-sm">
-                <span className="text-gray-600">
-                  Session: {Math.floor(sessionTimeRemaining / 60)}:
-                  {String(sessionTimeRemaining % 60).padStart(2, '0')}
-                </span>
-                <button
-                  onClick={() => setSessionTimeRemaining(30 * 60)}
-                  className="text-blue-600 hover:text-blue-800"
-                >
-                  Extend
-                </button>
               </div>
             </div>
           </div>
