@@ -237,10 +237,11 @@ class DoctorProfileService {
       let query;
       if (staffData?.id) {
         // User has medical_staff record: load their templates AND system templates
+        // NOTE: Database uses 'created_by' field, not 'staff_id'
         query = supabase
           .from('templates')
           .select('*')
-          .or(`staff_id.eq.${staffData.id},is_system_template.eq.true`)
+          .or(`created_by.eq.${staffData.id},is_system_template.eq.true`)
           .order('created_at', { ascending: false });
       } else {
         // No medical_staff record: load only system templates
@@ -477,10 +478,11 @@ class DoctorProfileService {
       }
 
       // Insert into Supabase
+      // NOTE: Database uses 'created_by' field to match schema, not 'staff_id'
       const { data: newTemplate, error} = await supabase
         .from('templates')
         .insert({
-          staff_id: staffData.id,
+          created_by: staffData.id,
           name: template.name,
           specialty: template.description || 'General',
           template_type: template.visitType || 'general',
