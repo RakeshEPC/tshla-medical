@@ -22,6 +22,7 @@ export default function SessionMonitor({ children }: SessionMonitorProps) {
   const [lastActivity, setLastActivity] = useState<number>(Date.now());
   const warningTimeoutRef = useRef<NodeJS.Timeout>();
   const logoutTimeoutRef = useRef<NodeJS.Timeout>();
+  const isActivelyUsing = useRef<boolean>(false);
 
   // Handle automatic logout
   const handleLogout = useCallback(
@@ -100,6 +101,14 @@ export default function SessionMonitor({ children }: SessionMonitorProps) {
       }
 
       const now = Date.now();
+      // Mark user as actively using the app
+      isActivelyUsing.current = true;
+
+      // Reset the "actively using" flag after 3 seconds of no activity
+      setTimeout(() => {
+        isActivelyUsing.current = false;
+      }, 3000);
+
       // Only reset if more than 30 seconds since last activity
       if (now - lastActivity > 30000) {
         resetActivityTimer();
@@ -123,6 +132,15 @@ export default function SessionMonitor({ children }: SessionMonitorProps) {
     // Use capture phase for click monitoring to avoid conflicts
     document.addEventListener('click', handleClickActivity, { capture: true, passive: true });
 
+    // Mark user as actively using when clicking
+    const markActiveOnClick = () => {
+      isActivelyUsing.current = true;
+      setTimeout(() => {
+        isActivelyUsing.current = false;
+      }, 3000);
+    };
+    document.addEventListener('click', markActiveOnClick, { capture: true, passive: true });
+
     // Initial setup
     resetActivityTimer();
 
@@ -142,13 +160,23 @@ export default function SessionMonitor({ children }: SessionMonitorProps) {
         handleLogout();
       }
 
-      // Validate session with server
-      if (token) {
-        Promise.resolve(unifiedAuthService.getCurrentUser()).then(user => {
-          if (!user) {
-            handleLogout();
-          }
-        });
+      // Validate session with server (but skip if user is actively interacting)
+      if (token && !isActivelyUsing.current) {
+        unifiedAuthService.getCurrentUser()
+          .then(result => {
+            // Properly check AuthResult structure: { success: boolean, user?: AuthUser, error?: string }
+            if (!result.success || !result.user) {
+              logError('SessionMonitor', `Session validation failed: ${result.error || 'User not found'}`, {
+                hasToken: !!token,
+                errorMessage: result.error
+              });
+              handleLogout();
+            }
+          })
+          .catch(error => {
+            // Don't logout on network errors - only on auth failures
+            logError('SessionMonitor', 'Session validation error (network issue - not logging out)', { error });
+          });
       }
     }, CHECK_INTERVAL_MS);
 
@@ -158,6 +186,7 @@ export default function SessionMonitor({ children }: SessionMonitorProps) {
         document.removeEventListener(event, handleActivity);
       });
       document.removeEventListener('click', handleClickActivity);
+      document.removeEventListener('click', markActiveOnClick);
       clearInterval(interval);
       if (warningTimeoutRef.current) {
         clearTimeout(warningTimeoutRef.current);

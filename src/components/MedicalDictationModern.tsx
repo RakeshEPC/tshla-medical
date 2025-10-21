@@ -128,10 +128,25 @@ export default function MedicalDictationModern({ patientId, preloadPatientData =
   };
 
   const stopRecording = () => {
-    speechServiceRouter.stopRecording();
-    setIsRecording(false);
-    setInterimText('');
-    setStatusMessage({ type: 'info', text: 'Recording stopped' });
+    try {
+      logInfo('MedicalDictationModern', 'Stopping recording...');
+
+      // Stop the speech service
+      speechServiceRouter.stopRecording();
+
+      // Update UI state
+      setIsRecording(false);
+      setInterimText('');
+      setStatusMessage({ type: 'info', text: 'Recording stopped' });
+
+      logInfo('MedicalDictationModern', 'Recording stopped successfully');
+    } catch (error) {
+      // Even if stopRecording fails, update UI to prevent stuck state
+      logError('MedicalDictationModern', 'Error stopping recording (UI updated anyway)', { error });
+      setIsRecording(false);
+      setInterimText('');
+      setStatusMessage({ type: 'warning', text: 'Recording stopped (with minor errors)' });
+    }
   };
 
   const processWithAI = async () => {
