@@ -237,11 +237,11 @@ class DoctorProfileService {
       let query;
       if (staffData?.id) {
         // User has medical_staff record: load their templates AND system templates
-        // NOTE: Database uses 'created_by' field, not 'staff_id'
+        // NOTE: Include templates with NULL created_by (legacy templates before migration)
         query = supabase
           .from('templates')
           .select('*')
-          .or(`created_by.eq.${staffData.id},is_system_template.eq.true`)
+          .or(`created_by.eq.${staffData.id},created_by.is.null,is_system_template.eq.true`)
           .order('created_at', { ascending: false });
       } else {
         // No medical_staff record: load only system templates
