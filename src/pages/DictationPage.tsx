@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getPatientData, type PatientData } from '../services/patientData.service';
 import { doctorProfileService, type DoctorTemplate } from '../services/doctorProfile.service';
 import { supabaseAuthService } from '../services/supabaseAuth.service';
-import type { Template } from '../types/template.types';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
 import { elevenLabsService, ELEVENLABS_VOICES } from '../services/elevenLabs.service';
 import { azureAIService } from '../services/azureAI.service';
@@ -18,8 +17,8 @@ export default function DictationPage() {
   const [selectedVoice, setSelectedVoice] = useState(elevenLabsService.getVoice());
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState('');
-  const [templates, setTemplates] = useState<Template[]>([]);
-  const [currentTemplate, setCurrentTemplate] = useState<Template | null>(null);
+  const [templates, setTemplates] = useState<DoctorTemplate[]>([]);
+  const [currentTemplate, setCurrentTemplate] = useState<DoctorTemplate | null>(null);
   const [processedNote, setProcessedNote] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showProcessed, setShowProcessed] = useState(false);
@@ -100,23 +99,14 @@ ${
 
         console.log(`✅ [DictationPage] Loaded ${doctorTemplates.length} templates from Supabase`);
 
-        // Convert DoctorTemplate to Template format for compatibility
-        const convertedTemplates: Template[] = doctorTemplates.map((dt: DoctorTemplate) => ({
-          id: dt.id,
-          name: dt.name,
-          description: dt.description || '',
-          sections: dt.sections || {},
-          created_at: dt.createdAt,
-          usage_count: dt.usageCount || 0,
-        }));
-
-        setTemplates(convertedTemplates);
+        // Use DoctorTemplates directly (no conversion needed)
+        setTemplates(doctorTemplates);
 
         // Set first template as default if available
-        if (convertedTemplates.length > 0 && !selectedTemplate) {
-          setSelectedTemplate(convertedTemplates[0].id);
-          setCurrentTemplate(convertedTemplates[0]);
-          console.log('✅ [DictationPage] Selected default template:', convertedTemplates[0].name);
+        if (doctorTemplates.length > 0 && !selectedTemplate) {
+          setSelectedTemplate(doctorTemplates[0].id);
+          setCurrentTemplate(doctorTemplates[0]);
+          console.log('✅ [DictationPage] Selected default template:', doctorTemplates[0].name);
         }
       } catch (error) {
         console.error('❌ [DictationPage] Failed to load templates:', error);
@@ -259,12 +249,17 @@ ${
         transcriptLength: transcript.length,
       });
 
+      // Get doctor settings for AI processing
+      const doctorSettings = await doctorProfileService.getSettings(doctorId);
+
       // Call the real AI service with the selected template
+      // Pass as customTemplate (5th param) to use buildCustomPrompt with examples
       const result = await azureAIService.processMedicalTranscription(
         transcript,
         patientDataForAI as any,
-        currentTemplate,
-        additionalContext
+        null, // Don't use template param (3rd) - it goes through weaker prompt
+        additionalContext,
+        currentTemplate ? { template: currentTemplate, doctorSettings } : undefined
       );
 
       if (result.formatted) {

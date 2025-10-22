@@ -1293,10 +1293,10 @@ Generate JSON with these sections:
 }
 
 RULES:
-1. Extract ONLY information explicitly stated
-2. Never add information not mentioned
-3. Include exact numbers (blood sugar 400, A1C 9.5)
-4. Use "Not provided" for missing sections
+1. Extract ALL information from the transcription - be thorough
+2. Include exact numbers (blood sugar 400, A1C 9.5, age 45)
+3. Extract medications with doses, labs ordered, diagnoses mentioned
+4. Only use "Not provided" if the section truly has NO relevant information in transcript
 
 Return ONLY the formatted note - no instructions or meta-commentary.`;
     }
@@ -1343,10 +1343,11 @@ Generate JSON:
 }
 
 RULES:
-1. Extract ONLY stated information
+1. Extract ALL information from the transcription - be thorough
 2. Include exact numbers (blood sugar 400, A1C 9, age 45)
-3. Use "Not provided" for missing sections
-4. Return only the note - no explanations`;
+3. Extract medications with doses, labs ordered, diagnoses mentioned
+4. Only use "Not provided" if section truly has NO relevant data
+5. Return only the note - no explanations`;
   }
 
   private parseResponse(

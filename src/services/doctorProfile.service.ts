@@ -366,7 +366,7 @@ class DoctorProfileService {
           visitType: (t.template_type as DoctorTemplate['visitType']) || 'general',
           isDefault: false, // Will be set from doctor settings
           sections: t.sections || {},
-          generalInstructions: '',
+          generalInstructions: t.general_instructions || '',
           createdAt: t.created_at,
           updatedAt: t.updated_at,
           usageCount: t.usage_count || 0,
