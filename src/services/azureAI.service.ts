@@ -346,9 +346,9 @@ class AzureAIService {
         }
       }
       const responseBody = JSON.parse(new TextDecoder().decode(response.body));
-      
+
       const parsedNote = this.parseResponse(responseBody.content[0].text, patient, template, transcript);
-      return this.validateAndCleanProcessedNote(parsedNote, transcript);
+      return this.validateAndCleanProcessedNote(parsedNote, transcript, customTemplate?.template);
     } catch (error) {
       logError('azureAI', 'Error message', {});
       
@@ -390,7 +390,7 @@ class AzureAIService {
             confidence: 0.85
           }
         };
-        return this.validateAndCleanProcessedNote(convertedNote, transcript);
+        return this.validateAndCleanProcessedNote(convertedNote, transcript, customTemplate?.template);
       } catch (azureError) {
         logError('azureAI', 'Error message', {});
         
@@ -416,7 +416,7 @@ class AzureAIService {
           basicNote.extractedOrders = extractedOrders;
         }
 
-        return this.validateAndCleanProcessedNote(basicNote, transcript);
+        return this.validateAndCleanProcessedNote(basicNote, transcript, customTemplate?.template);
       }
     }
   }
@@ -742,7 +742,7 @@ class AzureAIService {
 
         if (retryResult) {
           logInfo('azureAI', 'Retry successful - compliance improved');
-          return this.validateAndCleanProcessedNote(retryResult, transcript);
+          return this.validateAndCleanProcessedNote(retryResult, transcript, customTemplate?.template);
         }
       }
     }
@@ -756,7 +756,7 @@ class AzureAIService {
       });
     }
 
-    return this.validateAndCleanProcessedNote(processedNote, transcript);
+    return this.validateAndCleanProcessedNote(processedNote, transcript, customTemplate?.template);
   }
 
   /**
@@ -814,7 +814,7 @@ class AzureAIService {
   /**
    * Post-processing validation to remove duplicate content and ensure accuracy
    */
-  private validateAndCleanProcessedNote(processedNote: ProcessedNote, originalTranscript: string): ProcessedNote {
+  private validateAndCleanProcessedNote(processedNote: ProcessedNote, originalTranscript: string, template?: DoctorTemplate): ProcessedNote {
     logDebug('azureAI', 'Debug message', {});
 
     // Check for transcript duplication in sections
@@ -852,8 +852,8 @@ class AzureAIService {
     // Validate that key numeric values from transcript are captured
     this.validateNumericExtraction(processedNote, originalTranscript);
 
-    // Update formatted note to reflect cleaned sections
-    processedNote.formatted = this.rebuildFormattedNote(processedNote);
+    // Update formatted note to reflect cleaned sections (pass template for dynamic sections)
+    processedNote.formatted = this.rebuildFormattedNote(processedNote, template);
 
     logInfo('azureAI', 'Info message', {});
     return processedNote;
@@ -1060,8 +1060,9 @@ class AzureAIService {
 
   /**
    * Rebuild formatted note from cleaned sections
+   * Now supports dynamic template sections for custom templates
    */
-  private rebuildFormattedNote(processedNote: ProcessedNote): string {
+  private rebuildFormattedNote(processedNote: ProcessedNote, template?: DoctorTemplate): string {
     const date = new Date().toLocaleDateString();
     const sections = processedNote.sections;
 
@@ -1072,18 +1073,42 @@ Date: ${date}
 
 `;
 
-    if (sections.chiefComplaint) formatted += `CHIEF COMPLAINT:\n${sections.chiefComplaint}\n\n`;
-    if (sections.historyOfPresentIllness) formatted += `HISTORY OF PRESENT ILLNESS:\n${sections.historyOfPresentIllness}\n\n`;
-    if (sections.reviewOfSystems) formatted += `REVIEW OF SYSTEMS:\n${sections.reviewOfSystems}\n\n`;
-    if (sections.pastMedicalHistory) formatted += `PAST MEDICAL HISTORY:\n${sections.pastMedicalHistory}\n\n`;
-    if (sections.medications) formatted += `MEDICATIONS:\n${sections.medications}\n\n`;
-    if (sections.allergies) formatted += `ALLERGIES:\n${sections.allergies}\n\n`;
-    if (sections.socialHistory) formatted += `SOCIAL HISTORY:\n${sections.socialHistory}\n\n`;
-    if (sections.familyHistory) formatted += `FAMILY HISTORY:\n${sections.familyHistory}\n\n`;
-    if (sections.physicalExam) formatted += `PHYSICAL EXAMINATION:\n${sections.physicalExam}\n\n`;
-    if (sections.assessment) formatted += `ASSESSMENT:\n${sections.assessment}\n\n`;
-    if (sections.plan) formatted += `PLAN:\n${sections.plan}\n\n`;
-    if (sections.ordersAndActions) formatted += `ORDERS & ACTIONS:\n${sections.ordersAndActions}\n\n`;
+    // If we have a custom template, use its section order and titles
+    if (template && template.sections) {
+      // Sort sections by order property
+      const sortedSections = Object.entries(template.sections).sort((a, b) => {
+        const orderA = a[1].order !== undefined ? a[1].order : 999;
+        const orderB = b[1].order !== undefined ? b[1].order : 999;
+        return orderA - orderB;
+      });
+
+      // Build note using template section order and titles
+      for (const [key, section] of sortedSections) {
+        // Find the content for this section (handle different key formats)
+        const sectionContent = sections[key] || sections[key as keyof typeof sections];
+
+        if (sectionContent && sectionContent.trim()) {
+          formatted += `${section.title.toUpperCase()}:\n${sectionContent}\n\n`;
+        } else if (section.required) {
+          // Show placeholder for required sections that are missing
+          formatted += `${section.title.toUpperCase()}:\n[Not mentioned in transcription]\n\n`;
+        }
+      }
+    } else {
+      // Fallback to standard SOAP format for templates without custom sections
+      if (sections.chiefComplaint) formatted += `CHIEF COMPLAINT:\n${sections.chiefComplaint}\n\n`;
+      if (sections.historyOfPresentIllness) formatted += `HISTORY OF PRESENT ILLNESS:\n${sections.historyOfPresentIllness}\n\n`;
+      if (sections.reviewOfSystems) formatted += `REVIEW OF SYSTEMS:\n${sections.reviewOfSystems}\n\n`;
+      if (sections.pastMedicalHistory) formatted += `PAST MEDICAL HISTORY:\n${sections.pastMedicalHistory}\n\n`;
+      if (sections.medications) formatted += `MEDICATIONS:\n${sections.medications}\n\n`;
+      if (sections.allergies) formatted += `ALLERGIES:\n${sections.allergies}\n\n`;
+      if (sections.socialHistory) formatted += `SOCIAL HISTORY:\n${sections.socialHistory}\n\n`;
+      if (sections.familyHistory) formatted += `FAMILY HISTORY:\n${sections.familyHistory}\n\n`;
+      if (sections.physicalExam) formatted += `PHYSICAL EXAMINATION:\n${sections.physicalExam}\n\n`;
+      if (sections.assessment) formatted += `ASSESSMENT:\n${sections.assessment}\n\n`;
+      if (sections.plan) formatted += `PLAN:\n${sections.plan}\n\n`;
+      if (sections.ordersAndActions) formatted += `ORDERS & ACTIONS:\n${sections.ordersAndActions}\n\n`;
+    }
 
     return formatted;
   }
@@ -1924,6 +1949,105 @@ Generated: ${new Date().toLocaleString()} | Confidence: Medium
       hasChiefComplaint: !!sections.chiefComplaint,
       hasMedications: !!sections.medications,
       hasAssessment: !!sections.assessment
+    });
+
+    return sections;
+  }
+
+  /**
+   * Extract sections from AI-generated formatted note
+   * Parses the note text to identify and extract individual sections
+   */
+  private extractSections(formattedNote: string): {
+    chiefComplaint?: string;
+    historyOfPresentIllness?: string;
+    reviewOfSystems?: string;
+    pastMedicalHistory?: string;
+    medications?: string;
+    allergies?: string;
+    socialHistory?: string;
+    familyHistory?: string;
+    physicalExam?: string;
+    assessment?: string;
+    plan?: string;
+    ordersAndActions?: string;
+    [key: string]: string | undefined;
+  } {
+    const sections: Record<string, string> = {};
+
+    // Define section headers to look for (case-insensitive)
+    const sectionPatterns = [
+      { key: 'chiefComplaint', patterns: [/CHIEF COMPLAINT[:\s]*/i, /CC[:\s]*/i] },
+      { key: 'historyOfPresentIllness', patterns: [/HISTORY OF PRESENT ILLNESS[:\s]*/i, /HPI[:\s]*/i] },
+      { key: 'reviewOfSystems', patterns: [/REVIEW OF SYSTEMS[:\s]*/i, /ROS[:\s]*/i] },
+      { key: 'pastMedicalHistory', patterns: [/PAST MEDICAL HISTORY[:\s]*/i, /PMH[:\s]*/i] },
+      { key: 'medications', patterns: [/MEDICATIONS[:\s]*/i, /MEDS[:\s]*/i, /CURRENT MEDICATIONS[:\s]*/i] },
+      { key: 'allergies', patterns: [/ALLERGIES[:\s]*/i, /ALLERGY[:\s]*/i] },
+      { key: 'socialHistory', patterns: [/SOCIAL HISTORY[:\s]*/i, /SH[:\s]*/i] },
+      { key: 'familyHistory', patterns: [/FAMILY HISTORY[:\s]*/i, /FH[:\s]*/i] },
+      { key: 'physicalExam', patterns: [/PHYSICAL EXAM(?:INATION)?[:\s]*/i, /PE[:\s]*/i, /EXAM[:\s]*/i] },
+      { key: 'assessment', patterns: [/ASSESSMENT[:\s]*/i, /DIAGNOSIS[:\s]*/i, /DIAGNOSES[:\s]*/i] },
+      { key: 'plan', patterns: [/PLAN[:\s]*/i, /TREATMENT PLAN[:\s]*/i] },
+      { key: 'ordersAndActions', patterns: [/ORDERS\s*(?:&|AND)?\s*ACTIONS[:\s]*/i, /ORDERS[:\s]*/i] }
+    ];
+
+    // Split note into lines for processing
+    const lines = formattedNote.split('\n');
+    let currentSection: string | null = null;
+    let currentContent: string[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+
+      // Skip empty lines and dividers
+      if (!line || line.match(/^[═━─]{3,}$/)) {
+        continue;
+      }
+
+      // Check if this line is a section header
+      let foundSection = false;
+      for (const { key, patterns } of sectionPatterns) {
+        for (const pattern of patterns) {
+          if (line.match(pattern)) {
+            // Save previous section if exists
+            if (currentSection && currentContent.length > 0) {
+              sections[currentSection] = currentContent.join('\n').trim();
+            }
+
+            // Start new section
+            currentSection = key;
+            currentContent = [];
+
+            // Extract content after the header on the same line
+            const headerMatch = line.match(pattern);
+            if (headerMatch) {
+              const afterHeader = line.substring(headerMatch[0].length).trim();
+              if (afterHeader) {
+                currentContent.push(afterHeader);
+              }
+            }
+
+            foundSection = true;
+            break;
+          }
+        }
+        if (foundSection) break;
+      }
+
+      // If not a header, add to current section content
+      if (!foundSection && currentSection) {
+        currentContent.push(line);
+      }
+    }
+
+    // Save the last section
+    if (currentSection && currentContent.length > 0) {
+      sections[currentSection] = currentContent.join('\n').trim();
+    }
+
+    logDebug('azureAI', 'Extracted sections from formatted note', {
+      sectionsFound: Object.keys(sections).length,
+      sections: Object.keys(sections).join(', ')
     });
 
     return sections;
