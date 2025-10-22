@@ -165,11 +165,16 @@ class AzureAIService {
         logDebug('azureAI', 'Debug message', {});
         logDebug('azureAI', 'Debug message', {});
         const azureResult = await this.processWithAzureOpenAI(transcript, patient, template, additionalContext, customTemplate);
-        logInfo('azureAI', 'Info message', {});
+        logInfo('azureAI', 'Azure OpenAI processing completed successfully');
         return azureResult;
-      } catch (azureError) {
-        logWarn('azureAI', 'Warning message', {});
-        logDebug('azureAI', 'Debug message', {});
+      } catch (azureError: any) {
+        console.error('❌ Azure OpenAI FAILED:', azureError);
+        console.error('Error details:', {
+          message: azureError.message,
+          stack: azureError.stack,
+          name: azureError.name
+        });
+        logError('azureAI', `Azure OpenAI failed: ${azureError.message}`);
         // Continue to AWS Bedrock fallback below
       }
     }
@@ -484,11 +489,25 @@ class AzureAIService {
         throw new Error('OpenAI returned empty response');
       }
 
+      // 🔍 DEBUG: Log the raw AI output to see what OpenAI generated
+      console.log('🔍 ==================== RAW OPENAI OUTPUT ====================');
+      console.log(formattedNote);
+      console.log('🔍 ========================================================');
+
       logInfo('azureAI', 'OpenAI processing successful');
+
+      // Extract sections from the formatted note
+      const extractedSections = this.extractSections(formattedNote, customTemplate?.template);
+
+      // 🔍 DEBUG: Log what sections were extracted
+      console.log('🔍 ==================== EXTRACTED SECTIONS ====================');
+      console.log('Section keys found:', Object.keys(extractedSections));
+      console.log('Full sections object:', extractedSections);
+      console.log('🔍 ============================================================');
 
       return {
         formatted: formattedNote,
-        sections: this.extractSections(formattedNote),
+        sections: extractedSections,
         metadata: {
           processedAt: new Date().toISOString(),
           model: model,
@@ -1133,28 +1152,35 @@ Date: ${date}
       // Build instructions WITHOUT literal "Format:" and "Focus:" labels that AI might echo
       let instructions = section.aiInstructions || '';
 
-      // Add format guidance naturally (not as labeled metadata)
-      if (format === 'bullets') {
-        instructions += ' Present this information as bullet points.';
-      } else if (format === 'numbered') {
-        instructions += ' Present this information as a numbered list.';
-      } else {
-        instructions += ' Present this information in paragraph format.';
-      }
-
       // Add keyword focus naturally (not as labeled metadata)
       if (section.keywords && section.keywords.length > 0) {
         instructions += ` Pay special attention to: ${section.keywords.join(', ')}.`;
       }
 
-      // Add example naturally (not as labeled metadata)
+      // Add example with STRICT format matching instruction
       if (section.exampleText) {
-        instructions += ` Example style: "${section.exampleText}"`;
+        instructions += `\n\n🎯 CRITICAL - COPY THIS EXACT FORMAT:
+This is NOT a style guide - this is the EXACT structure you must use. Copy the line-by-line format exactly:
+
+${section.exampleText}
+
+⚠️  Do NOT use full names like "Chief Complaint:", "History of Present Illness:", "Past Medical History:"
+⚠️  ONLY use the abbreviations and labels shown in the example above (CC:, PMH:, HPI:, ROS:, etc.)
+⚠️  Keep the same line breaks, colons, and structure as shown`;
+      }
+
+      // Add format guidance AFTER example so it's clear
+      if (format === 'bullets') {
+        instructions += '\n\n📋 FORMAT: Use bullet points (• or -).';
+      } else if (format === 'numbered') {
+        instructions += '\n\n📋 FORMAT: Use numbered list (1. 2. 3.).';
+      } else {
+        instructions += '\n\n📋 FORMAT: Use paragraph format.';
       }
 
       sectionPrompts.push(`
 ### ${section.title}${section.required ? ' (REQUIRED)' : ''}
-INSTRUCTIONS: ${instructions}
+${instructions}
 `);
     });
 
@@ -1191,14 +1217,36 @@ ${additionalContext ? `CONTEXT: ${additionalContext}\n` : ''}
 TRANSCRIPTION:
 "${transcript}"
 
-CORE EXTRACTION RULES:
-1. Extract ONLY information explicitly stated in transcription
-2. Never add information not mentioned
-3. Include exact numbers (blood sugar 400, A1C 9.5, age 45)
-4. Use "Not mentioned" for missing required sections
-5. Follow the template structure and format exactly
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  MANDATORY OUTPUT REQUIREMENTS ⚠️
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Generate the note now:`;
+🚨 RULE #1: COPY THE EXAMPLE FORMAT CHARACTER-BY-CHARACTER
+   - The examples above show the EXACT output structure required
+   - Use the EXACT labels from examples (CC:, PMH:, HPI:, not "Chief Complaint:", etc.)
+   - Keep the EXACT line breaks and structure
+   - This is a FORMAT TEMPLATE, not a content guide
+
+🚨 RULE #2: FORBIDDEN - Do NOT Use These Terms
+   ❌ "Chief Complaint:" - Use "CC:" instead
+   ❌ "History of Present Illness:" - Use "HPI:" instead
+   ❌ "Past Medical History:" - Use "PMH:" instead
+   ❌ "Review of Systems:" - Use "ROS:" instead
+   ❌ "Physical Exam:" or "Physical Examination:" - Follow the example format
+
+   If the example shows "CC:", you MUST write "CC:" - NOT "Chief Complaint:"
+
+🚨 RULE #3: EXTRACT ALL INFORMATION FROM TRANSCRIPTION
+   - Include medications, doses, numbers mentioned
+   - Do NOT write "[Not mentioned]" if the information IS in the transcription
+   - Extract blood pressure, lab values, medication names and doses EXACTLY as stated
+
+🚨 RULE #4: FOLLOW THE FORMATTING IN EXAMPLES
+   - Bullet sections: Use "•" or "-" exactly as shown
+   - Paragraph sections: Use flowing text exactly as shown
+   - Multi-line sections: Match the line structure shown in the example
+
+GENERATE THE NOTE NOW - Follow the examples EXACTLY:`;
   }
 
   private buildPrompt(
@@ -1958,7 +2006,7 @@ Generated: ${new Date().toLocaleString()} | Confidence: Medium
    * Extract sections from AI-generated formatted note
    * Parses the note text to identify and extract individual sections
    */
-  private extractSections(formattedNote: string): {
+  private extractSections(formattedNote: string, template?: DoctorTemplate): {
     chiefComplaint?: string;
     historyOfPresentIllness?: string;
     reviewOfSystems?: string;
@@ -1976,20 +2024,48 @@ Generated: ${new Date().toLocaleString()} | Confidence: Medium
     const sections: Record<string, string> = {};
 
     // Define section headers to look for (case-insensitive)
-    const sectionPatterns = [
-      { key: 'chiefComplaint', patterns: [/CHIEF COMPLAINT[:\s]*/i, /CC[:\s]*/i] },
-      { key: 'historyOfPresentIllness', patterns: [/HISTORY OF PRESENT ILLNESS[:\s]*/i, /HPI[:\s]*/i] },
-      { key: 'reviewOfSystems', patterns: [/REVIEW OF SYSTEMS[:\s]*/i, /ROS[:\s]*/i] },
-      { key: 'pastMedicalHistory', patterns: [/PAST MEDICAL HISTORY[:\s]*/i, /PMH[:\s]*/i] },
-      { key: 'medications', patterns: [/MEDICATIONS[:\s]*/i, /MEDS[:\s]*/i, /CURRENT MEDICATIONS[:\s]*/i] },
-      { key: 'allergies', patterns: [/ALLERGIES[:\s]*/i, /ALLERGY[:\s]*/i] },
-      { key: 'socialHistory', patterns: [/SOCIAL HISTORY[:\s]*/i, /SH[:\s]*/i] },
-      { key: 'familyHistory', patterns: [/FAMILY HISTORY[:\s]*/i, /FH[:\s]*/i] },
-      { key: 'physicalExam', patterns: [/PHYSICAL EXAM(?:INATION)?[:\s]*/i, /PE[:\s]*/i, /EXAM[:\s]*/i] },
-      { key: 'assessment', patterns: [/ASSESSMENT[:\s]*/i, /DIAGNOSIS[:\s]*/i, /DIAGNOSES[:\s]*/i] },
-      { key: 'plan', patterns: [/PLAN[:\s]*/i, /TREATMENT PLAN[:\s]*/i] },
-      { key: 'ordersAndActions', patterns: [/ORDERS\s*(?:&|AND)?\s*ACTIONS[:\s]*/i, /ORDERS[:\s]*/i] }
-    ];
+    let sectionPatterns: Array<{ key: string; patterns: RegExp[] }>;
+
+    // If we have a custom template, build patterns from template section titles
+    if (template && template.sections) {
+      sectionPatterns = [];
+      for (const [key, section] of Object.entries(template.sections)) {
+        // Escape special regex characters in the title
+        const escapedTitle = section.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // Create pattern that matches the title (case-insensitive), followed by optional colon/whitespace
+        const pattern = new RegExp(`^${escapedTitle}\\s*:?\\s*`, 'i');
+        sectionPatterns.push({
+          key,
+          patterns: [pattern]
+        });
+      }
+      console.log('🔍 ========== EXTRACT SECTIONS: Building patterns from template ==========');
+      console.log('Template:', template.name);
+      console.log('Patterns built:', sectionPatterns.map(p => `${p.key}: ${p.patterns[0]}`));
+      console.log('🔍 =======================================================================');
+
+      logDebug('azureAI', 'Built dynamic section patterns from template', {
+        templateName: template.name,
+        patternCount: sectionPatterns.length,
+        sections: sectionPatterns.map(p => p.key).join(', ')
+      });
+    } else {
+      // Fallback to standard SOAP section patterns
+      sectionPatterns = [
+        { key: 'chiefComplaint', patterns: [/CHIEF COMPLAINT[:\s]*/i, /CC[:\s]*/i] },
+        { key: 'historyOfPresentIllness', patterns: [/HISTORY OF PRESENT ILLNESS[:\s]*/i, /HPI[:\s]*/i] },
+        { key: 'reviewOfSystems', patterns: [/REVIEW OF SYSTEMS[:\s]*/i, /ROS[:\s]*/i] },
+        { key: 'pastMedicalHistory', patterns: [/PAST MEDICAL HISTORY[:\s]*/i, /PMH[:\s]*/i] },
+        { key: 'medications', patterns: [/MEDICATIONS[:\s]*/i, /MEDS[:\s]*/i, /CURRENT MEDICATIONS[:\s]*/i] },
+        { key: 'allergies', patterns: [/ALLERGIES[:\s]*/i, /ALLERGY[:\s]*/i] },
+        { key: 'socialHistory', patterns: [/SOCIAL HISTORY[:\s]*/i, /SH[:\s]*/i] },
+        { key: 'familyHistory', patterns: [/FAMILY HISTORY[:\s]*/i, /FH[:\s]*/i] },
+        { key: 'physicalExam', patterns: [/PHYSICAL EXAM(?:INATION)?[:\s]*/i, /PE[:\s]*/i, /EXAM[:\s]*/i] },
+        { key: 'assessment', patterns: [/ASSESSMENT[:\s]*/i, /DIAGNOSIS[:\s]*/i, /DIAGNOSES[:\s]*/i] },
+        { key: 'plan', patterns: [/PLAN[:\s]*/i, /TREATMENT PLAN[:\s]*/i] },
+        { key: 'ordersAndActions', patterns: [/ORDERS\s*(?:&|AND)?\s*ACTIONS[:\s]*/i, /ORDERS[:\s]*/i] }
+      ];
+    }
 
     // Split note into lines for processing
     const lines = formattedNote.split('\n');

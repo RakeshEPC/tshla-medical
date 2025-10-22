@@ -258,8 +258,20 @@ Generate the formatted medical note now:`;
       const data = await response.json();
       const formattedNote = data.choices[0].message.content;
 
+      // 🔍 DEBUG: Log the raw AI output to see what we're working with
+      logInfo('AzureOpenAI', '🔍 RAW AI OUTPUT (first 500 chars):', {
+        preview: formattedNote.substring(0, 500),
+        fullLength: formattedNote.length
+      });
+
       // Parse the note into sections - use template if provided for custom sections
       const sections = this.parseNoteIntoSections(formattedNote, template);
+
+      // 🔍 DEBUG: Log the extracted sections
+      logInfo('AzureOpenAI', '🔍 EXTRACTED SECTIONS:', {
+        sectionKeys: Object.keys(sections),
+        sectionCount: Object.keys(sections).length
+      });
 
       const processingTime = Date.now() - startTime;
       const actualTokens = data.usage?.total_tokens || 0;
@@ -463,15 +475,25 @@ Output only the formatted medical note with clear section headers (Chief Complai
       let foundSection = false;
 
       for (const header of sectionHeaders) {
-        if (lowerLine.includes(header)) {
+        // Match section headers that appear at start of line followed by colon
+        // This prevents matching "cc" within words but matches "CC, PMH, HPI, ROS:"
+        const headerPattern = new RegExp(`^\\s*${header.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*:`, 'i');
+
+        if (headerPattern.test(line)) {
           // Save previous section
           if (currentSection && currentContent.length > 0) {
-            sections[this.normalizeSection(currentSection, template)] = currentContent.join('\n').trim();
+            // Remove the section header line from content (first line)
+            const contentWithoutHeader = currentContent.slice(1).join('\n').trim();
+            sections[this.normalizeSection(currentSection, template)] = contentWithoutHeader || currentContent.join('\n').trim();
           }
 
           currentSection = header;
           currentContent = [line];
           foundSection = true;
+
+          logDebug('AzureOpenAI', `Found section header: "${header}"`, {
+            linePreview: line.substring(0, 50)
+          });
           break;
         }
       }
@@ -483,8 +505,16 @@ Output only the formatted medical note with clear section headers (Chief Complai
 
     // Save last section
     if (currentSection && currentContent.length > 0) {
-      sections[this.normalizeSection(currentSection, template)] = currentContent.join('\n').trim();
+      // Remove the section header line from content (first line)
+      const contentWithoutHeader = currentContent.slice(1).join('\n').trim();
+      sections[this.normalizeSection(currentSection, template)] = contentWithoutHeader || currentContent.join('\n').trim();
     }
+
+    // 🔍 DEBUG: Log what we extracted
+    logInfo('AzureOpenAI', '📊 Section parsing complete', {
+      sectionsFound: Object.keys(sections).length,
+      sectionKeys: Object.keys(sections).join(', ')
+    });
 
     return sections;
   }
