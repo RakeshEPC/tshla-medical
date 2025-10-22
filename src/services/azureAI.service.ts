@@ -605,6 +605,7 @@ class AzureAIService {
           templateName: customTemplate.template.name,
           sectionsCount: Object.keys(customTemplate.template.sections).length
         });
+        console.log('🚀 [azureAI] Calling azureOpenAIService.processTranscriptionWithCustomPrompt...');
         azureResult = await azureOpenAIService.processTranscriptionWithCustomPrompt(
           transcript,
           prompt, // Use the detailed custom prompt we built
@@ -616,6 +617,8 @@ class AzureAIService {
           customTemplate.template,
           additionalContext
         );
+        console.log('✅ [azureAI] AI returned result:', azureResult);
+        console.log('✅ [azureAI] Formatted note preview (first 500 chars):', azureResult.formattedNote?.substring(0, 500));
         logInfo('azureAI', '✅ Custom template AI processing complete', {
           hasFormattedNote: !!azureResult.formattedNote,
           sectionsInResult: Object.keys(azureResult.sections || {}).length
@@ -646,7 +649,13 @@ class AzureAIService {
           customTemplate?.doctorSettings
         );
     } catch (azureError: any) {
-      logError('azureAI', 'Error message', {});
+      console.error('❌ [azureAI] AZURE OPENAI ERROR:', azureError);
+      console.error('❌ [azureAI] Error details:', {
+        message: azureError?.message,
+        stack: azureError?.stack,
+        response: azureError?.response
+      });
+      logError('azureAI', 'Azure OpenAI processing failed', { error: azureError });
       logDebug('azureAI', 'Debug message', {});
       
       // For now, disable Azure OpenAI fallback and use standard processing
