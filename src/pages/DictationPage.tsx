@@ -243,6 +243,12 @@ ${
       // Pass patient summary as additional context (separate from transcript)
       const additionalContext = patientSummary;
 
+      console.log('🔥 [DictationPage] ============ STARTING AI PROCESSING ============');
+      console.log('🔥 [DictationPage] currentTemplate:', currentTemplate);
+      console.log('🔥 [DictationPage] Template sections:', currentTemplate?.sections);
+      console.log('🔥 [DictationPage] General instructions:', currentTemplate?.generalInstructions);
+      console.log('🔥 [DictationPage] Transcript length:', transcript.length);
+
       logInfo('DictationPage', 'Processing with AI', {
         templateId: currentTemplate?.id,
         templateName: currentTemplate?.name,
@@ -251,9 +257,13 @@ ${
 
       // Get doctor settings for AI processing
       const doctorSettings = await doctorProfileService.getSettings(doctorId);
+      console.log('🔥 [DictationPage] Doctor settings:', doctorSettings);
 
       // Call the real AI service with the selected template
       // Pass as customTemplate (5th param) to use buildCustomPrompt with examples
+      console.log('🔥 [DictationPage] Calling azureAIService.processMedicalTranscription...');
+      console.log('🔥 [DictationPage] Using customTemplate param:', currentTemplate ? 'YES' : 'NO');
+
       const result = await azureAIService.processMedicalTranscription(
         transcript,
         patientDataForAI as any,
@@ -261,6 +271,8 @@ ${
         additionalContext,
         currentTemplate ? { template: currentTemplate, doctorSettings } : undefined
       );
+
+      console.log('🔥 [DictationPage] AI processing result:', result);
 
       if (result.formatted) {
         setProcessedNote(result.formatted);

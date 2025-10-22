@@ -532,40 +532,21 @@ class AzureAIService {
     additionalContext?: string,
     customTemplate?: { template: DoctorTemplate; doctorSettings: DoctorSettings }
   ): Promise<ProcessedNote> {
-    logInfo('azureAI', 'Info message', {});
-    logDebug('azureAI', 'Debug message', {});
-    
-    // 🔍 TEMPLATE CONNECTION DEBUG
-    logDebug('azureAI', 'Debug message', {});
-    logDebug('azureAI', 'Debug message', {});
-    logDebug('azureAI', 'Debug message', {});
-    logDebug('azureAI', 'Debug message', {});
-    logDebug('azureAI', 'Debug message', {});
-    
+    console.log('🔥 [azureAI] ============ processWithAzureOpenAI CALLED ============');
+    console.log('🔥 [azureAI] Has customTemplate?', !!customTemplate);
+    console.log('🔥 [azureAI] Has template?', !!template);
+    console.log('🔥 [azureAI] customTemplate:', customTemplate);
+
     if (customTemplate) {
-      logInfo('azureAI', 'Info message', {});
-      logDebug('azureAI', 'Debug message', {});
-      logDebug('azureAI', 'Debug message', {}); 
-      logDebug('azureAI', 'Debug message', {});
-      logDebug('azureAI', 'Debug message', {});
-      
-      // Check for Tess template specifically
-      if (customTemplate.template.name?.toLowerCase().includes('tess')) {
-        logDebug('azureAI', 'Debug message', {});
-        logDebug('azureAI', 'Debug message', {});
-        Object.entries(customTemplate.template.sections).forEach(([key, section]) => {
-          if (section.aiInstructions) {
-              logDebug("azureAI", "Found section with AI instructions");
-          }
-        });
-      }
+      console.log('🎯 [azureAI] ✅ USING CUSTOM TEMPLATE PATH (buildCustomPrompt)');
+      console.log('🎯 [azureAI] Template name:', customTemplate.template.name);
+      console.log('🎯 [azureAI] Template sections:', Object.keys(customTemplate.template.sections));
+      console.log('🎯 [azureAI] General instructions:', customTemplate.template.generalInstructions);
     } else if (template) {
-      logInfo('azureAI', 'Info message', {});
-      logDebug('azureAI', 'Debug message', {});
-      logDebug('azureAI', 'Debug message', {});
-        logDebug("azureAI", "Continuing with processing");
+      console.log('⚠️  [azureAI] Using standard template path (buildPrompt - weaker)');
+      console.log('⚠️  [azureAI] Template:', template);
     } else {
-      logDebug('azureAI', 'Debug message', {});
+      console.log('⚠️  [azureAI] No template - using default SOAP');
     }
     
     // Build enhanced template string with AI instructions
