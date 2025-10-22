@@ -542,6 +542,18 @@ class AzureAIService {
       console.log('🎯 [azureAI] Template name:', customTemplate.template.name);
       console.log('🎯 [azureAI] Template sections:', Object.keys(customTemplate.template.sections));
       console.log('🎯 [azureAI] General instructions:', customTemplate.template.generalInstructions);
+
+      // Log each section's details
+      Object.entries(customTemplate.template.sections).forEach(([key, section]) => {
+        console.log(`🔍 [azureAI] Section "${key}":`, {
+          title: section.title,
+          hasAiInstructions: !!section.aiInstructions,
+          aiInstructionsLength: section.aiInstructions?.length || 0,
+          hasExampleText: !!section.exampleText,
+          exampleTextLength: section.exampleText?.length || 0,
+          format: section.format
+        });
+      });
     } else if (template) {
       console.log('⚠️  [azureAI] Using standard template path (buildPrompt - weaker)');
       console.log('⚠️  [azureAI] Template:', template);
@@ -573,11 +585,9 @@ class AzureAIService {
       logInfo('azureAI', 'Info message', {});
     }
     
-    logInfo('azureAI', 'Info message', {});
-    logDebug('azureAI', 'Debug message', {});
-      logDebug("azureAI", "Processing enhanced template");
-    logDebug('azureAI', 'Debug message', {});
-    
+    console.log('📝 [azureAI] Generated prompt (first 1000 chars):', prompt.substring(0, 1000));
+    console.log('📝 [azureAI] Prompt length:', prompt.length, 'characters');
+
     try {
       // Process ALL templates (custom and standard) with Azure OpenAI using updated credentials
       logDebug('azureAI', 'Debug message', {});
