@@ -216,21 +216,21 @@ Generate the formatted medical note now:`;
 
       const url = `${this.endpoint}/openai/deployments/${selectedModel}/chat/completions?api-version=${this.apiVersion}`;
 
-      // Select prompt version for this request
-      const promptVersion = template
-        ? promptVersionControlService.selectVersionForRequest('custom-template')
-        : promptVersionControlService.selectVersionForRequest('system');
-
       // Update custom prompt to use processed transcription if truncated
       const finalPrompt = transcriptTruncated
         ? customPrompt.replace(transcription, processedTranscription)
         : customPrompt;
 
-      // Use versioned system prompt if available
-      const systemPromptContent = promptVersion
-        ? promptVersionControlService.renderPrompt(promptVersion.id, {}) ||
-          'You are an expert medical scribe with extensive experience in clinical documentation. Generate comprehensive, accurate SOAP notes that meet hospital documentation standards. Focus on medical accuracy, proper terminology, and complete information capture.'
+      // For custom templates, use a minimal system prompt since all instructions are in the user prompt
+      // This ensures the template's AI instructions are properly followed
+      const systemPromptContent = template
+        ? 'You are an expert medical scribe. Follow the instructions in the user message exactly.'
         : 'You are an expert medical scribe with extensive experience in clinical documentation. Generate comprehensive, accurate SOAP notes that meet hospital documentation standards. Focus on medical accuracy, proper terminology, and complete information capture.';
+
+      // Select prompt version for recording usage metrics (not used for content)
+      const promptVersion = template
+        ? promptVersionControlService.selectVersionForRequest('custom-template')
+        : promptVersionControlService.selectVersionForRequest('system');
 
       const response = await this.makeAPICall(url, {
         messages: [
@@ -475,9 +475,10 @@ Output only the formatted medical note with clear section headers (Chief Complai
       let foundSection = false;
 
       for (const header of sectionHeaders) {
-        // Match section headers that appear at start of line followed by colon
-        // This prevents matching "cc" within words but matches "CC, PMH, HPI, ROS:"
-        const headerPattern = new RegExp(`^\\s*${header.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*:`, 'i');
+        // Match section headers with colon OR markdown headers (### Header)
+        // Matches: "Header:", "### Header", "**Header**", etc.
+        const escapedHeader = header.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const headerPattern = new RegExp(`^\\s*(?:#{1,6}\\s*)?(?:\\*\\*)?${escapedHeader}(?:\\*\\*)?\\s*:?\\s*$`, 'i');
 
         if (headerPattern.test(line)) {
           // Save previous section
