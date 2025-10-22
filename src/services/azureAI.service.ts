@@ -761,7 +761,7 @@ class AzureAIService {
 
         if (retryResult) {
           logInfo('azureAI', 'Retry successful - compliance improved');
-          return this.validateAndCleanProcessedNote(retryResult, transcript, customTemplate?.template);
+          return this.validateAndCleanProcessedNote(retryResult, transcript, template);
         }
       }
     }
@@ -775,7 +775,7 @@ class AzureAIService {
       });
     }
 
-    return this.validateAndCleanProcessedNote(processedNote, transcript, customTemplate?.template);
+    return this.validateAndCleanProcessedNote(processedNote, transcript, template);
   }
 
   /**
