@@ -1157,16 +1157,21 @@ Date: ${date}
         instructions += ` Pay special attention to: ${section.keywords.join(', ')}.`;
       }
 
-      // Add example with STRICT format matching instruction
+      // Add example with format reference (NOT content to copy)
       if (section.exampleText) {
-        instructions += `\n\n🎯 CRITICAL - COPY THIS EXACT FORMAT:
-This is NOT a style guide - this is the EXACT structure you must use. Copy the line-by-line format exactly:
+        instructions += `\n\n🎯 FORMAT EXAMPLE (DO NOT COPY THE CONTENT BELOW):
+The text below demonstrates HOW to format and structure this section.
+Use this as a FORMATTING GUIDE ONLY - extract actual content from the patient's transcription.
 
+────────── FORMAT EXAMPLE START ──────────
 ${section.exampleText}
+────────── FORMAT EXAMPLE END ──────────
 
-⚠️  Do NOT use full names like "Chief Complaint:", "History of Present Illness:", "Past Medical History:"
-⚠️  ONLY use the abbreviations and labels shown in the example above (CC:, PMH:, HPI:, ROS:, etc.)
-⚠️  Keep the same line breaks, colons, and structure as shown`;
+⚠️  CRITICAL RULES:
+1. The example above shows FORMATTING/STRUCTURE only - DO NOT copy its content
+2. Extract ALL actual information from the transcription (medications, vitals, diagnoses, etc.)
+3. Use the same abbreviations, line breaks, and layout structure shown in the example
+4. DO NOT write "[Not mentioned]" if information IS present in the transcription`;
       }
 
       // Add format guidance AFTER example so it's clear
@@ -1221,32 +1226,22 @@ TRANSCRIPTION:
 ⚠️  MANDATORY OUTPUT REQUIREMENTS ⚠️
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🚨 RULE #1: COPY THE EXAMPLE FORMAT CHARACTER-BY-CHARACTER
-   - The examples above show the EXACT output structure required
-   - Use the EXACT labels from examples (CC:, PMH:, HPI:, not "Chief Complaint:", etc.)
-   - Keep the EXACT line breaks and structure
-   - This is a FORMAT TEMPLATE, not a content guide
+🚨 RULE #1: FORMAT vs CONTENT
+   - Examples show FORMATTING STRUCTURE - they are NOT content to copy
+   - Extract ALL content from the transcription above
+   - Use the example's layout/abbreviations, but with transcription data
 
-🚨 RULE #2: FORBIDDEN - Do NOT Use These Terms
-   ❌ "Chief Complaint:" - Use "CC:" instead
-   ❌ "History of Present Illness:" - Use "HPI:" instead
-   ❌ "Past Medical History:" - Use "PMH:" instead
-   ❌ "Review of Systems:" - Use "ROS:" instead
-   ❌ "Physical Exam:" or "Physical Examination:" - Follow the example format
+🚨 RULE #2: EXTRACT FROM TRANSCRIPTION
+   - Include all medications, doses, vital signs, diagnoses mentioned
+   - Extract blood pressure, lab values, medication names EXACTLY as stated
+   - DO NOT write "[Not mentioned]" if the information IS in the transcription
 
-   If the example shows "CC:", you MUST write "CC:" - NOT "Chief Complaint:"
+🚨 RULE #3: MATCH THE FORMAT
+   - Use abbreviations shown in examples (CC:, PMH:, HPI:, ROS:, etc.)
+   - Keep the same line breaks and structure as examples
+   - Use bullet points (• or -) or paragraphs as specified
 
-🚨 RULE #3: EXTRACT ALL INFORMATION FROM TRANSCRIPTION
-   - Include medications, doses, numbers mentioned
-   - Do NOT write "[Not mentioned]" if the information IS in the transcription
-   - Extract blood pressure, lab values, medication names and doses EXACTLY as stated
-
-🚨 RULE #4: FOLLOW THE FORMATTING IN EXAMPLES
-   - Bullet sections: Use "•" or "-" exactly as shown
-   - Paragraph sections: Use flowing text exactly as shown
-   - Multi-line sections: Match the line structure shown in the example
-
-GENERATE THE NOTE NOW - Follow the examples EXACTLY:`;
+GENERATE THE NOTE NOW - Use transcription data in the example format:`;
   }
 
   private buildPrompt(
