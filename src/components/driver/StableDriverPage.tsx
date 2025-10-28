@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { getQuestionsForMedication } from '@/lib/priorAuth/medicationQuestions';
 import { templateStorage } from '@/lib/templateStorage';
 import { logError, logWarn, logInfo, logDebug } from '../../services/logger.service';
+import { AIService } from '@/services/ai.service';
 
 // Medication keywords that trigger prior auth - expanded list
 const PRIOR_AUTH_MEDICATIONS = [
@@ -94,6 +95,7 @@ export default function StableDriverPage() {
   const recognitionRef = useRef<any>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
+  const aiServiceRef = useRef(new AIService());
 
   // Load templates and saved notes on mount
   useEffect(() => {
@@ -452,7 +454,7 @@ export default function StableDriverPage() {
     }
   };
 
-  // Generate SOAP note
+  // Generate SOAP note using AI Service
   const generateSOAP = async () => {
     if (!transcript || transcript.trim().length === 0) {
       setError('Please record or enter a transcript first');
@@ -469,74 +471,68 @@ export default function StableDriverPage() {
     setSoapNote('');
 
     try {
-      const requestBody = {
-        transcript: transcript.trim(),
-        meta: {
-          patientId,
-          format: 'soap',
-          timestamp: new Date().toISOString(),
-        },
-        template: selectedTemplate || null,
+      // Build patient object for AI service
+      const patient = {
+        id: patientId,
+        mrn: patientId,
+        firstName: 'Patient',
+        lastName: patientId.replace('PT-', ''),
+        dob: new Date().toISOString().split('T')[0],
       };
 
-      logDebug('StableDriverPage', 'Debug message', {});
+      const visitDate = new Date().toISOString().split('T')[0];
 
-      const response = await fetch('/api/note', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
+      logInfo('StableDriverPage', 'Processing transcript with AI service', {
+        transcriptLength: transcript.length,
+        templateName: selectedTemplate?.name || 'No template',
+        patientId
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        logError('StableDriverPage', 'Error message', {});
-        let errorMessage = 'Failed to generate SOAP note';
-        try {
-          const errorData = JSON.parse(errorText);
-          errorMessage = errorData.error || errorMessage;
-        } catch (e) {
-          errorMessage = errorText || errorMessage;
+      // Use AI service to process the transcription with template
+      const result = await aiServiceRef.current.processToSOAP(
+        transcript.trim(),
+        patient,
+        visitDate,
+        {
+          template: selectedTemplate,
+          includeHistory: false,
+          includeMentalHealth: false
         }
-        throw new Error(errorMessage);
-      }
+      );
 
-      const result = await response.json();
-      setNoteData(result);
+      if (!result.success || !result.soap) {
+        throw new Error(result.error || 'Failed to generate SOAP note');
+      }
 
       // Clear any previous errors since we got a successful response
       setError('');
 
-      // Format SOAP note - handle different response structures
-      if (result.soap) {
-        const soap = result.soap;
-        const formattedNote = [
-          'SUBJECTIVE:',
-          soap.subjective || soap.S || 'Patient information not available',
-          '',
-          'OBJECTIVE:',
-          soap.objective || soap.O || 'Clinical findings not available',
-          '',
-          'ASSESSMENT:',
-          soap.assessment || soap.A || 'Assessment pending',
-          '',
-          'PLAN:',
-          soap.plan || soap.P || 'Treatment plan to be determined',
-        ].join('\n');
-        setSoapNote(formattedNote);
-      } else if (result.note) {
-        // Handle alternative response format
-        setSoapNote(result.note);
-      } else {
-        // Fallback format
-        setSoapNote(
-          `CLINICAL NOTE\n\nTranscript:\n${transcript}\n\nGenerated: ${new Date().toLocaleString()}`
-        );
-      }
+      const soap = result.soap;
+      const formattedNote = [
+        'SUBJECTIVE:',
+        soap.subjective || 'Patient information not available',
+        '',
+        'OBJECTIVE:',
+        soap.objective || 'Clinical findings not available',
+        '',
+        'ASSESSMENT:',
+        soap.assessment || 'Assessment pending',
+        '',
+        'PLAN:',
+        soap.plan || 'Treatment plan to be determined',
+      ].join('\n');
 
-      // Show success message briefly
-      logInfo('StableDriverPage', 'Info message', {});
+      setSoapNote(formattedNote);
+      setNoteData({ soap: result.soap });
+
+      logInfo('StableDriverPage', 'Successfully generated SOAP note', {
+        templateUsed: selectedTemplate?.name
+      });
     } catch (error: any) {
-      logError('StableDriverPage', 'Error message', {});
+      logError('StableDriverPage', 'Failed to generate SOAP note', {
+        error: error.message,
+        patientId
+      });
       setError(`Error: ${error.message || 'Failed to generate SOAP note. Please try again.'}`);
 
       // Provide a basic SOAP note as fallback
@@ -554,14 +550,14 @@ export default function StableDriverPage() {
           'PLAN:',
           '[Treatment plan to be determined based on assessment]',
           '',
-          'Note: Generated locally due to API error',
+          'Note: Generated locally due to AI service error',
         ].join('\n');
         setSoapNote(fallbackNote);
         setNoteData({ soap: { subjective: transcript }, fallback: true });
 
         // Clear error since we provided a fallback note
         setError('');
-        logDebug('StableDriverPage', 'Debug message', {});
+        logDebug('StableDriverPage', 'Using fallback note generation', {});
       }
     } finally {
       setLoading(false);
