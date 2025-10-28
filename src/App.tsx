@@ -49,6 +49,9 @@ const DictationPageEnhanced = lazy(() => import('./pages/DictationPageEnhanced')
 const QuickNote = lazy(() => import('./pages/QuickNote'));
 const QuickNoteModern = lazy(() => import('./pages/QuickNoteModern'));
 
+// Schedule & Calendar
+const SchedulePage = lazy(() => import('./pages/SchedulePage'));
+
 // PumpDrive System (major feature - separate bundle)
 const PumpDriveBundle = lazy(() => import('./components/bundles/PumpDriveBundle'));
 
@@ -266,6 +269,18 @@ function App() {
                   <ProtectedRoute>
                     <Suspense fallback={<LoadingSpinner />}>
                       <QuickNoteModern />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* ===== SCHEDULE & CALENDAR ===== */}
+              <Route
+                path="/schedule"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <SchedulePage />
                     </Suspense>
                   </ProtectedRoute>
                 }
