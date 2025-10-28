@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import { supabaseAuthService } from '../services/supabaseAuth.service';
+import { scheduleService } from '../services/scheduleService';
+import { AthenaScheduleUploader } from '../components/AthenaScheduleUploader';
+import type { ParsedAthenaAppointment, ImportError } from '../types/schedule.types';
 
 interface FormData {
   email: string;
@@ -15,7 +18,7 @@ interface FormData {
 }
 
 export default function AdminAccountCreation() {
-  const [accountType, setAccountType] = useState<'staff' | 'patient'>('staff');
+  const [accountType, setAccountType] = useState<'staff' | 'patient' | 'schedule'>('staff');
   const [formData, setFormData] = useState<FormData>({
     email: '',
     password: '',
@@ -31,6 +34,7 @@ export default function AdminAccountCreation() {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [createdAccounts, setCreatedAccounts] = useState<Array<{ email: string; password: string; type: string }>>([]);
+  const [scheduleImportStatus, setScheduleImportStatus] = useState<string>('');
 
   const generatePassword = () => {
     // Generate secure random password: 12 characters, mixed case, numbers, symbols
@@ -145,6 +149,52 @@ export default function AdminAccountCreation() {
     }
   };
 
+  const handleScheduleImportSuccess = async (appointments: ParsedAthenaAppointment[]) => {
+    setScheduleImportStatus('Importing appointments to database...');
+    try {
+      // Get current user email for audit trail
+      const result = await supabaseAuthService.getCurrentUser();
+      const userEmail = result.user?.email || 'admin@tshla.ai';
+
+      // Get schedule date from first appointment (all should be same date)
+      const scheduleDate = appointments[0]?.date || new Date().toISOString().split('T')[0];
+
+      // Call schedule service to import to Supabase
+      const importResult = await scheduleService.importAthenaSchedule(
+        appointments,
+        scheduleDate,
+        userEmail
+      );
+
+      setMessage({
+        type: 'success',
+        text: `Successfully imported ${importResult.summary.successful} appointments! ${
+          importResult.summary.duplicates > 0
+            ? `(${importResult.summary.duplicates} duplicates skipped) `
+            : ''
+        }${
+          importResult.summary.failed > 0
+            ? `(${importResult.summary.failed} failed)`
+            : ''
+        }`,
+      });
+      setScheduleImportStatus('');
+    } catch (error) {
+      setMessage({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Failed to import schedule',
+      });
+      setScheduleImportStatus('');
+    }
+  };
+
+  const handleScheduleImportError = (errors: ImportError[]) => {
+    setMessage({
+      type: 'error',
+      text: `Failed to parse schedule: ${errors.length} errors found. Please check the file format.`,
+    });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
       <div className="max-w-6xl mx-auto">
@@ -168,23 +218,23 @@ export default function AdminAccountCreation() {
           <div className="lg:col-span-2 bg-white rounded-xl shadow-lg p-8">
             {/* Account Type Selector */}
             <div className="mb-6">
-              <label className="block text-sm font-semibold text-gray-700 mb-3">Account Type</label>
-              <div className="flex gap-4">
+              <label className="block text-sm font-semibold text-gray-700 mb-3">Select Action</label>
+              <div className="grid grid-cols-3 gap-3">
                 <button
                   type="button"
                   onClick={() => setAccountType('staff')}
-                  className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-colors ${
+                  className={`py-3 px-4 rounded-lg border-2 font-medium transition-colors ${
                     accountType === 'staff'
                       ? 'border-blue-600 bg-blue-50 text-blue-700'
                       : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
                   }`}
                 >
-                  Medical Staff (Doctors, Nurses)
+                  Medical Staff
                 </button>
                 <button
                   type="button"
                   onClick={() => setAccountType('patient')}
-                  className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-colors ${
+                  className={`py-3 px-4 rounded-lg border-2 font-medium transition-colors ${
                     accountType === 'patient'
                       ? 'border-blue-600 bg-blue-50 text-blue-700'
                       : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
@@ -192,12 +242,51 @@ export default function AdminAccountCreation() {
                 >
                   Patient
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setAccountType('schedule')}
+                  className={`py-3 px-4 rounded-lg border-2 font-medium transition-colors ${
+                    accountType === 'schedule'
+                      ? 'border-green-600 bg-green-50 text-green-700'
+                      : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                  }`}
+                >
+                  📅 Upload Schedule
+                </button>
               </div>
             </div>
 
-            <form onSubmit={handleSubmit}>
-              {/* Common Fields */}
-              <div className="grid grid-cols-2 gap-4 mb-4">
+            {/* Schedule Upload Section */}
+            {accountType === 'schedule' ? (
+              <div>
+                <AthenaScheduleUploader
+                  onImportSuccess={handleScheduleImportSuccess}
+                  onImportError={handleScheduleImportError}
+                />
+                {scheduleImportStatus && (
+                  <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                      <span className="text-blue-800">{scheduleImportStatus}</span>
+                    </div>
+                  </div>
+                )}
+                {message && (
+                  <div
+                    className={`mt-4 p-4 rounded-lg ${
+                      message.type === 'success'
+                        ? 'bg-green-50 border border-green-200 text-green-800'
+                        : 'bg-red-50 border border-red-200 text-red-800'
+                    }`}
+                  >
+                    {message.text}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit}>
+                {/* Common Fields */}
+                <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">First Name *</label>
                   <input
@@ -335,19 +424,6 @@ export default function AdminAccountCreation() {
                 </>
               )}
 
-              {/* Message */}
-              {message && (
-                <div
-                  className={`mb-4 p-4 rounded-lg ${
-                    message.type === 'success'
-                      ? 'bg-green-50 border border-green-200 text-green-800'
-                      : 'bg-red-50 border border-red-200 text-red-800'
-                  }`}
-                >
-                  {message.text}
-                </div>
-              )}
-
               {/* Submit Button */}
               <button
                 type="submit"
@@ -357,6 +433,7 @@ export default function AdminAccountCreation() {
                 {isLoading ? 'Creating Account...' : `Create ${accountType === 'staff' ? 'Staff' : 'Patient'} Account`}
               </button>
             </form>
+            )}
           </div>
 
           {/* Sidebar - Recently Created & Instructions */}
