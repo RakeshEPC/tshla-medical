@@ -3,6 +3,9 @@ import { supabase } from '../../lib/supabase/client';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { supabaseAuthService } from '../../services/supabaseAuth.service';
+import { scheduleService } from '../../services/scheduleService';
+import { AthenaScheduleUploader } from '../../components/AthenaScheduleUploader';
+import type { ParsedAthenaAppointment, ImportError } from '../../types/schedule.types';
 
 interface NewAccount {
   accountType: 'admin' | 'staff' | 'patient' | 'pumpdrive';
@@ -40,7 +43,7 @@ export default function AccountManager() {
   // Cache-bust: 2025-10-11T12:00:00Z - Force fresh deployment
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'create' | 'manage' | 'reset'>('create');
+  const [activeTab, setActiveTab] = useState<'create' | 'manage' | 'reset' | 'schedule'>('create');
 
   // Create Account State
   const [newAccount, setNewAccount] = useState<NewAccount>({
@@ -75,6 +78,10 @@ export default function AccountManager() {
   const [isResetting, setIsResetting] = useState(false);
   const [resetMessage, setResetMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [newPassword, setNewPassword] = useState<string | null>(null);
+
+  // Schedule Import State
+  const [scheduleImportStatus, setScheduleImportStatus] = useState<string>('');
+  const [scheduleMessage, setScheduleMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Check if user is admin
   if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {
@@ -352,6 +359,58 @@ export default function AccountManager() {
     }
   };
 
+  const handleScheduleImportSuccess = async (appointments: ParsedAthenaAppointment[]) => {
+    setScheduleImportStatus('Importing appointments to database...');
+    try {
+      // Get current user email for audit trail
+      const result = await supabaseAuthService.getCurrentUser();
+      const userEmail = result.user?.email || 'admin@tshla.ai';
+
+      // Get schedule date from first appointment (all should be same date)
+      const scheduleDate = appointments[0]?.date || new Date().toISOString().split('T')[0];
+
+      console.log(`📅 Importing ${appointments.length} appointments for date: ${scheduleDate}`);
+
+      // Call schedule service to import to Supabase
+      const importResult = await scheduleService.importAthenaSchedule(
+        appointments,
+        scheduleDate,
+        userEmail
+      );
+
+      console.log('✅ Import result:', importResult);
+
+      setScheduleMessage({
+        type: 'success',
+        text: `Successfully imported ${importResult.summary.successful} appointments! ${
+          importResult.summary.duplicates > 0
+            ? `(${importResult.summary.duplicates} duplicates skipped) `
+            : ''
+        }${
+          importResult.summary.failed > 0
+            ? `(${importResult.summary.failed} failed)`
+            : ''
+        } - View on Dashboard at /dashboard`,
+      });
+      setScheduleImportStatus('');
+    } catch (error) {
+      console.error('❌ Import error:', error);
+      setScheduleMessage({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Failed to import schedule',
+      });
+      setScheduleImportStatus('');
+    }
+  };
+
+  const handleScheduleImportError = (errors: ImportError[]) => {
+    console.error('❌ Parse errors:', errors);
+    setScheduleMessage({
+      type: 'error',
+      text: `Failed to parse schedule file. ${errors.length} errors found. Check the file format and try again.`,
+    });
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
   };
@@ -424,6 +483,16 @@ export default function AccountManager() {
               }`}
             >
               🔑 Reset Password
+            </button>
+            <button
+              onClick={() => setActiveTab('schedule')}
+              className={`flex-1 py-4 px-6 font-semibold transition-colors ${
+                activeTab === 'schedule'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              📅 Upload Schedule
             </button>
           </div>
         </div>
@@ -839,6 +908,82 @@ export default function AccountManager() {
                   <li>• The link is valid for a limited time (typically 1 hour)</li>
                   <li>• The user can set a new password by clicking the link</li>
                 </ul>
+              </div>
+            </div>
+          )}
+
+          {/* SCHEDULE UPLOAD TAB */}
+          {activeTab === 'schedule' && (
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Upload Athena Schedule</h2>
+              <p className="text-gray-600 mb-6">
+                Import patient appointments from Athena Health schedule export files (CSV, TSV, or Excel)
+              </p>
+
+              <div className="max-w-3xl">
+                <AthenaScheduleUploader
+                  onImportSuccess={handleScheduleImportSuccess}
+                  onImportError={handleScheduleImportError}
+                />
+
+                {scheduleImportStatus && (
+                  <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                      <span className="text-blue-800">{scheduleImportStatus}</span>
+                    </div>
+                  </div>
+                )}
+
+                {scheduleMessage && (
+                  <div
+                    className={`mt-4 p-4 rounded-lg ${
+                      scheduleMessage.type === 'success'
+                        ? 'bg-green-50 border border-green-200 text-green-800'
+                        : 'bg-red-50 border border-red-200 text-red-800'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <span className="text-xl">
+                        {scheduleMessage.type === 'success' ? '✅' : '❌'}
+                      </span>
+                      <div className="flex-1">
+                        <p>{scheduleMessage.text}</p>
+                        {scheduleMessage.type === 'success' && (
+                          <button
+                            onClick={() => navigate('/dashboard')}
+                            className="mt-3 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
+                          >
+                            View Schedule on Dashboard →
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h4 className="font-semibold text-blue-900 mb-2">📋 How to Use</h4>
+                  <ol className="text-sm text-blue-800 space-y-2 list-decimal list-inside">
+                    <li>Export your schedule from Athena Health (CSV or Excel format)</li>
+                    <li>Drag and drop the file or click to browse</li>
+                    <li>Click "Parse Schedule File" to validate the data</li>
+                    <li>Review the parsed appointments and provider summary</li>
+                    <li>Click "Import to Database" to save the appointments</li>
+                    <li>View the imported schedule on the Dashboard (/dashboard)</li>
+                  </ol>
+                </div>
+
+                <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                  <h4 className="font-semibold text-amber-900 mb-2">ℹ️ Supported File Formats</h4>
+                  <ul className="text-sm text-amber-800 space-y-1">
+                    <li>• CSV (Comma-Separated Values)</li>
+                    <li>• TSV (Tab-Separated Values)</li>
+                    <li>• Excel (.xls, .xlsx)</li>
+                    <li>• Files must contain: date, time, provider, patient name</li>
+                    <li>• System automatically detects Athena column names</li>
+                  </ul>
+                </div>
               </div>
             </div>
           )}
