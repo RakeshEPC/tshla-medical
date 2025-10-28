@@ -93,6 +93,24 @@ export default function Login() {
     }
   };
 
+  const clearSessionAndRetry = () => {
+    // Clear ALL storage
+    console.log('🧹 Clearing all browser storage...');
+    localStorage.clear();
+    sessionStorage.clear();
+
+    // Log current Supabase session state
+    console.log('📊 Supabase session state:', {
+      localStorageKeys: Object.keys(localStorage),
+      sessionStorageKeys: Object.keys(sessionStorage),
+    });
+
+    setError('');
+    setEmail('');
+    setPassword('');
+    window.location.reload(); // Force fresh start
+  };
+
   return (
     <div className="min-h-screen bg-tesla-silver flex items-center justify-center p-4 no-animations">
       <div className="bg-white border border-gray-200 rounded-lg w-full max-w-md p-10">
@@ -225,8 +243,17 @@ export default function Login() {
           )}
 
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">
-              {error}
+            <div className="space-y-3">
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">
+                {error}
+              </div>
+              <button
+                type="button"
+                onClick={clearSessionAndRetry}
+                className="w-full text-sm text-tesla-light-gray hover:text-tesla-dark-gray underline"
+              >
+                Clear session data and try again
+              </button>
             </div>
           )}
 

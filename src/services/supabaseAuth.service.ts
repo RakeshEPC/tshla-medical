@@ -46,22 +46,47 @@ class SupabaseAuthService {
    * Used by old code that calls unifiedAuthService.login()
    */
   async login(email: string, password: string): Promise<AuthResult> {
+    console.log('🔐 [SupabaseAuth] Universal login starting', { email });
+
     // Try medical staff first
     const staffResult = await this.loginMedicalStaff(email, password);
+
     if (staffResult.success) {
+      console.log('✅ [SupabaseAuth] Medical staff login successful');
       return staffResult;
     }
 
-    // Try patient if staff login failed
+    // Check if we should try patient login based on the error
+    const staffError = staffResult.error || '';
+    const shouldTryPatient =
+      staffError.includes('medical_staff record not found') ||
+      staffError.includes('no medical_staff record') ||
+      staffError.includes('staff record');
+
+    if (!shouldTryPatient) {
+      // If error is wrong password or email not found, don't try patient
+      console.log('⚠️ [SupabaseAuth] Skipping patient login - error indicates auth issue, not missing medical_staff record');
+      return staffResult; // Return the specific error (wrong password, email not found, etc.)
+    }
+
+    // Try patient if staff login failed because no medical_staff record found
+    console.log('🔄 [SupabaseAuth] Trying patient login...');
     const patientResult = await this.loginPatient(email, password);
+
     if (patientResult.success) {
+      console.log('✅ [SupabaseAuth] Patient login successful');
       return patientResult;
     }
 
-    // Both failed
+    // Both failed - return the more specific error
+    console.log('❌ [SupabaseAuth] Both login methods failed');
     return {
       success: false,
-      error: 'Invalid email or password',
+      error: staffResult.error || patientResult.error || 'Invalid email or password',
+      _debugInfo: {
+        staffError: staffResult.error,
+        patientError: patientResult.error,
+      }
     };
   }
 
@@ -86,10 +111,35 @@ class SupabaseAuthService {
       console.log('✅ [SupabaseAuth] Supabase auth call completed');
 
       if (authError) {
-        logError('SupabaseAuth', 'Auth failed', { error: authError.message });
+        // Enhanced error logging to show exact Supabase error
+        console.error('❌ [SupabaseAuth] Supabase auth error:', {
+          message: authError.message,
+          status: authError.status,
+          name: authError.name,
+          code: (authError as any).code,
+          details: authError
+        });
+
+        logError('SupabaseAuth', 'Auth failed', {
+          error: authError.message,
+          status: authError.status,
+          code: (authError as any).code
+        });
+
+        // Return user-friendly error message based on Supabase error
+        let userMessage = authError.message;
+        if (authError.message.includes('Invalid login credentials')) {
+          userMessage = 'Invalid email or password. Please check your credentials and try again.';
+        } else if (authError.message.includes('Email not confirmed')) {
+          userMessage = 'Please verify your email address before logging in.';
+        } else if (authError.message.includes('User not found')) {
+          userMessage = 'No account found with this email address.';
+        }
+
         return {
           success: false,
-          error: authError.message,
+          error: userMessage,
+          _originalError: authError.message, // For debugging
         };
       }
 
@@ -107,10 +157,10 @@ class SupabaseAuthService {
           .from('medical_staff')
           .select('*')
           .eq('auth_user_id', authData.user.id)
-          .single(),
+          .single() as unknown as Promise<any>,
         10000,
         'Medical staff profile lookup'
-      );
+      ) as any;
       console.log('✅ [SupabaseAuth] medical_staff query completed');
 
       if (staffError || !staffData) {
@@ -125,6 +175,37 @@ class SupabaseAuthService {
         return {
           success: false,
           error: 'Medical staff profile not found',
+        };
+      }
+
+      // Step 2.5: Validate account status
+      if (!staffData.is_active) {
+        logError('SupabaseAuth', 'Inactive staff account login attempt', {
+          userId: authData.user.id,
+          email: staffData.email
+        });
+
+        // Sign out since account is inactive
+        await supabase.auth.signOut();
+
+        return {
+          success: false,
+          error: 'Your account is inactive. Please contact your administrator for assistance.',
+        };
+      }
+
+      if (!staffData.is_verified) {
+        logError('SupabaseAuth', 'Unverified staff account login attempt', {
+          userId: authData.user.id,
+          email: staffData.email
+        });
+
+        // Sign out since account needs verification
+        await supabase.auth.signOut();
+
+        return {
+          success: false,
+          error: 'Your account requires verification. Please contact support to activate your account.',
         };
       }
 
@@ -165,16 +246,41 @@ class SupabaseAuthService {
       };
     } catch (error) {
       console.error('❌ [SupabaseAuth] Medical staff login error:', error);
-      logError('SupabaseAuth', 'Login error', { error });
+      console.error('❌ [SupabaseAuth] Error details:', {
+        message: error instanceof Error ? error.message : String(error),
+        type: typeof error,
+        name: error instanceof Error ? error.name : 'unknown',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+
+      logError('SupabaseAuth', 'Login error', {
+        error,
+        errorType: typeof error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined
+      });
 
       const errorMessage = error instanceof Error ? error.message : 'Login failed';
       const isTimeout = errorMessage.includes('timed out');
+      const isNetwork = errorMessage.includes('fetch') || errorMessage.includes('network');
+
+      console.log('🔍 [SupabaseAuth] Returning error:', {
+        isTimeout,
+        isNetwork,
+        finalError: isTimeout
+          ? errorMessage
+          : isNetwork
+          ? 'Network error. Please check your internet connection and try again.'
+          : `Login failed: ${errorMessage}`
+      });
 
       return {
         success: false,
         error: isTimeout
           ? errorMessage
-          : 'Login failed. Please check your credentials and try again.',
+          : isNetwork
+          ? 'Network error. Please check your internet connection and try again.'
+          : `Login failed: ${errorMessage}`,
       };
     }
   }
@@ -220,10 +326,10 @@ class SupabaseAuthService {
           .from('patients')
           .select('*')
           .eq('auth_user_id', authData.user.id)
-          .single(),
+          .single() as unknown as Promise<any>,
         10000,
         'Patient profile lookup'
-      );
+      ) as any;
       console.log('✅ [SupabaseAuth] patients query completed');
 
       if (patientError || !patientData) {
@@ -233,6 +339,22 @@ class SupabaseAuthService {
         return {
           success: false,
           error: 'Patient profile not found',
+        };
+      }
+
+      // Step 2.5: Validate account status (if patient has is_active field)
+      if (patientData.is_active !== undefined && !patientData.is_active) {
+        logError('SupabaseAuth', 'Inactive patient account login attempt', {
+          userId: authData.user.id,
+          email: patientData.email
+        });
+
+        // Sign out since account is inactive
+        await supabase.auth.signOut();
+
+        return {
+          success: false,
+          error: 'Your account is inactive. Please contact support for assistance.',
         };
       }
 
@@ -611,10 +733,10 @@ class SupabaseAuthService {
           .from('medical_staff')
           .select('*')
           .eq('auth_user_id', user.id)
-          .single(),
+          .single() as unknown as Promise<any>,
         10000,
         'Medical staff profile query'
-      );
+      ) as any;
 
       if (staffError) {
         console.warn('⚠️ [SupabaseAuth] medical_staff query error:', {
@@ -655,10 +777,10 @@ class SupabaseAuthService {
           .from('patients')
           .select('*')
           .eq('auth_user_id', user.id)
-          .single(),
+          .single() as unknown as Promise<any>,
         10000,
         'Patient profile query'
-      );
+      ) as any;
 
       if (patientError) {
         console.warn('⚠️ [SupabaseAuth] patients query error:', {
