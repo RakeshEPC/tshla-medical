@@ -88,10 +88,16 @@ class AthenaScheduleParserService {
       logDebug('athenaParser', `Detected delimiter: ${delimiter === '\t' ? 'TAB' : 'COMMA'}`, {});
 
       // Split into lines
-      const lines = fileContent.trim().split('\n');
+      let lines = fileContent.trim().split('\n');
       if (lines.length < 2) {
         errors.push({ row: 0, message: 'File is empty or has no data rows' });
         return { appointments, errors, warnings };
+      }
+
+      // Skip report title line if present (e.g., "REPORT NAME : Tshla schedule")
+      if (lines[0].toLowerCase().includes('report name')) {
+        console.log('📝 [athenaParser] Skipping report title line');
+        lines = lines.slice(1);
       }
 
       // Parse header row
@@ -99,7 +105,9 @@ class AthenaScheduleParserService {
       const headers = this.parseRow(headerRow, delimiter);
       const columnMapping = this.mapColumns(headers);
 
-      logInfo('athenaParser', `Found ${headers.length} columns`, { columnMapping });
+      console.log('🔍 [athenaParser] Headers detected:', headers);
+      console.log('🔍 [athenaParser] Column mapping:', columnMapping);
+      logInfo('athenaParser', `Found ${headers.length} columns`, { headers, columnMapping });
 
       // Parse data rows
       for (let i = 1; i < lines.length; i++) {
@@ -114,9 +122,11 @@ class AthenaScheduleParserService {
           if (parsed.isValid) {
             appointments.push(parsed);
           } else {
+            console.log(`❌ [athenaParser] Row ${i + 1} invalid:`, parsed.errors);
             errors.push(...parsed.errors.map(err => ({ row: i + 1, message: err })));
           }
         } catch (error) {
+          console.error(`❌ [athenaParser] Row ${i + 1} exception:`, error);
           errors.push({
             row: i + 1,
             message: error instanceof Error ? error.message : 'Failed to parse row',
