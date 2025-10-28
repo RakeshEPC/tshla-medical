@@ -50,7 +50,40 @@ export function useSchedule({
     setError(null);
 
     try {
-      // Try to load from database first
+      // First, try to load imported schedules from provider_schedules table (Athena data)
+      const { supabase } = await import('../lib/supabase');
+      const { data: importedSchedules, error: supabaseError } = await supabase
+        .from('provider_schedules')
+        .select('*')
+        .eq('scheduled_date', dateString)
+        .order('start_time', { ascending: true });
+
+      if (!supabaseError && importedSchedules && importedSchedules.length > 0) {
+        // Convert imported schedules to UnifiedAppointment format
+        const unifiedAppointments: UnifiedAppointment[] = importedSchedules.map((apt: any) => ({
+          id: apt.id.toString(),
+          patientId: apt.patient_mrn || apt.id.toString(),
+          patientName: apt.patient_name,
+          patientPhone: apt.patient_phone || '',
+          patientEmail: apt.patient_email || '',
+          doctorId: apt.provider_id || providerId,
+          doctorName: apt.provider_name || 'Dr. Unknown',
+          time: apt.start_time,
+          date: dateString,
+          duration: apt.duration_minutes || 30,
+          visitType: (apt.appointment_type || 'follow-up') as any,
+          visitReason: apt.chief_diagnosis || apt.visit_reason || '',
+          status: (apt.status || 'scheduled') as any,
+          notes: apt.notes || apt.chief_diagnosis || '',
+          createdAt: new Date(apt.created_at || Date.now()),
+          updatedAt: new Date(apt.updated_at || Date.now()),
+        }));
+
+        setAppointments(unifiedAppointments);
+        return;
+      }
+
+      // Fallback: Try to load from scheduleDatabase service
       const dbAppointments = await scheduleDatabaseService.getScheduleForDate(
         providerId,
         dateString
@@ -64,20 +97,22 @@ export function useSchedule({
           patientName: dbAppt.name,
           patientPhone: dbAppt.phone,
           patientEmail: '', // Not available in current format
+          doctorId: providerId,
+          doctorName: 'Dr. Unknown',
           time: dbAppt.appointmentTime,
           date: dateString,
+          duration: 30,
           visitType: 'follow-up' as const,
           visitReason: '',
           status: dbAppt.status,
           notes: '',
-          providerId,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
         }));
 
         setAppointments(unifiedAppointments);
       } else {
-        // Fallback to unified appointment service (localStorage)
+        // Final fallback to unified appointment service (localStorage)
         const localAppointments = unifiedAppointmentService.getAppointmentsForDate(
           dateString,
           providerId

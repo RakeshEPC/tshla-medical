@@ -27,12 +27,12 @@ interface DailyPatientListProps {
   isLoading?: boolean;
 }
 
-// Generate 15-minute time slots from 9 AM to 5:30 PM
+// Generate 15-minute time slots from 8 AM to 5:30 PM
 const generateTimeSlots = (): string[] => {
   const slots: string[] = [];
 
-  // Morning slots (9:00 AM to 11:45 AM)
-  for (let hour = 9; hour < 12; hour++) {
+  // Morning slots (8:00 AM to 11:45 AM)
+  for (let hour = 8; hour < 12; hour++) {
     slots.push(`${hour}:00 AM`);
     slots.push(`${hour}:15 AM`);
     slots.push(`${hour}:30 AM`);
@@ -152,6 +152,11 @@ export default function DailyPatientList({
       <div className="p-4 border-b border-gray-200 bg-white">
         <h2 className="text-xl font-semibold text-gray-900">
           Daily Schedule - {formatDateDisplay()}
+          {appointments.length > 0 && appointments[0].doctorName && appointments[0].doctorName !== 'Dr. Unknown' && (
+            <span className="text-base font-normal text-gray-600 ml-2">
+              ({appointments[0].doctorName})
+            </span>
+          )}
         </h2>
         <p className="text-sm text-gray-600 mt-1">
           {selectedDate.toLocaleDateString('en-US', {

@@ -275,16 +275,8 @@ function App() {
               />
 
               {/* ===== SCHEDULE & CALENDAR ===== */}
-              <Route
-                path="/schedule"
-                element={
-                  <ProtectedRoute>
-                    <Suspense fallback={<LoadingSpinner />}>
-                      <SchedulePage />
-                    </Suspense>
-                  </ProtectedRoute>
-                }
-              />
+              {/* Redirect to dashboard which has better schedule view with imported Athena data */}
+              <Route path="/schedule" element={<Navigate to="/dashboard" replace />} />
 
               {/* ===== PUMPDRIVE SYSTEM (AUTHENTICATION-ENABLED BUNDLE) ===== */}
               <Route
