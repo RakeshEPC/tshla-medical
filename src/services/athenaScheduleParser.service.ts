@@ -201,17 +201,21 @@ class AthenaScheduleParserService {
     headers.forEach((header, index) => {
       const normalized = header.toLowerCase().trim();
 
-      // Date
-      if (normalized.includes('date') && !normalized.includes('birth') && !normalized.includes('dob')) {
+      // Date - including Athena's "apptdate"
+      if (normalized === 'apptdate' || (normalized.includes('date') && !normalized.includes('birth') && !normalized.includes('dob'))) {
         mapping['date'] = index;
       }
-      // Time
-      else if (normalized.includes('time') || normalized.includes('start')) {
+      // Time - including Athena's "apptstarttime"
+      else if (normalized === 'apptstarttime' || normalized.includes('time') || normalized.includes('start')) {
         mapping['time'] = index;
       }
-      // Provider
-      else if (normalized.includes('provider') || normalized.includes('doctor') || normalized.includes('prvdr')) {
+      // Provider - including Athena's "rndrng prvdr"
+      else if (normalized === 'rndrng prvdr' || normalized.includes('rndrng') || normalized.includes('provider') || normalized.includes('doctor') || normalized.includes('prvdr')) {
         mapping['provider'] = index;
+      }
+      // Patient Full Name (single column) - Athena uses this
+      else if (normalized === 'patient name' || (normalized.includes('patient') && normalized.includes('name') && !normalized.includes('first') && !normalized.includes('last'))) {
+        mapping['patientFullName'] = index;
       }
       // Patient First Name
       else if (normalized.includes('first') && normalized.includes('name')) {
@@ -233,9 +237,18 @@ class AthenaScheduleParserService {
       else if (normalized.includes('gender') || normalized === 'sex') {
         mapping['gender'] = index;
       }
-      // Diagnosis
-      else if (normalized.includes('diagnosis') || normalized === 'dx' || normalized.includes('chief complaint')) {
-        mapping['diagnosis'] = index;
+      // Diagnosis - including Athena's ICD-10 columns
+      else if (normalized.includes('diagnosis') || normalized === 'dx' || normalized.includes('chief complaint') || normalized.startsWith('icd10claimdiagdescr')) {
+        // Store first diagnosis column found, or collect all
+        if (!mapping['diagnosis']) {
+          mapping['diagnosis'] = index;
+        }
+        // Also store individual diagnosis columns for later combining
+        if (normalized.startsWith('icd10claimdiagdescr')) {
+          if (!mapping['diagnosisColumns']) {
+            mapping['diagnosisColumns'] = index; // Start tracking
+          }
+        }
       }
       // Visit Type
       else if (normalized.includes('visit') || normalized.includes('appt type')) {
@@ -300,8 +313,24 @@ class AthenaScheduleParserService {
     }
 
     // Extract patient name
-    const firstName = getValue('firstName') || '';
-    const lastName = getValue('lastName') || '';
+    let firstName = getValue('firstName') || '';
+    let lastName = getValue('lastName') || '';
+
+    // Handle full name in single column (Athena format)
+    if (!firstName && !lastName) {
+      const fullName = getValue('patientFullName');
+      if (fullName) {
+        const nameParts = fullName.trim().split(/\s+/);
+        if (nameParts.length >= 2) {
+          firstName = nameParts[0];
+          lastName = nameParts.slice(1).join(' ');
+        } else {
+          firstName = fullName;
+          lastName = '';
+        }
+      }
+    }
+
     if (!firstName || !lastName) {
       errors.push('Missing patient first or last name');
     }
@@ -450,18 +479,26 @@ class AthenaScheduleParserService {
    */
   private calculateConfidence(row: AthenaScheduleRow, columnMapping: Record<string, number>): number {
     let score = 0;
-    const required = ['date', 'time', 'provider', 'firstName', 'lastName'];
+    const required = ['date', 'time', 'provider'];
+    const patientName = ['firstName', 'lastName', 'patientFullName']; // Accept either format
     const optional = ['age', 'dob', 'gender', 'diagnosis', 'visitType', 'duration'];
 
-    // Required fields (10 points each)
+    // Required fields (20% each for date, time, provider)
     required.forEach(field => {
       if (columnMapping[field] !== undefined) {
         const value = Object.values(row)[columnMapping[field]];
         if (value && String(value).trim()) {
-          score += 0.20; // 20% per required field
+          score += 0.20;
         }
       }
     });
+
+    // Patient name (40% - either firstName+lastName OR patientFullName)
+    const hasFirstLast = columnMapping['firstName'] !== undefined && columnMapping['lastName'] !== undefined;
+    const hasFullName = columnMapping['patientFullName'] !== undefined;
+    if (hasFirstLast || hasFullName) {
+      score += 0.40;
+    }
 
     // Optional fields (5 points each, up to 30%)
     let optionalScore = 0;
