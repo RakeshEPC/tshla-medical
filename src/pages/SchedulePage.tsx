@@ -66,8 +66,53 @@ export default function SchedulePage() {
     }
   };
 
-  const loadAppointments = () => {
-    // Mock appointments - in production, fetch from backend
+  const loadAppointments = async () => {
+    // Fetch real appointments from Supabase provider_schedules table
+    try {
+      const { supabase } = await import('../lib/supabase');
+
+      // Format date as YYYY-MM-DD for Supabase query
+      const dateStr = selectedDate.toISOString().split('T')[0];
+
+      const { data, error } = await supabase
+        .from('provider_schedules')
+        .select('*')
+        .eq('scheduled_date', dateStr)
+        .order('start_time', { ascending: true });
+
+      if (error) {
+        console.error('Error loading appointments:', error);
+        // Fall back to mock data
+        loadMockAppointments();
+        return;
+      }
+
+      if (data && data.length > 0) {
+        // Convert Supabase appointments to component format
+        const realAppointments: Appointment[] = data.map((apt: any) => ({
+          id: apt.id.toString(),
+          time: apt.start_time,
+          patient: apt.patient_name,
+          mrn: apt.patient_mrn || `MRN${apt.id}`,
+          type: apt.appointment_type || 'Office Visit',
+          duration: apt.duration_minutes || 30,
+          status: apt.status as any || 'scheduled',
+          notes: apt.chief_diagnosis || apt.notes,
+        }));
+
+        setAppointments(realAppointments);
+        return;
+      }
+    } catch (error) {
+      console.error('Failed to load appointments:', error);
+    }
+
+    // If no real data, show mock appointments
+    loadMockAppointments();
+  };
+
+  const loadMockAppointments = () => {
+    // Mock appointments - fallback when no real data
     const mockAppointments: Appointment[] = [
       {
         id: '1',
