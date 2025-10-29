@@ -85,7 +85,36 @@ export default function MedicalDictation({ patientId, preloadPatientData = false
 
   // Load patient data if patientId is provided and preload is enabled
   useEffect(() => {
-    const loadPatientFromDatabase = async () => {
+    const loadPatientData = async () => {
+      // FIRST PRIORITY: Try sessionStorage (from schedule click)
+      const storedPatient = sessionStorage.getItem('current_patient');
+      if (storedPatient) {
+        try {
+          const data = JSON.parse(storedPatient);
+          setPatientDetails({
+            name: data.name || '',
+            mrn: data.id || '',
+            dob: '',
+            email: data.email || data.phone || '',
+            visitDate: data.date || new Date().toLocaleDateString()
+          });
+
+          // Store appointmentId for linking note to appointment
+          if (data.appointmentId) {
+            sessionStorage.setItem('current_appointment_id', data.appointmentId);
+          }
+
+          logInfo('MedicalDictation', '✅ Patient data auto-populated from schedule', {
+            patientName: data.name,
+            appointmentId: data.appointmentId
+          });
+          return; // Exit early - we have the data
+        } catch (error) {
+          logError('MedicalDictation', 'Error parsing sessionStorage patient data', {});
+        }
+      }
+
+      // SECOND PRIORITY: Try database lookup
       if (patientId && preloadPatientData) {
         try {
           // First try to get patient data from database schedule
@@ -103,7 +132,7 @@ export default function MedicalDictation({ patientId, preloadPatientData = false
               email: patient.phone || '', // Use phone as email fallback
               visitDate: new Date().toLocaleDateString()
             });
-            logInfo('MedicalDictation', 'Info message', {});
+            logInfo('MedicalDictation', 'Patient data loaded from database', {});
           } else {
             // Fallback to old localStorage method
             const data = getPatientData(patientId);
@@ -115,11 +144,11 @@ export default function MedicalDictation({ patientId, preloadPatientData = false
                 email: data.email || '',
                 visitDate: new Date().toLocaleDateString()
               });
-              logInfo('MedicalDictation', 'Info message', {});
+              logInfo('MedicalDictation', 'Patient data loaded from localStorage', {});
             }
           }
         } catch (error) {
-          logError('MedicalDictation', 'Error message', {});
+          logError('MedicalDictation', 'Error loading patient from database', {});
           // Fallback to old localStorage method
           const data = getPatientData(patientId);
           if (data) {
@@ -135,7 +164,7 @@ export default function MedicalDictation({ patientId, preloadPatientData = false
       }
     };
 
-    loadPatientFromDatabase();
+    loadPatientData();
   }, [patientId, preloadPatientData, providerId]);
 
   // Load existing notes for this patient from database

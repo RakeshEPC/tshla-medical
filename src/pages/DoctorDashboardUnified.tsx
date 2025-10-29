@@ -197,15 +197,19 @@ export default function DoctorDashboardUnified() {
   const handlePatientClick = (appointment: UnifiedAppointment) => {
     updateAppointmentStatus(appointment.id, 'in-progress');
 
-    // Store patient info for dictation
+    // Store comprehensive patient info for dictation auto-population
     sessionStorage.setItem(
       'current_patient',
       JSON.stringify({
         id: appointment.patientId,
         name: appointment.patientName,
+        phone: appointment.patientPhone || '',
+        email: appointment.patientEmail || '',
         appointmentId: appointment.id,
         date: selectedDate.toISOString().split('T')[0],
         time: appointment.time,
+        visitReason: appointment.visitReason || '',
+        visitType: appointment.visitType || 'follow-up',
       })
     );
 

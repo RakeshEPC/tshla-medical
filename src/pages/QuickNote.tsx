@@ -3,6 +3,14 @@
 import MedicalDictation from '../components/MedicalDictation';
 
 export default function QuickNote() {
-  // Quick Note page - no patient preloading with modern UI enhancements
-  return <MedicalDictation preloadPatientData={false} />;
+  // Read patient data from sessionStorage (set when clicking patient from schedule)
+  const storedPatient = sessionStorage.getItem('current_patient');
+  const patientData = storedPatient ? JSON.parse(storedPatient) : null;
+
+  return (
+    <MedicalDictation
+      patientId={patientData?.id}
+      preloadPatientData={true}
+    />
+  );
 }

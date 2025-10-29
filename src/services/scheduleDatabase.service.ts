@@ -19,6 +19,8 @@ interface DictatedNote {
   id?: number;
   patientName: string;
   patientMrn?: string;
+  patientPhone?: string;
+  patientEmail?: string;
   rawTranscript: string;
   aiProcessedNote: string;
   recordingMode: 'dictation' | 'conversation';
@@ -155,6 +157,9 @@ class ScheduleDatabaseService {
     note: DictatedNote
   ): Promise<number | null> {
     try {
+      // Get appointment_id from sessionStorage to link note to appointment
+      const appointmentId = sessionStorage.getItem('current_appointment_id');
+
       const response = await fetch(`${this.API_BASE_URL}:3003/api/dictated-notes`, {
         method: 'POST',
         headers: {
@@ -165,6 +170,9 @@ class ScheduleDatabaseService {
           provider_name: providerName,
           patient_name: note.patientName,
           patient_mrn: note.patientMrn,
+          patient_phone: note.patientPhone,
+          patient_email: note.patientEmail,
+          appointment_id: appointmentId || null, // Link note to appointment
           raw_transcript: note.rawTranscript,
           processed_note: note.aiProcessedNote,
           recording_mode: note.recordingMode,
@@ -180,12 +188,16 @@ class ScheduleDatabaseService {
       const data = await response.json();
 
       if (data.success) {
+        logInfo('scheduleDatabase', '✅ Note saved and linked to appointment', {
+          noteId: data.noteId,
+          appointmentId: appointmentId || 'none'
+        });
         return data.noteId;
       } else {
         throw new Error(data.error || 'Failed to save note');
       }
     } catch (error) {
-      logError('scheduleDatabase', 'Error message', {});
+      logError('scheduleDatabase', 'Error saving note', {});
       return null;
     }
   }
