@@ -94,6 +94,13 @@ export function useSchedule({
 
       if (!supabaseError && importedSchedules && importedSchedules.length > 0) {
         console.log('✅ [useSchedule] Found appointments:', importedSchedules.length);
+
+        // Helper function to normalize time format (remove leading zeros)
+        const normalizeTime = (time: string): string => {
+          // Convert "01:00 PM" to "1:00 PM", "02:15 PM" to "2:15 PM", etc.
+          return time.replace(/^0(\d)/, '$1');
+        };
+
         // Convert imported schedules to UnifiedAppointment format
         const unifiedAppointments: UnifiedAppointment[] = importedSchedules.map((apt: any) => ({
           id: apt.id.toString(),
@@ -103,7 +110,7 @@ export function useSchedule({
           patientEmail: apt.patient_email || '',
           doctorId: apt.provider_id || 'unknown',
           doctorName: apt.provider_name || 'Dr. Unknown',
-          time: apt.start_time,
+          time: normalizeTime(apt.start_time),
           date: dateString,
           duration: apt.duration_minutes || 30,
           visitType: (apt.appointment_type || 'follow-up') as any,
