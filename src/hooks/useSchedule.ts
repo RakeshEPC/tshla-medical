@@ -71,7 +71,8 @@ export function useSchedule({
       // Apply provider filtering if not "ALL"
       if (!selectedProviders.includes('ALL')) {
         console.log('🔍 [useSchedule] Filtering by specific providers:', selectedProviders);
-        query = query.in('provider_id', selectedProviders);
+        // Filter by provider_name since we're using that as the unique identifier
+        query = query.in('provider_name', selectedProviders);
       } else {
         console.log('✅ [useSchedule] Querying ALL providers');
       }
