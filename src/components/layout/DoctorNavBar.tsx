@@ -292,6 +292,17 @@ export default function DoctorNavBar({
               <span>Quick Note</span>
             </button>
 
+            {/* Upload Schedule Button - Admin Only */}
+            {currentUser?.role === 'admin' && (
+              <button
+                onClick={() => navigate('/admin/account-creation')}
+                className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2 shadow-sm"
+              >
+                <Upload className="w-4 h-4" />
+                <span>Upload Schedule</span>
+              </button>
+            )}
+
             {/* Search */}
             <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
               <Search className="w-5 h-5 text-gray-500" />
