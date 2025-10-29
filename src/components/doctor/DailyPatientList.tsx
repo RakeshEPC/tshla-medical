@@ -120,31 +120,30 @@ export default function DailyPatientList({
 }: DailyPatientListProps) {
   const timeSlots = generateTimeSlots();
 
-  // Create a map of appointments by time for quick lookup
+  // Create a map of appointments by time - support MULTIPLE appointments per slot
   const appointmentsByTime = appointments.reduce(
     (acc, appointment) => {
-      // Debug: log time format issues
-      if (appointments.length > 0 && !acc[appointment.time]) {
-        console.log('🕐 [DailyPatientList] Mapping appointment time:', {
-          time: appointment.time,
-          patient: appointment.patientName,
-          isMatched: timeSlots.includes(appointment.time)
-        });
+      if (!acc[appointment.time]) {
+        acc[appointment.time] = [];
       }
-      acc[appointment.time] = appointment;
+      acc[appointment.time].push(appointment);
       return acc;
     },
-    {} as Record<string, UnifiedAppointment>
+    {} as Record<string, UnifiedAppointment[]>
   );
 
-  // Debug: show time slot matching summary
+  // Debug: show appointment distribution
   if (appointments.length > 0) {
-    const matchedCount = Object.keys(appointmentsByTime).length;
-    console.log('📊 [DailyPatientList] Appointment mapping summary:', {
+    const slotsWithMultiple = Object.entries(appointmentsByTime).filter(([_, apts]) => apts.length > 1);
+    console.log('📊 [DailyPatientList] Appointment distribution:', {
       totalAppointments: appointments.length,
-      matchedTimeSlots: matchedCount,
-      unmatchedAppointments: appointments.length - matchedCount,
-      sampleAppointmentTimes: appointments.slice(0, 5).map(a => a.time)
+      uniqueTimeSlots: Object.keys(appointmentsByTime).length,
+      slotsWithMultipleAppointments: slotsWithMultiple.length,
+      exampleMultiple: slotsWithMultiple.slice(0, 2).map(([time, apts]) => ({
+        time,
+        count: apts.length,
+        providers: apts.map(a => a.doctorName)
+      }))
     });
   }
 
@@ -230,74 +229,78 @@ export default function DailyPatientList({
       <div className="flex-1 overflow-y-auto">
         <div className="p-4 space-y-1">
           {timeSlots.map(timeSlot => {
-            const appointment = appointmentsByTime[timeSlot];
+            const appointmentsAtThisTime = appointmentsByTime[timeSlot];
 
-            if (appointment) {
-              // Appointment card
+            if (appointmentsAtThisTime && appointmentsAtThisTime.length > 0) {
+              // Multiple appointments at this time - render them all
               return (
-                <div
-                  key={timeSlot}
-                  className={`p-3 rounded-lg border-2 cursor-pointer transition-all duration-200 ${getStatusColor(appointment.status)}`}
-                  onClick={() => onPatientClick(appointment)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="flex items-center space-x-2">
-                        <Clock className="w-4 h-4 text-gray-500" />
-                        <span className="font-medium text-sm">{timeSlot}</span>
-                      </div>
-                      {getStatusIcon(appointment.status)}
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={e => {
-                          e.stopPropagation();
-                          onPatientClick(appointment);
-                        }}
-                        className="p-1 rounded hover:bg-white/50 transition-colors"
-                        title="Start Dictation"
-                      >
-                        <FileText className="w-4 h-4" />
-                      </button>
-                      {appointment.patientPhone && <Phone className="w-4 h-4 text-gray-400" />}
-                    </div>
-                  </div>
-
-                  <div className="mt-2">
-                    {/* Provider Badge - Prominent */}
-                    {appointment.doctorName && appointment.doctorName !== 'Dr. Unknown' && (
-                      <div className="flex items-center space-x-2 mb-2">
-                        <div
-                          className={`w-7 h-7 ${getProviderBadgeColor(appointment.doctorName)} rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm`}
-                        >
-                          {getProviderInitials(appointment.doctorName)}
+                <div key={timeSlot} className="space-y-2">
+                  {appointmentsAtThisTime.map((appointment, idx) => (
+                    <div
+                      key={`${timeSlot}-${idx}`}
+                      className={`p-3 rounded-lg border-2 cursor-pointer transition-all duration-200 ${getStatusColor(appointment.status)}`}
+                      onClick={() => onPatientClick(appointment)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="flex items-center space-x-2">
+                            <Clock className="w-4 h-4 text-gray-500" />
+                            <span className="font-medium text-sm">{timeSlot}</span>
+                          </div>
+                          {getStatusIcon(appointment.status)}
                         </div>
-                        <span className="text-xs font-medium text-gray-700">
-                          {appointment.doctorName}
-                        </span>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              onPatientClick(appointment);
+                            }}
+                            className="p-1 rounded hover:bg-white/50 transition-colors"
+                            title="Start Dictation"
+                          >
+                            <FileText className="w-4 h-4" />
+                          </button>
+                          {appointment.patientPhone && <Phone className="w-4 h-4 text-gray-400" />}
+                        </div>
                       </div>
-                    )}
 
-                    <div className="flex items-center space-x-2">
-                      <User className="w-4 h-4 text-gray-500" />
-                      <span className="font-semibold">{appointment.patientName}</span>
-                      {appointment.visitType && (
-                        <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">
-                          {appointment.visitType.replace('-', ' ')}
-                        </span>
-                      )}
+                      <div className="mt-2">
+                        {/* Provider Badge - Prominent */}
+                        {appointment.doctorName && appointment.doctorName !== 'Dr. Unknown' && (
+                          <div className="flex items-center space-x-2 mb-2">
+                            <div
+                              className={`w-7 h-7 ${getProviderBadgeColor(appointment.doctorName)} rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm`}
+                            >
+                              {getProviderInitials(appointment.doctorName)}
+                            </div>
+                            <span className="text-xs font-medium text-gray-700">
+                              {appointment.doctorName}
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="flex items-center space-x-2">
+                          <User className="w-4 h-4 text-gray-500" />
+                          <span className="font-semibold">{appointment.patientName}</span>
+                          {appointment.visitType && (
+                            <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">
+                              {appointment.visitType.replace('-', ' ')}
+                            </span>
+                          )}
+                        </div>
+
+                        {appointment.visitReason && (
+                          <p className="text-sm text-gray-600 mt-1 ml-6">{appointment.visitReason}</p>
+                        )}
+
+                        {appointment.patientPhone && (
+                          <p className="text-sm text-gray-500 mt-1 ml-6">
+                            📞 {appointment.patientPhone}
+                          </p>
+                        )}
+                      </div>
                     </div>
-
-                    {appointment.visitReason && (
-                      <p className="text-sm text-gray-600 mt-1 ml-6">{appointment.visitReason}</p>
-                    )}
-
-                    {appointment.patientPhone && (
-                      <p className="text-sm text-gray-500 mt-1 ml-6">
-                        📞 {appointment.patientPhone}
-                      </p>
-                    )}
-                  </div>
+                  ))}
                 </div>
               );
             } else {
