@@ -123,11 +123,30 @@ export default function DailyPatientList({
   // Create a map of appointments by time for quick lookup
   const appointmentsByTime = appointments.reduce(
     (acc, appointment) => {
+      // Debug: log time format issues
+      if (appointments.length > 0 && !acc[appointment.time]) {
+        console.log('🕐 [DailyPatientList] Mapping appointment time:', {
+          time: appointment.time,
+          patient: appointment.patientName,
+          isMatched: timeSlots.includes(appointment.time)
+        });
+      }
       acc[appointment.time] = appointment;
       return acc;
     },
     {} as Record<string, UnifiedAppointment>
   );
+
+  // Debug: show time slot matching summary
+  if (appointments.length > 0) {
+    const matchedCount = Object.keys(appointmentsByTime).length;
+    console.log('📊 [DailyPatientList] Appointment mapping summary:', {
+      totalAppointments: appointments.length,
+      matchedTimeSlots: matchedCount,
+      unmatchedAppointments: appointments.length - matchedCount,
+      sampleAppointmentTimes: appointments.slice(0, 5).map(a => a.time)
+    });
+  }
 
   const formatDateDisplay = () => {
     const today = new Date();
