@@ -118,31 +118,47 @@ export default function DailyPatientList({
   onAddAppointment,
   isLoading = false,
 }: DailyPatientListProps) {
-  const timeSlots = generateTimeSlots();
-
-  // Create a map of appointments by time - support MULTIPLE appointments per slot
-  const appointmentsByTime = appointments.reduce(
+  // Group appointments by provider
+  const appointmentsByProvider = appointments.reduce(
     (acc, appointment) => {
-      if (!acc[appointment.time]) {
-        acc[appointment.time] = [];
+      const providerName = appointment.doctorName || 'Unknown Provider';
+      if (!acc[providerName]) {
+        acc[providerName] = [];
       }
-      acc[appointment.time].push(appointment);
+      acc[providerName].push(appointment);
       return acc;
     },
     {} as Record<string, UnifiedAppointment[]>
   );
 
-  // Debug: show appointment distribution
+  // Sort providers alphabetically
+  const providerNames = Object.keys(appointmentsByProvider).sort();
+
+  // Sort appointments within each provider by time
+  providerNames.forEach(provider => {
+    appointmentsByProvider[provider].sort((a, b) => {
+      // Convert time to comparable format
+      const timeToMinutes = (time: string) => {
+        const [timePart, period] = time.split(' ');
+        const [hours, minutes] = timePart.split(':').map(Number);
+        const hour24 = period === 'PM' && hours !== 12 ? hours + 12 : period === 'AM' && hours === 12 ? 0 : hours;
+        return hour24 * 60 + minutes;
+      };
+      return timeToMinutes(a.time) - timeToMinutes(b.time);
+    });
+  });
+
+  // Debug: show provider distribution
   if (appointments.length > 0) {
-    const slotsWithMultiple = Object.entries(appointmentsByTime).filter(([_, apts]) => apts.length > 1);
-    console.log('📊 [DailyPatientList] Appointment distribution:', {
+    console.log('📊 [DailyPatientList] Provider distribution:', {
       totalAppointments: appointments.length,
-      uniqueTimeSlots: Object.keys(appointmentsByTime).length,
-      slotsWithMultipleAppointments: slotsWithMultiple.length,
-      exampleMultiple: slotsWithMultiple.slice(0, 2).map(([time, apts]) => ({
-        time,
-        count: apts.length,
-        providers: apts.map(a => a.doctorName)
+      totalProviders: providerNames.length,
+      providerBreakdown: providerNames.map(name => ({
+        provider: name,
+        appointmentCount: appointmentsByProvider[name].length,
+        timeRange: appointmentsByProvider[name].length > 0 ?
+          `${appointmentsByProvider[name][0].time} - ${appointmentsByProvider[name][appointmentsByProvider[name].length - 1].time}` :
+          'N/A'
       }))
     });
   }
@@ -225,106 +241,104 @@ export default function DailyPatientList({
         </div>
       </div>
 
-      {/* Time Slots */}
+      {/* Provider Sections */}
       <div className="flex-1 overflow-y-auto">
-        <div className="p-4 space-y-1">
-          {timeSlots.map(timeSlot => {
-            const appointmentsAtThisTime = appointmentsByTime[timeSlot];
+        <div className="p-4 space-y-6">
+          {providerNames.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-500 text-lg">No appointments scheduled for this date</p>
+              <p className="text-gray-400 text-sm mt-2">Select a different date or add appointments</p>
+            </div>
+          ) : (
+            providerNames.map(providerName => {
+              const providerAppointments = appointmentsByProvider[providerName];
+              const providerColor = getProviderBadgeColor(providerName);
+              const providerInitials = getProviderInitials(providerName);
 
-            if (appointmentsAtThisTime && appointmentsAtThisTime.length > 0) {
-              // Multiple appointments at this time - render them all
               return (
-                <div key={timeSlot} className="space-y-2">
-                  {appointmentsAtThisTime.map((appointment, idx) => (
-                    <div
-                      key={`${timeSlot}-${idx}`}
-                      className={`p-3 rounded-lg border-2 cursor-pointer transition-all duration-200 ${getStatusColor(appointment.status)}`}
-                      onClick={() => onPatientClick(appointment)}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className="flex items-center space-x-2">
-                            <Clock className="w-4 h-4 text-gray-500" />
-                            <span className="font-medium text-sm">{timeSlot}</span>
-                          </div>
-                          {getStatusIcon(appointment.status)}
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={e => {
-                              e.stopPropagation();
-                              onPatientClick(appointment);
-                            }}
-                            className="p-1 rounded hover:bg-white/50 transition-colors"
-                            title="Start Dictation"
-                          >
-                            <FileText className="w-4 h-4" />
-                          </button>
-                          {appointment.patientPhone && <Phone className="w-4 h-4 text-gray-400" />}
-                        </div>
-                      </div>
-
-                      <div className="mt-2">
-                        {/* Provider Badge - Prominent */}
-                        {appointment.doctorName && appointment.doctorName !== 'Dr. Unknown' && (
-                          <div className="flex items-center space-x-2 mb-2">
-                            <div
-                              className={`w-7 h-7 ${getProviderBadgeColor(appointment.doctorName)} rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm`}
-                            >
-                              {getProviderInitials(appointment.doctorName)}
-                            </div>
-                            <span className="text-xs font-medium text-gray-700">
-                              {appointment.doctorName}
-                            </span>
-                          </div>
+                <div key={providerName} className="bg-white rounded-lg border-2 border-gray-200 overflow-hidden">
+                  {/* Provider Header */}
+                  <div className={`${providerColor} p-4 flex items-center space-x-3`}>
+                    <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center text-white text-lg font-bold shadow-lg">
+                      {providerInitials}
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-white">{providerName}</h3>
+                      <p className="text-sm text-white/90">
+                        {providerAppointments.length} appointment{providerAppointments.length !== 1 ? 's' : ''}
+                        {providerAppointments.length > 0 && (
+                          <span className="ml-2">
+                            ({providerAppointments[0].time} - {providerAppointments[providerAppointments.length - 1].time})
+                          </span>
                         )}
+                      </p>
+                    </div>
+                  </div>
 
-                        <div className="flex items-center space-x-2">
-                          <User className="w-4 h-4 text-gray-500" />
-                          <span className="font-semibold">{appointment.patientName}</span>
-                          {appointment.visitType && (
-                            <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">
-                              {appointment.visitType.replace('-', ' ')}
-                            </span>
+                  {/* Provider's Appointments */}
+                  <div className="divide-y divide-gray-200">
+                    {providerAppointments.map((appointment, idx) => (
+                      <div
+                        key={`${providerName}-${idx}`}
+                        className={`p-4 cursor-pointer transition-all duration-200 hover:bg-gray-50 ${
+                          appointment.status === 'completed' ? 'bg-green-50/50' :
+                          appointment.status === 'in-progress' ? 'bg-blue-50/50' :
+                          appointment.status === 'cancelled' ? 'bg-red-50/50' :
+                          'bg-white'
+                        }`}
+                        onClick={() => onPatientClick(appointment)}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center space-x-3">
+                            <div className="flex items-center space-x-2">
+                              <Clock className="w-4 h-4 text-gray-500" />
+                              <span className="font-bold text-base">{appointment.time}</span>
+                            </div>
+                            {getStatusIcon(appointment.status)}
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <button
+                              onClick={e => {
+                                e.stopPropagation();
+                                onPatientClick(appointment);
+                              }}
+                              className="p-2 rounded hover:bg-gray-200 transition-colors"
+                              title="Start Dictation"
+                            >
+                              <FileText className="w-4 h-4" />
+                            </button>
+                            {appointment.patientPhone && <Phone className="w-4 h-4 text-gray-400" />}
+                          </div>
+                        </div>
+
+                        <div className="ml-6">
+                          <div className="flex items-center space-x-2 mb-1">
+                            <User className="w-4 h-4 text-gray-500" />
+                            <span className="font-semibold text-lg">{appointment.patientName}</span>
+                            {appointment.visitType && (
+                              <span className="px-2 py-1 text-xs rounded-full bg-gray-200 text-gray-700 font-medium">
+                                {appointment.visitType.replace('-', ' ')}
+                              </span>
+                            )}
+                          </div>
+
+                          {appointment.visitReason && (
+                            <p className="text-sm text-gray-600 mt-1">{appointment.visitReason}</p>
+                          )}
+
+                          {appointment.patientPhone && (
+                            <p className="text-sm text-gray-500 mt-1">
+                              📞 {appointment.patientPhone}
+                            </p>
                           )}
                         </div>
-
-                        {appointment.visitReason && (
-                          <p className="text-sm text-gray-600 mt-1 ml-6">{appointment.visitReason}</p>
-                        )}
-
-                        {appointment.patientPhone && (
-                          <p className="text-sm text-gray-500 mt-1 ml-6">
-                            📞 {appointment.patientPhone}
-                          </p>
-                        )}
                       </div>
-                    </div>
-                  ))}
-                </div>
-              );
-            } else {
-              // Empty time slot
-              return (
-                <div
-                  key={timeSlot}
-                  className="p-3 border border-dashed border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors group"
-                  onClick={() => onAddAppointment(timeSlot)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2 text-gray-500">
-                      <Clock className="w-4 h-4" />
-                      <span className="text-sm">{timeSlot}</span>
-                    </div>
-                    <Plus className="w-4 h-4 text-gray-400 group-hover:text-gray-600" />
+                    ))}
                   </div>
-                  <span className="text-xs text-gray-400 ml-6 group-hover:text-gray-500">
-                    Click to add appointment
-                  </span>
                 </div>
               );
-            }
-          })}
+            })
+          )}
         </div>
       </div>
     </div>
