@@ -93,8 +93,9 @@ export default function DoctorDashboardUnified() {
           const counts: Record<string, number> = {};
 
           data.forEach((apt: any) => {
-            const id = apt.provider_id || 'unknown';
+            // Use provider_name as unique ID since provider_id may be the same for all
             const name = apt.provider_name || 'Unknown Provider';
+            const id = name; // Use the name as the unique identifier
 
             if (!providerMap.has(id)) {
               providerMap.set(id, {
