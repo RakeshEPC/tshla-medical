@@ -67,14 +67,23 @@ export default function DoctorDashboardUnified() {
       try {
         const { supabase } = await import('../lib/supabase');
 
+        const dateString = selectedDate.toISOString().split('T')[0];
+        console.log('🔍 [Dashboard] Loading providers for date:', dateString);
+
         // Get unique providers from provider_schedules for the selected date
         const { data, error } = await supabase
           .from('provider_schedules')
           .select('provider_id, provider_name')
-          .eq('scheduled_date', selectedDate.toISOString().split('T')[0]);
+          .eq('scheduled_date', dateString);
+
+        console.log('📊 [Dashboard] Provider query result:', {
+          error,
+          dataCount: data?.length || 0,
+          sampleData: data?.slice(0, 3)
+        });
 
         if (error) {
-          console.error('Error loading providers:', error);
+          console.error('❌ [Dashboard] Error loading providers:', error);
           return;
         }
 
@@ -102,11 +111,19 @@ export default function DoctorDashboardUnified() {
             a.name.localeCompare(b.name)
           );
 
+          console.log('✅ [Dashboard] Found unique providers:', {
+            count: providers.length,
+            providers: providers.map(p => ({ id: p.id, name: p.name })),
+            counts
+          });
+
           setAvailableProviders(providers);
           setAppointmentCounts(counts);
+        } else {
+          console.warn('⚠️ [Dashboard] No provider data found for date:', dateString);
         }
       } catch (error) {
-        console.error('Failed to load providers:', error);
+        console.error('❌ [Dashboard] Failed to load providers:', error);
       }
     };
 
