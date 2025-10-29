@@ -59,7 +59,7 @@ export default function DoctorDashboardUnified() {
     refreshInterval: 30000,
   });
 
-  logInfo('DoctorDashboardUnified', 'Info message', {});
+  logInfo('DoctorDashboardUnified', 'Dashboard loaded with provider filter', {});
 
   // Load available providers from appointments
   useEffect(() => {
