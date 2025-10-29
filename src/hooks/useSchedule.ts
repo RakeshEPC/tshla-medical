@@ -78,7 +78,7 @@ export function useSchedule({
           patientName: apt.patient_name,
           patientPhone: apt.patient_phone || '',
           patientEmail: apt.patient_email || '',
-          doctorId: apt.provider_id || providerId,
+          doctorId: apt.provider_id || 'unknown',
           doctorName: apt.provider_name || 'Dr. Unknown',
           time: apt.start_time,
           date: dateString,
@@ -112,7 +112,7 @@ export function useSchedule({
           patientName: dbAppt.name,
           patientPhone: dbAppt.phone,
           patientEmail: '', // Not available in current format
-          doctorId: providerId,
+          doctorId: 'unknown',
           doctorName: 'Dr. Unknown',
           time: dbAppt.appointmentTime,
           date: dateString,
@@ -147,13 +147,17 @@ export function useSchedule({
   // Create new appointment
   const createAppointment = useCallback(
     async (appointmentData: Partial<UnifiedAppointment>): Promise<boolean> => {
-      if (!providerId) return false;
+      // Use the doctor ID from appointmentData, or first selected provider, or 'unknown'
+      const doctorId = appointmentData.doctorId ||
+        (selectedProviders.includes('ALL') ? 'unknown' : selectedProviders[0] || 'unknown');
+
+      if (!doctorId) return false;
 
       setIsLoading(true);
       try {
         // Create appointment in unified service first (immediate UI update)
         const newAppointment = await unifiedAppointmentService.createAppointment({
-          providerId,
+          providerId: doctorId,
           patientName: appointmentData.patientName || 'New Patient',
           patientPhone: appointmentData.patientPhone,
           patientEmail: appointmentData.patientEmail,
@@ -178,7 +182,7 @@ export function useSchedule({
           };
 
           await scheduleDatabaseService.saveAppointment(
-            providerId,
+            doctorId,
             'Doctor', // TODO: Get actual provider name
             dbPatient,
             dateString
@@ -197,7 +201,7 @@ export function useSchedule({
         setIsLoading(false);
       }
     },
-    [providerId, dateString]
+    [selectedProviders, dateString]
   );
 
   // Update existing appointment
