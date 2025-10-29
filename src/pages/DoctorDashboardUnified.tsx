@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabaseAuthService as unifiedAuthService } from '../services/supabaseAuth.service';
@@ -7,6 +7,7 @@ import { useSchedule } from '../hooks/useSchedule';
 import DoctorNavBar from '../components/layout/DoctorNavBar';
 import ScheduleNavigation from '../components/doctor/ScheduleNavigation';
 import DailyPatientList from '../components/doctor/DailyPatientList';
+import ProviderFilter, { type Provider } from '../components/doctor/ProviderFilter';
 import { Plus, Calendar, FileText } from 'lucide-react';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
 
@@ -14,7 +15,6 @@ export default function DoctorDashboardUnified() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const currentUser = unifiedAuthService.getCurrentUser();
-  const providerId = currentUser?.id || currentUser?.email || 'doctor-default-001';
 
   // State for dashboard view
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -25,6 +25,11 @@ export default function DoctorDashboardUnified() {
   const [showAddPatient, setShowAddPatient] = useState(false);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState('');
   const [editingAppointment, setEditingAppointment] = useState<UnifiedAppointment | null>(null);
+
+  // Provider filtering state
+  const [selectedProviders, setSelectedProviders] = useState<string[]>(['ALL']);
+  const [availableProviders, setAvailableProviders] = useState<Provider[]>([]);
+  const [appointmentCounts, setAppointmentCounts] = useState<Record<string, number>>({});
 
   // New appointment form state
   const [newAppointment, setNewAppointment] = useState({
@@ -48,13 +53,65 @@ export default function DoctorDashboardUnified() {
     deleteAppointment,
     updateAppointmentStatus,
   } = useSchedule({
-    providerId,
+    selectedProviders,
     date: selectedDate,
     autoRefresh: true,
     refreshInterval: 30000,
   });
 
   logInfo('DoctorDashboardUnified', 'Info message', {});
+
+  // Load available providers from appointments
+  useEffect(() => {
+    const loadProviders = async () => {
+      try {
+        const { supabase } = await import('../lib/supabase');
+
+        // Get unique providers from provider_schedules for the selected date
+        const { data, error } = await supabase
+          .from('provider_schedules')
+          .select('provider_id, provider_name')
+          .eq('scheduled_date', selectedDate.toISOString().split('T')[0]);
+
+        if (error) {
+          console.error('Error loading providers:', error);
+          return;
+        }
+
+        if (data && data.length > 0) {
+          // Create unique provider list
+          const providerMap = new Map<string, Provider>();
+          const counts: Record<string, number> = {};
+
+          data.forEach((apt: any) => {
+            const id = apt.provider_id || 'unknown';
+            const name = apt.provider_name || 'Unknown Provider';
+
+            if (!providerMap.has(id)) {
+              providerMap.set(id, {
+                id,
+                name,
+                specialty: '', // Could be enhanced later
+              });
+              counts[id] = 0;
+            }
+            counts[id]++;
+          });
+
+          const providers = Array.from(providerMap.values()).sort((a, b) =>
+            a.name.localeCompare(b.name)
+          );
+
+          setAvailableProviders(providers);
+          setAppointmentCounts(counts);
+        }
+      } catch (error) {
+        console.error('Failed to load providers:', error);
+      }
+    };
+
+    loadProviders();
+  }, [selectedDate, appointments.length]);
 
   const saveAppointment = async () => {
     if (!newAppointment.appointmentTime || !newAppointment.patientName.trim()) {
@@ -259,15 +316,29 @@ export default function DoctorDashboardUnified() {
     // Calendar view (default)
     return (
       <>
-        <ScheduleNavigation
-          selectedDate={selectedDate}
-          onDateChange={setSelectedDate}
-          onViewChange={setCurrentView}
-          currentView={currentView}
-        />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+          {/* Date Navigation - takes 2 columns */}
+          <div className="lg:col-span-2">
+            <ScheduleNavigation
+              selectedDate={selectedDate}
+              onDateChange={setSelectedDate}
+              onViewChange={setCurrentView}
+              currentView={currentView}
+            />
+          </div>
+
+          {/* Provider Filter - takes 1 column */}
+          <div className="lg:col-span-1">
+            <ProviderFilter
+              selectedProviders={selectedProviders}
+              onSelectionChange={setSelectedProviders}
+              availableProviders={availableProviders}
+              appointmentCounts={appointmentCounts}
+            />
+          </div>
+        </div>
 
         <DailyPatientList
-          providerId={providerId}
           selectedDate={selectedDate}
           appointments={appointments}
           onPatientClick={handlePatientClick}

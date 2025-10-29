@@ -19,7 +19,6 @@ import {
 import type { UnifiedAppointment } from '../../services/unifiedAppointment.service';
 
 interface DailyPatientListProps {
-  providerId: string;
   selectedDate: Date;
   appointments: UnifiedAppointment[];
   onPatientClick: (appointment: UnifiedAppointment) => void;
@@ -85,8 +84,34 @@ const getStatusColor = (status: UnifiedAppointment['status']) => {
   }
 };
 
+// Get provider initials for avatar badge
+const getProviderInitials = (name: string): string => {
+  if (!name || name === 'Dr. Unknown') return '??';
+  const parts = name.replace(/^Dr\.\s*/i, '').split(' ');
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+  return name.substring(0, 2).toUpperCase();
+};
+
+// Get color for provider badge
+const getProviderBadgeColor = (doctorName: string): string => {
+  // Create consistent color based on name hash
+  const hash = doctorName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const colors = [
+    'bg-blue-500',
+    'bg-green-500',
+    'bg-purple-500',
+    'bg-orange-500',
+    'bg-pink-500',
+    'bg-indigo-500',
+    'bg-teal-500',
+    'bg-red-500',
+  ];
+  return colors[hash % colors.length];
+};
+
 export default function DailyPatientList({
-  providerId,
   selectedDate,
   appointments,
   onPatientClick,
@@ -220,6 +245,20 @@ export default function DailyPatientList({
                   </div>
 
                   <div className="mt-2">
+                    {/* Provider Badge - Prominent */}
+                    {appointment.doctorName && appointment.doctorName !== 'Dr. Unknown' && (
+                      <div className="flex items-center space-x-2 mb-2">
+                        <div
+                          className={`w-7 h-7 ${getProviderBadgeColor(appointment.doctorName)} rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm`}
+                        >
+                          {getProviderInitials(appointment.doctorName)}
+                        </div>
+                        <span className="text-xs font-medium text-gray-700">
+                          {appointment.doctorName}
+                        </span>
+                      </div>
+                    )}
+
                     <div className="flex items-center space-x-2">
                       <User className="w-4 h-4 text-gray-500" />
                       <span className="font-semibold">{appointment.patientName}</span>

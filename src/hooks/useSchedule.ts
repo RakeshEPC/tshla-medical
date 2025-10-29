@@ -13,7 +13,7 @@ import {
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
 
 interface UseScheduleProps {
-  providerId: string;
+  selectedProviders: string[];
   date: Date;
   autoRefresh?: boolean;
   refreshInterval?: number;
@@ -31,7 +31,7 @@ interface UseScheduleReturn {
 }
 
 export function useSchedule({
-  providerId,
+  selectedProviders,
   date,
   autoRefresh = true,
   refreshInterval = 30000, // 30 seconds
@@ -44,7 +44,10 @@ export function useSchedule({
 
   // Fetch schedule data
   const refreshSchedule = useCallback(async () => {
-    if (!providerId) return;
+    if (!selectedProviders || selectedProviders.length === 0) {
+      setAppointments([]);
+      return;
+    }
 
     setIsLoading(true);
     setError(null);
@@ -52,10 +55,19 @@ export function useSchedule({
     try {
       // First, try to load imported schedules from provider_schedules table (Athena data)
       const { supabase } = await import('../lib/supabase');
-      const { data: importedSchedules, error: supabaseError } = await supabase
+
+      let query = supabase
         .from('provider_schedules')
         .select('*')
-        .eq('scheduled_date', dateString)
+        .eq('scheduled_date', dateString);
+
+      // Apply provider filtering if not "ALL"
+      if (!selectedProviders.includes('ALL')) {
+        query = query.in('provider_id', selectedProviders);
+      }
+
+      const { data: importedSchedules, error: supabaseError } = await query
+        .order('provider_name', { ascending: true })
         .order('start_time', { ascending: true });
 
       if (!supabaseError && importedSchedules && importedSchedules.length > 0) {
@@ -83,9 +95,12 @@ export function useSchedule({
         return;
       }
 
-      // Fallback: Try to load from scheduleDatabase service
+      // If no imported schedules found, set empty appointments
+      setAppointments([]);
+
+      /* Fallback logic disabled - only using provider_schedules table
       const dbAppointments = await scheduleDatabaseService.getScheduleForDate(
-        providerId,
+        selectedProviders[0] || 'unknown',
         dateString
       );
 
@@ -115,28 +130,19 @@ export function useSchedule({
         // Final fallback to unified appointment service (localStorage)
         const localAppointments = unifiedAppointmentService.getAppointmentsForDate(
           dateString,
-          providerId
+          selectedProviders[0] || 'unknown'
         );
         setAppointments(localAppointments);
       }
+      */
     } catch (err) {
       logError('App', 'Error message', {});
       setError(err instanceof Error ? err.message : 'Failed to load schedule');
-
-      // Fallback to local data
-      try {
-        const localAppointments = unifiedAppointmentService.getAppointmentsForDate(
-          dateString,
-          providerId
-        );
-        setAppointments(localAppointments);
-      } catch (localErr) {
-        logError('App', 'Error message', {});
-      }
+      setAppointments([]);
     } finally {
       setIsLoading(false);
     }
-  }, [providerId, dateString]);
+  }, [selectedProviders, dateString]);
 
   // Create new appointment
   const createAppointment = useCallback(
@@ -274,7 +280,7 @@ export function useSchedule({
   // Initial load
   useEffect(() => {
     refreshSchedule();
-  }, [providerId, dateString]); // Use the actual dependencies instead of refreshSchedule
+  }, [selectedProviders, dateString]); // Use the actual dependencies instead of refreshSchedule
 
   // Auto-refresh interval
   useEffect(() => {
@@ -285,7 +291,7 @@ export function useSchedule({
     }, refreshInterval);
 
     return () => clearInterval(interval);
-  }, [autoRefresh, refreshInterval, providerId, dateString]); // Remove refreshSchedule dependency
+  }, [autoRefresh, refreshInterval, selectedProviders, dateString]); // Remove refreshSchedule dependency
 
   return {
     appointments,
