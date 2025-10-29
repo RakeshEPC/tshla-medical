@@ -169,7 +169,7 @@ export default function DoctorDashboardUnified() {
       patientPhone: appointment.patientPhone || '',
       patientEmail: appointment.patientEmail || '',
       appointmentTime: appointment.time,
-      visitType: appointment.visitType,
+      visitType: (appointment.visitType || 'follow-up') as 'follow-up',
       visitReason: appointment.visitReason,
       notes: appointment.notes || '',
     });
@@ -316,6 +316,11 @@ export default function DoctorDashboardUnified() {
     // Calendar view (default)
     return (
       <>
+        {/* Debug marker - will remove after confirming deployment */}
+        <div className="mb-2 px-4 py-1 bg-blue-50 border border-blue-200 rounded text-xs text-blue-600">
+          ✅ Dashboard v2.1 - Provider Filter Active
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
           {/* Date Navigation - takes 2 columns */}
           <div className="lg:col-span-2">

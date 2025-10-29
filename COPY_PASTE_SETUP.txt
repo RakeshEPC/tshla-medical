@@ -1,0 +1,178 @@
+===============================================
+ATHENA SCHEDULE IMPORT - COPY/PASTE COMMANDS
+===============================================
+
+╔══════════════════════════════════════════╗
+║  STEP 1: DATABASE MIGRATION              ║
+╔══════════════════════════════════════════╝
+
+→ Open Supabase Dashboard: https://supabase.com/dashboard
+→ Click: SQL Editor → New Query
+→ Copy this file to view SQL:
+
+cat /Users/rakeshpatel/Desktop/tshla-medical/database/migrations/athena-schedule-enhancement.sql
+
+→ Or open the file and copy ALL contents
+→ Paste into Supabase SQL Editor
+→ Click "RUN"
+
+
+╔══════════════════════════════════════════╗
+║  STEP 2: ADD PROVIDERS                   ║
+╔══════════════════════════════════════════╝
+
+→ Copy this SQL and paste into Supabase SQL Editor:
+
+---START COPY---
+
+INSERT INTO medical_staff (email, first_name, last_name, role, specialty, practice, is_active)
+VALUES
+  ('rakesh.patel@tshla.ai', 'Rakesh', 'Patel', 'doctor', 'Endocrinology', 'TSHLA Medical', true),
+  ('veena.watwe@tshla.ai', 'Veena', 'Watwe', 'doctor', 'Pediatrics', 'TSHLA Medical', true),
+  ('tess.chamakkala@tshla.ai', 'Tess', 'Chamakkala', 'doctor', 'Family Medicine', 'TSHLA Medical', true),
+  ('radha.bernander@tshla.ai', 'Radha', 'Bernander', 'doctor', 'Internal Medicine', 'TSHLA Medical', true),
+  ('shannon.gregroek@tshla.ai', 'Shannon', 'Gregroek', 'doctor', 'Pediatrics', 'TSHLA Medical', true),
+  ('elinia.shakya@tshla.ai', 'Elinia', 'Shakya', 'doctor', 'Family Medicine', 'TSHLA Medical', true),
+  ('nadia.younus@tshla.ai', 'Nadia', 'Younus', 'doctor', 'Internal Medicine', 'TSHLA Medical', true),
+  ('ghislaine.tonye@tshla.ai', 'Ghislaine', 'Tonye', 'doctor', 'Family Medicine', 'TSHLA Medical', true),
+  ('cindy.laverde@tshla.ai', 'Cindy', 'Laverde', 'doctor', 'Pediatrics', 'TSHLA Medical', true),
+  ('vanessa.laverde@tshla.ai', 'Vanessa', 'Laverde', 'doctor', 'Pediatrics', 'TSHLA Medical', true),
+  ('kamili.wade@tshla.ai', 'Kamili', 'Wade-Reescano', 'therapist', 'Mental Health', 'TSHLA Medical', true)
+ON CONFLICT (email) DO NOTHING;
+
+SELECT id, first_name, last_name, email, specialty FROM medical_staff ORDER BY last_name;
+
+---END COPY---
+
+
+╔══════════════════════════════════════════╗
+║  STEP 3: UPDATE PROVIDER MAPPING         ║
+╔══════════════════════════════════════════╝
+
+→ Copy this command:
+
+---START COPY---
+
+cd /Users/rakeshpatel/Desktop/tshla-medical && node scripts/update-provider-mapping.cjs
+
+---END COPY---
+
+→ Paste into Terminal and press Enter
+
+
+╔══════════════════════════════════════════╗
+║  STEP 4: VERIFY IN SUPABASE              ║
+╔══════════════════════════════════════════╝
+
+→ Copy this SQL to verify everything:
+
+---START COPY---
+
+-- Check new columns exist
+SELECT column_name FROM information_schema.columns
+WHERE table_name = 'provider_schedules'
+AND column_name IN ('patient_age', 'chief_diagnosis', 'athena_appointment_id');
+
+-- Check providers
+SELECT id, first_name, last_name, specialty FROM medical_staff WHERE is_active = true;
+
+-- Check schedule_imports table
+SELECT * FROM schedule_imports LIMIT 1;
+
+---END COPY---
+
+
+╔══════════════════════════════════════════╗
+║  STEP 5: TEST THE APP                    ║
+╔══════════════════════════════════════════╝
+
+→ Start dev server:
+
+---START COPY---
+
+cd /Users/rakeshpatel/Desktop/tshla-medical && npm run dev
+
+---END COPY---
+
+→ Open browser: http://localhost:5173/admin/create-accounts
+→ Click "📅 Upload Schedule" tab
+→ You should see the file uploader!
+
+
+╔══════════════════════════════════════════╗
+║  STEP 6: CREATE TEST CSV FILE            ║
+╔══════════════════════════════════════════╝
+
+→ Create a file called "test-schedule.csv" with this content:
+
+---START COPY---
+
+Date,Time,Provider,Patient First Name,Patient Last Name,Age,Gender,Diagnosis,Visit Type,Duration
+01/30/2025,9:00 AM,PATEL RAKESH,John,Doe,45,M,Type 2 Diabetes follow-up,Follow-up,30
+01/30/2025,9:30 AM,PATEL RAKESH,Jane,Smith,52,F,Hypertension management,Follow-up,15
+01/30/2025,10:00 AM,WATWE VEENA,Emma,Wilson,8,F,Well child visit,Wellness,30
+01/30/2025,10:30 AM,WATWE VEENA,Oliver,Brown,5,M,Asthma follow-up,Follow-up,20
+
+---END COPY---
+
+→ Save as: test-schedule.csv
+→ Upload via the admin page
+→ Select date: 01/30/2025
+→ Click "Parse Schedule File"
+→ Click "Import to Database"
+
+
+╔══════════════════════════════════════════╗
+║  STEP 7: VERIFY DATA IN DATABASE         ║
+╔══════════════════════════════════════════╝
+
+→ Run this SQL in Supabase:
+
+---START COPY---
+
+SELECT
+  provider_name,
+  patient_name,
+  patient_age,
+  chief_diagnosis,
+  start_time,
+  scheduled_date
+FROM provider_schedules
+WHERE scheduled_date = '2025-01-30'
+ORDER BY provider_name, start_time;
+
+---END COPY---
+
+→ You should see 4 appointments!
+
+
+===============================================
+TROUBLESHOOTING
+===============================================
+
+ERROR: "No providers found"
+→ Run Step 2 again to add providers
+
+ERROR: "Database migration failed"
+→ Copy SQL in smaller sections and run separately
+
+ERROR: "Upload tab not visible"
+→ Clear cache: Ctrl+Shift+R
+→ Restart dev server
+
+ERROR: "Provider not recognized"
+→ Check provider name format in CSV matches medical_staff
+→ Run Step 3 again to update mapping
+
+===============================================
+DONE! ✅
+===============================================
+
+Your Athena schedule import is ready!
+
+Next: Upload your real Athena export file and it will work automatically!
+
+Questions? Check these docs:
+- ATHENA_QUICK_START.md (detailed guide)
+- ATHENA_SCHEDULE_IMPLEMENTATION.md (technical details)
+- SETUP_PROVIDERS.md (provider management)

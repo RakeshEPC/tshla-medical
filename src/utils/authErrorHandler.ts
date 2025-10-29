@@ -17,7 +17,23 @@ export class AuthErrorHandler {
    * Convert Supabase/auth errors to user-friendly messages
    */
   static handle(error: any, context: string = 'Authentication'): AuthError {
-    logError('AuthErrorHandler', `${context} error`, { error });
+    // Enhanced error logging with stack trace
+    console.error(`[AuthErrorHandler] ${context} error:`, {
+      error,
+      message: error?.message,
+      code: error?.code,
+      status: error?.status,
+      stack: error?.stack,
+      type: typeof error,
+      keys: error ? Object.keys(error) : []
+    });
+
+    logError('AuthErrorHandler', `${context} error`, {
+      error,
+      errorMessage: error?.message,
+      errorCode: error?.code,
+      errorStatus: error?.status
+    });
 
     // Handle Supabase auth errors
     if (error?.message) {
@@ -53,6 +69,26 @@ export class AuthErrorHandler {
         };
       }
 
+      // Account inactive
+      if (message.includes('account is inactive') || message.includes('inactive account')) {
+        return {
+          code: 'ACCOUNT_INACTIVE',
+          message: error.message,
+          userMessage: error.message, // Use the detailed message from the service
+          retry: false
+        };
+      }
+
+      // Account not verified
+      if (message.includes('requires verification') || message.includes('not verified')) {
+        return {
+          code: 'ACCOUNT_NOT_VERIFIED',
+          message: error.message,
+          userMessage: error.message, // Use the detailed message from the service
+          retry: false
+        };
+      }
+
       // RLS policy violation
       if (message.includes('row-level security') || message.includes('rls')) {
         return {
@@ -82,13 +118,42 @@ export class AuthErrorHandler {
           retry: false
         };
       }
+
+      // Database connection errors
+      if (message.includes('database') || message.includes('connection')) {
+        return {
+          code: 'DATABASE_ERROR',
+          message: error.message,
+          userMessage: 'Database connection error. Please try again in a moment.',
+          retry: true
+        };
+      }
+
+      // Timeout errors
+      if (message.includes('timeout') || message.includes('timed out')) {
+        return {
+          code: 'TIMEOUT_ERROR',
+          message: error.message,
+          userMessage: 'Request timed out. Please check your connection and try again.',
+          retry: true
+        };
+      }
     }
 
-    // Generic error
+    // Enhanced generic error with more context
+    const errorInfo = error?.message || String(error);
+    console.warn(`[AuthErrorHandler] Unhandled error type in ${context}:`, errorInfo);
+
+    // Always show detailed error in development or if it's a meaningful error
+    const isDevelopment = import.meta.env.DEV || import.meta.env.MODE === 'development';
+    const shouldShowDetails = isDevelopment || errorInfo.length > 0;
+
     return {
       code: 'UNKNOWN_ERROR',
-      message: error?.message || String(error),
-      userMessage: 'An unexpected error occurred. Please try again or contact support.',
+      message: errorInfo,
+      userMessage: shouldShowDetails
+        ? `An unexpected error occurred: ${errorInfo}`
+        : 'An unexpected error occurred. Please try again or contact support.',
       retry: true
     };
   }

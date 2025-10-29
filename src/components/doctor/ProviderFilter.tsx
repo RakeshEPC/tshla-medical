@@ -33,6 +33,16 @@ export default function ProviderFilter({
   const [searchTerm, setSearchTerm] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Debug logging to verify component loads
+  useEffect(() => {
+    console.log('🎯 [ProviderFilter] Component loaded!', {
+      selectedProviders,
+      availableProvidersCount: availableProviders.length,
+      appointmentCounts,
+      timestamp: new Date().toISOString()
+    });
+  }, [selectedProviders, availableProviders, appointmentCounts]);
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

@@ -65,9 +65,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
+      console.log('🔐 [AuthContext] Starting login...', { email });
       const result = await supabaseAuthService.login(email, password);
+      console.log('🔐 [AuthContext] Login result:', { success: result.success, error: result.error });
 
       if (result.success && result.user) {
+        console.log('✅ [AuthContext] Login successful, setting user');
         setUser({
           id: result.user.id,
           email: result.user.email,
@@ -78,16 +81,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           accessType: result.user.accessType,
         });
       } else {
-        const errorMessage = AuthErrorHandler.getUserMessage(
-          new Error(result.error),
-          'Login'
-        );
-        throw new Error(errorMessage);
+        console.error('❌ [AuthContext] Login failed with error:', result.error);
+        // Don't wrap the error twice - just throw it directly
+        throw new Error(result.error || 'Login failed');
       }
     } catch (error) {
+      console.error('❌ [AuthContext] Login exception:', error);
       logError('AuthContext', 'Login failed', { error });
-      const userFriendlyError = AuthErrorHandler.getUserMessage(error, 'Login');
-      throw new Error(userFriendlyError);
+
+      // Only use AuthErrorHandler if it's not already a formatted error
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isAlreadyFormatted = errorMessage.includes('An unexpected error occurred') ||
+                                  errorMessage.includes('Invalid') ||
+                                  errorMessage.includes('Network') ||
+                                  errorMessage.includes('timed out') ||
+                                  errorMessage.includes('inactive') ||
+                                  errorMessage.includes('verification') ||
+                                  errorMessage.includes('verified');
+
+      if (isAlreadyFormatted) {
+        console.log('🔄 [AuthContext] Error already formatted, throwing as-is');
+        throw error;
+      } else {
+        console.log('🔄 [AuthContext] Formatting error with AuthErrorHandler');
+        const userFriendlyError = AuthErrorHandler.getUserMessage(error, 'Login');
+        throw new Error(userFriendlyError);
+      }
     }
   };
 

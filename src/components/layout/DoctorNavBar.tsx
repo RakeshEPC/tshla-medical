@@ -19,6 +19,7 @@ import {
   Bell,
   Home,
   Shield,
+  Upload,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabaseAuthService as unifiedAuthService } from '../../services/supabaseAuth.service';
@@ -361,7 +362,7 @@ export default function DoctorNavBar({
                     {currentUser?.role === 'admin' && (
                       <button
                         onClick={() => {
-                          navigate('/admin/accounts');
+                          navigate('/admin/account-creation');
                           setShowUserMenu(false);
                         }}
                         className="w-full flex items-center space-x-2 p-2 rounded hover:bg-blue-50 text-left text-blue-600"
