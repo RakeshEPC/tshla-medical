@@ -44,7 +44,14 @@ export function useSchedule({
 
   // Fetch schedule data
   const refreshSchedule = useCallback(async () => {
+    console.log('🔍 [useSchedule] refreshSchedule called', {
+      selectedProviders,
+      dateString,
+      hasProviders: selectedProviders && selectedProviders.length > 0
+    });
+
     if (!selectedProviders || selectedProviders.length === 0) {
+      console.warn('⚠️ [useSchedule] No providers selected, returning empty');
       setAppointments([]);
       return;
     }
@@ -63,14 +70,29 @@ export function useSchedule({
 
       // Apply provider filtering if not "ALL"
       if (!selectedProviders.includes('ALL')) {
+        console.log('🔍 [useSchedule] Filtering by specific providers:', selectedProviders);
         query = query.in('provider_id', selectedProviders);
+      } else {
+        console.log('✅ [useSchedule] Querying ALL providers');
       }
 
+      console.log('🔍 [useSchedule] Executing Supabase query for date:', dateString);
       const { data: importedSchedules, error: supabaseError } = await query
         .order('provider_name', { ascending: true })
         .order('start_time', { ascending: true });
 
+      console.log('📊 [useSchedule] Query result:', {
+        error: supabaseError,
+        count: importedSchedules?.length || 0,
+        hasData: importedSchedules && importedSchedules.length > 0
+      });
+
+      if (supabaseError) {
+        console.error('❌ [useSchedule] Supabase error:', supabaseError);
+      }
+
       if (!supabaseError && importedSchedules && importedSchedules.length > 0) {
+        console.log('✅ [useSchedule] Found appointments:', importedSchedules.length);
         // Convert imported schedules to UnifiedAppointment format
         const unifiedAppointments: UnifiedAppointment[] = importedSchedules.map((apt: any) => ({
           id: apt.id.toString(),
@@ -96,6 +118,7 @@ export function useSchedule({
       }
 
       // If no imported schedules found, set empty appointments
+      console.warn('⚠️ [useSchedule] No appointments found for date:', dateString);
       setAppointments([]);
 
       /* Fallback logic disabled - only using provider_schedules table
