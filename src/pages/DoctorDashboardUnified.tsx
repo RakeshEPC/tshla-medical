@@ -205,6 +205,8 @@ export default function DoctorDashboardUnified() {
         name: appointment.patientName,
         phone: appointment.patientPhone || '',
         email: appointment.patientEmail || '',
+        dob: appointment.patientDob || '',
+        age: appointment.patientAge || null,
         appointmentId: appointment.id,
         date: selectedDate.toISOString().split('T')[0],
         time: appointment.time,

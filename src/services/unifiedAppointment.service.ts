@@ -20,6 +20,8 @@ export interface UnifiedAppointment {
   patientName: string;
   patientPhone?: string;
   patientEmail?: string;
+  patientDob?: string; // Date of birth (YYYY-MM-DD format)
+  patientAge?: number; // Age in years
   doctorId: string;
   doctorName: string;
   date: string; // YYYY-MM-DD format

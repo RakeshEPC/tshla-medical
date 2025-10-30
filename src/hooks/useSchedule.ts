@@ -108,6 +108,8 @@ export function useSchedule({
           patientName: apt.patient_name,
           patientPhone: apt.patient_phone || '',
           patientEmail: apt.patient_email || '',
+          patientDob: apt.patient_dob || '',
+          patientAge: apt.patient_age || undefined,
           doctorId: apt.provider_id || 'unknown',
           doctorName: apt.provider_name || 'Dr. Unknown',
           time: normalizeTime(apt.start_time),

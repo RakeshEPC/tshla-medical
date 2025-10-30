@@ -74,6 +74,7 @@ export default function MedicalDictation({ patientId, preloadPatientData = false
     name: '',
     mrn: '',
     dob: '',
+    age: null as number | null,
     email: '',
     visitDate: new Date().toLocaleDateString()
   });
@@ -94,7 +95,8 @@ export default function MedicalDictation({ patientId, preloadPatientData = false
           setPatientDetails({
             name: data.name || '',
             mrn: data.id || '',
-            dob: '',
+            dob: data.dob || '',
+            age: data.age || null,
             email: data.email || data.phone || '',
             visitDate: data.date || new Date().toLocaleDateString()
           });
@@ -983,8 +985,76 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
               </button>
             </div>
           </div>
-          
-          {/* Patient info moved to bottom */}
+
+          {/* Patient Information Section - Prominent at Top */}
+          <div className="py-3 bg-gradient-to-r from-blue-50 to-indigo-50">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <User className="w-4 h-4 text-blue-600" />
+                <h3 className="text-sm font-semibold text-gray-900">Patient Information</h3>
+              </div>
+              {lastDatabaseSaveTime && (
+                <span className="text-xs text-gray-600 flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  Last saved: {lastDatabaseSaveTime.toLocaleTimeString()}
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-gray-700">Patient Name</label>
+                <input
+                  type="text"
+                  value={patientDetails.name}
+                  onChange={(e) => setPatientDetails(prev => ({ ...prev, name: e.target.value }))}
+                  className="px-2 py-1.5 border border-gray-300 rounded text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  placeholder="Enter patient name"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-gray-700">MRN</label>
+                <input
+                  type="text"
+                  value={patientDetails.mrn}
+                  onChange={(e) => setPatientDetails(prev => ({ ...prev, mrn: e.target.value }))}
+                  className="px-2 py-1.5 border border-gray-300 rounded text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  placeholder="Medical Record #"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-gray-700">Date of Birth</label>
+                <input
+                  type="date"
+                  value={patientDetails.dob}
+                  onChange={(e) => setPatientDetails(prev => ({ ...prev, dob: e.target.value }))}
+                  className="px-2 py-1.5 border border-gray-300 rounded text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-gray-700">Age</label>
+                <input
+                  type="text"
+                  value={patientDetails.age !== null ? patientDetails.age : ''}
+                  readOnly
+                  className="px-2 py-1.5 border border-gray-300 rounded text-sm font-medium bg-gray-100 text-gray-700"
+                  placeholder="Auto-filled"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-gray-700">Email/Phone</label>
+                <input
+                  type="text"
+                  value={patientDetails.email}
+                  onChange={(e) => setPatientDetails(prev => ({ ...prev, email: e.target.value }))}
+                  className="px-2 py-1.5 border border-gray-300 rounded text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  placeholder="Contact info"
+                />
+              </div>
+            </div>
+            <div className="mt-2 text-xs text-gray-600 font-medium">
+              Visit Date: {patientDetails.visitDate}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1555,62 +1625,6 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
           </div>
         </div>
 
-        {/* Patient Details Section - At Bottom */}
-        <div className="mt-4 bg-white rounded-lg shadow-sm p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-700">Patient Information</h3>
-            {lastDatabaseSaveTime && (
-              <span className="text-xs text-gray-500 flex items-center gap-1">
-                <Clock className="w-3 h-3" />
-                Last saved: {lastDatabaseSaveTime.toLocaleTimeString()}
-              </span>
-            )}
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-gray-600">Patient Name</label>
-              <input
-                type="text"
-                value={patientDetails.name}
-                onChange={(e) => setPatientDetails(prev => ({ ...prev, name: e.target.value }))}
-                className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter patient name"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-gray-600">MRN</label>
-              <input
-                type="text"
-                value={patientDetails.mrn}
-                onChange={(e) => setPatientDetails(prev => ({ ...prev, mrn: e.target.value }))}
-                className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Medical Record #"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-gray-600">Date of Birth</label>
-              <input
-                type="date"
-                value={patientDetails.dob}
-                onChange={(e) => setPatientDetails(prev => ({ ...prev, dob: e.target.value }))}
-                className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-gray-600">Email</label>
-              <input
-                type="email"
-                value={patientDetails.email}
-                onChange={(e) => setPatientDetails(prev => ({ ...prev, email: e.target.value }))}
-                className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="patient@email.com"
-              />
-            </div>
-          </div>
-          <div className="mt-2 text-xs text-gray-500">
-            Visit Date: {patientDetails.visitDate}
-          </div>
-        </div>
       </div>
     </div>
   );
