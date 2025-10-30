@@ -315,6 +315,11 @@ export default function DailyPatientList({
                           <div className="flex items-center space-x-2 mb-1">
                             <User className="w-4 h-4 text-gray-500" />
                             <span className="font-semibold text-lg">{appointment.patientName}</span>
+                            {appointment.patientAge && (
+                              <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700 font-medium">
+                                Age {appointment.patientAge}
+                              </span>
+                            )}
                             {appointment.visitType && (
                               <span className="px-2 py-1 text-xs rounded-full bg-gray-200 text-gray-700 font-medium">
                                 {appointment.visitType.replace('-', ' ')}
@@ -322,8 +327,15 @@ export default function DailyPatientList({
                             )}
                           </div>
 
-                          {appointment.visitReason && (
-                            <p className="text-sm text-gray-600 mt-1">{appointment.visitReason}</p>
+                          {(appointment.patientDob || appointment.visitReason) && (
+                            <div className="text-sm text-gray-600 mt-1 space-y-0.5">
+                              {appointment.patientDob && (
+                                <p>📅 DOB: {new Date(appointment.patientDob).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</p>
+                              )}
+                              {appointment.visitReason && (
+                                <p>{appointment.visitReason}</p>
+                              )}
+                            </div>
                           )}
 
                           {appointment.patientPhone && (

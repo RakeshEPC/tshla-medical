@@ -95,6 +95,16 @@ export function useSchedule({
       if (!supabaseError && importedSchedules && importedSchedules.length > 0) {
         console.log('✅ [useSchedule] Found appointments:', importedSchedules.length);
 
+        // Debug: Check first appointment data
+        if (importedSchedules.length > 0) {
+          console.log('🔍 [useSchedule] Sample appointment data:', {
+            patient_name: importedSchedules[0].patient_name,
+            patient_dob: importedSchedules[0].patient_dob,
+            patient_age: importedSchedules[0].patient_age,
+            patient_phone: importedSchedules[0].patient_phone,
+          });
+        }
+
         // Helper function to normalize time format (remove leading zeros)
         const normalizeTime = (time: string): string => {
           // Convert "01:00 PM" to "1:00 PM", "02:15 PM" to "2:15 PM", etc.
@@ -122,6 +132,15 @@ export function useSchedule({
           createdAt: new Date(apt.created_at || Date.now()),
           updatedAt: new Date(apt.updated_at || Date.now()),
         }));
+
+        // Debug: Check what's in the unified appointment
+        if (unifiedAppointments.length > 0) {
+          console.log('🔍 [useSchedule] Sample unified appointment:', {
+            patientName: unifiedAppointments[0].patientName,
+            patientDob: unifiedAppointments[0].patientDob,
+            patientAge: unifiedAppointments[0].patientAge,
+          });
+        }
 
         setAppointments(unifiedAppointments);
         return;
