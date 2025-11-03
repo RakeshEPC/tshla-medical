@@ -76,6 +76,7 @@ export default function MedicalDictation({ patientId, preloadPatientData = false
     dob: '',
     age: null as number | null,
     email: '',
+    phone: '',
     visitDate: new Date().toLocaleDateString()
   });
 
@@ -97,7 +98,8 @@ export default function MedicalDictation({ patientId, preloadPatientData = false
             mrn: data.id || '',
             dob: data.dob || '',
             age: data.age || null,
-            email: data.email || data.phone || '',
+            email: data.email || '',
+            phone: data.phone || '',
             visitDate: data.date || new Date().toLocaleDateString()
           });
 
@@ -131,7 +133,8 @@ export default function MedicalDictation({ patientId, preloadPatientData = false
               name: patient.name || '',
               mrn: patient.mrn || '',
               dob: patient.dob || '',
-              email: patient.phone || '', // Use phone as email fallback
+              email: patient.email || '',
+              phone: patient.phone || '',
               visitDate: new Date().toLocaleDateString()
             });
             logInfo('MedicalDictation', 'Patient data loaded from database', {});
@@ -144,6 +147,7 @@ export default function MedicalDictation({ patientId, preloadPatientData = false
                 mrn: data.mrn || '',
                 dob: data.dob || '',
                 email: data.email || '',
+                phone: data.phone || '',
                 visitDate: new Date().toLocaleDateString()
               });
               logInfo('MedicalDictation', 'Patient data loaded from localStorage', {});
@@ -159,6 +163,7 @@ export default function MedicalDictation({ patientId, preloadPatientData = false
               mrn: data.mrn || '',
               dob: data.dob || '',
               email: data.email || '',
+              phone: data.phone || '',
               visitDate: new Date().toLocaleDateString()
             });
           }
@@ -912,6 +917,8 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
         {
           patientName: patientDetails.name,
           patientMrn: patientDetails.mrn,
+          patientEmail: patientDetails.email,
+          patientPhone: patientDetails.phone,
           rawTranscript: transcript,
           aiProcessedNote: processedNote,
           recordingMode: recordingMode || 'dictation',
@@ -1000,7 +1007,7 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
                 </span>
               )}
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-medium text-gray-700">Patient Name</label>
                 <input
@@ -1041,13 +1048,23 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-gray-700">Email/Phone</label>
+                <label className="text-xs font-medium text-gray-700">Email</label>
                 <input
-                  type="text"
+                  type="email"
                   value={patientDetails.email}
                   onChange={(e) => setPatientDetails(prev => ({ ...prev, email: e.target.value }))}
                   className="px-2 py-1.5 border border-gray-300 rounded text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-                  placeholder="Contact info"
+                  placeholder="patient@email.com"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-gray-700">Phone</label>
+                <input
+                  type="tel"
+                  value={patientDetails.phone}
+                  onChange={(e) => setPatientDetails(prev => ({ ...prev, phone: e.target.value }))}
+                  className="px-2 py-1.5 border border-gray-300 rounded text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  placeholder="(555) 123-4567"
                 />
               </div>
             </div>
