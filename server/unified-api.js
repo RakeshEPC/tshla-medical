@@ -159,6 +159,7 @@ const pumpApi = require('./pump-report-api');
 const authApi = require('./medical-auth-api');
 const scheduleApi = require('./enhanced-schedule-notes-api');
 const adminApi = require('./admin-account-api');
+const patientSummaryApi = require('./patient-summary-api');
 
 // Mount each API (they already have their own route prefixes like /api/*)
 // Since each API has its own namespace, we can mount them directly
@@ -166,6 +167,7 @@ app.use(pumpApi);    // Routes: /api/auth/*, /api/stripe/*, /api/provider/*, /ap
 app.use(authApi);     // Routes: /api/medical/*
 app.use(scheduleApi); // Routes: /api/providers/*, /api/appointments/*, /api/schedule/*, /api/notes/*
 app.use(adminApi);    // Routes: /api/accounts/*
+app.use(patientSummaryApi); // Routes: /api/patient-summaries/* (BETA)
 
 // Create HTTP server (needed for WebSocket upgrade)
 const server = http.createServer(app);

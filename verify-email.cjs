@@ -6,11 +6,6 @@ require('dotenv').config();
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('❌ Missing Supabase credentials');
-  process.exit(1);
-}
-
 const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   auth: {
     autoRefreshToken: false,
@@ -18,13 +13,12 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   }
 });
 
-async function resetAdminPassword() {
+async function verifyEmail() {
   const email = 'Shannon@tshla.ai';
-  const newPassword = 'Shannon2025!';
+  
+  console.log(`\n🔍 Verifying email for: ${email}\n`);
 
-  console.log(`\n🔐 Resetting password for: ${email}`);
-
-  // Find the medical staff record
+  // Get staff record
   const { data: staffData, error: staffError } = await supabase
     .from('medical_staff')
     .select('*')
@@ -33,30 +27,33 @@ async function resetAdminPassword() {
 
   if (staffError || !staffData) {
     console.error('❌ Staff record not found');
-    process.exit(1);
+    return;
   }
 
   console.log(`✅ Found: ${staffData.first_name} ${staffData.last_name}`);
 
-  // Update the password in Supabase Auth
+  // Update auth user to confirm email
   const { data, error } = await supabase.auth.admin.updateUserById(
     staffData.auth_user_id,
-    { password: newPassword }
+    { 
+      email_confirm: true,
+      password: 'Shannon2025!'
+    }
   );
 
   if (error) {
-    console.error('❌ Password update failed:', error.message);
-    process.exit(1);
+    console.error('❌ Verification failed:', error.message);
+    return;
   }
 
-  console.log('\n✅ Password successfully reset!');
+  console.log('\n✅ Email verified and password reset!');
   console.log('\n📋 Login Credentials:');
   console.log('   Email: Shannon@tshla.ai');
   console.log('   Password: Shannon2025!');
   console.log('\n🌐 Login at: https://www.tshla.ai');
 }
 
-resetAdminPassword()
+verifyEmail()
   .then(() => process.exit(0))
   .catch(err => {
     console.error('❌ Error:', err.message);
