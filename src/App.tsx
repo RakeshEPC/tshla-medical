@@ -44,7 +44,6 @@ const CaseManagementDashboard = lazy(() => import('./pages/CaseManagementDashboa
 const MADashboard = lazy(() => import('./pages/MADashboard'));
 
 // Dictation & Notes
-const DictationPage = lazy(() => import('./pages/DictationPage'));
 const DictationPageEnhanced = lazy(() => import('./pages/DictationPageEnhanced'));
 const QuickNote = lazy(() => import('./pages/QuickNote'));
 const QuickNoteModern = lazy(() => import('./pages/QuickNoteModern'));
@@ -238,7 +237,7 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <Suspense fallback={<LoadingSpinner />}>
-                      <DictationPage />
+                      <DictationPageEnhanced />
                     </Suspense>
                   </ProtectedRoute>
                 }

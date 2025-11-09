@@ -18,6 +18,7 @@ import { ChevronDown, FileText, Star, Clock, Mic, MicOff, Brain, User, Trash2, C
 import NoteFormatter from './NoteFormatter';
 import { NoteSharing } from './NoteSharing';
 import { noteSharingService, type ShareableNote } from '../services/noteSharing.service';
+import { AudioSummaryModal } from './echo/AudioSummaryModal';
 import '../styles/modernUI.css';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
 
@@ -68,6 +69,7 @@ export default function MedicalDictation({ patientId, preloadPatientData = false
   }
   const [processedNoteVersions, setProcessedNoteVersions] = useState<ProcessedNoteVersion[]>([]);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [showAudioSummaryModal, setShowAudioSummaryModal] = useState(false);
 
   // Patient details for live editing
   const [patientDetails, setPatientDetails] = useState({
@@ -1557,6 +1559,16 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
                     >
                       🖨️ Print
                     </button>
+                    <button
+                      onClick={() => {
+                        console.log('🔥 ECHO: Opening Audio Summary Modal');
+                        setShowAudioSummaryModal(true);
+                      }}
+                      className="px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 font-semibold"
+                      style={{ backgroundColor: '#9333ea' }}
+                    >
+                      📞 Send Patient Summary (ECHO)
+                    </button>
                   </div>
                 )}
               </div>
@@ -1643,6 +1655,14 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
         </div>
 
       </div>
+
+      {/* Audio Summary Modal */}
+      <AudioSummaryModal
+        soapNote={processedNote}
+        patientName={patientDetails.name}
+        isOpen={showAudioSummaryModal}
+        onClose={() => setShowAudioSummaryModal(false)}
+      />
     </div>
   );
 }
