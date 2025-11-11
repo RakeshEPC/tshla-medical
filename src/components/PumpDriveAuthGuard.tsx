@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { pumpAuthService } from '../services/pumpAuth.service';
+import { supabaseAuthService } from '../services/supabaseAuth.service';
 
 interface PumpDriveAuthGuardProps {
   children: React.ReactNode;
@@ -19,27 +19,30 @@ export default function PumpDriveAuthGuard({ children }: PumpDriveAuthGuardProps
       console.log('🔐 PumpDriveAuthGuard: Checking authentication...');
       console.log('📍 Current path:', location.pathname);
 
-      // Check if user has valid token and access
-      const token = pumpAuthService.getToken();
-      const user = pumpAuthService.getUser();
+      // Use Supabase auth service instead of old pump auth
+      const isAuth = await supabaseAuthService.isAuthenticated();
 
-      console.log('🔑 Token exists:', !!token);
-      console.log('👤 User exists:', !!user);
-      if (token) console.log('🔑 Token value (first 20 chars):', token.substring(0, 20) + '...');
-      if (user) console.log('👤 User data:', user);
-
-      if (!token || !user) {
-        console.log('❌ Auth check FAILED - Missing token or user');
-        console.log('   Token:', token ? 'EXISTS' : 'MISSING');
-        console.log('   User:', user ? 'EXISTS' : 'MISSING');
+      if (!isAuth) {
+        console.log('❌ Auth check FAILED - Not authenticated with Supabase');
         setIsAuthenticated(false);
         return;
       }
 
-      // No access expiry check - users have unlimited access
-      // Just verify the token is valid
+      // Get user profile to verify PumpDrive access
+      const result = await supabaseAuthService.getCurrentUser();
 
-      console.log('✅ Auth check PASSED - User is authenticated');
+      if (!result.success || !result.user) {
+        console.log('❌ Auth check FAILED - Could not get user profile');
+        setIsAuthenticated(false);
+        return;
+      }
+
+      console.log('✅ Auth check PASSED - User authenticated:', {
+        email: result.user.email,
+        accessType: result.user.accessType,
+        pumpdriveEnabled: result.user.accessType === 'pumpdrive'
+      });
+
       setIsAuthenticated(true);
     } catch (error) {
       console.error('❌ Authentication check failed:', error);
@@ -59,14 +62,15 @@ export default function PumpDriveAuthGuard({ children }: PumpDriveAuthGuardProps
     );
   }
 
-  // Not authenticated - redirect to create account or login
+  // Not authenticated - redirect to patient login
   if (!isAuthenticated) {
     // Store current location to redirect back after login
     const redirectPath = location.pathname + location.search;
     sessionStorage.setItem('pumpDriveRedirectAfterLogin', redirectPath);
 
-    // Redirect to create account (default) or login page
-    return <Navigate to="/pumpdrive/create-account" replace />;
+    console.log('🔄 Redirecting to patient-login...');
+    // Redirect to patient login (not create-account which redirects to patient-register)
+    return <Navigate to="/patient-login" replace />;
   }
 
   // Authenticated - render protected content

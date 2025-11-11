@@ -83,8 +83,8 @@ export default function PumpDriveBundle() {
           </PumpDriveAuthGuard>
         } />
 
-        {/* Fallback - redirect to account creation */}
-        <Route path="*" element={<Navigate to="/pumpdrive/create-account" replace />} />
+        {/* Fallback - redirect to patient login (not create account) */}
+        <Route path="*" element={<Navigate to="/patient-login" replace />} />
       </Routes>
     </Suspense>
   );
