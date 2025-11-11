@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { pumpAuthService, type UserRegistrationData } from '../services/pumpAuth.service';
+import { supabaseAuthService } from '../services/supabaseAuth.service';
+
+// ⚠️ NOTE: This page uses an older billing/research flow that may need updating
+// Consider migrating to the unified PatientRegister page for new users
 
 interface UserFormData {
   email: string;
@@ -104,29 +107,21 @@ export default function PumpDriveBilling() {
 
     setIsSubmitting(true);
     try {
-      const registrationData: UserRegistrationData = {
+      // Register using Supabase auth (simplified from old pumpAuth system)
+      const result = await supabaseAuthService.registerPatient({
         email: userForm.email,
-        username: userForm.username,
         password: userForm.password,
-        isResearchParticipant: false
-      };
-
-      // Validate data with service
-      const serviceErrors = pumpAuthService.validateRegistrationData(registrationData);
-      if (serviceErrors.length > 0) {
-        setErrors({ general: serviceErrors.join(', ') });
-        return;
-      }
-
-      // Register user
-      const result = await pumpAuthService.registerUser(registrationData);
+        firstName: userForm.username, // Using username as firstName for now
+        lastName: 'User', // Default last name
+        enablePumpDrive: true, // Enable PumpDrive access
+      });
 
       if (result.success) {
         // TODO: Integrate with Stripe payment processing
-        // For now, navigate to results after successful registration
-        navigate('/pumpdrive/results');
+        // For now, navigate to assessment after successful registration
+        navigate('/pumpdrive/assessment');
       } else {
-        setErrors({ general: result.message });
+        setErrors({ general: result.error || 'Registration failed' });
       }
     } catch (error) {
       console.error('Registration failed:', error);
@@ -146,53 +141,33 @@ export default function PumpDriveBilling() {
   const handleQuestionnaireSubmit = async () => {
     setIsSubmitting(true);
     try {
-      const registrationData: UserRegistrationData = {
+      // Parse name from fullName
+      const [firstName, ...lastNameParts] = researchForm.fullName.split(' ');
+      const lastName = lastNameParts.join(' ') || 'User';
+
+      // Register using Supabase auth with research participant data
+      const result = await supabaseAuthService.registerPatient({
         email: researchForm.email,
-        username: researchForm.username,
         password: researchForm.password,
-        isResearchParticipant: true,
-        researchData: {
-          fullName: researchForm.fullName,
-          dateOfBirth: researchForm.dateOfBirth,
-          pcpName: researchForm.pcpName,
-          pcpPhone: researchForm.pcpPhone,
-          pcpEmail: researchForm.pcpEmail,
-          pcpAddress: researchForm.pcpAddress,
-          endocrinologistName: researchForm.endocrinologistName,
-          endocrinologistPhone: researchForm.endocrinologistPhone,
-          endocrinologistEmail: researchForm.endocrinologistEmail,
-          endocrinologistAddress: researchForm.endocrinologistAddress,
-          mailingAddress: researchForm.mailingAddress
-        },
-        questionnaireData: {
-          overallSatisfaction: questionnaire.overallSatisfaction,
-          highBloodSugarFrequency: questionnaire.highBloodSugarFrequency,
-          lowBloodSugarFrequency: questionnaire.lowBloodSugarFrequency,
-          convenienceSatisfaction: questionnaire.convenienceSatisfaction,
-          flexibilitySatisfaction: questionnaire.flexibilitySatisfaction,
-          understandingSatisfaction: questionnaire.understandingSatisfaction,
-          continuationLikelihood: questionnaire.continuationLikelihood,
-          recommendationLikelihood: questionnaire.recommendationLikelihood,
-          additionalComments: questionnaire.additionalComments
-        }
-      };
-
-      // Validate data with service
-      const serviceErrors = pumpAuthService.validateRegistrationData(registrationData);
-      if (serviceErrors.length > 0) {
-        setErrors({ general: serviceErrors.join(', ') });
-        return;
-      }
-
-      // Register research participant
-      const result = await pumpAuthService.registerUser(registrationData);
+        firstName: firstName,
+        lastName: lastName,
+        phoneNumber: researchForm.pcpPhone, // Use PCP phone as primary contact
+        dateOfBirth: researchForm.dateOfBirth,
+        enablePumpDrive: true, // Enable PumpDrive access
+        // Note: Research data and questionnaire responses should be stored separately
+        // in a dedicated research_participants table - this simplified registration
+        // only creates the basic patient record
+      });
 
       if (result.success) {
+        // TODO: Store research participant data and questionnaire responses in dedicated tables
         // TODO: Integrate with Stripe payment processing
-        // For now, navigate to results after successful registration
-        navigate('/pumpdrive/results');
+        console.warn('⚠️ Research participant additional data not yet stored - needs separate API call');
+
+        // For now, navigate to assessment after successful registration
+        navigate('/pumpdrive/assessment');
       } else {
-        setErrors({ general: result.message });
+        setErrors({ general: result.error || 'Registration failed' });
       }
     } catch (error) {
       console.error('Research registration failed:', error);

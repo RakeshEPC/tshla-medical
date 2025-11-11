@@ -27,6 +27,30 @@ if git diff --cached -- ':!start-dev.sh' ':!stop-dev.sh' ':!*.md' | grep -i "DB_
 fi
 echo "✅ No hardcoded credentials detected"
 
+# Check for deprecated auth service imports
+echo ""
+echo "Checking for deprecated auth service imports..."
+DEPRECATED_IMPORTS=$(git diff --cached --name-only | grep -E '\.(ts|tsx)$' | grep -v "pumpAuth\.service\.ts$" | xargs grep -l "from.*pumpAuth\.service" 2>/dev/null || true)
+if [ -n "$DEPRECATED_IMPORTS" ]; then
+  echo "❌ Found imports of deprecated pumpAuth.service!"
+  echo ""
+  echo "   Files with deprecated imports:"
+  echo "$DEPRECATED_IMPORTS" | sed 's/^/     - /'
+  echo ""
+  echo "   ⚠️  pumpAuth.service is deprecated and will be removed."
+  echo "   ✅ Use supabaseAuth.service instead."
+  echo ""
+  echo "   Migration example:"
+  echo "     // ❌ Old (deprecated):"
+  echo "     import { pumpAuthService } from './pumpAuth.service';"
+  echo ""
+  echo "     // ✅ New (correct):"
+  echo "     import { supabaseAuthService } from './supabaseAuth.service';"
+  echo ""
+  exit 1
+fi
+echo "✅ No deprecated auth imports detected"
+
 # Check TypeScript compiles
 echo ""
 echo "Running TypeScript check..."

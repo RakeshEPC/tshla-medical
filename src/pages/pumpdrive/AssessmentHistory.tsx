@@ -8,7 +8,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { assessmentHistoryService, type AssessmentSummary } from '../../services/assessmentHistory.service';
-import { pumpAuthService } from '../../services/pumpAuth.service';
+import { supabaseAuthService } from '../../services/supabaseAuth.service';
 import { logError, logInfo } from '../../services/logger.service';
 
 export default function AssessmentHistory() {
@@ -28,9 +28,9 @@ export default function AssessmentHistory() {
       setLoading(true);
       setError(null);
 
-      // Check if user is logged in
-      const currentUser = pumpAuthService.getUser();
-      if (!currentUser) {
+      // Check if user is logged in using Supabase auth
+      const isAuth = await supabaseAuthService.isAuthenticated();
+      if (!isAuth) {
         setError('Please log in to view your assessment history');
         setLoading(false);
         return;

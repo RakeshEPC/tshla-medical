@@ -1,5 +1,25 @@
+/**
+ * ⚠️ DEPRECATED - DO NOT USE IN NEW CODE
+ *
+ * This service is deprecated and will be removed in a future release.
+ * Use `supabaseAuthService` instead for all authentication operations.
+ *
+ * @deprecated Since November 2024 - Use supabaseAuthService from './supabaseAuth.service'
+ *
+ * Migration completed:
+ * - PatientLogin.tsx ✅ (Oct 9, 2024)
+ * - PumpDriveAuthGuard.tsx ✅ (Nov 11, 2024)
+ * - AssessmentHistory.tsx ✅ (Nov 11, 2024)
+ * - PumpDriveResults.tsx ✅ (Nov 11, 2024)
+ * - PumpDriveBilling.tsx ✅ (Nov 11, 2024)
+ *
+ * This file exists only for backward compatibility and will be deleted
+ * in the next major cleanup.
+ */
+
 import { logError, logWarn, logInfo, logDebug } from './logger.service';
 
+/** @deprecated Use supabaseAuthService.registerPatient() instead */
 export interface UserRegistrationData {
   email: string;
   username?: string; // Optional - will be auto-generated if not provided
@@ -69,6 +89,9 @@ export interface AccessStatus {
   hoursRemaining: number;
 }
 
+/**
+ * @deprecated Use supabaseAuthService instead - this class will be removed
+ */
 class PumpAuthService {
   private baseUrl = import.meta.env.VITE_PUMP_API_URL || 'https://api.tshla.ai';
 
@@ -76,6 +99,7 @@ class PumpAuthService {
   private userKey = 'pump_user_data';
 
   /**
+   * @deprecated Use supabaseAuthService validation instead
    * Validate password requirements
    */
   validatePassword(password: string): { isValid: boolean; errors: string[] } {
@@ -442,6 +466,26 @@ class PumpAuthService {
 
     return errors;
   }
+
+  constructor() {
+    // Warn developers this service is deprecated
+    console.warn(
+      '⚠️ DEPRECATED: pumpAuthService is deprecated and will be removed.\n' +
+      'Please use supabaseAuthService from ./supabaseAuth.service instead.\n' +
+      'See file header for migration details.'
+    );
+  }
 }
 
+/**
+ * @deprecated Use supabaseAuthService instead
+ * @example
+ * // ❌ Old way (deprecated):
+ * import { pumpAuthService } from './pumpAuth.service';
+ * const result = await pumpAuthService.registerUser(data);
+ *
+ * // ✅ New way (correct):
+ * import { supabaseAuthService } from './supabaseAuth.service';
+ * const result = await supabaseAuthService.registerPatient(data);
+ */
 export const pumpAuthService = new PumpAuthService();

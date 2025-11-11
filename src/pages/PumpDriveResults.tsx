@@ -4,7 +4,6 @@ import { pumpDriveFeatureBasedService } from '../services/pumpDriveFeatureBased.
 import { pumpDrivePureAI } from '../services/pumpDrivePureAI.service';
 import { pumpDriveAIService } from '../services/pumpDriveAI.service';
 import { pumpAssessmentService, type AssessmentData } from '../services/pumpAssessment.service';
-import { pumpAuthService } from '../services/pumpAuth.service';
 import { supabaseAuthService } from '../services/supabaseAuth.service';
 import { assessmentHistoryService, type StoredAssessment } from '../services/assessmentHistory.service';
 import AssessmentDataViewer from '../components/pumpdrive/AssessmentDataViewer';
