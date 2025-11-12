@@ -85,9 +85,76 @@ app.get('/', (req, res) => {
       auth_api: '/api/auth/* and /api/medical/*',
       schedule_api: '/api/schedule/*, /api/notes/*',
       admin_api: '/api/accounts/*',
-      websocket: 'ws://[host]/ws/deepgram'
+      websocket: 'ws://[host]/ws/deepgram',
+      previsit_twiml: '/api/twilio/previsit-twiml'
     }
   });
+});
+
+// Pre-Visit TwiML Endpoint for Twilio Integration
+const https = require('https');
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || process.env.VITE_ELEVENLABS_API_KEY;
+const ELEVENLABS_AGENT_ID = process.env.ELEVENLABS_AGENT_ID;
+
+function getElevenLabsSignedUrl() {
+  return new Promise((resolve, reject) => {
+    if (!ELEVENLABS_API_KEY || !ELEVENLABS_AGENT_ID) {
+      reject(new Error('ElevenLabs not configured'));
+      return;
+    }
+
+    const options = {
+      hostname: 'api.elevenlabs.io',
+      path: `/v1/convai/conversation/get_signed_url?agent_id=${ELEVENLABS_AGENT_ID}`,
+      method: 'GET',
+      headers: { 'xi-api-key': ELEVENLABS_API_KEY }
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          resolve(parsed.signed_url);
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+app.post('/api/twilio/previsit-twiml', async (req, res) => {
+  try {
+    console.log('📞 Pre-Visit TwiML webhook called');
+
+    const signedUrl = await getElevenLabsSignedUrl();
+    console.log('✅ Got ElevenLabs signed URL');
+
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Connect>
+    <Stream url="${signedUrl}" />
+  </Connect>
+</Response>`;
+
+    res.type('application/xml');
+    res.send(twiml);
+  } catch (error) {
+    console.error('❌ TwiML error:', error);
+
+    const fallback = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say>We're sorry, our automated assistant is currently unavailable. Please call back later.</Say>
+  <Hangup/>
+</Response>`;
+    res.type('application/xml');
+    res.send(fallback);
+  }
 });
 
 // Deepgram proxy health endpoint
