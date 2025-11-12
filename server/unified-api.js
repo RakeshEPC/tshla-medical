@@ -19,6 +19,7 @@ const http = require('http');
 const WebSocket = require('ws');
 const cors = require('cors');
 const { createClient, LiveTranscriptionEvents } = require('@deepgram/sdk');
+const unifiedDatabase = require('./services/unified-supabase.service');
 
 // Create main Express app
 const app = express();
@@ -487,9 +488,25 @@ app.post('/api/previsit/data/medications', async (req, res) => {
     const { conversation_id, medications } = req.body;
     console.log(`💊 Storing medications for ${conversation_id}:`, medications);
 
-    const session = activeConversations.get(conversation_id);
-    if (session) {
-      session.medications = Array.isArray(medications) ? medications : [medications];
+    const medsArray = Array.isArray(medications) ? medications : [medications];
+
+    // Upsert to Supabase
+    const supabase = await unifiedDatabase.getClient();
+    const { data, error } = await supabase
+      .from('previsit_call_data')
+      .upsert({
+        conversation_id: conversation_id || 'unknown',
+        medications: medsArray
+      }, {
+        onConflict: 'conversation_id',
+        ignoreDuplicates: false
+      })
+      .select();
+
+    if (error) {
+      console.error('❌ Supabase error:', error);
+    } else {
+      console.log('✅ Saved to Supabase:', data);
     }
 
     res.json({ success: true, stored: medications });
@@ -505,9 +522,25 @@ app.post('/api/previsit/data/concerns', async (req, res) => {
     const { conversation_id, concerns } = req.body;
     console.log(`⚠️ Storing concerns for ${conversation_id}:`, concerns);
 
-    const session = activeConversations.get(conversation_id);
-    if (session) {
-      session.concerns = Array.isArray(concerns) ? concerns : [concerns];
+    const concernsArray = Array.isArray(concerns) ? concerns : [concerns];
+
+    // Upsert to Supabase
+    const supabase = await unifiedDatabase.getClient();
+    const { data, error } = await supabase
+      .from('previsit_call_data')
+      .upsert({
+        conversation_id: conversation_id || 'unknown',
+        concerns: concernsArray
+      }, {
+        onConflict: 'conversation_id',
+        ignoreDuplicates: false
+      })
+      .select();
+
+    if (error) {
+      console.error('❌ Supabase error:', error);
+    } else {
+      console.log('✅ Saved to Supabase:', data);
     }
 
     res.json({ success: true, stored: concerns });
@@ -523,9 +556,25 @@ app.post('/api/previsit/data/questions', async (req, res) => {
     const { conversation_id, questions } = req.body;
     console.log(`❓ Storing questions for ${conversation_id}:`, questions);
 
-    const session = activeConversations.get(conversation_id);
-    if (session) {
-      session.questions = Array.isArray(questions) ? questions : [questions];
+    const questionsArray = Array.isArray(questions) ? questions : [questions];
+
+    // Upsert to Supabase
+    const supabase = await unifiedDatabase.getClient();
+    const { data, error } = await supabase
+      .from('previsit_call_data')
+      .upsert({
+        conversation_id: conversation_id || 'unknown',
+        questions: questionsArray
+      }, {
+        onConflict: 'conversation_id',
+        ignoreDuplicates: false
+      })
+      .select();
+
+    if (error) {
+      console.error('❌ Supabase error:', error);
+    } else {
+      console.log('✅ Saved to Supabase:', data);
     }
 
     res.json({ success: true, stored: questions });
@@ -573,17 +622,23 @@ app.get('/api/previsit/session/:conversation_id', async (req, res) => {
   }
 });
 
-// Debug endpoint - List all active sessions
+// Debug endpoint - List all captured sessions from Supabase
 app.get('/api/previsit/sessions/all', async (req, res) => {
   try {
-    const sessions = Array.from(activeConversations.entries()).map(([id, data]) => ({
-      conversation_id: id,
-      ...data
-    }));
+    const supabase = await unifiedDatabase.getClient();
+    const { data, error } = await supabase
+      .from('previsit_call_data')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('❌ Supabase error:', error);
+      return res.status(500).json({ error: error.message });
+    }
 
     res.json({
-      count: sessions.length,
-      sessions: sessions
+      count: data.length,
+      sessions: data
     });
   } catch (error) {
     console.error('❌ Error listing sessions:', error);
