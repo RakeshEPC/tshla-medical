@@ -138,7 +138,7 @@ app.post('/api/twilio/previsit-twiml', async (req, res) => {
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
-    <Stream url="${signedUrl}" />
+    <Stream url="${signedUrl}" track="both_tracks" />
   </Connect>
 </Response>`;
 
