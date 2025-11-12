@@ -573,6 +573,24 @@ app.get('/api/previsit/session/:conversation_id', async (req, res) => {
   }
 });
 
+// Debug endpoint - List all active sessions
+app.get('/api/previsit/sessions/all', async (req, res) => {
+  try {
+    const sessions = Array.from(activeConversations.entries()).map(([id, data]) => ({
+      conversation_id: id,
+      ...data
+    }));
+
+    res.json({
+      count: sessions.length,
+      sessions: sessions
+    });
+  } catch (error) {
+    console.error('❌ Error listing sessions:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Deepgram proxy health endpoint
 // Must be registered BEFORE sub-APIs to avoid being caught by their 404 handlers
 const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY || process.env.VITE_DEEPGRAM_API_KEY;
