@@ -226,20 +226,37 @@ const pumpApi = require('./pump-report-api');
 const authApi = require('./medical-auth-api');
 const scheduleApi = require('./enhanced-schedule-notes-api');
 const adminApi = require('./admin-account-api');
-const patientSummaryApi = require('./patient-summary-api');
-const echoAudioSummaryRoutes = require('./routes/echo-audio-summary');
-console.log('✅ Echo routes loaded:', echoAudioSummaryRoutes ? 'SUCCESS' : 'FAILED');
+
+// Optional APIs - won't crash if they don't exist
+let patientSummaryApi = null;
+let echoAudioSummaryRoutes = null;
+try {
+  patientSummaryApi = require('./patient-summary-api');
+  console.log('✅ Patient summary API loaded');
+} catch (e) {
+  console.log('⚠️  Patient summary API not available:', e.message);
+}
+try {
+  echoAudioSummaryRoutes = require('./routes/echo-audio-summary');
+  console.log('✅ Echo routes loaded');
+} catch (e) {
+  console.log('⚠️  Echo routes not available:', e.message);
+}
 
 // Mount each API (they already have their own route prefixes like /api/*)
 // Since each API has its own namespace, we can mount them directly
 // IMPORTANT: Echo routes must be mounted FIRST to avoid being caught by pump-report-api's catch-all route
-app.use('/api/echo', echoAudioSummaryRoutes); // Routes: /api/echo/* (Echo Audio Summary with Twilio)
-console.log('✅ Echo routes mounted at /api/echo');
+if (echoAudioSummaryRoutes) {
+  app.use('/api/echo', echoAudioSummaryRoutes); // Routes: /api/echo/* (Echo Audio Summary with Twilio)
+  console.log('✅ Echo routes mounted at /api/echo');
+}
 app.use(pumpApi);    // Routes: /api/auth/*, /api/stripe/*, /api/provider/*, /api/pump-*
 app.use(authApi);     // Routes: /api/medical/*
 app.use(scheduleApi); // Routes: /api/providers/*, /api/appointments/*, /api/schedule/*, /api/notes/*
 app.use(adminApi);    // Routes: /api/accounts/*
-app.use(patientSummaryApi); // Routes: /api/patient-summaries/* (BETA)
+if (patientSummaryApi) {
+  app.use(patientSummaryApi); // Routes: /api/patient-summaries/* (BETA)
+}
 
 // Create HTTP server (needed for WebSocket upgrade)
 const server = http.createServer(app);
