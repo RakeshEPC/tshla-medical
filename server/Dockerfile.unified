@@ -18,10 +18,12 @@ COPY pump-report-api.js ./
 COPY medical-auth-api.js ./
 COPY enhanced-schedule-notes-api.js ./
 COPY admin-account-api.js ./
+COPY patient-summary-api.js ./
 COPY pump-recommendation-engine-ai.js ./
 COPY logger.js ./
 COPY services/ ./services/
 COPY utils/ ./utils/
+COPY routes/ ./routes/
 
 # Expose port (Azure App Service will set PORT env var)
 EXPOSE 3000
