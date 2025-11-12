@@ -43,6 +43,10 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
+// Parse JSON request bodies
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 console.log('🚀 TSHLA Medical Unified API Server');
 console.log('========================================');
 
