@@ -157,6 +157,418 @@ app.post('/api/twilio/previsit-twiml', async (req, res) => {
   }
 });
 
+// Pre-Visit Conversations API
+// Endpoints for fetching and displaying ElevenLabs conversation transcripts
+
+// List all pre-visit conversations
+app.get('/api/previsit/conversations', async (req, res) => {
+  try {
+    console.log('📋 Fetching pre-visit conversations...');
+
+    if (!ELEVENLABS_API_KEY || !ELEVENLABS_AGENT_ID) {
+      return res.status(500).json({ error: 'ElevenLabs not configured' });
+    }
+
+    const options = {
+      hostname: 'api.elevenlabs.io',
+      path: `/v1/convai/conversations?agent_id=${ELEVENLABS_AGENT_ID}`,
+      method: 'GET',
+      headers: { 'xi-api-key': ELEVENLABS_API_KEY }
+    };
+
+    const request = https.request(options, (response) => {
+      let data = '';
+      response.on('data', (chunk) => { data += chunk; });
+      response.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          console.log(`✅ Retrieved ${parsed.conversations?.length || 0} conversations`);
+          res.json(parsed);
+        } catch (e) {
+          console.error('❌ Parse error:', e);
+          res.status(500).json({ error: 'Failed to parse response' });
+        }
+      });
+    });
+
+    request.on('error', (error) => {
+      console.error('❌ Request error:', error);
+      res.status(500).json({ error: error.message });
+    });
+
+    request.end();
+  } catch (error) {
+    console.error('❌ Error fetching conversations:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get detailed conversation by ID (includes full transcript)
+app.get('/api/previsit/conversations/:conversationId', async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    console.log(`📄 Fetching conversation details: ${conversationId}`);
+
+    if (!ELEVENLABS_API_KEY) {
+      return res.status(500).json({ error: 'ElevenLabs not configured' });
+    }
+
+    const options = {
+      hostname: 'api.elevenlabs.io',
+      path: `/v1/convai/conversations/${conversationId}`,
+      method: 'GET',
+      headers: { 'xi-api-key': ELEVENLABS_API_KEY }
+    };
+
+    const request = https.request(options, (response) => {
+      let data = '';
+      response.on('data', (chunk) => { data += chunk; });
+      response.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          console.log(`✅ Retrieved conversation with ${parsed.transcript?.length || 0} messages`);
+          res.json(parsed);
+        } catch (e) {
+          console.error('❌ Parse error:', e);
+          res.status(500).json({ error: 'Failed to parse response' });
+        }
+      });
+    });
+
+    request.on('error', (error) => {
+      console.error('❌ Request error:', error);
+      res.status(500).json({ error: error.message });
+    });
+
+    request.end();
+  } catch (error) {
+    console.error('❌ Error fetching conversation:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Make outbound pre-visit call
+app.post('/api/previsit/call', async (req, res) => {
+  try {
+    const { phoneNumber } = req.body;
+    console.log(`📞 Initiating pre-visit call to: ${phoneNumber}`);
+
+    if (!ELEVENLABS_API_KEY || !ELEVENLABS_AGENT_ID) {
+      return res.status(500).json({ error: 'ElevenLabs not configured' });
+    }
+
+    if (!phoneNumber) {
+      return res.status(400).json({ error: 'Phone number required' });
+    }
+
+    // Get phone_number_id (we know it from earlier but let's fetch it dynamically)
+    const listOptions = {
+      hostname: 'api.elevenlabs.io',
+      path: '/v1/convai/phone-numbers',
+      method: 'GET',
+      headers: { 'xi-api-key': ELEVENLABS_API_KEY }
+    };
+
+    const listRequest = https.request(listOptions, (listResponse) => {
+      let listData = '';
+      listResponse.on('data', (chunk) => { listData += chunk; });
+      listResponse.on('end', () => {
+        try {
+          const phoneNumbers = JSON.parse(listData);
+          const agentPhone = phoneNumbers.find(p => p.assigned_agent?.agent_id === ELEVENLABS_AGENT_ID);
+
+          if (!agentPhone) {
+            return res.status(500).json({ error: 'No phone number assigned to agent' });
+          }
+
+          // Make the outbound call
+          const callData = JSON.stringify({
+            agent_id: ELEVENLABS_AGENT_ID,
+            agent_phone_number_id: agentPhone.phone_number_id,
+            to_number: phoneNumber
+          });
+
+          const callOptions = {
+            hostname: 'api.elevenlabs.io',
+            path: '/v1/convai/twilio/outbound-call',
+            method: 'POST',
+            headers: {
+              'xi-api-key': ELEVENLABS_API_KEY,
+              'Content-Type': 'application/json',
+              'Content-Length': Buffer.byteLength(callData)
+            }
+          };
+
+          const callRequest = https.request(callOptions, (callResponse) => {
+            let callResponseData = '';
+            callResponse.on('data', (chunk) => { callResponseData += chunk; });
+            callResponse.on('end', () => {
+              try {
+                const result = JSON.parse(callResponseData);
+                console.log(`✅ Call initiated: ${result.callSid || 'unknown'}`);
+                res.json(result);
+              } catch (e) {
+                console.error('❌ Parse error:', e);
+                res.status(500).json({ error: 'Failed to parse call response' });
+              }
+            });
+          });
+
+          callRequest.on('error', (error) => {
+            console.error('❌ Call request error:', error);
+            res.status(500).json({ error: error.message });
+          });
+
+          callRequest.write(callData);
+          callRequest.end();
+
+        } catch (e) {
+          console.error('❌ Error processing phone numbers:', e);
+          res.status(500).json({ error: 'Failed to get phone number' });
+        }
+      });
+    });
+
+    listRequest.on('error', (error) => {
+      console.error('❌ List request error:', error);
+      res.status(500).json({ error: error.message });
+    });
+
+    listRequest.end();
+
+  } catch (error) {
+    console.error('❌ Error initiating call:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ElevenLabs Post-Call Webhook
+// This endpoint receives conversation data after each call ends
+// and extracts structured clinical information
+app.post('/api/previsit/webhook/post-call', async (req, res) => {
+  try {
+    console.log('📞 Post-call webhook received');
+
+    const { conversation_id, agent_id, status } = req.body;
+
+    // Acknowledge receipt immediately
+    res.status(200).json({ received: true });
+
+    // Process asynchronously (don't block the webhook response)
+    if (status === 'done' && conversation_id) {
+      processConversationData(conversation_id).catch(err => {
+        console.error('❌ Error processing conversation:', err);
+      });
+    }
+  } catch (error) {
+    console.error('❌ Post-call webhook error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Process conversation data asynchronously
+async function processConversationData(conversationId) {
+  try {
+    console.log(`🔄 Processing conversation: ${conversationId}`);
+
+    // Fetch full conversation details from ElevenLabs
+    const options = {
+      hostname: 'api.elevenlabs.io',
+      path: `/v1/convai/conversations/${conversationId}`,
+      method: 'GET',
+      headers: { 'xi-api-key': ELEVENLABS_API_KEY }
+    };
+
+    const conversationData = await new Promise((resolve, reject) => {
+      const request = https.request(options, (response) => {
+        let data = '';
+        response.on('data', (chunk) => { data += chunk; });
+        response.on('end', () => {
+          try {
+            resolve(JSON.parse(data));
+          } catch (e) {
+            reject(e);
+          }
+        });
+      });
+      request.on('error', reject);
+      request.end();
+    });
+
+    // Extract structured data using AI
+    const structuredData = await extractStructuredData(conversationData);
+
+    // Store in database (Supabase)
+    // TODO: Implement database storage
+    console.log('✅ Structured data extracted:', {
+      conversation_id: conversationId,
+      medications_count: structuredData.medications?.length || 0,
+      concerns_count: structuredData.concerns?.length || 0,
+      questions_count: structuredData.questions?.length || 0
+    });
+
+  } catch (error) {
+    console.error('❌ Error processing conversation data:', error);
+    throw error;
+  }
+}
+
+// Extract structured clinical data from conversation using AI
+async function extractStructuredData(conversationData) {
+  // Even though transcript is redacted, we can still extract:
+  // - Call metadata (duration, success status)
+  // - Phone number (for linking to patient)
+  // - AI-generated summary
+  // - Message count and timing
+
+  const phoneNumber = conversationData.metadata?.phone_call?.external_number;
+  const summary = conversationData.analysis?.transcript_summary;
+  const duration = conversationData.metadata?.call_duration_secs;
+  const messageCount = conversationData.transcript?.length || 0;
+
+  return {
+    conversation_id: conversationData.conversation_id,
+    phone_number: phoneNumber,
+    call_duration_secs: duration,
+    message_count: messageCount,
+    call_successful: conversationData.analysis?.call_successful === 'success',
+    ai_summary: summary,
+    call_date: new Date(conversationData.metadata.start_time_unix_secs * 1000).toISOString(),
+
+    // These would be extracted from transcript if not redacted
+    // For now, we'll extract what we can from the summary
+    medications: [], // TODO: Extract from summary or use audio transcription
+    concerns: [],    // TODO: Extract from summary
+    questions: [],   // TODO: Extract from summary
+    urgency_level: 'low', // TODO: Determine from summary
+    requires_callback: false
+  };
+}
+
+// ============================================================================
+// REAL-TIME DATA COLLECTION ENDPOINTS
+// These endpoints are called by the ElevenLabs agent DURING the conversation
+// to store structured data before ZRM redaction occurs
+// ============================================================================
+
+// In-memory storage for active conversations (replace with Supabase later)
+const activeConversations = new Map();
+
+// Initialize a new pre-visit conversation session
+app.post('/api/previsit/session/start', async (req, res) => {
+  try {
+    const { conversation_id, phone_number } = req.body;
+    console.log(`📞 Starting pre-visit session: ${conversation_id}`);
+
+    activeConversations.set(conversation_id, {
+      conversation_id,
+      phone_number,
+      started_at: new Date().toISOString(),
+      medications: [],
+      concerns: [],
+      questions: [],
+      urgency_flags: []
+    });
+
+    res.json({ success: true, message: 'Session initialized' });
+  } catch (error) {
+    console.error('❌ Error starting session:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Store medications mentioned during the call
+app.post('/api/previsit/data/medications', async (req, res) => {
+  try {
+    const { conversation_id, medications } = req.body;
+    console.log(`💊 Storing medications for ${conversation_id}:`, medications);
+
+    const session = activeConversations.get(conversation_id);
+    if (session) {
+      session.medications = Array.isArray(medications) ? medications : [medications];
+    }
+
+    res.json({ success: true, stored: medications });
+  } catch (error) {
+    console.error('❌ Error storing medications:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Store chief concerns mentioned during the call
+app.post('/api/previsit/data/concerns', async (req, res) => {
+  try {
+    const { conversation_id, concerns } = req.body;
+    console.log(`⚠️ Storing concerns for ${conversation_id}:`, concerns);
+
+    const session = activeConversations.get(conversation_id);
+    if (session) {
+      session.concerns = Array.isArray(concerns) ? concerns : [concerns];
+    }
+
+    res.json({ success: true, stored: concerns });
+  } catch (error) {
+    console.error('❌ Error storing concerns:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Store questions for the provider
+app.post('/api/previsit/data/questions', async (req, res) => {
+  try {
+    const { conversation_id, questions } = req.body;
+    console.log(`❓ Storing questions for ${conversation_id}:`, questions);
+
+    const session = activeConversations.get(conversation_id);
+    if (session) {
+      session.questions = Array.isArray(questions) ? questions : [questions];
+    }
+
+    res.json({ success: true, stored: questions });
+  } catch (error) {
+    console.error('❌ Error storing questions:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Finalize and retrieve all collected data for a conversation
+app.post('/api/previsit/session/complete', async (req, res) => {
+  try {
+    const { conversation_id } = req.body;
+    console.log(`✅ Completing pre-visit session: ${conversation_id}`);
+
+    const session = activeConversations.get(conversation_id);
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    session.completed_at = new Date().toISOString();
+    console.log('📊 Final session data:', session);
+
+    res.json({ success: true, data: session });
+  } catch (error) {
+    console.error('❌ Error completing session:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Retrieve collected data for a conversation
+app.get('/api/previsit/session/:conversation_id', async (req, res) => {
+  try {
+    const { conversation_id } = req.params;
+    const session = activeConversations.get(conversation_id);
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    res.json(session);
+  } catch (error) {
+    console.error('❌ Error retrieving session:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Deepgram proxy health endpoint
 // Must be registered BEFORE sub-APIs to avoid being caught by their 404 handlers
 const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY || process.env.VITE_DEEPGRAM_API_KEY;
