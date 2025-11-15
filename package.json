@@ -41,7 +41,12 @@
     "validate:db:prod": "node scripts/validate-db-prod.js",
     "validate:cors": "./scripts/validate-api-cors.sh",
     "validate:all": "npm run validate:build && npm run validate:db:prod && npm run validate:apis && npm run validate:cors && npm run validate:deployment",
-    "prepare": "husky"
+    "prepare": "husky",
+    "previsit:api": "npx tsx server/previsit-api-server.ts",
+    "previsit:api:dev": "nodemon --exec npx tsx server/previsit-api-server.ts",
+    "previsit:api:pm2": "pm2 start server/previsit-api-server.ts --name previsit-api --interpreter tsx",
+    "previsit:test:patient": "npx tsx server/test-patient-service.ts",
+    "previsit:scheduler": "npx tsx server/jobs/schedulePreVisitCalls.ts"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.899.0",
@@ -72,11 +77,12 @@
     "jspdf": "^3.0.2",
     "jszip": "^3.10.1",
     "lucide-react": "^0.539.0",
+    "multer": "^2.0.2",
     "node-cron": "^4.2.1",
     "nodemailer": "^7.0.6",
     "nodemon": "^3.0.2",
     "openai": "^6.1.0",
-    "pdf-parse": "^1.1.1",
+    "pdf-parse": "^1.1.4",
     "pg": "^8.16.3",
     "pm2": "^5.3.0",
     "process": "^0.11.10",

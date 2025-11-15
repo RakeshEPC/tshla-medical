@@ -1,0 +1,62 @@
+{
+  "tools": [
+    {
+      "name": "store_medications",
+      "description": "Store the patient's current medications list. Call this function when the patient mentions their medications.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "medications": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of medications the patient is currently taking (e.g., ['Metformin 500mg twice daily', 'Lisinopril 10mg once daily'])"
+          }
+        },
+        "required": ["medications"]
+      },
+      "url": "https://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io/api/previsit/data/medications",
+      "method": "POST"
+    },
+    {
+      "name": "store_concerns",
+      "description": "Store the patient's chief concerns or health issues. Call this function when the patient mentions what they want to discuss with their doctor.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "concerns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of health concerns or symptoms the patient wants to discuss (e.g., ['High blood pressure readings at home', 'Morning dizziness'])"
+          }
+        },
+        "required": ["concerns"]
+      },
+      "url": "https://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io/api/previsit/data/concerns",
+      "method": "POST"
+    },
+    {
+      "name": "store_questions",
+      "description": "Store questions the patient has for their provider. Call this function when the patient asks what they should ask their doctor.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "questions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of questions the patient wants to ask their provider (e.g., ['Should I continue my current medication?', 'What diet changes do you recommend?'])"
+          }
+        },
+        "required": ["questions"]
+      },
+      "url": "https://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io/api/previsit/data/questions",
+      "method": "POST"
+    }
+  ],
+  "instructions": "HOW TO CONFIGURE IN ELEVENLABS:\n\n1. Go to: https://elevenlabs.io/conversational-ai\n2. Click 'Agents' → Select 'Patient intake' agent\n3. Click 'Tools' tab\n4. Click 'Add Tool' or 'Create Custom Tool'\n5. For each tool above:\n   - Name: Copy the 'name' field\n   - Description: Copy the 'description' field\n   - URL: Copy the 'url' field\n   - Method: POST\n   - Parameters: Copy the 'parameters' object\n   - Add 'conversation_id' to the request body automatically\n\n6. Update your agent's prompt to include:\n   'When the patient tells you their medications, use the store_medications tool.\n    When they mention health concerns, use the store_concerns tool.\n    When they have questions for the doctor, use the store_questions tool.'\n\n7. Test by calling the number and mentioning medications/concerns/questions"
+}

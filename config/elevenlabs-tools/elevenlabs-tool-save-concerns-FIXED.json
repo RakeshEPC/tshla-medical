@@ -1,0 +1,61 @@
+{
+  "type": "webhook",
+  "name": "save_concerns",
+  "description": "Store the patient's health concerns and symptoms. Call this function when the patient describes what they want to discuss with their doctor.",
+  "disable_interruptions": false,
+  "force_pre_tool_speech": "auto",
+  "assignments": [],
+  "tool_call_sound": null,
+  "tool_call_sound_behavior": "auto",
+  "execution_mode": "immediate",
+  "api_schema": {
+    "url": "https://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io/api/previsit/data/concerns",
+    "method": "POST",
+    "path_params_schema": [],
+    "query_params_schema": [],
+    "request_body_schema": {
+      "id": "body",
+      "type": "object",
+      "description": "Request body containing conversation ID and health concerns",
+      "properties": [
+        {
+          "id": "conversation_id",
+          "type": "string",
+          "value_type": "dynamic_variable",
+          "description": "The current conversation ID",
+          "dynamic_variable": "conversation_id",
+          "constant_value": null,
+          "enum": null,
+          "is_system_provided": false,
+          "required": true
+        },
+        {
+          "id": "concerns",
+          "type": "array",
+          "value_type": "llm_prompt",
+          "description": "Array of health concerns or symptoms the patient wants to discuss. Extract each concern as a separate string.",
+          "items": {
+            "type": "string",
+            "description": "A single health concern or symptom",
+            "constant_value": null,
+            "enum": null
+          },
+          "constant_value": null,
+          "enum": null,
+          "is_system_provided": false,
+          "required": true
+        }
+      ],
+      "required": true,
+      "value_type": "llm_prompt"
+    },
+    "request_headers": [],
+    "auth_connection": null
+  },
+  "response_timeout_secs": 20,
+  "dynamic_variables": {
+    "dynamic_variable_placeholders": {
+      "conversation_id": "conv_test_123"
+    }
+  }
+}

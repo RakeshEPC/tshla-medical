@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test Poolpatel Login</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { font-family: Arial; padding: 20px; max-width: 800px; margin: 0 auto; }
+    .section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+    button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    .success { background: #d4edda; border-color: #c3e6cb; }
+    .error { background: #f8d7da; border-color: #f5c6cb; }
+    pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>🔬 Test Poolpatel@tshla.ai Login</h1>
+
+  <div class="section">
+    <h2>Step 1: Test Supabase Connection</h2>
+    <button onclick="testConnection()">Test Connection</button>
+    <div id="connection-result"></div>
+  </div>
+
+  <div class="section">
+    <h2>Step 2: Login with Supabase</h2>
+    <input type="password" id="password" placeholder="Enter password" style="padding: 8px; width: 300px;">
+    <button onclick="testLogin()">Login</button>
+    <div id="login-result"></div>
+  </div>
+
+  <div class="section">
+    <h2>Step 3: Check Auth Status</h2>
+    <button onclick="checkAuth()">Check If Authenticated</button>
+    <div id="auth-result"></div>
+  </div>
+
+  <div class="section">
+    <h2>Step 4: Get Current User</h2>
+    <button onclick="getCurrentUser()">Get User Profile</button>
+    <div id="user-result"></div>
+  </div>
+
+  <div class="section">
+    <h2>Step 5: Simulate Redirect</h2>
+    <button onclick="simulateRedirect()">Simulate Login Redirect</button>
+    <div id="redirect-result"></div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://minvvjdflezibmgkplqb.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1pbnZ2amRmbGV6aWJtZ2twbHFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYwNDE5ODgsImV4cCI6MjA3MTYxNzk4OH0.-qzlS3artX2DWOVQgIqwd1jd3Utlnik6yOMFhyGcHl8';
+
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const EMAIL = 'Poolpatel@tshla.ai';
+
+    function show(elementId, html, type = '') {
+      const el = document.getElementById(elementId);
+      el.innerHTML = html;
+      el.className = type;
+    }
+
+    async function testConnection() {
+      show('connection-result', '⏳ Testing connection...', '');
+      try {
+        const { data, error } = await supabase.from('patients').select('count').limit(1);
+        if (error) throw error;
+        show('connection-result', '✅ Connected to Supabase successfully!', 'success');
+      } catch (error) {
+        show('connection-result', `❌ Connection failed: ${error.message}`, 'error');
+      }
+    }
+
+    async function testLogin() {
+      const password = document.getElementById('password').value;
+      if (!password) {
+        alert('Please enter password');
+        return;
+      }
+
+      show('login-result', '⏳ Logging in...', '');
+
+      console.log('🔐 Attempting login...');
+      console.log('Email:', EMAIL);
+
+      try {
+        // Step 1: Supabase Auth
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+          email: EMAIL,
+          password: password,
+        });
+
+        if (authError) {
+          console.error('❌ Auth error:', authError);
+          show('login-result', `❌ Login failed: ${authError.message}`, 'error');
+          return;
+        }
+
+        console.log('✅ Supabase auth successful');
+        console.log('Auth data:', authData);
+
+        // Step 2: Get patient record
+        const { data: patientData, error: patientError } = await supabase
+          .from('patients')
+          .select('*')
+          .eq('auth_user_id', authData.user.id)
+          .single();
+
+        if (patientError || !patientData) {
+          console.error('❌ Patient record error:', patientError);
+          show('login-result', `❌ Patient record not found: ${patientError?.message}`, 'error');
+          await supabase.auth.signOut();
+          return;
+        }
+
+        console.log('✅ Patient record found');
+        console.log('Patient:', patientData);
+
+        let result = `<pre>✅ LOGIN SUCCESSFUL!
+
+Auth User:
+- ID: ${authData.user.id}
+- Email: ${authData.user.email}
+- Email Confirmed: ${authData.user.email_confirmed_at ? 'YES ✅' : 'NO ❌'}
+
+Patient Record:
+- ID: ${patientData.id}
+- Name: ${patientData.first_name} ${patientData.last_name}
+- AVA ID: ${patientData.ava_id}
+- Active: ${patientData.is_active ? 'YES ✅' : 'NO ❌'}
+- PumpDrive: ${patientData.pumpdrive_enabled ? 'YES ✅' : 'NO ❌'}
+
+Access Type: ${patientData.pumpdrive_enabled ? 'pumpdrive' : 'patient'}
+
+Next Step: Should redirect to /pumpdrive/assessment</pre>`;
+
+        show('login-result', result, 'success');
+
+      } catch (error) {
+        console.error('❌ Unexpected error:', error);
+        show('login-result', `❌ Error: ${error.message}`, 'error');
+      }
+    }
+
+    async function checkAuth() {
+      show('auth-result', '⏳ Checking authentication...', '');
+
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (!session) {
+          show('auth-result', '❌ NOT AUTHENTICATED - No session found', 'error');
+          return;
+        }
+
+        let result = `<pre>✅ AUTHENTICATED
+
+Session:
+- User ID: ${session.user.id}
+- Email: ${session.user.email}
+- Expires: ${new Date(session.expires_at * 1000).toLocaleString()}
+
+Token stored in: localStorage['sb-minvvjdflezibmgkplqb-auth-token']
+
+This means: PumpDriveAuthGuard should PASS</pre>`;
+
+        show('auth-result', result, 'success');
+      } catch (error) {
+        show('auth-result', `❌ Error: ${error.message}`, 'error');
+      }
+    }
+
+    async function getCurrentUser() {
+      show('user-result', '⏳ Getting user profile...', '');
+
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (!session) {
+          show('user-result', '❌ Not logged in', 'error');
+          return;
+        }
+
+        const { data: patientData, error } = await supabase
+          .from('patients')
+          .select('*')
+          .eq('auth_user_id', session.user.id)
+          .single();
+
+        if (error || !patientData) {
+          show('user-result', `❌ Error getting user: ${error?.message}`, 'error');
+          return;
+        }
+
+        let result = `<pre>✅ USER PROFILE
+
+Patient:
+- Email: ${patientData.email}
+- Name: ${patientData.first_name} ${patientData.last_name}
+- AVA ID: ${patientData.ava_id}
+- MRN: ${patientData.mrn}
+- Active: ${patientData.is_active ? 'YES ✅' : 'NO ❌'}
+- PumpDrive: ${patientData.pumpdrive_enabled ? 'YES ✅' : 'NO ❌'}
+
+Access Type: ${patientData.pumpdrive_enabled ? 'pumpdrive' : 'patient'}
+
+Auth User ID: ${patientData.auth_user_id}</pre>`;
+
+        show('user-result', result, 'success');
+      } catch (error) {
+        show('user-result', `❌ Error: ${error.message}`, 'error');
+      }
+    }
+
+    async function simulateRedirect() {
+      show('redirect-result', '⏳ Simulating redirect logic...', '');
+
+      try {
+        // Check if authenticated
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (!session) {
+          show('redirect-result', `<pre>❌ NOT AUTHENTICATED
+
+Current behavior:
+1. Auth check fails
+2. PumpDriveAuthGuard redirects to: /patient-login
+
+Expected: You should see the login page</pre>`, 'error');
+          return;
+        }
+
+        // Get user
+        const { data: patientData, error } = await supabase
+          .from('patients')
+          .select('*')
+          .eq('auth_user_id', session.user.id)
+          .single();
+
+        if (error || !patientData) {
+          show('redirect-result', `<pre>❌ NO PATIENT RECORD
+
+Current behavior:
+1. Supabase auth valid
+2. But no patient record found
+3. Should redirect to: /patient-login
+
+This is the problem! Patient record is missing.</pre>`, 'error');
+          return;
+        }
+
+        // Determine redirect
+        const accessType = patientData.pumpdrive_enabled ? 'pumpdrive' : 'patient';
+        const redirectUrl = accessType === 'pumpdrive'
+          ? '/pumpdrive/assessment'
+          : '/patient/dashboard';
+
+        let result = `<pre>✅ LOGIN SUCCESSFUL
+
+After PatientLogin, should redirect to:
+  ${redirectUrl}
+
+Then PumpDriveAuthGuard at /pumpdrive/assessment:
+1. Checks: supabaseAuthService.isAuthenticated()
+   → Should return: TRUE ✅
+
+2. Checks: supabaseAuthService.getCurrentUser()
+   → Should return: User with accessType='${accessType}' ✅
+
+3. Auth guard decision:
+   → ALLOW ACCESS ✅
+
+4. Final result:
+   → Shows: PumpDrive questionnaire 🎉
+
+IF YOU'RE SEEING CREATE ACCOUNT INSTEAD:
+- Check browser console for exact error
+- Auth guard might be failing
+- Check if old pump_auth_token exists:
+  ${localStorage.getItem('pump_auth_token') ? '⚠️ OLD TOKEN EXISTS - REMOVE IT!' : '✅ No old token'}
+</pre>`;
+
+        show('redirect-result', result, 'success');
+
+      } catch (error) {
+        show('redirect-result', `❌ Error: ${error.message}`, 'error');
+      }
+    }
+
+    // Check for old tokens on load
+    window.addEventListener('load', () => {
+      const oldToken = localStorage.getItem('pump_auth_token');
+      const oldUser = localStorage.getItem('pump_user_data');
+
+      if (oldToken || oldUser) {
+        const warning = document.createElement('div');
+        warning.className = 'section error';
+        warning.innerHTML = `<h2>⚠️ WARNING: Old Auth Tokens Found!</h2>
+        <p>You have old pump auth tokens that may interfere:</p>
+        <ul>
+          <li>${oldToken ? '❌ pump_auth_token exists' : '✅ pump_auth_token not found'}</li>
+          <li>${oldUser ? '❌ pump_user_data exists' : '✅ pump_user_data not found'}</li>
+        </ul>
+        <button onclick="clearOldTokens()">Clear Old Tokens</button>`;
+        document.body.insertBefore(warning, document.body.firstChild);
+      }
+    });
+
+    function clearOldTokens() {
+      localStorage.removeItem('pump_auth_token');
+      localStorage.removeItem('pump_user_data');
+      alert('Old tokens cleared! Refresh the page.');
+      location.reload();
+    }
+  </script>
+</body>
+</html>

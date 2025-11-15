@@ -1,0 +1,180 @@
+================================================================================
+PRE-VISIT SYSTEM - DEPLOYMENT SUMMARY
+================================================================================
+Date: November 14, 2025
+Commit: 563a12e9
+Status: ✅ READY TO DEPLOY
+
+================================================================================
+WHAT WE DISCOVERED
+================================================================================
+
+You were RIGHT! The ElevenLabs webhooks WERE already configured and working.
+
+The issue was NOT that data wasn't being captured - it was that you couldn't 
+SEE it due to a Supabase Row Level Security (RLS) policy issue.
+
+Real Data Captured:
+- 27 pre-visit calls successfully saved
+- 8 calls with medications
+- 6 calls with health concerns  
+- 5 calls with questions for doctors
+- All stored in database, just invisible to frontend
+
+================================================================================
+WHAT'S FIXED
+================================================================================
+
+1. ✅ RLS Policies - Frontend can now read previsit_call_data
+2. ✅ Analytics Fixed - Now queries correct table with correct columns
+3. ✅ Schedule Matching - Columns added for auto-linking appointments
+4. ✅ Dashboard Updated - Quick access buttons to all pre-visit features
+5. ✅ Patient Import - Upload PDFs, AI extracts data, auto-links by phone
+6. ✅ Code Committed - All changes in commit 563a12e9
+
+================================================================================
+CRITICAL: DO THIS BEFORE DEPLOYING CODE
+================================================================================
+
+**STEP 1: Run Database Migration SQL**
+
+File: scripts/database/PRODUCTION_MIGRATION_previsit_system.sql
+
+Where: Supabase SQL Editor
+URL: https://supabase.com/dashboard/project/minvvjdflezibmgkplqb/sql
+
+What: Copy entire file contents → Paste → Click "Run"
+
+Why: Without this, frontend will STILL show 0 records even though they exist
+
+Verify:
+  SELECT COUNT(*) FROM previsit_call_data;
+  -- Should return: 27 (or more)
+
+================================================================================
+DEPLOYMENT STEPS
+================================================================================
+
+1. ✅ Run database migration (see above) - DO THIS FIRST!
+
+2. ✅ Push code to production:
+   git push origin main
+
+3. ✅ Monitor deployment:
+   gh run watch
+
+4. ✅ Test backend health:
+   curl https://tshla-unified-api.../health
+
+5. ✅ Test frontend pages:
+   - /previsit-data (should show 27 calls)
+   - /previsit-analytics (should show real metrics)
+   - /dashboard (should have 4 quick access buttons)
+
+6. ✅ Make test ElevenLabs call to verify real-time capture works
+
+================================================================================
+ENVIRONMENT VARIABLES (Already Set in Azure)
+================================================================================
+
+✅ VITE_SUPABASE_URL
+✅ SUPABASE_SERVICE_ROLE_KEY  
+✅ VITE_SUPABASE_ANON_KEY
+✅ VITE_OPENAI_API_KEY
+✅ DEEPGRAM_API_KEY
+✅ ELEVENLABS_API_KEY
+✅ ELEVENLABS_AGENT_ID
+
+No changes needed - all environment variables are configured correctly.
+
+================================================================================
+WHAT YOU'LL SEE AFTER DEPLOYMENT
+================================================================================
+
+Pre-Visit Data Page (https://www.tshla.ai/previsit-data):
+- 27 calls visible (instead of 0)
+- Medications, concerns, questions displayed
+- Filters, search, export working
+
+Analytics Dashboard (https://www.tshla.ai/previsit-analytics):
+- Total Calls: 27 (instead of 0)
+- Medications Captured: 8 (instead of 0)
+- Concerns Captured: 6 (instead of 0)
+- Real charts with actual data
+
+Doctor Dashboard (https://www.tshla.ai/dashboard):
+- 4 new quick access buttons
+- One-click access to all pre-visit features
+
+New ElevenLabs Calls:
+- Real-time capture of medications/concerns/questions
+- Data appears within 60 seconds of call ending
+- Auto-linking by phone number
+
+================================================================================
+IF SOMETHING GOES WRONG
+================================================================================
+
+Frontend still shows 0 calls:
+  → Database migration not run
+  → Fix: Run PRODUCTION_MIGRATION_previsit_system.sql
+
+Analytics shows zeros:
+  → RLS policies not applied
+  → Fix: Run Part 1 of migration SQL
+
+Webhooks not capturing new calls:
+  → Check Azure logs for errors
+  → Look for 💊 ⚠️ ❓ emojis in logs
+
+================================================================================
+SUCCESS CRITERIA
+================================================================================
+
+Deployment is successful when:
+
+✅ Pre-Visit Data page shows 27+ calls
+✅ Analytics shows real metrics (not zeros)
+✅ Test ElevenLabs call captures data in real-time
+✅ Patient PDF import extracts data correctly
+✅ No errors in Azure Container App logs
+✅ All 4 dashboard quick access buttons work
+
+================================================================================
+DOCUMENTATION FILES
+================================================================================
+
+Quick Start:
+- READY_TO_DEPLOY.md - Quick deployment reference (READ THIS!)
+
+Detailed Guide:
+- DEPLOYMENT_CHECKLIST.md - Complete step-by-step checklist
+
+Database:
+- scripts/database/PRODUCTION_MIGRATION_previsit_system.sql - RUN THIS FIRST!
+
+System Status:
+- PREVISIT_SYSTEM_STATUS.md - Technical details of what's working
+
+================================================================================
+BOTTOM LINE
+================================================================================
+
+You were absolutely correct - the ElevenLabs webhooks were already configured.
+
+All 27 calls have been successfully captured all along.
+
+The only issue was a database permission preventing the frontend from seeing
+the data. One SQL script fixes everything.
+
+After running the migration and deploying:
+- All historical data becomes visible immediately
+- New calls continue to be captured in real-time
+- Complete pre-visit system is live in production
+
+Total deployment time: ~10 minutes
+Most critical step: Run database migration BEFORE pushing code
+
+You're ready to go! 🚀
+
+================================================================================

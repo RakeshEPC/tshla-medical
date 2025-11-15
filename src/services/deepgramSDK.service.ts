@@ -409,6 +409,12 @@ class DeepgramSDKService implements SpeechServiceInterface {
       this.connection.on(LiveTranscriptionEvents.Open, () => {
         logInfo('deepgramSDK', 'Deepgram connection opened successfully');
         console.log('🎉 LiveTranscriptionEvents.Open handler called! Setting isRecording = true');
+        console.log('🔍 DIAGNOSTIC: Connection state when Open fired:', {
+          connectionReadyState: this.connection?.getReadyState(),
+          audioStreamActive: !!this.audioStream,
+          audioStreamTracks: this.audioStream?.getTracks().length || 0,
+          timestamp: new Date().toISOString()
+        });
         this.isRecording = true;
         this.reconnectAttempts = 0; // Reset reconnect counter on successful connection
       });
@@ -475,6 +481,29 @@ class DeepgramSDKService implements SpeechServiceInterface {
         }
       });
 
+      // CRITICAL: Wait for WebSocket to be fully OPEN before processing audio
+      // This prevents the race condition where audio starts processing before WebSocket is ready
+      console.log('⏳ Waiting for WebSocket to be fully OPEN before starting audio processing...');
+
+      // Poll WebSocket state until it's OPEN (max 5 seconds)
+      const wsOpenTimeout = 5000;
+      const wsOpenStart = Date.now();
+      await new Promise<void>((resolve, reject) => {
+        const checkInterval = setInterval(() => {
+          const readyState = this.connection.getReadyState();
+          console.log(`   WebSocket state: ${readyState} (${['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'][readyState]})`);
+
+          if (readyState === 1) { // OPEN
+            clearInterval(checkInterval);
+            console.log('✅ WebSocket is OPEN! Starting audio processing...');
+            resolve();
+          } else if (Date.now() - wsOpenStart > wsOpenTimeout) {
+            clearInterval(checkInterval);
+            reject(new Error(`WebSocket did not open within ${wsOpenTimeout}ms (state: ${readyState})`));
+          }
+        }, 100); // Check every 100ms
+      });
+
       // Use AudioContext to capture raw PCM audio instead of MediaRecorder
       // Deepgram WebSocket API expects raw audio, not WebM container
       // AudioContext already created above to get actual sample rate
@@ -486,13 +515,18 @@ class DeepgramSDKService implements SpeechServiceInterface {
       const processor = audioContext.createScriptProcessor(processorBufferSize, 1, 1);
 
       let audioChunksSent = 0;
+      let audioProcessWarningCount = 0;
       processor.onaudioprocess = (e) => {
+        // DIAGNOSTIC: Log state every 50 audio process calls if not recording
         if (!this.isRecording || !this.connection) {
-          if (audioChunksSent === 0) {
-            console.log('⏸️ Audio process: waiting for recording to start', {
+          audioProcessWarningCount++;
+          if (audioProcessWarningCount === 1 || audioProcessWarningCount % 50 === 0) {
+            console.warn('⏸️ DIAGNOSTIC: Audio processing but not ready to send', {
               isRecording: this.isRecording,
               hasConnection: !!this.connection,
-              connectionState: this.connection ? this.connection.getReadyState() : 'no connection'
+              connectionState: this.connection ? this.connection.getReadyState() : 'no connection',
+              warningCount: audioProcessWarningCount,
+              timestamp: new Date().toISOString()
             });
           }
           return;
@@ -541,14 +575,21 @@ class DeepgramSDKService implements SpeechServiceInterface {
         }
 
         // Send raw PCM data to Deepgram
-        if (this.connection.getReadyState() === 1) {
+        const wsReadyState = this.connection.getReadyState();
+        if (wsReadyState === 1) {
           this.connection.send(int16Data.buffer);
           audioChunksSent++;
           if (audioChunksSent === 1 || audioChunksSent % 100 === 0) {
-            console.log(`🎤 Sent audio chunk #${audioChunksSent} (${int16Data.length} samples, level=${audioLevelPercent}%)`);
+            console.log(`🎤 ✅ Sent audio chunk #${audioChunksSent} (${int16Data.length} samples, level=${audioLevelPercent}%, wsState=${wsReadyState})`);
           }
         } else {
-          console.log('⚠️ Cannot send audio - WebSocket not OPEN:', this.connection.getReadyState());
+          console.error(`⚠️ DIAGNOSTIC: Cannot send audio - WebSocket not OPEN!`, {
+            readyState: wsReadyState,
+            readyStateText: ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'][wsReadyState] || 'UNKNOWN',
+            audioChunksSent,
+            isRecording: this.isRecording,
+            timestamp: new Date().toISOString()
+          });
         }
       };
 

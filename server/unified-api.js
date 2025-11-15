@@ -459,6 +459,471 @@ async function extractStructuredData(conversationData) {
 // In-memory storage for active conversations (replace with Supabase later)
 const activeConversations = new Map();
 
+// ===== PATIENT PROFILE IMPORT API (PDF Upload) =====
+const multer = require('multer');
+const pdfParser = require('./services/pdfParser.service');
+const conditionExtractor = require('./services/conditionExtractor.service');
+
+// Configure multer for memory storage (PDF in memory)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF files are allowed'));
+    }
+  }
+});
+
+// Upload and parse PDF progress note
+app.post('/api/patient-profile/upload', upload.single('pdf'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'No PDF file uploaded'
+      });
+    }
+
+    console.log(`📄 Processing PDF upload: ${req.file.originalname} (${req.file.size} bytes)`);
+
+    // Step 1: Parse PDF to extract text
+    const parseResult = await pdfParser.parsePDF(req.file.buffer);
+
+    if (!parseResult.success) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to parse PDF',
+        details: parseResult.error
+      });
+    }
+
+    console.log(`✅ PDF parsed: ${parseResult.numPages} pages, ${parseResult.text.length} characters`);
+
+    // Step 2: Clean and extract text
+    const cleanedText = pdfParser.cleanText(parseResult.text);
+
+    // Step 3: Use AI to extract structured patient data
+    const extractResult = await conditionExtractor.extractPatientData(cleanedText);
+
+    if (!extractResult.success) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to extract patient data',
+        details: extractResult.error
+      });
+    }
+
+    const patientData = extractResult.data;
+    console.log(`🧠 AI extracted patient data for: ${patientData.patient_name}`);
+
+    // Step 4: Save to Supabase patient_profiles table
+    const supabase = await unifiedDatabase.getClient();
+
+    const { data: savedProfile, error: saveError } = await supabase
+      .from('patient_profiles')
+      .upsert({
+        patient_name: patientData.patient_name,
+        patient_dob: patientData.patient_dob,
+        patient_phone: patientData.patient_phone,
+        patient_mrn: patientData.patient_mrn,
+        patient_email: patientData.patient_email,
+        conditions: patientData.conditions,
+        medications: patientData.medications,
+        allergies: patientData.allergies,
+        last_note_date: new Date().toISOString().split('T')[0],
+        last_note_provider: patientData.provider_name,
+        pdf_source_filename: req.file.originalname,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'patient_phone', // Upsert based on phone number
+        ignoreDuplicates: false
+      })
+      .select()
+      .single();
+
+    if (saveError) {
+      console.error('❌ Supabase save error:', saveError);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to save patient profile',
+        details: saveError.message
+      });
+    }
+
+    console.log(`✅ Patient profile saved: ${savedProfile.id}`);
+
+    // Step 5: Auto-link to appointments
+    let linkingResult = null;
+    try {
+      console.log(`🔗 Attempting to auto-link profile to appointments...`);
+      linkingResult = await profileLinking.linkProfileToAppointments(savedProfile.id, 30);
+
+      if (linkingResult.success && linkingResult.linkedAppointments > 0) {
+        console.log(`✅ Auto-linked to ${linkingResult.linkedAppointments} appointment(s)`);
+      } else {
+        console.log(`ℹ️  No matching appointments found (this is normal if no appointments exist yet)`);
+      }
+    } catch (linkError) {
+      console.warn('⚠️  Auto-linking failed (non-critical):', linkError.message);
+      // Don't fail the whole upload if linking fails
+    }
+
+    res.json({
+      success: true,
+      message: 'Patient profile created successfully',
+      data: patientData,
+      profile_id: savedProfile.id,
+      linking: linkingResult ? {
+        linked_appointments: linkingResult.linkedAppointments || 0,
+        details: linkingResult.details || []
+      } : null
+    });
+
+  } catch (error) {
+    console.error('❌ PDF upload error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get all patient profiles
+app.get('/api/patient-profiles', async (req, res) => {
+  try {
+    const supabase = await unifiedDatabase.getClient();
+
+    const { data, error } = await supabase
+      .from('patient_profiles')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    res.json({
+      success: true,
+      profiles: data
+    });
+  } catch (error) {
+    console.error('❌ Error fetching patient profiles:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get patient profile by phone number
+app.get('/api/patient-profile/by-phone/:phone', async (req, res) => {
+  try {
+    const { phone } = req.params;
+
+    const supabase = await unifiedDatabase.getClient();
+
+    const { data, error } = await supabase
+      .from('patient_profiles')
+      .select('*')
+      .eq('patient_phone', phone)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // Not found
+        return res.json({
+          success: true,
+          profile: null,
+          message: 'No profile found for this phone number'
+        });
+      }
+      throw new Error(error.message);
+    }
+
+    res.json({
+      success: true,
+      profile: data
+    });
+  } catch (error) {
+    console.error('❌ Error fetching patient profile:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ===== PRE-VISIT CALL DATA API =====
+
+const questionGenerator = require('./services/questionGenerator.service');
+
+// Caller ID Matching - Identify patient when they call
+app.get('/api/previsit/match-caller/:phone', async (req, res) => {
+  try {
+    const { phone } = req.params;
+    console.log(`📞 Matching caller: ${phone}`);
+
+    // Normalize phone number (remove formatting)
+    const normalizedPhone = phone.replace(/\D/g, '');
+    const searchPatterns = [
+      `+1${normalizedPhone}`,
+      `+${normalizedPhone}`,
+      normalizedPhone.slice(-10) // Last 10 digits
+    ];
+
+    const supabase = await unifiedDatabase.getClient();
+
+    // Find patient profile by phone
+    let profile = null;
+    for (const pattern of searchPatterns) {
+      const { data, error } = await supabase
+        .from('patient_profiles')
+        .select('*')
+        .ilike('patient_phone', `%${pattern}%`)
+        .limit(1)
+        .single();
+
+      if (data && !error) {
+        profile = data;
+        break;
+      }
+    }
+
+    if (!profile) {
+      console.log(`❌ No profile found for phone: ${phone}`);
+      return res.json({
+        success: true,
+        matched: false,
+        message: 'No patient profile found for this phone number'
+      });
+    }
+
+    console.log(`✅ Matched patient: ${profile.patient_name}`);
+
+    // TODO: In the future, also fetch upcoming appointment
+    // For now, just return profile data
+
+    // Generate custom question script for this patient
+    const firstPrompt = questionGenerator.generateFirstPrompt(profile);
+    const estimatedDuration = questionGenerator.estimateCallDuration(profile.conditions);
+
+    res.json({
+      success: true,
+      matched: true,
+      patient: {
+        id: profile.id,
+        name: profile.patient_name,
+        dob: profile.patient_dob,
+        phone: profile.patient_phone,
+        mrn: profile.patient_mrn,
+        conditions: profile.conditions,
+        medications: profile.medications
+      },
+      call_config: {
+        first_prompt: firstPrompt,
+        estimated_duration_minutes: estimatedDuration,
+        conditions_to_address: profile.conditions
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error matching caller:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Preview what questions will be asked for a patient
+app.get('/api/previsit/preview-questions/:patient_id', async (req, res) => {
+  try {
+    const { patient_id } = req.params;
+
+    const supabase = await unifiedDatabase.getClient();
+
+    const { data: profile, error } = await supabase
+      .from('patient_profiles')
+      .select('*')
+      .eq('id', patient_id)
+      .single();
+
+    if (error || !profile) {
+      return res.status(404).json({
+        success: false,
+        error: 'Patient profile not found'
+      });
+    }
+
+    const summary = questionGenerator.generateQuestionSummary(profile.conditions);
+    const estimatedDuration = questionGenerator.estimateCallDuration(profile.conditions);
+
+    res.json({
+      success: true,
+      patient_name: profile.patient_name,
+      conditions: profile.conditions,
+      question_summary: summary,
+      estimated_duration_minutes: estimatedDuration
+    });
+
+  } catch (error) {
+    console.error('❌ Error previewing questions:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ===== PROFILE LINKING API =====
+
+const profileLinking = require('./services/profileLinking.service');
+
+// Auto-link a patient profile to matching appointments
+app.post('/api/linking/auto-link/:profile_id', async (req, res) => {
+  try {
+    const { profile_id } = req.params;
+    const { search_days_ahead = 30 } = req.body;
+
+    console.log(`🔗 Auto-linking profile ${profile_id}...`);
+
+    const result = await profileLinking.linkProfileToAppointments(
+      profile_id,
+      search_days_ahead
+    );
+
+    res.json(result);
+  } catch (error) {
+    console.error('❌ Error in auto-link:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Bulk auto-link all patient profiles
+app.post('/api/linking/link-all', async (req, res) => {
+  try {
+    const { search_days_ahead = 30 } = req.body;
+
+    console.log(`🔗 Bulk linking all profiles...`);
+
+    const result = await profileLinking.linkAllProfiles(search_days_ahead);
+
+    res.json(result);
+  } catch (error) {
+    console.error('❌ Error in bulk link:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Manual link: Connect specific profile to specific appointment
+app.post('/api/linking/manual-link', async (req, res) => {
+  try {
+    const { profile_id, appointment_id, user_id } = req.body;
+
+    if (!profile_id || !appointment_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing profile_id or appointment_id'
+      });
+    }
+
+    console.log(`🔗 Manual linking profile ${profile_id} to appointment ${appointment_id}...`);
+
+    const result = await profileLinking.manualLink(
+      profile_id,
+      appointment_id,
+      user_id
+    );
+
+    res.json(result);
+  } catch (error) {
+    console.error('❌ Error in manual link:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Unlink profile from appointment
+app.delete('/api/linking/unlink/:appointment_id', async (req, res) => {
+  try {
+    const { appointment_id } = req.params;
+    const { user_id, reason } = req.body;
+
+    console.log(`🔓 Unlinking appointment ${appointment_id}...`);
+
+    const result = await profileLinking.unlinkAppointment(
+      appointment_id,
+      user_id,
+      reason
+    );
+
+    res.json(result);
+  } catch (error) {
+    console.error('❌ Error in unlink:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get unlinked patient profiles
+app.get('/api/linking/unlinked-profiles', async (req, res) => {
+  try {
+    const result = await profileLinking.getUnlinkedProfiles();
+    res.json(result);
+  } catch (error) {
+    console.error('❌ Error fetching unlinked profiles:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Search for appointments that match a profile
+app.post('/api/linking/search-appointments', async (req, res) => {
+  try {
+    const searchCriteria = req.body;
+
+    const result = await profileLinking.searchMatchingAppointments(searchCriteria);
+    res.json(result);
+  } catch (error) {
+    console.error('❌ Error searching appointments:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get linking statistics
+app.get('/api/linking/stats', async (req, res) => {
+  try {
+    const result = await profileLinking.getLinkingStats();
+    res.json(result);
+  } catch (error) {
+    console.error('❌ Error fetching linking stats:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Initialize a new pre-visit conversation session
 app.post('/api/previsit/session/start', async (req, res) => {
   try {

@@ -832,13 +832,16 @@ class AzureAIService {
 
   /**
    * Post-processing validation to remove duplicate content and ensure accuracy
+   * UPDATED: Smarter duplicate detection that doesn't flag properly formatted medical notes
    */
   private validateAndCleanProcessedNote(processedNote: ProcessedNote, originalTranscript: string, template?: DoctorTemplate): ProcessedNote {
-    logDebug('azureAI', 'Debug message', {});
+    logDebug('azureAI', 'Validating and cleaning processed note', {
+      sectionCount: Object.keys(processedNote.sections).length
+    });
 
     // Check for transcript duplication in sections
-    const transcriptWords = originalTranscript.toLowerCase().split(/\s+/);
     const transcriptText = originalTranscript.toLowerCase();
+    let flaggedSections = 0;
 
     // Clean each section
     Object.keys(processedNote.sections).forEach(sectionKey => {
@@ -846,12 +849,34 @@ class AzureAIService {
       if (section && typeof section === 'string') {
         const sectionLower = section.toLowerCase();
 
-        // Check if section contains large chunks of the original transcript (indicating duplication)
+        // IMPROVED DUPLICATE DETECTION:
+        // Only flag as duplicate if BOTH conditions are true:
+        // 1. Very high word overlap (>95%) OR is a verbatim copy
+        // 2. Lacks proper medical note formatting
+
         const overlapRatio = this.calculateTextOverlap(sectionLower, transcriptText);
-        if (overlapRatio > 0.8) {
-          logDebug('azureAI', 'Debug message', {});
-          // If section is mostly transcript duplication, mark as needing extraction
+        const hasFormatting = this.hasProperFormatting(section);
+        const isVerbatim = this.isVerbatimCopy(section, originalTranscript);
+
+        // Flag as duplicate only if it's clearly a lazy copy-paste
+        const isDuplicate = (overlapRatio > 0.95 || isVerbatim) && !hasFormatting;
+
+        if (isDuplicate) {
+          logWarn('azureAI', `Section flagged as duplicate: ${sectionKey}`, {
+            overlapRatio: Math.round(overlapRatio * 100) + '%',
+            hasFormatting,
+            isVerbatim
+          });
+          flaggedSections++;
+
+          // If section is mostly transcript duplication without formatting, mark as needing extraction
           processedNote.sections[sectionKey as keyof typeof processedNote.sections] = "See transcript for details" as any;
+        } else if (overlapRatio > 0.8) {
+          // High overlap but properly formatted - this is expected for medical notes
+          logDebug('azureAI', `Section has high overlap but proper formatting: ${sectionKey}`, {
+            overlapRatio: Math.round(overlapRatio * 100) + '%',
+            hasFormatting
+          });
         }
 
         // Remove obvious transcript artifacts
@@ -861,12 +886,18 @@ class AzureAIService {
           .replace(/^- START:.*$/gm, '') // Remove malformed order entries
           .trim();
 
-        if (cleanedSection !== section) {
-          logDebug('azureAI', 'Debug message', {});
+        if (cleanedSection !== section && !isDuplicate) {
+          logDebug('azureAI', `Cleaned transcript artifacts from section: ${sectionKey}`);
           processedNote.sections[sectionKey as keyof typeof processedNote.sections] = cleanedSection as any;
         }
       }
     });
+
+    if (flaggedSections > 0) {
+      logWarn('azureAI', `Flagged ${flaggedSections} sections as duplicates (lacking proper formatting)`);
+    } else {
+      logInfo('azureAI', 'All sections passed duplicate detection - properly formatted medical note');
+    }
 
     // Validate that key numeric values from transcript are captured
     this.validateNumericExtraction(processedNote, originalTranscript);
@@ -874,7 +905,7 @@ class AzureAIService {
     // Update formatted note to reflect cleaned sections (pass template for dynamic sections)
     processedNote.formatted = this.rebuildFormattedNote(processedNote, template);
 
-    logInfo('azureAI', 'Info message', {});
+    logInfo('azureAI', 'Note validation complete');
     return processedNote;
   }
 
@@ -1046,6 +1077,71 @@ class AzureAIService {
     });
 
     return matchingWords / words1.length;
+  }
+
+  /**
+   * Check if a section has proper medical note formatting
+   * Returns true if the section shows signs of structured medical documentation
+   */
+  private hasProperFormatting(section: string): boolean {
+    if (!section || section.length < 10) return false;
+
+    // Check for medical note formatting indicators
+    const formatIndicators = [
+      section.includes(':'),                                    // Section headers (CC:, HPI:, etc.)
+      section.includes('\n-') || section.includes('\n•'),      // Bullet points
+      section.includes('\n1.') || section.includes('\n2.'),    // Numbered lists
+      /\b(mg|mcg|units?|ml|mg\/dL|mmol\/L|%)\b/i.test(section), // Medical units
+      /\b(PO|IV|BID|TID|QD|QID|PRN|IM|SC|SQ)\b/i.test(section), // Medical abbreviations
+      section.split('\n').length > 2,                          // Multiple lines (structured)
+      /^\s*[-•]\s+/m.test(section),                           // Starts with bullet
+      /\d+\.\s+[A-Z]/m.test(section)                          // Numbered list format
+    ];
+
+    // Count how many formatting indicators are present
+    const indicatorCount = formatIndicators.filter(Boolean).length;
+
+    // Consider it properly formatted if at least 2 indicators present
+    return indicatorCount >= 2;
+  }
+
+  /**
+   * Check if a section is a verbatim copy of the transcript
+   * Returns true if the section contains long continuous blocks from the original transcript
+   */
+  private isVerbatimCopy(section: string, transcript: string): boolean {
+    if (!section || !transcript) return false;
+
+    // Clean both texts (remove punctuation, lowercase, normalize whitespace)
+    const cleanSection = section.toLowerCase()
+      .replace(/[^\w\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const cleanTranscript = transcript.toLowerCase()
+      .replace(/[^\w\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // Check if entire section appears as a continuous block in transcript
+    if (cleanTranscript.includes(cleanSection)) {
+      return true; // Exact verbatim copy
+    }
+
+    // Check for long consecutive word sequences (10+ words in a row)
+    const sectionWords = cleanSection.split(/\s+/);
+    const transcriptText = cleanTranscript;
+
+    // Look for sequences of 10+ consecutive matching words
+    for (let i = 0; i <= sectionWords.length - 10; i++) {
+      const sequence = sectionWords.slice(i, i + 10).join(' ');
+      if (transcriptText.includes(sequence)) {
+        // Found a 10-word verbatim sequence - likely copy-paste
+        return true;
+      }
+    }
+
+    return false; // Not a verbatim copy
   }
 
   /**

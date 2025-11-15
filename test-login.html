@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TSHLA Login Tester</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 { color: #333; margin-bottom: 10px; }
+    .subtitle { color: #666; margin-bottom: 30px; }
+    input {
+      width: 100%;
+      padding: 12px;
+      margin: 10px 0;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-right: 10px;
+      margin-top: 10px;
+    }
+    button:hover { background: #0056b3; }
+    button.secondary {
+      background: #6c757d;
+    }
+    button.secondary:hover { background: #5a6268; }
+    .result {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 5px;
+      white-space: pre-wrap;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .success {
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+      color: #155724;
+    }
+    .error {
+      background: #f8d7da;
+      border: 1px solid #f5c6cb;
+      color: #721c24;
+    }
+    .info {
+      background: #d1ecf1;
+      border: 1px solid #bee5eb;
+      color: #0c5460;
+    }
+    .loading { color: #666; font-style: italic; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔐 TSHLA Login Tester</h1>
+    <p class="subtitle">Test your Supabase authentication & patient records</p>
+
+    <div>
+      <input type="email" id="email" placeholder="Email" value="">
+      <input type="password" id="password" placeholder="Password" value="">
+
+      <button onclick="testLogin()">Test Login</button>
+      <button onclick="checkEmailConfirmation()" class="secondary">Check Email Status</button>
+      <button onclick="checkPatientRecord()" class="secondary">Check Patient Record</button>
+      <button onclick="listAllUsers()" class="secondary">List All Patients</button>
+    </div>
+
+    <div id="result"></div>
+  </div>
+
+  <script>
+    // Initialize Supabase client
+    const SUPABASE_URL = 'https://minvvjdflezibmgkplqb.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1pbnZ2amRmbGV6aWJtZ2twbHFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYwNDE5ODgsImV4cCI6MjA3MTYxNzk4OH0.-qzlS3artX2DWOVQgIqwd1jd3Utlnik6yOMFhyGcHl8';
+
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    window.supabase = supabase;
+
+    function showResult(message, type = 'info') {
+      const resultDiv = document.getElementById('result');
+      resultDiv.className = `result ${type}`;
+      resultDiv.textContent = message;
+    }
+
+    function showLoading(message) {
+      showResult(`⏳ ${message}...`, 'info');
+    }
+
+    async function testLogin() {
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      if (!email || !password) {
+        showResult('❌ Please enter both email and password', 'error');
+        return;
+      }
+
+      showLoading('Testing login');
+
+      try {
+        console.log('🔐 Attempting login...', { email });
+
+        // Step 1: Try Supabase auth
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        let output = `=== LOGIN TEST RESULTS ===\n\n`;
+        output += `Email: ${email}\n`;
+        output += `Timestamp: ${new Date().toISOString()}\n\n`;
+
+        if (authError) {
+          output += `❌ SUPABASE AUTH FAILED\n`;
+          output += `Error: ${authError.message}\n`;
+          output += `Code: ${authError.status || 'N/A'}\n\n`;
+
+          output += `📋 DIAGNOSIS:\n`;
+          if (authError.message.includes('Invalid login credentials')) {
+            output += `- Wrong email or password\n`;
+            output += `- OR email not confirmed yet\n`;
+          } else if (authError.message.includes('Email not confirmed')) {
+            output += `- Email confirmation required\n`;
+            output += `- Check your inbox or use 'Check Email Status' button\n`;
+          } else if (authError.message.includes('User not found')) {
+            output += `- Account doesn't exist\n`;
+            output += `- Try registering first\n`;
+          } else {
+            output += `- Unexpected error: ${authError.message}\n`;
+          }
+
+          showResult(output, 'error');
+          return;
+        }
+
+        output += `✅ SUPABASE AUTH SUCCESS\n`;
+        output += `User ID: ${authData.user?.id}\n`;
+        output += `Email Confirmed: ${authData.user?.email_confirmed_at ? 'YES ✅' : 'NO ❌'}\n`;
+        output += `Session Created: ${authData.session ? 'YES ✅' : 'NO ❌'}\n\n`;
+
+        // Step 2: Check patient record
+        output += `🔍 CHECKING PATIENT RECORD...\n`;
+        const { data: patientData, error: patientError } = await supabase
+          .from('patients')
+          .select('*')
+          .eq('auth_user_id', authData.user.id)
+          .single();
+
+        if (patientError || !patientData) {
+          output += `❌ PATIENT RECORD NOT FOUND\n`;
+          output += `Error: ${patientError?.message || 'No data returned'}\n`;
+          output += `Code: ${patientError?.code || 'N/A'}\n\n`;
+          output += `📋 DIAGNOSIS:\n`;
+          output += `- Supabase auth user exists\n`;
+          output += `- But no patient record in database\n`;
+          output += `- Registration may have failed partway through\n`;
+          output += `- Contact admin to create patient record manually\n`;
+
+          showResult(output, 'error');
+
+          // Sign out since we can't find patient record
+          await supabase.auth.signOut();
+          return;
+        }
+
+        output += `✅ PATIENT RECORD FOUND\n`;
+        output += `Patient ID: ${patientData.id}\n`;
+        output += `Name: ${patientData.first_name} ${patientData.last_name}\n`;
+        output += `AVA ID: ${patientData.ava_id}\n`;
+        output += `MRN: ${patientData.mrn}\n`;
+        output += `Active: ${patientData.is_active ? 'YES ✅' : 'NO ❌'}\n`;
+        output += `PumpDrive Enabled: ${patientData.pumpdrive_enabled ? 'YES ✅' : 'NO ❌'}\n`;
+        output += `Created: ${patientData.created_at}\n\n`;
+
+        if (!patientData.is_active) {
+          output += `❌ ACCOUNT IS INACTIVE\n`;
+          output += `Contact admin to activate your account\n`;
+          showResult(output, 'error');
+          await supabase.auth.signOut();
+          return;
+        }
+
+        output += `✅✅✅ LOGIN SUCCESSFUL! ✅✅✅\n\n`;
+        output += `Your account is fully set up and ready to use.\n`;
+        output += `You can now log into the app with these credentials.\n`;
+
+        showResult(output, 'success');
+
+        // Sign out after test
+        await supabase.auth.signOut();
+
+      } catch (error) {
+        showResult(`❌ UNEXPECTED ERROR\n${error.message}\n\n${error.stack}`, 'error');
+        console.error('Login test error:', error);
+      }
+    }
+
+    async function checkEmailConfirmation() {
+      const email = document.getElementById('email').value.trim();
+
+      if (!email) {
+        showResult('❌ Please enter an email address', 'error');
+        return;
+      }
+
+      showResult(`⚠️ Email confirmation can only be checked by admins via Supabase Dashboard.\n\nGo to: https://app.supabase.com\nNavigation: Authentication → Users\nSearch for: ${email}\nCheck: "Email Confirmed At" column\n\nIf empty, click the user and select "Confirm Email"`, 'info');
+    }
+
+    async function checkPatientRecord() {
+      const email = document.getElementById('email').value.trim();
+
+      if (!email) {
+        showResult('❌ Please enter an email address', 'error');
+        return;
+      }
+
+      showLoading('Checking patient record');
+
+      try {
+        const { data, error } = await supabase
+          .from('patients')
+          .select('id, email, first_name, last_name, ava_id, mrn, is_active, pumpdrive_enabled, created_at')
+          .eq('email', email)
+          .single();
+
+        if (error || !data) {
+          showResult(`❌ NO PATIENT RECORD FOUND\n\nEmail: ${email}\nError: ${error?.message || 'No data returned'}\n\n` +
+            `This means:\n` +
+            `- Account may not exist\n` +
+            `- OR registration failed\n` +
+            `- Check "List All Patients" to see existing accounts`, 'error');
+          return;
+        }
+
+        let output = `✅ PATIENT RECORD EXISTS\n\n`;
+        output += `Email: ${data.email}\n`;
+        output += `Name: ${data.first_name} ${data.last_name}\n`;
+        output += `AVA ID: ${data.ava_id}\n`;
+        output += `MRN: ${data.mrn}\n`;
+        output += `Active: ${data.is_active ? 'YES ✅' : 'NO ❌'}\n`;
+        output += `PumpDrive: ${data.pumpdrive_enabled ? 'YES ✅' : 'NO ❌'}\n`;
+        output += `Created: ${new Date(data.created_at).toLocaleString()}\n\n`;
+
+        if (!data.is_active) {
+          output += `⚠️ Account is INACTIVE\nContact admin to activate\n`;
+        }
+
+        showResult(output, 'success');
+      } catch (error) {
+        showResult(`❌ ERROR\n${error.message}`, 'error');
+      }
+    }
+
+    async function listAllUsers() {
+      showLoading('Fetching all patients');
+
+      try {
+        const { data, error } = await supabase
+          .from('patients')
+          .select('email, first_name, last_name, ava_id, is_active, pumpdrive_enabled')
+          .order('created_at', { ascending: false })
+          .limit(20);
+
+        if (error) {
+          showResult(`❌ ERROR FETCHING PATIENTS\n${error.message}\n\nCode: ${error.code}`, 'error');
+          return;
+        }
+
+        if (!data || data.length === 0) {
+          showResult(`⚠️ NO PATIENTS FOUND\n\nThe patients table is empty.`, 'info');
+          return;
+        }
+
+        let output = `📋 ALL PATIENTS (Last 20)\n\n`;
+        output += `Total: ${data.length} patients\n\n`;
+
+        data.forEach((patient, index) => {
+          output += `${index + 1}. ${patient.first_name} ${patient.last_name}\n`;
+          output += `   Email: ${patient.email}\n`;
+          output += `   AVA ID: ${patient.ava_id}\n`;
+          output += `   Active: ${patient.is_active ? '✅' : '❌'} | PumpDrive: ${patient.pumpdrive_enabled ? '✅' : '❌'}\n\n`;
+        });
+
+        showResult(output, 'success');
+      } catch (error) {
+        showResult(`❌ ERROR\n${error.message}`, 'error');
+      }
+    }
+
+    // Auto-fill test credentials if available
+    window.addEventListener('load', () => {
+      console.log('🔧 TSHLA Login Tester loaded');
+      console.log('Supabase client:', supabase);
+      showResult(`👋 Ready to test login!\n\nEnter your email and password, then click "Test Login".\n\nOther options:\n- Check Email Status: See if email is confirmed\n- Check Patient Record: Verify account exists\n- List All Patients: See all registered users`, 'info');
+    });
+  </script>
+</body>
+</html>

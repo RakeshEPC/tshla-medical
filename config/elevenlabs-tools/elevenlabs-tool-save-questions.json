@@ -1,0 +1,58 @@
+{
+  "type": "webhook",
+  "name": "save_questions",
+  "description": "Store questions the patient has for their provider. Call this function when the patient mentions questions they want to ask their doctor.",
+  "disable_interruptions": false,
+  "force_pre_tool_speech": "auto",
+  "assignments": [],
+  "tool_call_sound": null,
+  "tool_call_sound_behavior": "auto",
+  "execution_mode": "immediate",
+  "api_schema": {
+    "url": "https://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io/api/previsit/data/questions",
+    "method": "POST",
+    "path_params_schema": [],
+    "query_params_schema": [],
+    "request_body_schema": {
+      "id": "body",
+      "type": "object",
+      "description": "Request body containing conversation ID and patient questions",
+      "properties": [
+        {
+          "id": "conversation_id",
+          "type": "string",
+          "value_type": "dynamic_variable",
+          "description": "The current conversation ID",
+          "dynamic_variable": "conversation_id",
+          "constant_value": "",
+          "enum": null,
+          "is_system_provided": false,
+          "required": true
+        },
+        {
+          "id": "questions",
+          "type": "array",
+          "value_type": "llm_prompt",
+          "description": "Array of questions the patient wants to ask their provider. Extract each question as a separate string (e.g., 'Should I continue my current blood pressure medication?', 'Is the dizziness related to my blood pressure?', 'What diet changes would you recommend?'). Include all questions mentioned.",
+          "items": {
+            "type": "string"
+          },
+          "constant_value": "",
+          "enum": null,
+          "is_system_provided": false,
+          "required": true
+        }
+      ],
+      "required": true,
+      "value_type": "llm_prompt"
+    },
+    "request_headers": [],
+    "auth_connection": null
+  },
+  "response_timeout_secs": 20,
+  "dynamic_variables": {
+    "dynamic_variable_placeholders": {
+      "conversation_id": "conv_test_123"
+    }
+  }
+}

@@ -6,24 +6,24 @@ FROM node:20-alpine
 WORKDIR /app
 
 # Copy package files
-COPY package.json package-lock.json ./
+COPY server/package.json server/package-lock.json ./
 
 # Install dependencies + curl for healthcheck
 RUN npm ci --only=production && \
     apk add --no-cache curl
 
 # Copy all application files
-COPY unified-api.js ./
-COPY pump-report-api.js ./
-COPY medical-auth-api.js ./
-COPY enhanced-schedule-notes-api.js ./
-COPY admin-account-api.js ./
-COPY patient-summary-api.js ./
-COPY pump-recommendation-engine-ai.js ./
-COPY logger.js ./
-COPY services/ ./services/
-COPY utils/ ./utils/
-COPY routes/ ./routes/
+COPY server/unified-api.js ./
+COPY server/pump-report-api.js ./
+COPY server/medical-auth-api.js ./
+COPY server/enhanced-schedule-notes-api.js ./
+COPY server/admin-account-api.js ./
+COPY server/patient-summary-api.js ./
+COPY server/pump-recommendation-engine-ai.js ./
+COPY server/logger.js ./
+COPY server/services/ ./services/
+COPY server/utils/ ./utils/
+COPY server/routes/ ./routes/
 
 # Expose port (Azure App Service will set PORT env var)
 EXPOSE 3000

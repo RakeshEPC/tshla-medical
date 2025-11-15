@@ -82,6 +82,15 @@ export default function QuickNoteModern() {
   const [recordingDuration, setRecordingDuration] = useState(0);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Microphone testing
+  const [isTesting, setIsTesting] = useState(false);
+  const [audioLevel, setAudioLevel] = useState(0);
+  const [micTestResult, setMicTestResult] = useState<{
+    success: boolean;
+    message: string;
+    deviceName?: string;
+  } | null>(null);
+
   // Note metadata for quality rating
   const [noteMetadata, setNoteMetadata] = useState<{
     noteId: string;
@@ -156,6 +165,113 @@ export default function QuickNoteModern() {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const testMicrophone = async () => {
+    setIsTesting(true);
+    setMicTestResult(null);
+    setAudioLevel(0);
+
+    try {
+      logInfo('QuickNoteModern', 'Starting microphone test...');
+
+      // Request microphone access and measure audio levels
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
+
+      // Get device information
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const audioInputs = devices.filter(device => device.kind === 'audioinput');
+      const currentDevice = audioInputs.find(device =>
+        stream.getAudioTracks()[0].label === device.label
+      ) || audioInputs[0];
+
+      logInfo('QuickNoteModern', `Microphone detected: ${currentDevice?.label}`);
+
+      // Create audio context to measure levels
+      const audioContext = new AudioContext();
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      let maxLevel = 0;
+
+      // Measure audio for 3 seconds
+      const measureInterval = setInterval(() => {
+        analyser.getByteFrequencyData(dataArray);
+        const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+        const level = Math.floor((average / 255) * 100);
+        setAudioLevel(level);
+
+        if (level > maxLevel) {
+          maxLevel = level;
+        }
+      }, 100);
+
+      // Stop after 3 seconds
+      setTimeout(() => {
+        clearInterval(measureInterval);
+
+        // Clean up
+        stream.getTracks().forEach(track => track.stop());
+        audioContext.close();
+
+        // Evaluate results
+        if (maxLevel < 5) {
+          setMicTestResult({
+            success: false,
+            message: 'No audio detected. Please check if microphone is muted or volume is too low.',
+            deviceName: currentDevice?.label
+          });
+        } else if (maxLevel < 20) {
+          setMicTestResult({
+            success: true,
+            message: 'Microphone working but audio level is low. Try speaking louder.',
+            deviceName: currentDevice?.label
+          });
+        } else {
+          setMicTestResult({
+            success: true,
+            message: 'Microphone is working perfectly!',
+            deviceName: currentDevice?.label
+          });
+        }
+
+        setIsTesting(false);
+        setAudioLevel(0);
+
+        logInfo('QuickNoteModern', `Microphone test complete. Max level: ${maxLevel}`);
+      }, 3000);
+
+    } catch (error: any) {
+      logError('QuickNoteModern', `Microphone test failed: ${error.message}`);
+
+      let errorMessage = 'Microphone test failed. ';
+      if (error.name === 'NotAllowedError') {
+        errorMessage += 'Permission denied. Please allow microphone access.';
+      } else if (error.name === 'NotFoundError') {
+        errorMessage += 'No microphone found. Please connect a microphone.';
+      } else if (error.name === 'NotReadableError') {
+        errorMessage += 'Microphone is being used by another application.';
+      } else {
+        errorMessage += error.message;
+      }
+
+      setMicTestResult({
+        success: false,
+        message: errorMessage
+      });
+
+      setIsTesting(false);
+      setAudioLevel(0);
+    }
   };
 
   const startRecording = async () => {
@@ -791,6 +907,77 @@ Visit Date: ${patientDetails.visitDate}
                   {recordingError}
                 </div>
               )}
+
+              {/* Microphone Test Section */}
+              <div className="mt-4">
+                <button
+                  onClick={testMicrophone}
+                  disabled={isTesting || isRecording}
+                  className="btn-calm btn-calm-secondary px-4 py-2 text-sm w-full flex items-center justify-center gap-2"
+                >
+                  {isTesting ? (
+                    <>
+                      <div className="spinner-calm"></div>
+                      Testing Microphone... Speak now!
+                    </>
+                  ) : (
+                    <>
+                      <Mic className="w-4 h-4" />
+                      Test Microphone
+                    </>
+                  )}
+                </button>
+
+                {/* Audio Level Meter */}
+                {isTesting && (
+                  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="text-xs font-medium text-gray-700 mb-2 text-center">
+                      Audio Level: {audioLevel}%
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                      <div
+                        className={`h-3 transition-all duration-100 ${
+                          audioLevel > 50 ? 'bg-green-500' :
+                          audioLevel > 20 ? 'bg-yellow-500' :
+                          audioLevel > 5 ? 'bg-orange-500' :
+                          'bg-red-500'
+                        }`}
+                        style={{ width: `${Math.min(audioLevel, 100)}%` }}
+                      />
+                    </div>
+                    <div className="text-xs text-gray-600 mt-2 text-center">
+                      Speak clearly into your microphone
+                    </div>
+                  </div>
+                )}
+
+                {/* Microphone Test Results */}
+                {micTestResult && (
+                  <div className={`mt-3 p-3 border rounded-lg ${
+                    micTestResult.success
+                      ? 'bg-green-50 border-green-300 text-green-800'
+                      : 'bg-red-50 border-red-300 text-red-800'
+                  }`}>
+                    <div className="flex items-start gap-2">
+                      {micTestResult.success ? (
+                        <span className="text-xl">✓</span>
+                      ) : (
+                        <span className="text-xl">⚠️</span>
+                      )}
+                      <div className="flex-1">
+                        <div className="text-sm font-semibold">
+                          {micTestResult.message}
+                        </div>
+                        {micTestResult.deviceName && (
+                          <div className="text-xs mt-1 opacity-80">
+                            Device: {micTestResult.deviceName}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* AI Processing Progress Indicator */}
               {isProcessing && processingStage && (

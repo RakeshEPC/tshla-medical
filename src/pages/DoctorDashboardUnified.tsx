@@ -8,7 +8,7 @@ import DoctorNavBar from '../components/layout/DoctorNavBar';
 import ScheduleNavigation from '../components/doctor/ScheduleNavigation';
 import DailyPatientList from '../components/doctor/DailyPatientList';
 import ProviderFilter, { type Provider } from '../components/doctor/ProviderFilter';
-import { Plus, Calendar, FileText } from 'lucide-react';
+import { Plus, Calendar, FileText, Phone, Upload, BarChart3, MessageSquare } from 'lucide-react';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
 
 export default function DoctorDashboardUnified() {
@@ -411,6 +411,71 @@ export default function DoctorDashboardUnified() {
               className="btn-tesla btn-tesla-secondary text-sm px-6 py-2"
             >
               Retry Connection
+            </button>
+          </div>
+        )}
+
+        {/* Quick Access Links */}
+        {dashboardView === 'calendar' && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <button
+              onClick={() => navigate('/previsit-data')}
+              className="bg-white border border-gray-200 rounded-lg p-4 hover:border-blue-500 hover:shadow-md transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition">
+                  <Phone className="w-5 h-5 text-blue-600" />
+                </div>
+                <div className="text-left">
+                  <div className="font-semibold text-gray-900">Pre-Visit Calls</div>
+                  <div className="text-xs text-gray-500">View captured data</div>
+                </div>
+              </div>
+            </button>
+
+            <button
+              onClick={() => navigate('/patient-import')}
+              className="bg-white border border-gray-200 rounded-lg p-4 hover:border-purple-500 hover:shadow-md transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition">
+                  <Upload className="w-5 h-5 text-purple-600" />
+                </div>
+                <div className="text-left">
+                  <div className="font-semibold text-gray-900">Import Profiles</div>
+                  <div className="text-xs text-gray-500">Upload progress notes</div>
+                </div>
+              </div>
+            </button>
+
+            <button
+              onClick={() => navigate('/previsit-analytics')}
+              className="bg-white border border-gray-200 rounded-lg p-4 hover:border-green-500 hover:shadow-md transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-100 rounded-lg group-hover:bg-green-200 transition">
+                  <BarChart3 className="w-5 h-5 text-green-600" />
+                </div>
+                <div className="text-left">
+                  <div className="font-semibold text-gray-900">Analytics</div>
+                  <div className="text-xs text-gray-500">Call metrics & trends</div>
+                </div>
+              </div>
+            </button>
+
+            <button
+              onClick={() => navigate('/previsit-conversations')}
+              className="bg-white border border-gray-200 rounded-lg p-4 hover:border-orange-500 hover:shadow-md transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-orange-100 rounded-lg group-hover:bg-orange-200 transition">
+                  <MessageSquare className="w-5 h-5 text-orange-600" />
+                </div>
+                <div className="text-left">
+                  <div className="font-semibold text-gray-900">Conversations</div>
+                  <div className="text-xs text-gray-500">View call transcripts</div>
+                </div>
+              </div>
             </button>
           </div>
         )}

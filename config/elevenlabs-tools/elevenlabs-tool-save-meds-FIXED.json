@@ -1,0 +1,61 @@
+{
+  "type": "webhook",
+  "name": "save_meds",
+  "description": "Store the patient's current medications. Call this function when the patient tells you what medications they are taking.",
+  "disable_interruptions": false,
+  "force_pre_tool_speech": "auto",
+  "assignments": [],
+  "tool_call_sound": null,
+  "tool_call_sound_behavior": "auto",
+  "execution_mode": "immediate",
+  "api_schema": {
+    "url": "https://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io/api/previsit/data/medications",
+    "method": "POST",
+    "path_params_schema": [],
+    "query_params_schema": [],
+    "request_body_schema": {
+      "id": "body",
+      "type": "object",
+      "description": "Request body containing conversation ID and medications list",
+      "properties": [
+        {
+          "id": "conversation_id",
+          "type": "string",
+          "value_type": "dynamic_variable",
+          "description": "The current conversation ID",
+          "dynamic_variable": "conversation_id",
+          "constant_value": null,
+          "enum": null,
+          "is_system_provided": false,
+          "required": true
+        },
+        {
+          "id": "medications",
+          "type": "array",
+          "value_type": "llm_prompt",
+          "description": "Array of medications the patient is currently taking. Extract each medication with name and dosage.",
+          "items": {
+            "type": "string",
+            "description": "A single medication with dosage",
+            "constant_value": null,
+            "enum": null
+          },
+          "constant_value": null,
+          "enum": null,
+          "is_system_provided": false,
+          "required": true
+        }
+      ],
+      "required": true,
+      "value_type": "llm_prompt"
+    },
+    "request_headers": [],
+    "auth_connection": null
+  },
+  "response_timeout_secs": 20,
+  "dynamic_variables": {
+    "dynamic_variable_placeholders": {
+      "conversation_id": "conv_test_123"
+    }
+  }
+}

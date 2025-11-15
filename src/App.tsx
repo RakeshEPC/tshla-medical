@@ -85,6 +85,13 @@ const AdminBundle = lazy(() => import('./components/bundles/AdminBundle'));
 // Testing & Development (only in dev mode)
 const TestBundle = lazy(() => import('./components/bundles/TestBundle'));
 
+// Pre-Visit System
+const PreVisitDemo = lazy(() => import('./pages/PreVisitDemo'));
+const PreVisitAnalyticsDashboard = lazy(() => import('./pages/PreVisitAnalyticsDashboard'));
+const PreVisitConversations = lazy(() => import('./pages/PreVisitConversations'));
+const PreVisitDataCapture = lazy(() => import('./pages/PreVisitDataCaptureImproved'));
+const PatientDataImport = lazy(() => import('./pages/PatientDataImport'));
+
 // Miscellaneous
 const SharedNote = lazy(() => import('./pages/SharedNote'));
 const FacebookLanding = lazy(() => import('./pages/FacebookLanding'));
@@ -388,6 +395,56 @@ function App() {
                   }
                 />
               )}
+
+              {/* ===== PRE-VISIT SYSTEM ===== */}
+              <Route
+                path="/previsit-demo"
+                element={
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <PreVisitDemo />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/previsit-analytics"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <PreVisitAnalyticsDashboard />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/previsit-conversations"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <PreVisitConversations />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/previsit-data"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <PreVisitDataCapture />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/patient-import"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <PatientDataImport />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
 
               {/* ===== MISCELLANEOUS ===== */}
               <Route
