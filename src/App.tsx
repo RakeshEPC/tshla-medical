@@ -98,6 +98,11 @@ const FacebookLanding = lazy(() => import('./pages/FacebookLanding'));
 const EarlyAccessAdmin = lazy(() => import('./pages/EarlyAccessAdmin'));
 const PatientPortal = lazy(() => import('./pages/PatientPortal'));
 
+// Patient Portal (Unified System)
+const PatientPortalLogin = lazy(() => import('./pages/PatientPortalLogin'));
+const PatientPortalDashboard = lazy(() => import('./pages/PatientPortalDashboard'));
+const UnifiedPatientChart = lazy(() => import('./pages/UnifiedPatientChart'));
+
 function App() {
   return (
     <AuthProvider>
@@ -477,6 +482,34 @@ function App() {
                   <Suspense fallback={<LoadingSpinner />}>
                     <PatientPortal />
                   </Suspense>
+                }
+              />
+
+              {/* ===== PATIENT PORTAL (UNIFIED SYSTEM) ===== */}
+              <Route
+                path="/patient-portal-login"
+                element={
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <PatientPortalLogin />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/patient-portal-dashboard"
+                element={
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <PatientPortalDashboard />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/patient-chart"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <UnifiedPatientChart />
+                    </Suspense>
+                  </ProtectedRoute>
                 }
               />
 

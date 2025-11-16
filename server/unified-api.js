@@ -20,6 +20,7 @@ const WebSocket = require('ws');
 const cors = require('cors');
 const { createClient, LiveTranscriptionEvents } = require('@deepgram/sdk');
 const unifiedDatabase = require('./services/unified-supabase.service');
+const patientMatchingService = require('./services/patientMatching.service');
 
 // Create main Express app
 const app = express();
@@ -556,6 +557,36 @@ app.post('/api/patient-profile/upload', upload.single('pdf'), async (req, res) =
     }
 
     console.log(`✅ Patient profile saved: ${savedProfile.id}`);
+
+    // ========================================
+    // NEW: Auto-create/link unified patient
+    // ========================================
+    let unifiedPatient = null;
+    if (patientData.patient_phone) {
+      try {
+        console.log('🔍 Finding or creating unified patient from PDF...');
+
+        unifiedPatient = await patientMatchingService.findOrCreatePatient(
+          patientData.patient_phone,
+          {
+            name: patientData.patient_name,
+            mrn: patientData.patient_mrn,
+            dob: patientData.patient_dob,
+            email: patientData.patient_email,
+            conditions: patientData.conditions || [],
+            medications: patientData.medications || [],
+            allergies: patientData.allergies || [],
+            provider_name: patientData.provider_name
+          },
+          'pdf'
+        );
+
+        console.log(`✅ Created/updated unified patient: ${unifiedPatient.patient_id}`);
+      } catch (patientError) {
+        console.warn('⚠️  Failed to create/link unified patient (non-critical):', patientError.message);
+      }
+    }
+    // ========================================
 
     // Step 5: Auto-link to appointments
     let linkingResult = null;
@@ -1181,6 +1212,15 @@ const authApi = require('./medical-auth-api');
 const scheduleApi = require('./enhanced-schedule-notes-api');
 const adminApi = require('./admin-account-api');
 
+let patientChartApi = null;
+try {
+  patientChartApi = require('./api/patient-chart-api');
+  console.log('✅ Patient Chart API loaded');
+} catch (e) {
+  console.error('❌ Failed to load Patient Chart API:', e.message);
+  console.error(e.stack);
+}
+
 // Optional APIs - won't crash if they don't exist
 let patientSummaryApi = null;
 let echoAudioSummaryRoutes = null;
@@ -1208,6 +1248,10 @@ app.use(pumpApi);    // Routes: /api/auth/*, /api/stripe/*, /api/provider/*, /ap
 app.use(authApi);     // Routes: /api/medical/*
 app.use(scheduleApi); // Routes: /api/providers/*, /api/appointments/*, /api/schedule/*, /api/notes/*
 app.use(adminApi);    // Routes: /api/accounts/*
+if (patientChartApi) {
+  app.use('/api/patient-chart', patientChartApi); // Routes: /api/patient-chart/* (Unified Patient Charts)
+  console.log('✅ Patient Chart API mounted at /api/patient-chart');
+}
 if (patientSummaryApi) {
   app.use(patientSummaryApi); // Routes: /api/patient-summaries/* (BETA)
 }
