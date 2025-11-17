@@ -1478,8 +1478,9 @@ RULES:
 1. Extract ALL information from the transcription - be thorough
 2. Include exact numbers (blood sugar 400, A1C 9, age 45)
 3. Extract medications with doses, labs ordered, diagnoses mentioned
-4. Only use "Not provided" if section truly has NO relevant data
-5. Return only the note - no explanations`;
+4. NEVER write "Not provided", "Not mentioned", or placeholders - always extract from transcription
+5. If a section seems empty, re-read the transcription - the information is there
+6. Return only the note - no explanations`;
   }
 
   private parseResponse(

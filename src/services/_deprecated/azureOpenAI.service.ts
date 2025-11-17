@@ -110,11 +110,13 @@ TRANSCRIPTION:
 "${transcription}"
 
 CORE RULES:
-1. Extract ONLY information explicitly stated in the transcription
-2. Never add information not mentioned - use "Not mentioned" for missing sections
+1. Extract ALL information explicitly stated in the transcription
+2. NEVER use "Not mentioned" or similar placeholders - extract actual information from the dictation
 3. Include exact numeric values (e.g., blood sugar 400, A1C 9.5, age 45)
-4. Use professional medical terminology and standard abbreviations
-5. Format as clear SOAP note with distinct sections
+4. Extract all medications with doses, labs ordered, diagnoses mentioned
+5. Use professional medical terminology and standard abbreviations
+6. Format as clear SOAP note with distinct sections
+7. Be thorough - capture every detail from the dictation
 
 Generate the formatted medical note now:`;
 
