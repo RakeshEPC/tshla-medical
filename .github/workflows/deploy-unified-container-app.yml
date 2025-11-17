@@ -116,15 +116,22 @@ jobs:
           --set-env-vars \
             "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" \
             "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" \
-            "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
-            "JWT_SECRET=${{ secrets.JWT_SECRET }}" \
-            "DEEPGRAM_API_KEY=${{ secrets.DEEPGRAM_API_KEY }}" \
-            "VITE_DEEPGRAM_API_KEY=${{ secrets.DEEPGRAM_API_KEY }}" \
-            "VITE_OPENAI_API_KEY=${{ secrets.VITE_OPENAI_API_KEY }}" \
+            "SUPABASE_SERVICE_ROLE_KEY=secretref:supabase-service-role-key" \
+            "JWT_SECRET=secretref:jwt-secret" \
+            "DEEPGRAM_API_KEY=secretref:deepgram-api-key" \
+            "VITE_DEEPGRAM_API_KEY=secretref:vite-deepgram-api-key" \
+            "VITE_OPENAI_API_KEY=secretref:openai-api-key" \
+            "VITE_ELEVENLABS_API_KEY=secretref:vite-elevenlabs-api-key" \
+            "ELEVENLABS_API_KEY=secretref:elevenlabs-api-key" \
             "VITE_DEEPGRAM_MODEL=nova-3-medical" \
             "VITE_DEEPGRAM_LANGUAGE=en-US" \
+            "VITE_OPENAI_MODEL_STAGE4=gpt-4o-mini" \
+            "VITE_OPENAI_MODEL_STAGE5=gpt-4o" \
+            "VITE_OPENAI_MODEL_STAGE6=gpt-4o" \
+            "VITE_ELEVENLABS_DEFAULT_VOICE_ID=cgSgspJ2msm6clMCkdW9" \
             "NODE_ENV=production" \
-            "PORT=3000"
+            "PORT=3000" \
+            "CLINIC_PHONE_NUMBER=+18325938100"
 
     - name: Get Container App URL
       id: get_url
