@@ -50,3 +50,7 @@ package-lock.json.backup
 yarn.lock.backup
 .DS_Store
 node_modules
+
+# Credentials and sensitive documentation
+ADMIN_CREDENTIALS.md
+*CREDENTIALS*.md

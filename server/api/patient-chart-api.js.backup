@@ -1,0 +1,582 @@
+/**
+ * Patient Chart API
+ * Unified patient chart endpoints for comprehensive patient data view
+ *
+ * Features:
+ * - Get complete patient chart by phone/ID
+ * - Search patients
+ * - Update patient demographics
+ * - Patient portal authentication
+ *
+ * Created: 2025-01-16
+ */
+
+const express = require('express');
+const router = express.Router();
+const patientMatchingService = require('../services/patientMatching.service');
+const { createClient } = require('@supabase/supabase-js');
+
+// Lazy-load Supabase client to ensure env vars are loaded
+let supabase = null;
+function getSupabase() {
+  if (!supabase) {
+    supabase = createClient(
+      process.env.VITE_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+  }
+  return supabase;
+}
+
+// ===============================
+// ROUTE ORDER IMPORTANT!
+// Specific routes MUST come before generic /:identifier route
+// ===============================
+
+// ===============================
+// PATIENT PORTAL AUTHENTICATION (Must be before /:identifier)
+// ===============================
+
+/**
+ * POST /api/patient-chart/portal/login
+ * Patient portal login with phone + PIN
+ *
+ * Body: { phone, pin }
+ */
+router.post('/portal/login', async (req, res) => {
+  try {
+    const { phone, pin } = req.body;
+
+    if (!phone || !pin) {
+      return res.status(400).json({
+        success: false,
+        error: 'Phone number and PIN are required'
+      });
+    }
+
+    // Verify PIN and get patient
+    const patient = await patientMatchingService.findPatientByPhone(phone);
+
+    if (!patient) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials'
+      });
+    }
+
+    if (!patient.portal_pin) {
+      return res.status(401).json({
+        success: false,
+        error: 'Patient portal not activated'
+      });
+    }
+
+    // Verify PIN
+    const isValidPIN = await patientMatchingService.verifyPIN(pin, patient.portal_pin);
+
+    if (!isValidPIN) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials'
+      });
+    }
+
+    // Get complete patient chart
+    const chart = await patientMatchingService.getPatientChart(patient.patient_id);
+
+    // Update last login
+    const supabase = getSupabase();
+    await supabase
+      .from('unified_patients')
+      .update({
+        portal_last_login: new Date().toISOString(),
+        portal_login_count: (patient.portal_login_count || 0) + 1
+      })
+      .eq('id', patient.id);
+
+    res.json({
+      success: true,
+      patient: {
+        id: patient.id,
+        patient_id: patient.patient_id,
+        full_name: patient.full_name,
+        phone_display: patient.phone_display,
+        email: patient.email,
+        date_of_birth: patient.date_of_birth,
+        primary_provider_name: patient.primary_provider_name
+      },
+      chart
+    });
+
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Login failed'
+    });
+  }
+});
+
+/**
+ * POST /api/patient-chart/portal/reset-pin
+ * Reset patient PIN (admin/provider only)
+ *
+ * Body: { phone }
+ */
+router.post('/portal/reset-pin', async (req, res) => {
+  try {
+    const { phone } = req.body;
+
+    if (!phone) {
+      return res.status(400).json({
+        success: false,
+        error: 'Phone number is required'
+      });
+    }
+
+    const patient = await patientMatchingService.findPatientByPhone(phone);
+
+    if (!patient) {
+      return res.status(404).json({
+        success: false,
+        error: 'Patient not found'
+      });
+    }
+
+    // Generate new PIN
+    const newPIN = patientMatchingService.generatePIN();
+    const hashedPIN = await patientMatchingService.hashPIN(newPIN);
+
+    // Update PIN in database
+    const supabase = getSupabase();
+    await supabase
+      .from('unified_patients')
+      .update({ portal_pin: hashedPIN })
+      .eq('id', patient.id);
+
+    res.json({
+      success: true,
+      message: 'PIN reset successful',
+      newPin: newPIN
+    });
+
+  } catch (error) {
+    console.error('PIN reset error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to reset PIN'
+    });
+  }
+});
+
+// ===============================
+// SEARCH & QUERY ROUTES (Must be before /:identifier)
+// ===============================
+
+/**
+ * GET /api/patient-chart/search/query?q=searchTerm
+ * Search patients by name, phone, MRN, or patient ID
+ */
+router.get('/search/query', async (req, res) => {
+  try {
+    const { q } = req.query;
+
+    if (!q || q.length < 2) {
+      return res.status(400).json({
+        success: false,
+        error: 'Search query must be at least 2 characters'
+      });
+    }
+
+    const supabase = getSupabase();
+    const searchTerm = `%${q}%`;
+
+    const { data: patients, error } = await supabase
+      .from('unified_patients')
+      .select('*')
+      .or(`full_name.ilike.${searchTerm},phone_primary.ilike.${searchTerm},patient_id.ilike.${searchTerm},mrn.ilike.${searchTerm}`)
+      .eq('is_active', true)
+      .limit(20);
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      patients: patients || []
+    });
+
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Search failed'
+    });
+  }
+});
+
+/**
+ * GET /api/patient-chart/provider/:providerId/patients
+ * Get all patients for a specific provider
+ */
+router.get('/provider/:providerId/patients', async (req, res) => {
+  try {
+    const { providerId } = req.params;
+
+    const supabase = getSupabase();
+    const { data: patients, error } = await supabase
+      .from('unified_patients')
+      .select('*')
+      .eq('primary_provider_id', providerId)
+      .eq('is_active', true)
+      .order('last_visit_date', { ascending: false, nullsLast: true });
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      patients: patients || []
+    });
+
+  } catch (error) {
+    console.error('Provider patients error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch provider patients'
+    });
+  }
+});
+
+/**
+ * GET /api/patient-chart/stats/overview
+ * Get overall patient statistics
+ */
+router.get('/stats/overview', async (req, res) => {
+  try {
+    const { data: stats, error } = await getSupabase().rpc('get_patient_stats_overview');
+
+    if (error) {
+      // If function doesn't exist, calculate manually
+      const supabase = getSupabase();
+      const { data: patients } = await supabase
+        .from('unified_patients')
+        .select('*', { count: 'exact' });
+
+      return res.json({
+        success: true,
+        stats: {
+          total_patients: patients?.length || 0,
+          active_patients: patients?.filter(p => p.is_active).length || 0,
+          portal_enabled: patients?.filter(p => p.has_portal_access).length || 0
+        }
+      });
+    }
+
+    res.json({
+      success: true,
+      stats
+    });
+
+  } catch (error) {
+    console.error('Stats error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch statistics'
+    });
+  }
+});
+
+/**
+ * GET /api/patient-chart/:patientId/timeline
+ * Get patient timeline of all interactions
+ */
+router.get('/:patientId/timeline', async (req, res) => {
+  try {
+    const { patientId } = req.params;
+
+    const patient = await patientMatchingService.findPatientByPhone(patientId) ||
+                    await patientMatchingService.findPatientByMRN(patientId);
+
+    if (!patient) {
+      return res.status(404).json({
+        success: false,
+        error: 'Patient not found'
+      });
+    }
+
+    // Get all linked records
+    const supabase = getSupabase();
+    const [dictations, previsits, appointments] = await Promise.all([
+      supabase.from('dictated_notes').select('*').eq('unified_patient_id', patient.id),
+      supabase.from('previsit_responses').select('*').eq('unified_patient_id', patient.id),
+      supabase.from('provider_schedules').select('*').eq('unified_patient_id', patient.id)
+    ]);
+
+    const timeline = [];
+
+    dictations.data?.forEach(d => {
+      timeline.push({
+        type: 'dictation',
+        date: d.visit_date || d.created_at,
+        data: d
+      });
+    });
+
+    previsits.data?.forEach(p => {
+      timeline.push({
+        type: 'previsit',
+        date: p.scheduled_date || p.created_at,
+        data: p
+      });
+    });
+
+    appointments.data?.forEach(a => {
+      timeline.push({
+        type: 'appointment',
+        date: a.appointment_date,
+        data: a
+      });
+    });
+
+    timeline.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    res.json({
+      success: true,
+      timeline
+    });
+
+  } catch (error) {
+    console.error('Timeline error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch timeline'
+    });
+  }
+});
+
+// ===============================
+// GET PATIENT CHART (Generic route - MUST BE LAST)
+// ===============================
+
+/**
+ * GET /api/patient-chart/:identifier
+ * Get complete patient chart by phone number or patient ID
+ *
+ * Examples:
+ * - /api/patient-chart/5551234567
+ * - /api/patient-chart/PT-2025-0001
+ */
+router.get('/:identifier', async (req, res) => {
+  try {
+    const { identifier } = req.params;
+
+    if (!identifier) {
+      return res.status(400).json({
+        success: false,
+        error: 'Patient identifier (phone or ID) is required'
+      });
+    }
+
+    const chart = await patientMatchingService.getPatientChart(identifier);
+
+    res.json({
+      success: true,
+      chart
+    });
+  } catch (error) {
+    console.error('Error fetching patient chart:', error);
+
+    if (error.message === 'Patient not found') {
+      return res.status(404).json({
+        success: false,
+        error: 'Patient not found'
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch patient chart',
+      details: error.message
+    });
+  }
+});
+
+// ===============================
+// SEARCH PATIENTS
+// ===============================
+
+/**
+ * GET /api/patient-chart/search
+ * Search for patients by name, phone, or MRN
+ *
+ * Query params:
+ * - q: search query
+ * - provider_id: filter by provider
+ * - limit: max results (default 20)
+ */
+router.get('/search/query', async (req, res) => {
+  try {
+    const { q, provider_id, limit = 20 } = req.query;
+
+    if (!q || q.length < 2) {
+      return res.status(400).json({
+        success: false,
+        error: 'Search query must be at least 2 characters'
+      });
+    }
+
+    // Build search query
+    let query = supabase
+      .from('unified_patients')
+      .select('id, patient_id, full_name, phone_display, email, date_of_birth, age, gender, primary_provider_name, data_completeness_score, last_visit_date, next_appointment_date, created_at')
+      .eq('is_active', true)
+      .limit(parseInt(limit));
+
+    // Filter by provider if specified
+    if (provider_id) {
+      query = query.eq('primary_provider_id', provider_id);
+    }
+
+    // Search across multiple fields
+    const searchTerm = `%${q}%`;
+    query = query.or(`full_name.ilike.${searchTerm},phone_primary.ilike.${searchTerm},patient_id.ilike.${searchTerm},mrn.ilike.${searchTerm}`);
+
+    const { data: patients, error } = await query;
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      patients: patients || [],
+      count: patients?.length || 0
+    });
+  } catch (error) {
+    console.error('Error searching patients:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to search patients',
+      details: error.message
+    });
+  }
+});
+
+// ===============================
+// GET PATIENTS BY PROVIDER
+// ===============================
+
+/**
+ * GET /api/patient-chart/provider/:providerId
+ * Get all patients for a specific provider
+ */
+router.get('/provider/:providerId/patients', async (req, res) => {
+  try {
+    const { providerId } = req.params;
+    const { date, upcoming } = req.query;
+
+    let query = supabase
+      .from('v_patient_chart_summary') // Use the view for aggregated data
+      .select('*')
+      .eq('primary_provider_id', providerId);
+
+    // Filter by appointment date if specified
+    if (date) {
+      query = query.eq('next_appointment_date', date);
+    } else if (upcoming === 'true') {
+      query = query.gte('next_appointment_date', new Date().toISOString().split('T')[0]);
+    }
+
+    query = query.order('next_appointment_date', { ascending: true, nullsFirst: false });
+
+    const { data: patients, error } = await query;
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      patients: patients || [],
+      count: patients?.length || 0
+    });
+  } catch (error) {
+    console.error('Error fetching provider patients:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch patients',
+      details: error.message
+    });
+  }
+});
+
+// ===============================
+// UPDATE PATIENT DEMOGRAPHICS
+// ===============================
+
+/**
+ * PUT /api/patient-chart/:patientId
+ * Update patient demographics and info
+ */
+router.put('/:patientId', async (req, res) => {
+  try {
+    const { patientId } = req.params;
+    const updates = req.body;
+
+    // Validate patient ID
+    if (!patientId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Patient ID is required'
+      });
+    }
+
+    // Allowed fields to update
+    const allowedFields = [
+      'first_name', 'last_name', 'date_of_birth', 'gender', 'email',
+      'phone_secondary', 'address_line1', 'address_line2', 'city', 'state', 'zip_code',
+      'insurance_provider', 'insurance_member_id', 'insurance_group_number',
+      'active_conditions', 'current_medications', 'allergies',
+      'primary_language', 'preferred_contact_method',
+      'opt_out_automated_calls', 'opt_out_text_messages', 'opt_out_email'
+    ];
+
+    // Filter updates to only allowed fields
+    const filteredUpdates = Object.keys(updates)
+      .filter(key => allowedFields.includes(key))
+      .reduce((obj, key) => {
+        obj[key] = updates[key];
+        return obj;
+      }, {});
+
+    if (Object.keys(filteredUpdates).length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No valid fields to update'
+      });
+    }
+
+    // Add metadata
+    filteredUpdates.updated_at = new Date().toISOString();
+    filteredUpdates.last_modified_by = updates.modified_by || 'api';
+
+    // Perform update
+    const { data: patient, error } = await supabase
+      .from('unified_patients')
+      .update(filteredUpdates)
+      .eq('id', patientId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      patient
+    });
+  } catch (error) {
+    console.error('Error updating patient:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update patient',
+      details: error.message
+    });
+  }
+});
+
+module.exports = router;

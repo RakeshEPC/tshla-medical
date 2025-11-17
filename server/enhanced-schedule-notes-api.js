@@ -8,6 +8,7 @@ const express = require('express');
 const cors = require('cors');
 const unifiedSupabase = require('./services/unified-supabase.service');
 const logger = require('./logger');
+const patientMatchingService = require('./services/patientMatching.service');
 
 const app = express();
 const PORT = process.env.PORT || 3003;
@@ -186,6 +187,32 @@ app.post('/api/appointments', async (req, res) => {
 
         if (error) throw error;
         appointmentId = data.id;
+
+        // ========================================
+        // NEW: Auto-create/link unified patient
+        // ========================================
+        if (patient_phone && patient_name) {
+          try {
+            const patient = await patientMatchingService.findOrCreatePatient(
+              patient_phone,
+              {
+                name: patient_name,
+                email: patient_email,
+                provider_id: provider_id,
+                provider_name: provider_name
+              },
+              'schedule'
+            );
+
+            // Link this appointment to the unified patient
+            await patientMatchingService.linkRecordToPatient('provider_schedules', appointmentId, patient.id);
+
+            logger.info('App', `✅ Linked appointment ${appointmentId} to patient ${patient.patient_id}`);
+          } catch (patientError) {
+            logger.warn('App', 'Failed to create/link patient from appointment', { error: patientError.message });
+          }
+        }
+        // ========================================
       } catch (dbError) {
         logger.warn('API', 'Database operation warning', { error: dbError });
         dbConnected = false; // Switch to fallback mode
@@ -743,6 +770,37 @@ app.post('/api/dictated-notes', async (req, res) => {
     if (noteError) throw noteError;
 
     const noteId = noteData.id;
+
+    // ========================================
+    // NEW: Auto-create/link unified patient
+    // ========================================
+    if (patient_phone && !isPatientUnidentified) {
+      try {
+        const patient = await patientMatchingService.findOrCreatePatient(
+          patient_phone,
+          {
+            name: patient_name,
+            firstName: null, // Will be parsed from name
+            lastName: null,
+            email: patient_email,
+            mrn: patient_mrn,
+            dob: patient_dob,
+            provider_id: provider_id,
+            provider_name: provider_name
+          },
+          'dictation'
+        );
+
+        // Link this dictation to the unified patient
+        await patientMatchingService.linkRecordToPatient('dictated_notes', noteId, patient.id);
+
+        logger.info('App', `✅ Linked dictation ${noteId} to patient ${patient.patient_id}`);
+      } catch (patientError) {
+        // Don't fail the dictation save if patient matching fails
+        logger.warn('App', 'Failed to create/link patient, continuing anyway', { error: patientError.message });
+      }
+    }
+    // ========================================
 
     // Create initial version record
     const { error: versionError } = await unifiedSupabase

@@ -7,6 +7,7 @@
 import { Request, Response } from 'express';
 import { createClient } from '@supabase/supabase-js';
 import aiExtractionService from '../../services/aiExtraction.service';
+const patientMatchingService = require('../../services/patientMatching.service');
 
 // Initialize Supabase client
 const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
@@ -43,6 +44,8 @@ export async function handleConversationComplete(req: Request, res: Response) {
   const appointmentId = metadata?.appointment_id || req.body.appointment_id;
   const providerId = metadata?.provider_id || req.body.provider_id;
   const patientName = metadata?.patient_name || 'Unknown';
+  const patientPhone = metadata?.patient_phone || req.body.patient_phone || metadata?.patientPhone;
+  const patientDob = metadata?.patient_dob || req.body.patient_dob;
 
   if (!transcript || transcript.trim().length === 0) {
     console.error('   ❌ No transcript received');
@@ -125,6 +128,42 @@ export async function handleConversationComplete(req: Request, res: Response) {
 
     console.log('   ✅ Stored in database');
     console.log(`      Pre-visit response ID: ${previsitResponse.id}`);
+
+    // ========================================
+    // NEW: Auto-create/link unified patient
+    // ========================================
+    if (patientPhone) {
+      try {
+        console.log('   🔍 Finding or creating unified patient...');
+
+        const unifiedPatient = await patientMatchingService.findOrCreatePatient(
+          patientPhone,
+          {
+            name: patientName,
+            dob: patientDob,
+            medications: extractedData.medications || [],
+            conditions: extractedData.concerns?.map((c: any) => c.concern) || [],
+            provider_id: providerId,
+          },
+          'previsit'
+        );
+
+        // Link this previsit response to the unified patient
+        await patientMatchingService.linkRecordToPatient(
+          'previsit_responses',
+          previsitResponse.id,
+          unifiedPatient.id
+        );
+
+        console.log(`   ✅ Linked previsit call to patient ${unifiedPatient.patient_id}`);
+      } catch (patientError: any) {
+        // Don't fail the webhook if patient matching fails
+        console.warn('   ⚠️  Failed to create/link patient, continuing anyway:', patientError.message);
+      }
+    } else {
+      console.warn('   ⚠️  No patient phone number - skipping patient creation');
+    }
+    // ========================================
 
     // If urgent, send alert to provider
     if (extractedData.urgent) {

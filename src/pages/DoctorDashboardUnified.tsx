@@ -8,7 +8,7 @@ import DoctorNavBar from '../components/layout/DoctorNavBar';
 import ScheduleNavigation from '../components/doctor/ScheduleNavigation';
 import DailyPatientList from '../components/doctor/DailyPatientList';
 import ProviderFilter, { type Provider } from '../components/doctor/ProviderFilter';
-import { Plus, Calendar, FileText, Phone, Upload, BarChart3, MessageSquare } from 'lucide-react';
+import { Plus, Calendar, FileText, Phone, Upload, BarChart3, MessageSquare, Users } from 'lucide-react';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
 
 export default function DoctorDashboardUnified() {
@@ -417,7 +417,22 @@ export default function DoctorDashboardUnified() {
 
         {/* Quick Access Links */}
         {dashboardView === 'calendar' && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+            <button
+              onClick={() => navigate('/patient-chart')}
+              className="bg-white border border-gray-200 rounded-lg p-4 hover:border-indigo-500 hover:shadow-md transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-100 rounded-lg group-hover:bg-indigo-200 transition">
+                  <Users className="w-5 h-5 text-indigo-600" />
+                </div>
+                <div className="text-left">
+                  <div className="font-semibold text-gray-900">Patient Charts</div>
+                  <div className="text-xs text-gray-500">Unified records</div>
+                </div>
+              </div>
+            </button>
+
             <button
               onClick={() => navigate('/previsit-data')}
               className="bg-white border border-gray-200 rounded-lg p-4 hover:border-blue-500 hover:shadow-md transition-all group"

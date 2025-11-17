@@ -14,6 +14,8 @@ kill_port() {
     fi
 }
 
+kill_port 3000
+kill_port 3001
 kill_port 3002
 kill_port 3003
 kill_port 5173

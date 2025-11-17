@@ -530,14 +530,16 @@ app.use((error, req, res, next) => {
   });
 });
 
+// NOTE: 404 handler commented out because this module is used in unified-api.js
+// The catch-all '*' route interferes with other API modules mounted after this one
 // 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({
-    error: 'Not found',
-    message: `Route ${req.method} ${req.originalUrl} not found`,
-    service: 'Medical Staff Authentication'
-  });
-});
+// app.use('*', (req, res) => {
+//   res.status(404).json({
+//     error: 'Not found',
+//     message: `Route ${req.method} ${req.originalUrl} not found`,
+//     service: 'Medical Staff Authentication'
+//   });
+// });
 
 // Initialize and start server
 async function startServer() {

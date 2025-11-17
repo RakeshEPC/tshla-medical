@@ -46,6 +46,8 @@ killall -9 node 2>/dev/null || true
 pkill -9 -f vite 2>/dev/null || true
 pkill -9 -f "npm run dev" 2>/dev/null || true
 sleep 1
+kill_port 3000  # unified-api
+kill_port 3001  # alternate unified-api
 kill_port 3002  # pump-report-api
 kill_port 3003  # medical-auth-api
 kill_port 5173  # vite dev server
@@ -59,37 +61,24 @@ rm -rf node_modules/.vite 2>/dev/null || true
 # Display environment variables being used
 echo ""
 echo "📋 Environment Configuration:"
+echo "   VITE_API_URL: ${VITE_API_URL:-http://localhost:3000}"
 echo "   VITE_PUMP_API_URL: ${VITE_PUMP_API_URL}"
 echo "   VITE_MEDICAL_API_URL: ${VITE_MEDICAL_API_URL}"
 echo ""
 
-# Start Medical Auth API (port 3003)
-echo "🏥 Starting Medical Auth API on port 3003..."
-PORT=3003 node server/medical-auth-api.js > logs/medical-auth-api.log 2>&1 &
-MEDICAL_AUTH_PID=$!
-sleep 2
+# Start Unified API Server (port 3000) - Includes all routes
+echo "🚀 Starting Unified API Server on port 3000..."
+PORT=3000 node server/unified-api.js > logs/unified-api.log 2>&1 &
+UNIFIED_API_PID=$!
+sleep 3
 
-# Check if medical-auth-api started successfully
-if kill -0 $MEDICAL_AUTH_PID 2>/dev/null; then
-    echo "✅ Medical Auth API started (PID: $MEDICAL_AUTH_PID)"
+# Check if unified-api started successfully
+if kill -0 $UNIFIED_API_PID 2>/dev/null; then
+    echo "✅ Unified API Server started (PID: $UNIFIED_API_PID)"
+    echo "   Includes: Pump API, Auth API, Schedule API, Admin API, Echo API, WebSocket Proxy"
 else
-    echo "❌ Medical Auth API failed to start"
-    cat logs/medical-auth-api.log
-    exit 1
-fi
-
-# Start Pump Report API (port 3002)
-echo "💊 Starting Pump Report API on port 3002..."
-PORT=3002 node server/pump-report-api.js > logs/pump-report-api.log 2>&1 &
-PUMP_API_PID=$!
-sleep 2
-
-# Check if pump-report-api started successfully
-if kill -0 $PUMP_API_PID 2>/dev/null; then
-    echo "✅ Pump Report API started (PID: $PUMP_API_PID)"
-else
-    echo "❌ Pump Report API failed to start"
-    cat logs/pump-report-api.log
+    echo "❌ Unified API Server failed to start"
+    cat logs/unified-api.log
     exit 1
 fi
 
@@ -117,32 +106,30 @@ echo "🎉 All services started successfully!"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "📋 Service URLs:"
-echo "   🏥 Medical Auth API:    http://localhost:3003"
-echo "   💊 Pump Report API:     http://localhost:3002"
+echo "   🚀 Unified API:         http://localhost:3000"
+echo "      ├── Pump API:        http://localhost:3000/api/pump-*"
+echo "      ├── Auth API:        http://localhost:3000/api/auth/*"
+echo "      ├── Echo API:        http://localhost:3000/api/echo/*"
+echo "      └── WebSocket:       ws://localhost:3000/ws/deepgram"
 echo "   🎨 Frontend:            http://localhost:$VITE_PORT"
 echo ""
 echo "📊 Process IDs:"
-echo "   Medical Auth API:  $MEDICAL_AUTH_PID"
-echo "   Pump Report API:   $PUMP_API_PID"
+echo "   Unified API:       $UNIFIED_API_PID"
 echo "   Frontend:          $VITE_PID"
 echo ""
 echo "📝 Logs:"
-echo "   tail -f logs/medical-auth-api.log"
-echo "   tail -f logs/pump-report-api.log"
+echo "   tail -f logs/unified-api.log"
 echo "   tail -f logs/vite-dev.log"
 echo ""
 echo "🛑 To stop all services:"
 echo "   ./stop-dev.sh"
 echo ""
-echo "🔄 To restart APIs only:"
-echo "   ./restart-apis.sh"
-echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
 # Save PIDs for later cleanup
-echo "$MEDICAL_AUTH_PID" > .pids/medical-auth-api.pid
-echo "$PUMP_API_PID" > .pids/pump-report-api.pid
+mkdir -p .pids
+echo "$UNIFIED_API_PID" > .pids/unified-api.pid
 echo "$VITE_PID" > .pids/vite-dev.pid
 
 # Keep script running and show logs
@@ -150,7 +137,7 @@ echo "📡 Monitoring services... (Ctrl+C to stop)"
 echo ""
 
 # Trap Ctrl+C to clean up processes
-trap 'echo ""; echo "🛑 Stopping all services..."; kill $MEDICAL_AUTH_PID $PUMP_API_PID $VITE_PID 2>/dev/null; echo "✅ All services stopped"; exit 0' INT
+trap 'echo ""; echo "🛑 Stopping all services..."; kill $UNIFIED_API_PID $VITE_PID 2>/dev/null; echo "✅ All services stopped"; exit 0' INT
 
 # Wait for all background processes
 wait
