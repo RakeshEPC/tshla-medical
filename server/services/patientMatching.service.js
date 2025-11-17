@@ -12,7 +12,7 @@
  */
 
 const { createClient } = require('@supabase/supabase-js');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 // Initialize Supabase client
 const supabase = createClient(
