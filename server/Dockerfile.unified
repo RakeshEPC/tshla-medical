@@ -24,6 +24,7 @@ COPY logger.js ./
 COPY services/ ./services/
 COPY utils/ ./utils/
 COPY routes/ ./routes/
+COPY config/ ./config/
 
 # Expose port (Azure App Service will set PORT env var)
 EXPOSE 3000
