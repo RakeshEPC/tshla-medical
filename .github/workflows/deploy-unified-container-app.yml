@@ -114,8 +114,7 @@ jobs:
           --resource-group ${{ env.RESOURCE_GROUP }} \
           --secrets \
             openai-api-key="${{ secrets.VITE_OPENAI_API_KEY }}" \
-            vite-elevenlabs-api-key="${{ secrets.ELEVENLABS_API_KEY }}" \
-            elevenlabs-api-key="${{ secrets.ELEVENLABS_API_KEY }}" \
+            vite-elevenlabs-api-key="${{ secrets.VITE_ELEVENLABS_API_KEY }}" \
             deepgram-api-key="${{ secrets.DEEPGRAM_API_KEY }}" \
             vite-deepgram-api-key="${{ secrets.DEEPGRAM_API_KEY }}" \
             supabase-service-role-key="${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
@@ -136,7 +135,6 @@ jobs:
             "VITE_DEEPGRAM_API_KEY=secretref:vite-deepgram-api-key" \
             "VITE_OPENAI_API_KEY=secretref:openai-api-key" \
             "VITE_ELEVENLABS_API_KEY=secretref:vite-elevenlabs-api-key" \
-            "ELEVENLABS_API_KEY=secretref:elevenlabs-api-key" \
             "VITE_DEEPGRAM_MODEL=nova-3-medical" \
             "VITE_DEEPGRAM_LANGUAGE=en-US" \
             "VITE_OPENAI_MODEL_STAGE4=gpt-4o-mini" \
