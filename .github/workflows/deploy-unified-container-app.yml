@@ -107,6 +107,20 @@ jobs:
           --resource-group ${{ env.RESOURCE_GROUP }} \
           --transport http
 
+        # Set all secrets BEFORE referencing them
+        echo "Setting secrets in Container App..."
+        az containerapp secret set \
+          --name ${{ env.CONTAINER_APP_NAME }} \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --secrets \
+            openai-api-key="${{ secrets.VITE_OPENAI_API_KEY }}" \
+            vite-elevenlabs-api-key="${{ secrets.ELEVENLABS_API_KEY }}" \
+            elevenlabs-api-key="${{ secrets.ELEVENLABS_API_KEY }}" \
+            deepgram-api-key="${{ secrets.DEEPGRAM_API_KEY }}" \
+            vite-deepgram-api-key="${{ secrets.DEEPGRAM_API_KEY }}" \
+            supabase-service-role-key="${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            jwt-secret="${{ secrets.JWT_SECRET }}"
+
         # Then update the container image and env vars
         echo "Updating container image and environment variables..."
         az containerapp update \
