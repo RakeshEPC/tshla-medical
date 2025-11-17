@@ -738,15 +738,35 @@ class AzureAIService {
       logInfo('azureAI', 'Enhanced note with extracted orders', { orderCount: extractedOrders.medications.length + extractedOrders.labs.length });
     }
 
-    // Validate template compliance if template provided
+    // IMPROVED: Validate template compliance with multiple retry attempts
     if (template) {
-      const complianceCheck = this.validateTemplateCompliance(processedNote, template);
+      let currentNote = processedNote;
+      const maxRetries = 2; // Try up to 2 retries (total 3 attempts)
+      let retryCount = 0;
 
-      // If compliance fails and we have the necessary data, retry once
-      if (!complianceCheck.compliant && patient && settings) {
-        logWarn('azureAI', 'Template compliance failed, retrying with emphasis', {
+      while (retryCount < maxRetries) {
+        const complianceCheck = this.validateTemplateCompliance(currentNote, template);
+
+        if (complianceCheck.compliant) {
+          // Compliance successful!
+          if (retryCount > 0) {
+            logInfo('azureAI', `Template compliance achieved after ${retryCount} retries`);
+          }
+          break;
+        }
+
+        // Compliance failed - retry if we have more attempts
+        if (!patient || !settings) {
+          logWarn('azureAI', 'Template compliance failed but cannot retry (missing patient/settings)');
+          break;
+        }
+
+        retryCount++;
+        logWarn('azureAI', `Template compliance failed (attempt ${retryCount}/${maxRetries}), retrying with emphasis`, {
           missingSections: complianceCheck.missingSections.length,
-          partialSections: complianceCheck.partialSections.length
+          partialSections: complianceCheck.partialSections.length,
+          missingSectionNames: complianceCheck.missingSections.join(', '),
+          partialSectionNames: complianceCheck.partialSections.join(', ')
         });
 
         // Retry with emphasis on missing sections
@@ -756,14 +776,19 @@ class AzureAIService {
           template,
           settings,
           complianceCheck.missingSections,
-          complianceCheck.partialSections
+          complianceCheck.partialSections,
+          retryCount // Pass retry count for escalating warnings
         );
 
         if (retryResult) {
-          logInfo('azureAI', 'Retry successful - compliance improved');
-          return this.validateAndCleanProcessedNote(retryResult, transcript, template);
+          currentNote = retryResult;
+        } else {
+          logError('azureAI', `Retry ${retryCount} failed - using previous result`);
+          break;
         }
       }
+
+      processedNote = currentNote;
     }
 
     // Validate output quality
@@ -780,6 +805,7 @@ class AzureAIService {
 
   /**
    * Retry AI processing with emphasis on missing/partial sections
+   * IMPROVED: Escalating warnings based on retry count
    */
   private async retryWithEmphasis(
     transcript: string,
@@ -787,30 +813,36 @@ class AzureAIService {
     template: DoctorTemplate,
     settings: DoctorSettings,
     missingSections: string[],
-    partialSections: string[]
+    partialSections: string[],
+    retryAttempt: number = 1
   ): Promise<ProcessedNote | null> {
     try {
-      // Build emphasized prompt
+      // IMPROVED: Escalate warning intensity based on retry attempt
+      const urgencyLevel = retryAttempt === 1 ? 'WARNING' : retryAttempt === 2 ? 'CRITICAL' : 'URGENT';
+
       const emphasisNote = missingSections.length > 0
-        ? `\n⚠️ CRITICAL: The following REQUIRED sections were missing in the previous attempt:\n${missingSections.map(s => `- ${s}`).join('\n')}\nYou MUST extract information for these sections from the transcription.\n`
+        ? `\n${urgencyLevel}: Missing REQUIRED sections:\n${missingSections.map(s => `- ${s}`).join('\n')}\nExtract information for these sections from the transcription.\n`
         : '';
 
       const partialNote = partialSections.length > 0
-        ? `\n⚠️ WARNING: The following sections had incomplete information:\n${partialSections.map(s => `- ${s}`).join('\n')}\nPlease provide more detailed information for these sections.\n`
+        ? `\n${urgencyLevel}: Incomplete sections:\n${partialSections.map(s => `- ${s}`).join('\n')}\nProvide detailed information for these sections.\n`
         : '';
 
       const emphasizedPrompt = this.buildCustomPrompt(transcript, patient, template, settings);
+
+      // Insert emphasis at the beginning for maximum impact
       const finalPrompt = emphasizedPrompt.replace(
-        'CORE EXTRACTION RULES:',
-        `${emphasisNote}${partialNote}\nCORE EXTRACTION RULES:`
+        'CRITICAL RULES:',
+        `${emphasisNote}${partialNote}\nCRITICAL RULES:`
       );
 
-      logDebug('azureAI', 'Retrying with emphasized prompt', {
+      logDebug('azureAI', `Retry attempt ${retryAttempt} with ${urgencyLevel} emphasis`, {
         missingSectionsCount: missingSections.length,
-        partialSectionsCount: partialSections.length
+        partialSectionsCount: partialSections.length,
+        promptLength: finalPrompt.length
       });
 
-      // Use Azure OpenAI with slightly higher temperature for retry
+      // Use Azure OpenAI with slightly higher temperature for retry to encourage variation
       const azureResult = await azureOpenAIService.processTranscriptionWithCustomPrompt(
         transcript,
         finalPrompt,
@@ -825,7 +857,7 @@ class AzureAIService {
 
       return this.convertAzureToProcessedNote(azureResult, patient);
     } catch (error) {
-      logError('azureAI', 'Retry with emphasis failed', { error });
+      logError('azureAI', `Retry attempt ${retryAttempt} failed`, { error });
       return null; // Return null to use original result
     }
   }
@@ -911,6 +943,7 @@ class AzureAIService {
 
   /**
    * Validate template compliance - check if AI followed the template requirements
+   * IMPROVED: Stricter validation with better placeholder detection
    */
   private validateTemplateCompliance(
     processedNote: ProcessedNote,
@@ -923,6 +956,22 @@ class AzureAIService {
     const missingSections: string[] = [];
     const partialSections: string[] = [];
 
+    // IMPROVED: More comprehensive placeholder detection
+    const placeholderPatterns = [
+      'not provided',
+      'not mentioned',
+      'not applicable',
+      'n/a',
+      'none',
+      'see transcript',
+      'no information',
+      'not discussed',
+      'not addressed',
+      'pending',
+      'to be determined',
+      'tbd'
+    ];
+
     // Check each required section
     Object.entries(template.sections).forEach(([key, section]) => {
       if (section.required) {
@@ -930,15 +979,26 @@ class AzureAIService {
 
         if (!noteSection || noteSection.trim() === '') {
           missingSections.push(section.title);
-          logWarn('azureAI', `Missing required section: ${section.title}`, { templateName: template.name });
-        } else if (
-          noteSection.toLowerCase().includes('not provided') ||
-          noteSection.toLowerCase().includes('not mentioned') ||
-          noteSection.toLowerCase().includes('see transcript') ||
-          noteSection.length < 10 // Too short to be meaningful
-        ) {
-          partialSections.push(section.title);
-          logDebug('azureAI', `Partial content in required section: ${section.title}`, { content: noteSection });
+          logWarn('azureAI', `Missing required section: ${section.title}`, {
+            templateName: template.name,
+            sectionKey: key
+          });
+        } else {
+          const lower = noteSection.toLowerCase().trim();
+          const hasPlaceholder = placeholderPatterns.some(p => lower.includes(p));
+          const tooShort = noteSection.trim().length < 15; // Increased minimum from 10 to 15
+          const onlyPunctuation = /^[\s\-•\.:,;]+$/.test(noteSection); // Only bullets/dashes/punctuation
+
+          if (hasPlaceholder || tooShort || onlyPunctuation) {
+            partialSections.push(section.title);
+            logWarn('azureAI', `Partial/placeholder content in required section: ${section.title}`, {
+              content: noteSection.substring(0, 100),
+              length: noteSection.length,
+              hasPlaceholder,
+              tooShort,
+              onlyPunctuation
+            });
+          }
         }
       }
     });
@@ -946,13 +1006,20 @@ class AzureAIService {
     const compliant = missingSections.length === 0 && partialSections.length === 0;
 
     if (!compliant) {
-      logInfo('azureAI', 'Template compliance check failed', {
+      logWarn('azureAI', 'Template compliance check FAILED', {
         templateName: template.name,
+        totalSections: Object.keys(template.sections).length,
+        requiredSections: Object.values(template.sections).filter(s => s.required).length,
         missingSections: missingSections.length,
-        partialSections: partialSections.length
+        partialSections: partialSections.length,
+        missingSectionsList: missingSections.join(', '),
+        partialSectionsList: partialSections.join(', ')
       });
     } else {
-      logInfo('azureAI', 'Template compliance check passed', { templateName: template.name });
+      logInfo('azureAI', 'Template compliance check PASSED ✅', {
+        templateName: template.name,
+        sectionsValidated: Object.keys(template.sections).length
+      });
     }
 
     return { compliant, missingSections, partialSections };
@@ -1253,30 +1320,18 @@ Date: ${date}
         instructions += ` Pay special attention to: ${section.keywords.join(', ')}.`;
       }
 
-      // Add example with format reference (NOT content to copy)
+      // IMPROVED: Simpler example handling - show structure without verbose warnings
       if (section.exampleText) {
-        instructions += `\n\n🎯 FORMAT EXAMPLE (DO NOT COPY THE CONTENT BELOW):
-The text below demonstrates HOW to format and structure this section.
-Use this as a FORMATTING GUIDE ONLY - extract actual content from the patient's transcription.
-
-────────── FORMAT EXAMPLE START ──────────
-${section.exampleText}
-────────── FORMAT EXAMPLE END ──────────
-
-⚠️  CRITICAL RULES:
-1. The example above shows FORMATTING/STRUCTURE only - DO NOT copy its content
-2. Extract ALL actual information from the transcription (medications, vitals, diagnoses, etc.)
-3. Use the same abbreviations, line breaks, and layout structure shown in the example
-4. DO NOT write "[Not mentioned]" if information IS present in the transcription`;
+        instructions += `\n\nExample structure (use actual data from transcription):\n${section.exampleText}`;
       }
 
-      // Add format guidance AFTER example so it's clear
+      // Add format guidance - simpler and clearer
       if (format === 'bullets') {
-        instructions += '\n\n📋 FORMAT: Use bullet points (• or -).';
+        instructions += '\nFormat: Bullet points (•)';
       } else if (format === 'numbered') {
-        instructions += '\n\n📋 FORMAT: Use numbered list (1. 2. 3.).';
-      } else {
-        instructions += '\n\n📋 FORMAT: Use paragraph format.';
+        instructions += '\nFormat: Numbered list (1. 2. 3.)';
+      } else if (format !== 'paragraph') {
+        instructions += '\nFormat: Paragraph';
       }
 
       sectionPrompts.push(`
@@ -1299,45 +1354,31 @@ ${instructions}
       detailed: 'Include comprehensive details and thorough documentation.'
     };
 
-    // PRIORITY: Template instructions at the TOP
-    return `You are an expert medical scribe. Create a note following this doctor's custom template exactly.
+    // IMPROVED: Clearer, more concise prompt - less confusion for AI
+    return `You are an expert medical scribe. Create a clinical note following the template "${template.name}".
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 TEMPLATE: "${template.name}"
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${template.generalInstructions ? `INSTRUCTIONS: ${template.generalInstructions}\n\n` : ''}STYLE: ${styleGuide[settings.aiStyle]}
 
-${template.generalInstructions ? `🎯 DOCTOR'S GENERAL INSTRUCTIONS:\n${template.generalInstructions}\n\n` : ''}✍️ WRITING STYLE: ${styleGuide[settings.aiStyle]}
-
-📝 SECTION REQUIREMENTS:
+TEMPLATE SECTIONS:
 ${sectionPrompts.join('\n')}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+────────────────────────────────────────────────────────
 
 PATIENT: ${patient.name} (MRN: ${patient.mrn})${patient.dob ? ` | DOB: ${patient.dob}` : ''}
 ${additionalContext ? `CONTEXT: ${additionalContext}\n` : ''}
 TRANSCRIPTION:
 "${transcript}"
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️  MANDATORY OUTPUT REQUIREMENTS ⚠️
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+────────────────────────────────────────────────────────
 
-🚨 RULE #1: FORMAT vs CONTENT
-   - Examples show FORMATTING STRUCTURE - they are NOT content to copy
-   - Extract ALL content from the transcription above
-   - Use the example's layout/abbreviations, but with transcription data
+CRITICAL RULES:
+1. Extract ALL information from the transcription (medications, vitals, labs, diagnoses)
+2. Use exact values mentioned (e.g., "blood sugar 400", "Lantus 20 units")
+3. Match the format shown in examples (abbreviations, bullets, structure)
+4. Do NOT write "[Not mentioned]" if data IS in the transcription
+5. Be thorough - include every detail from the dictation
 
-🚨 RULE #2: EXTRACT FROM TRANSCRIPTION
-   - Include all medications, doses, vital signs, diagnoses mentioned
-   - Extract blood pressure, lab values, medication names EXACTLY as stated
-   - DO NOT write "[Not mentioned]" if the information IS in the transcription
-
-🚨 RULE #3: MATCH THE FORMAT
-   - Use abbreviations shown in examples (CC:, PMH:, HPI:, ROS:, etc.)
-   - Keep the same line breaks and structure as examples
-   - Use bullet points (• or -) or paragraphs as specified
-
-GENERATE THE NOTE NOW - Use transcription data in the example format:`;
+Generate the note now:`;
   }
 
   private buildPrompt(

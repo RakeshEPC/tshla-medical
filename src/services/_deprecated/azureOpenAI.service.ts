@@ -232,7 +232,10 @@ Generate the formatted medical note now:`;
         ? promptVersionControlService.selectVersionForRequest('custom-template')
         : promptVersionControlService.selectVersionForRequest('system');
 
-      const response = await this.makeAPICall(url, {
+      // IMPROVED: Optimize parameters for template compliance
+      // Lower temperature for custom templates to ensure precise following of instructions
+      const isCustomTemplate = !!template;
+      const optimizedParams = {
         messages: [
           {
             role: 'system',
@@ -243,12 +246,20 @@ Generate the formatted medical note now:`;
             content: finalPrompt
           }
         ],
-        temperature: 0.5, // Increased for more detailed and varied responses
-        max_tokens: 4000, // Increased for comprehensive notes
-        top_p: 0.9, // Slightly lower for more focused responses
-        frequency_penalty: 0.1, // Slight penalty to avoid repetition
-        presence_penalty: 0.1, // Encourage diverse vocabulary
-      }, selectedModel);
+        temperature: isCustomTemplate ? 0.3 : 0.5, // Lower temp for templates = more consistent
+        max_tokens: 4000, // Sufficient for comprehensive notes
+        top_p: isCustomTemplate ? 0.85 : 0.9, // Lower for templates = more focused
+        frequency_penalty: 0.15, // Slightly higher to reduce placeholder repetition
+        presence_penalty: 0.2, // Encourage extracting ALL information
+      };
+
+      logDebug('AzureOpenAI', 'Using optimized parameters', {
+        isCustomTemplate,
+        temperature: optimizedParams.temperature,
+        top_p: optimizedParams.top_p
+      });
+
+      const response = await this.makeAPICall(url, optimizedParams, selectedModel);
 
       if (!response.ok) {
         const error = await response.text();
