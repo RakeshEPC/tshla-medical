@@ -19,7 +19,8 @@ import {
   ArrowLeft,
   Activity,
   TrendingUp,
-  Calendar
+  Calendar,
+  Plus
 } from 'lucide-react';
 import PatientRiskCard, { type PCMPatient } from '../components/pcm/PatientRiskCard';
 import { pcmService } from '../services/pcm.service';
@@ -164,7 +165,14 @@ export default function PCMProviderDashboard() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="text-right">
+              <button
+                onClick={() => navigate('/pcm/setup')}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold flex items-center gap-2"
+              >
+                <Plus className="w-5 h-5" />
+                Enroll New Patient
+              </button>
+              <div className="text-right ml-4">
                 <div className="text-sm text-gray-600">Total PCM Patients</div>
                 <div className="text-2xl font-bold text-blue-600">{patients.length}</div>
               </div>

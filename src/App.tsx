@@ -108,6 +108,7 @@ const UnifiedPatientChart = lazy(() => import('./pages/UnifiedPatientChart'));
 const SimplePCMPatientDashboard = lazy(() => import('./pages/SimplePCMPatientDashboard'));
 const PCMProviderDashboard = lazy(() => import('./pages/PCMProviderDashboard'));
 const PCMStaffWorkflow = lazy(() => import('./pages/PCMStaffWorkflow'));
+const PCMPatientSetup = lazy(() => import('./pages/PCMPatientSetup'));
 
 function App() {
   return (
@@ -559,6 +560,28 @@ function App() {
                   <ProtectedRoute>
                     <Suspense fallback={<LoadingSpinner />}>
                       <PCMStaffWorkflow />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* PCM Patient Setup/Enrollment */}
+              <Route
+                path="/pcm/setup"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <PCMPatientSetup />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/pcm/setup/:patientId"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <PCMPatientSetup />
                     </Suspense>
                   </ProtectedRoute>
                 }
