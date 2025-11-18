@@ -8,18 +8,28 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <title>TSHLA Medical</title>
-    <!-- Cache bust: 2025-10-15-template-cleanup -->
+    <!-- Cache bust: 2025-11-18-ai-error-fix -->
     <script>
       // Force cache clear on version mismatch
-      const APP_VERSION = '2025-10-15-templates';
+      const APP_VERSION = '2025-11-18-ai-error-fix';
       const currentVersion = localStorage.getItem('app-version');
       if (currentVersion !== APP_VERSION) {
+        console.log('🔄 Version mismatch detected. Clearing cache...', {
+          old: currentVersion,
+          new: APP_VERSION
+        });
         localStorage.setItem('app-version', APP_VERSION);
         if ('caches' in window) {
           caches.keys().then(names => {
+            console.log('🧹 Clearing', names.length, 'cache(s)');
             names.forEach(name => caches.delete(name));
           });
         }
+        // Force a hard reload after cache clear
+        setTimeout(() => {
+          console.log('♻️ Reloading page to load fresh assets...');
+          window.location.reload(true);
+        }, 100);
       }
     </script>
     <script>
