@@ -62,6 +62,8 @@ export default function QuickNoteModern() {
   } | null>(null);
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [recordingError, setRecordingError] = useState<string>('');
+  const [aiProcessingError, setAiProcessingError] = useState<string>('');
+  const [aiProcessingFailed, setAiProcessingFailed] = useState(false);
   const [recordingMode, setRecordingMode] = useState<'dictation' | 'conversation'>('dictation');
   const [selectedTemplate, setSelectedTemplate] = useState<DoctorTemplate | null>(null);
   const [templates, setTemplates] = useState<DoctorTemplate[]>([]);
@@ -354,6 +356,10 @@ export default function QuickNoteModern() {
       return;
     }
 
+    // Clear previous errors
+    setAiProcessingError('');
+    setAiProcessingFailed(false);
+
     // Track template usage to update "last used" timestamp
     if (selectedTemplate) {
       try {
@@ -517,15 +523,32 @@ Visit Date: ${patientDetails.visitDate}
       const classifiedError = classifyError(error);
       const userFriendlyMessage = formatErrorForUser(classifiedError);
 
+      // Set error state to show persistent error banner
+      setAiProcessingFailed(true);
+      setAiProcessingError(userFriendlyMessage);
+
+      // Log detailed error for debugging
+      logError('QuickNoteModern', 'Detailed AI processing error', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        classifiedError,
+        transcript: contentToProcess.substring(0, 100) + '...',
+        templateUsed: selectedTemplate?.name || 'Default SOAP',
+        timestamp: new Date().toISOString()
+      });
+
       // Show detailed error modal instead of basic alert
       const shouldRetry = confirm(
-        `${userFriendlyMessage}\n\nWould you like to try again?`
+        `❌ AI Processing Failed\n\n${userFriendlyMessage}\n\nWould you like to try again?`
       );
 
       if (shouldRetry) {
         // User wants to retry manually
         setTimeout(() => processWithAI(transcript), 500);
         return;
+      } else {
+        // User cancelled - keep error banner visible
+        logInfo('QuickNoteModern', 'User cancelled AI processing retry - error banner will remain visible');
       }
     } finally {
       setIsProcessing(false);
@@ -593,6 +616,8 @@ Visit Date: ${patientDetails.visitDate}
     setRecordingDuration(0);
     setQualityRating(null);
     setNoteMetadata(null);
+    setAiProcessingFailed(false);
+    setAiProcessingError('');
   };
 
   return (
@@ -644,6 +669,55 @@ Visit Date: ${patientDetails.visitDate}
           </div>
         </div>
       </div>
+
+      {/* AI Processing Error Banner - Persistent */}
+      {aiProcessingFailed && aiProcessingError && (
+        <div className="px-4 pt-4 relative z-10">
+          <div className="max-w-7xl mx-auto">
+            <div className="glass-card-calm p-4 border-l-4 border-red-500 bg-red-50 animate-shake">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3 flex-1">
+                  <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
+                    <AlertCircle className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-red-900 mb-1">
+                      ❌ AI Processing Failed
+                    </h3>
+                    <p className="text-sm text-red-800 mb-2">
+                      {aiProcessingError}
+                    </p>
+                    <p className="text-xs text-red-700">
+                      <strong>What this means:</strong> Your dictation was recorded successfully, but the AI service could not process it into a structured note.
+                      The dictation transcript is safe and visible below.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => processWithAI(transcript)}
+                    disabled={isProcessing}
+                    className="btn-calm btn-calm-primary px-4 py-2 text-sm whitespace-nowrap"
+                  >
+                    <Brain className="w-4 h-4 inline-block mr-1" />
+                    Retry AI Processing
+                  </button>
+                  <button
+                    onClick={() => {
+                      setAiProcessingFailed(false);
+                      setAiProcessingError('');
+                    }}
+                    className="btn-calm btn-calm-secondary px-3 py-2 text-sm"
+                    title="Dismiss this error (you can still retry later)"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="px-4 py-6 relative z-10">

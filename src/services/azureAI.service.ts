@@ -146,6 +146,15 @@ class AzureAIService {
     additionalContext?: string,
     customTemplate?: { template: DoctorTemplate; doctorSettings: DoctorSettings }
   ): Promise<ProcessedNote> {
+    // Log processing request
+    logInfo('azureAI', 'Starting medical transcription processing', {
+      transcriptLength: transcript.length,
+      patientName: patient.name || 'Unknown',
+      templateUsed: customTemplate?.template.name || template?.name || 'Default SOAP',
+      primaryProvider: this.primaryProvider,
+      timestamp: new Date().toISOString()
+    });
+
     // Check primary provider from environment variable
     if (this.primaryProvider === 'openai') {
       try {
@@ -174,19 +183,27 @@ class AzureAIService {
           stack: azureError.stack,
           name: azureError.name
         });
-        logError('azureAI', `Azure OpenAI failed: ${azureError.message}`);
+        logError('azureAI', 'Azure OpenAI failed - falling back to AWS Bedrock', {
+          error: azureError.message,
+          errorType: azureError.name,
+          stack: azureError.stack,
+          timestamp: new Date().toISOString()
+        });
         // Continue to AWS Bedrock fallback below
       }
     }
 
     try {
-      const prompt = customTemplate 
+      const prompt = customTemplate
         ? this.buildCustomPrompt(transcript, patient, customTemplate.template, customTemplate.doctorSettings, additionalContext)
         : this.buildPrompt(transcript, patient, template, additionalContext);
-      
+
       // AWS Bedrock fallback
-      logDebug('azureAI', 'Debug message', {});
-      logDebug('azureAI', 'Debug message', {});
+      logInfo('azureAI', 'Attempting AWS Bedrock processing', {
+        modelId: this.modelId,
+        promptLength: prompt.length,
+        timestamp: new Date().toISOString()
+      });
       
       const command = new InvokeModelCommand({
         modelId: this.modelId,

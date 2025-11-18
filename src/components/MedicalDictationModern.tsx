@@ -24,6 +24,8 @@ export default function MedicalDictationModern({ patientId, preloadPatientData =
   const [processedNote, setProcessedNote] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [recordingError, setRecordingError] = useState<string>('');
+  const [aiProcessingError, setAiProcessingError] = useState<string>('');
+  const [aiProcessingFailed, setAiProcessingFailed] = useState(false);
   const [recordingMode, setRecordingMode] = useState<'dictation' | 'conversation' | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<DoctorTemplate | null>(null);
   const [templates, setTemplates] = useState<DoctorTemplate[]>([]);
@@ -155,6 +157,10 @@ export default function MedicalDictationModern({ patientId, preloadPatientData =
       return;
     }
 
+    // Clear previous errors
+    setAiProcessingError('');
+    setAiProcessingFailed(false);
+
     setIsProcessing(true);
     setStatusMessage({ type: 'info', text: 'Processing with AI...' });
     
@@ -184,8 +190,32 @@ export default function MedicalDictationModern({ patientId, preloadPatientData =
       setProcessedNote(result.formatted);
       setStatusMessage({ type: 'success', text: 'Note processed successfully' });
     } catch (error) {
-      logError('MedicalDictationModern', 'Error message', {});
-      setStatusMessage({ type: 'error', text: 'Failed to process note with AI' });
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+      // Set error state to show persistent error banner
+      setAiProcessingFailed(true);
+      setAiProcessingError(errorMessage);
+
+      // Log detailed error for debugging
+      logError('MedicalDictationModern', 'AI processing failed', {
+        error: errorMessage,
+        stack: error instanceof Error ? error.stack : undefined,
+        transcript: transcript.substring(0, 100) + '...',
+        templateUsed: selectedTemplate?.name || 'No template',
+        timestamp: new Date().toISOString()
+      });
+
+      setStatusMessage({ type: 'error', text: `AI Processing Failed: ${errorMessage}` });
+
+      // Show retry dialog
+      const shouldRetry = confirm(
+        `❌ AI Processing Failed\n\n${errorMessage}\n\nWould you like to try again?`
+      );
+
+      if (shouldRetry) {
+        setTimeout(() => processWithAI(), 500);
+        return;
+      }
     } finally {
       setIsProcessing(false);
     }

@@ -58,6 +58,8 @@ export default function MedicalDictation({ patientId, preloadPatientData = false
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [databaseAutoSaveStatus, setDatabaseAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [lastDatabaseSaveTime, setLastDatabaseSaveTime] = useState<Date | null>(null);
+  const [aiProcessingError, setAiProcessingError] = useState<string>('');
+  const [aiProcessingFailed, setAiProcessingFailed] = useState(false);
 
   // AI Processing Version History
   interface ProcessedNoteVersion {
@@ -745,13 +747,17 @@ export default function MedicalDictation({ patientId, preloadPatientData = false
   const processWithAI = async (transcriptToProcess?: string) => {
     // Use the passed transcript or fall back to state
     const contentToProcess = transcriptToProcess || transcript;
-    logDebug('MedicalDictation', 'Debug message', {});
-    
+    logDebug('MedicalDictation', 'Starting AI processing', { transcriptLength: contentToProcess.length });
+
     if (!contentToProcess.trim()) {
-      logError('MedicalDictation', 'Error message', {});
+      logError('MedicalDictation', 'No content to process');
       alert('Please record some content first');
       return;
     }
+
+    // Clear previous errors
+    setAiProcessingError('');
+    setAiProcessingFailed(false);
 
     setIsProcessing(true);
     setShowProcessed(false);
@@ -854,9 +860,35 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
       setProcessedNote(processedContent);
       setShowProcessed(true);
     } catch (error) {
-      logError('MedicalDictation', 'Error message', {});
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      alert(`Failed to process with AI: ${errorMessage}`);
+
+      // Set error state to show persistent error banner
+      setAiProcessingFailed(true);
+      setAiProcessingError(errorMessage);
+
+      // Log detailed error for debugging
+      logError('MedicalDictation', 'AI processing failed', {
+        error: errorMessage,
+        stack: error instanceof Error ? error.stack : undefined,
+        transcript: contentToProcess.substring(0, 100) + '...',
+        templateUsed: selectedTemplate?.name || 'No template',
+        patientName: patientDetails.name || 'No patient name',
+        timestamp: new Date().toISOString()
+      });
+
+      // Show detailed error modal
+      const shouldRetry = confirm(
+        `❌ AI Processing Failed\n\n${errorMessage}\n\nWould you like to try again?`
+      );
+
+      if (shouldRetry) {
+        // User wants to retry manually
+        setTimeout(() => processWithAI(contentToProcess), 500);
+        return;
+      } else {
+        // User cancelled - keep error banner visible
+        logInfo('MedicalDictation', 'User cancelled AI processing retry');
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -867,6 +899,8 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
     setInterimText('');
     setProcessedNote('');
     setShowProcessed(false);
+    setAiProcessingFailed(false);
+    setAiProcessingError('');
   };
 
   const copyToClipboard = async (text: string) => {
@@ -1076,6 +1110,45 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
           </div>
         </div>
       </div>
+
+      {/* AI Processing Error Banner - Persistent */}
+      {aiProcessingFailed && aiProcessingError && (
+        <div className="bg-red-50 border-b-2 border-red-400">
+          <div className="max-w-7xl mx-auto px-4 py-3">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-red-900">❌ AI Processing Failed</h3>
+                <p className="text-xs text-red-800">
+                  {aiProcessingError}
+                </p>
+                <p className="text-xs text-red-700 mt-1">
+                  <strong>What this means:</strong> Your dictation was recorded successfully, but the AI service could not process it into a structured note. The dictation transcript is safe and visible below.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => processWithAI(transcript)}
+                  disabled={isProcessing}
+                  className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 font-medium"
+                >
+                  <Brain className="w-3 h-3 inline-block mr-1" />
+                  Retry AI Processing
+                </button>
+                <button
+                  onClick={() => {
+                    setAiProcessingFailed(false);
+                    setAiProcessingError('');
+                  }}
+                  className="px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 font-medium"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Patient Identification Warning Banner */}
       {(transcript || processedNote) && (!patientDetails.name || patientDetails.name.trim() === '') && (
