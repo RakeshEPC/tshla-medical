@@ -90,13 +90,23 @@ export default function StaffDashboard() {
       )}
 
       {user?.role === 'nurse' && (
-        <div className="fixed bottom-4 right-4 bg-pink-50 border border-pink-200 rounded-lg p-4 max-w-sm">
+        <div className="fixed bottom-4 right-4 bg-pink-50 border border-pink-200 rounded-lg p-4 max-w-sm shadow-lg">
           <h4 className="font-semibold text-pink-900 mb-2">Nurse Features</h4>
           <ul className="text-sm text-pink-700 space-y-1">
             <li>• Vital signs recording</li>
             <li>• Medication administration tracking</li>
             <li>• Care coordination tools</li>
           </ul>
+          <button
+            onClick={() => navigate('/pcm/staff')}
+            className="mt-3 w-full bg-red-600 hover:bg-red-700 text-white text-sm font-semibold py-2 px-3 rounded-lg transition flex items-center justify-center gap-2"
+          >
+            <span>💉</span>
+            <span>PCM Workflow Dashboard</span>
+          </button>
+          <p className="text-xs text-pink-600 mt-2 text-center">
+            ⭐ New: Diabetes care management with time tracking
+          </p>
         </div>
       )}
 
