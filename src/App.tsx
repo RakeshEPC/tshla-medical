@@ -22,6 +22,7 @@ import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
 import PatientLogin from './pages/PatientLogin';
 import AuthRedirect from './pages/AuthRedirect';
+import ResetPassword from './pages/ResetPassword';
 
 // ========================================
 // LAZY-LOADED SECTIONS
@@ -115,6 +116,8 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/patient-login" element={<PatientLogin />} />
               <Route path="/auth-redirect" element={<AuthRedirect />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/auth/confirm" element={<ResetPassword />} />
 
               {/* ===== AUTHENTICATION & ONBOARDING ===== */}
               <Route

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabaseAuthService as unifiedAuthService } from '../services/supabaseAuth.service';
+import { supabase } from '../lib/supabase';
 import { checkBrowserCompatibility, getStorageEnableInstructions } from '../utils/browserCompatibility';
 
 export default function Login() {
@@ -14,17 +15,29 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [showDoctorList, setShowDoctorList] = useState(false);
   const [storageWarning, setStorageWarning] = useState('');
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+  const [resetEmailSent, setResetEmailSent] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
 
-  // Check browser compatibility on mount
+  // Check browser compatibility on mount and handle success messages
   useEffect(() => {
     const compat = checkBrowserCompatibility();
     if (compat.needsStorageWarning) {
       const instructions = getStorageEnableInstructions(compat.browser);
       setStorageWarning(`${compat.browser} is blocking cookies/storage. ${instructions}`);
     }
-  }, []);
+
+    // Check for success message from password reset
+    if (location.state?.message) {
+      setSuccessMessage(location.state.message);
+      // Clear the message from location state
+      window.history.replaceState({}, document.title);
+    }
+  }, [location]);
 
   const availableDoctors = [
     { id: 'dr1', name: 'Dr. Smith', code: 'DOCTOR-2025' },
@@ -109,6 +122,36 @@ export default function Login() {
     setEmail('');
     setPassword('');
     window.location.reload(); // Force fresh start
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(forgotPasswordEmail, {
+        redirectTo: `${window.location.origin}/reset-password`
+      });
+
+      if (resetError) {
+        throw resetError;
+      }
+
+      setResetEmailSent(true);
+      setForgotPasswordEmail('');
+
+      // Auto-close after 5 seconds
+      setTimeout(() => {
+        setShowForgotPassword(false);
+        setResetEmailSent(false);
+      }, 5000);
+
+    } catch (err: any) {
+      setError(err.message || 'Failed to send reset email. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -235,6 +278,12 @@ export default function Login() {
             </>
           )}
 
+          {successMessage && (
+            <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded text-sm">
+              {successMessage}
+            </div>
+          )}
+
           {storageWarning && (
             <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded text-sm">
               <strong>Browser Storage Warning:</strong>
@@ -268,7 +317,96 @@ export default function Login() {
           >
             {loading ? 'Authenticating...' : 'Sign In'}
           </button>
+
+          {/* Forgot Password Link - Only show for email login */}
+          {loginMethod === 'email' && (
+            <div className="text-center mt-4">
+              <button
+                type="button"
+                onClick={() => setShowForgotPassword(true)}
+                className="text-sm text-blue-600 hover:text-blue-700 hover:underline font-medium"
+              >
+                Forgot your password?
+              </button>
+            </div>
+          )}
         </form>
+
+        {/* Forgot Password Modal */}
+        {showForgotPassword && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg p-8 max-w-md w-full">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">Reset Password</h2>
+
+              {resetEmailSent ? (
+                <div className="text-center py-6">
+                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <p className="text-lg font-semibold text-gray-900 mb-2">Check your email!</p>
+                  <p className="text-gray-600">
+                    We've sent you a password reset link. Please check your inbox and follow the instructions.
+                  </p>
+                  <p className="text-sm text-gray-500 mt-4">
+                    This window will close automatically...
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <p className="text-gray-600 mb-6">
+                    Enter your email address and we'll send you a link to reset your password.
+                  </p>
+
+                  <form onSubmit={handleForgotPassword} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Email Address
+                      </label>
+                      <input
+                        type="email"
+                        value={forgotPasswordEmail}
+                        onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="your.email@example.com"
+                        required
+                        autoFocus
+                      />
+                    </div>
+
+                    {error && (
+                      <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">
+                        {error}
+                      </div>
+                    )}
+
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowForgotPassword(false);
+                          setForgotPasswordEmail('');
+                          setError('');
+                        }}
+                        className="flex-1 px-4 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={loading || !forgotPasswordEmail}
+                        className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:bg-gray-300 disabled:cursor-not-allowed"
+                      >
+                        {loading ? 'Sending...' : 'Send Reset Link'}
+                      </button>
+                    </div>
+                  </form>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="mt-10 pt-6 border-t border-gray-200 text-center text-sm text-tesla-light-gray font-light">
           <p>HIPAA Compliant • SOC 2 Type II</p>
