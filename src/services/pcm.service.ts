@@ -361,6 +361,280 @@ class PCMService {
   }
 
   /**
+   * Patient Goals
+   */
+  async getPatientGoals(patientId: string): Promise<any[]> {
+    // In production, this would pull from the enrollment data + current vitals
+    const patient = await this.getPCMPatient(patientId);
+    const latestVitals = await this.getLatestVitals(patientId);
+
+    if (!patient) {
+      // Return demo goals (icons will be added in the component)
+      return [
+        {
+          id: 'goal-a1c',
+          category: 'a1c',
+          name: 'Hemoglobin A1C',
+          current: 8.2,
+          target: 7.0,
+          unit: '%',
+          status: 'needs-attention',
+          progress: 60,
+          trend: 'improving',
+          lastUpdated: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+          color: 'bg-red-100'
+        },
+        {
+          id: 'goal-bp',
+          category: 'bp',
+          name: 'Blood Pressure',
+          current: '135/82',
+          target: '130/80',
+          unit: 'mmHg',
+          status: 'on-track',
+          progress: 85,
+          trend: 'stable',
+          lastUpdated: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+          color: 'bg-orange-100'
+        },
+        {
+          id: 'goal-weight',
+          category: 'weight',
+          name: 'Weight Management',
+          current: 175,
+          target: 165,
+          unit: 'lbs',
+          status: 'on-track',
+          progress: 70,
+          trend: 'improving',
+          lastUpdated: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+          color: 'bg-green-100'
+        },
+        {
+          id: 'goal-medication',
+          category: 'medication',
+          name: 'Medication Adherence',
+          current: 85,
+          target: 95,
+          unit: '%',
+          status: 'on-track',
+          progress: 90,
+          trend: 'improving',
+          lastUpdated: new Date().toISOString(),
+          color: 'bg-blue-100'
+        }
+      ];
+    }
+
+    // Build goals from patient data
+    const goals = [];
+
+    // A1C Goal
+    if (patient.currentA1C && patient.targetA1C) {
+      const progress = Math.min(100, Math.max(0, 100 - ((patient.currentA1C - patient.targetA1C) / patient.targetA1C) * 100));
+      goals.push({
+        id: 'goal-a1c',
+        category: 'a1c',
+        name: 'Hemoglobin A1C',
+        current: patient.currentA1C,
+        target: patient.targetA1C,
+        unit: '%',
+        status: patient.currentA1C <= patient.targetA1C ? 'achieved' : patient.currentA1C <= patient.targetA1C + 1 ? 'on-track' : 'needs-attention',
+        progress,
+        trend: 'improving',
+        lastUpdated: new Date().toISOString(),
+        color: 'bg-red-100'
+      });
+    }
+
+    return goals;
+  }
+
+  /**
+   * Patient Profile Management
+   */
+  async getPatientProfile(patientId: string): Promise<any | null> {
+    const key = `${this.STORAGE_PREFIX}profile_${patientId}`;
+    return this.getFromStorage<any>(key);
+  }
+
+  async updatePatientProfile(patientId: string, profile: any): Promise<void> {
+    const key = `${this.STORAGE_PREFIX}profile_${patientId}`;
+    this.saveToStorage(key, profile);
+  }
+
+  /**
+   * Messaging System
+   */
+  async getMessageThreads(patientId: string): Promise<any[]> {
+    const key = `${this.STORAGE_PREFIX}threads_${patientId}`;
+    const threads = this.getFromStorage<any[]>(key);
+
+    if (!threads || threads.length === 0) {
+      // Return demo threads
+      return [
+        {
+          id: 'thread-001',
+          subject: 'Question about my medication',
+          category: 'question',
+          lastMessage: 'Thank you! That makes sense now.',
+          lastMessageTime: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+          unreadCount: 0,
+          status: 'resolved'
+        },
+        {
+          id: 'thread-002',
+          subject: 'Blood sugar readings are high',
+          category: 'concern',
+          lastMessage: 'I will try the adjustments you suggested and report back.',
+          lastMessageTime: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+          unreadCount: 1,
+          status: 'active'
+        }
+      ];
+    }
+
+    return threads;
+  }
+
+  async getMessages(threadId: string): Promise<any[]> {
+    const key = `${this.STORAGE_PREFIX}messages_${threadId}`;
+    const messages = this.getFromStorage<any[]>(key);
+
+    if (!messages || messages.length === 0) {
+      // Return demo messages
+      if (threadId === 'thread-001') {
+        return [
+          {
+            id: 'msg-001',
+            threadId,
+            from: 'patient',
+            senderName: 'Jane Smith',
+            content: 'I noticed my medication bottle says to take with food, but my doctor said to take it in the morning. Should I take it with breakfast?',
+            timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+            read: true
+          },
+          {
+            id: 'msg-002',
+            threadId,
+            from: 'staff',
+            senderName: 'Nurse Williams',
+            content: 'Great question! Yes, you should take it with breakfast. Taking it with food helps reduce stomach upset and improves absorption. Make sure to eat something substantial, not just a light snack.',
+            timestamp: new Date(Date.now() - 2.5 * 24 * 60 * 60 * 1000).toISOString(),
+            read: true
+          },
+          {
+            id: 'msg-003',
+            threadId,
+            from: 'patient',
+            senderName: 'Jane Smith',
+            content: 'Thank you! That makes sense now.',
+            timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+            read: true
+          }
+        ];
+      }
+      return [];
+    }
+
+    return messages;
+  }
+
+  async sendMessage(threadId: string, message: { from: string; content: string }): Promise<void> {
+    const key = `${this.STORAGE_PREFIX}messages_${threadId}`;
+    const messages = this.getFromStorage<any[]>(key) || [];
+
+    const newMessage = {
+      id: this.generateId(),
+      threadId,
+      from: message.from,
+      senderName: message.from === 'patient' ? 'Jane Smith' : 'Care Team',
+      content: message.content,
+      timestamp: new Date().toISOString(),
+      read: message.from === 'patient'
+    };
+
+    messages.push(newMessage);
+    this.saveToStorage(key, messages);
+
+    // Update thread
+    await this.updateThreadLastMessage(threadId, message.content);
+  }
+
+  async createMessageThread(patientId: string, data: { subject: string; category: string; initialMessage: string }): Promise<string> {
+    const threadId = this.generateId();
+
+    // Create thread
+    const threadsKey = `${this.STORAGE_PREFIX}threads_${patientId}`;
+    const threads = this.getFromStorage<any[]>(threadsKey) || [];
+
+    const newThread = {
+      id: threadId,
+      subject: data.subject,
+      category: data.category,
+      lastMessage: data.initialMessage,
+      lastMessageTime: new Date().toISOString(),
+      unreadCount: 0,
+      status: 'active'
+    };
+
+    threads.unshift(newThread);
+    this.saveToStorage(threadsKey, threads);
+
+    // Create initial message
+    await this.sendMessage(threadId, { from: 'patient', content: data.initialMessage });
+
+    return threadId;
+  }
+
+  async markThreadAsRead(threadId: string): Promise<void> {
+    // Find patient ID from thread - in production this would be a proper query
+    const allKeys = Object.keys(localStorage).filter(k => k.includes('threads_'));
+
+    for (const key of allKeys) {
+      const threads = this.getFromStorage<any[]>(key) || [];
+      const thread = threads.find(t => t.id === threadId);
+
+      if (thread) {
+        thread.unreadCount = 0;
+        this.saveToStorage(key, threads);
+        break;
+      }
+    }
+  }
+
+  async resolveThread(threadId: string): Promise<void> {
+    const allKeys = Object.keys(localStorage).filter(k => k.includes('threads_'));
+
+    for (const key of allKeys) {
+      const threads = this.getFromStorage<any[]>(key) || [];
+      const thread = threads.find(t => t.id === threadId);
+
+      if (thread) {
+        thread.status = 'resolved';
+        this.saveToStorage(key, threads);
+        break;
+      }
+    }
+  }
+
+  private async updateThreadLastMessage(threadId: string, message: string): Promise<void> {
+    const allKeys = Object.keys(localStorage).filter(k => k.includes('threads_'));
+
+    for (const key of allKeys) {
+      const threads = this.getFromStorage<any[]>(key) || [];
+      const thread = threads.find(t => t.id === threadId);
+
+      if (thread) {
+        thread.lastMessage = message;
+        thread.lastMessageTime = new Date().toISOString();
+        this.saveToStorage(key, threads);
+        break;
+      }
+    }
+  }
+
+  /**
    * Utility Functions
    */
   private generateId(): string {

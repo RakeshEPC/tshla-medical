@@ -19,7 +19,10 @@ import {
   LogOut,
   ChevronRight,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Target,
+  User,
+  Settings
 } from 'lucide-react';
 import QuickVitalEntry from '../components/pcm/QuickVitalEntry';
 import { pcmService } from '../services/pcm.service';
@@ -175,12 +178,45 @@ export default function SimplePCMPatientDashboard() {
 
           {/* Message Care Team Button */}
           <button
-            onClick={() => alert('Opening secure messaging...')}
+            onClick={() => navigate('/pcm/messages')}
             className="bg-gradient-to-r from-green-600 to-green-700 text-white rounded-2xl p-6 hover:from-green-700 hover:to-green-800 transition shadow-lg hover:shadow-xl"
           >
             <MessageCircle className="w-8 h-8 mb-3 mx-auto" />
             <div className="text-lg font-bold">Message Team</div>
             <div className="text-sm text-green-100">Get help anytime</div>
+          </button>
+        </div>
+
+        {/* Navigation Cards */}
+        <div className="grid grid-cols-3 gap-4">
+          {/* My Goals */}
+          <button
+            onClick={() => navigate('/pcm/goals')}
+            className="bg-white rounded-xl shadow-sm p-4 hover:shadow-md transition border-l-4 border-purple-500"
+          >
+            <Target className="w-6 h-6 text-purple-600 mb-2" />
+            <div className="text-sm font-bold text-gray-900">My Goals</div>
+            <div className="text-xs text-gray-600">Track progress</div>
+          </button>
+
+          {/* My Profile */}
+          <button
+            onClick={() => navigate('/pcm/profile')}
+            className="bg-white rounded-xl shadow-sm p-4 hover:shadow-md transition border-l-4 border-blue-500"
+          >
+            <User className="w-6 h-6 text-blue-600 mb-2" />
+            <div className="text-sm font-bold text-gray-900">My Profile</div>
+            <div className="text-xs text-gray-600">Update info</div>
+          </button>
+
+          {/* Appointments */}
+          <button
+            onClick={() => navigate('/schedule-appointment')}
+            className="bg-white rounded-xl shadow-sm p-4 hover:shadow-md transition border-l-4 border-green-500"
+          >
+            <Calendar className="w-6 h-6 text-green-600 mb-2" />
+            <div className="text-sm font-bold text-gray-900">Schedule</div>
+            <div className="text-xs text-gray-600">Book visit</div>
           </button>
         </div>
 

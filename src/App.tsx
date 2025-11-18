@@ -109,6 +109,9 @@ const SimplePCMPatientDashboard = lazy(() => import('./pages/SimplePCMPatientDas
 const PCMProviderDashboard = lazy(() => import('./pages/PCMProviderDashboard'));
 const PCMStaffWorkflow = lazy(() => import('./pages/PCMStaffWorkflow'));
 const PCMPatientSetup = lazy(() => import('./pages/PCMPatientSetup'));
+const PCMPatientGoals = lazy(() => import('./pages/PCMPatientGoals'));
+const PCMPatientProfile = lazy(() => import('./pages/PCMPatientProfile'));
+const PCMMessages = lazy(() => import('./pages/PCMMessages'));
 
 function App() {
   return (
@@ -582,6 +585,36 @@ function App() {
                   <ProtectedRoute>
                     <Suspense fallback={<LoadingSpinner />}>
                       <PCMPatientSetup />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/pcm/goals"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <PCMPatientGoals />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/pcm/profile"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <PCMPatientProfile />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/pcm/messages"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <PCMMessages />
                     </Suspense>
                   </ProtectedRoute>
                 }
