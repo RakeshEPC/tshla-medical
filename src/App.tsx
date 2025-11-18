@@ -104,6 +104,11 @@ const PatientPortalLogin = lazy(() => import('./pages/PatientPortalLogin'));
 const PatientPortalDashboard = lazy(() => import('./pages/PatientPortalDashboard'));
 const UnifiedPatientChart = lazy(() => import('./pages/UnifiedPatientChart'));
 
+// PCM (Principal Care Management) System
+const SimplePCMPatientDashboard = lazy(() => import('./pages/SimplePCMPatientDashboard'));
+const PCMProviderDashboard = lazy(() => import('./pages/PCMProviderDashboard'));
+const PCMStaffWorkflow = lazy(() => import('./pages/PCMStaffWorkflow'));
+
 function App() {
   return (
     <AuthProvider>
@@ -511,6 +516,49 @@ function App() {
                   <ProtectedRoute>
                     <Suspense fallback={<LoadingSpinner />}>
                       <UnifiedPatientChart />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* ===== PCM (PRINCIPAL CARE MANAGEMENT) SYSTEM ===== */}
+              {/* Simple Patient Dashboard */}
+              <Route
+                path="/pcm/patient"
+                element={
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <SimplePCMPatientDashboard />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/pcm/patient/:patientId"
+                element={
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <SimplePCMPatientDashboard />
+                  </Suspense>
+                }
+              />
+
+              {/* Provider PCM Management Dashboard */}
+              <Route
+                path="/pcm/provider"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <PCMProviderDashboard />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Staff PCM Workflow */}
+              <Route
+                path="/pcm/staff"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <PCMStaffWorkflow />
                     </Suspense>
                   </ProtectedRoute>
                 }
