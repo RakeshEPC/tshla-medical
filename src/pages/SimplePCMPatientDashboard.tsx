@@ -22,10 +22,13 @@ import {
   AlertCircle,
   Target,
   User,
-  Settings
+  Settings,
+  Beaker,
+  Clock
 } from 'lucide-react';
 import QuickVitalEntry from '../components/pcm/QuickVitalEntry';
 import { pcmService } from '../services/pcm.service';
+import { pcmAICallService } from '../services/pcmAICall.service';
 import type { PatientTask, VitalReading } from '../services/pcm.service';
 
 export default function SimplePCMPatientDashboard() {
@@ -37,6 +40,8 @@ export default function SimplePCMPatientDashboard() {
   const [showVitalEntry, setShowVitalEntry] = useState(false);
   const [stats, setStats] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [upcomingLabs, setUpcomingLabs] = useState<any[]>([]);
+  const [latestCall, setLatestCall] = useState<any>(null);
 
   // Mock patient data - in production, get from session/context
   const patient = {
@@ -56,15 +61,19 @@ export default function SimplePCMPatientDashboard() {
   const loadDashboardData = async () => {
     setIsLoading(true);
     try {
-      const [tasksData, vitalsData, statsData] = await Promise.all([
+      const [tasksData, vitalsData, statsData, labsData, callsData] = await Promise.all([
         pcmService.getPatientTasks(patient.id),
         pcmService.getLatestVitals(patient.id),
-        pcmService.getPatientStats(patient.id)
+        pcmService.getPatientStats(patient.id),
+        pcmService.getLabOrders(patient.id, 'pending'),
+        pcmAICallService.getCallSummaries({ patientId: patient.id, limit: 1 })
       ]);
 
       setTasks(tasksData);
       setLatestVitals(vitalsData);
       setStats(statsData);
+      setUpcomingLabs(labsData);
+      setLatestCall(callsData.length > 0 ? callsData[0] : null);
     } catch (error) {
       console.error('Error loading dashboard:', error);
     } finally {
@@ -188,7 +197,7 @@ export default function SimplePCMPatientDashboard() {
         </div>
 
         {/* Navigation Cards */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           {/* My Goals */}
           <button
             onClick={() => navigate('/pcm/goals')}
@@ -197,6 +206,21 @@ export default function SimplePCMPatientDashboard() {
             <Target className="w-6 h-6 text-purple-600 mb-2" />
             <div className="text-sm font-bold text-gray-900">My Goals</div>
             <div className="text-xs text-gray-600">Track progress</div>
+          </button>
+
+          {/* My Labs */}
+          <button
+            onClick={() => navigate('/pcm/patient/labs')}
+            className="bg-white rounded-xl shadow-sm p-4 hover:shadow-md transition border-l-4 border-orange-500 relative"
+          >
+            <Beaker className="w-6 h-6 text-orange-600 mb-2" />
+            <div className="text-sm font-bold text-gray-900">My Labs</div>
+            <div className="text-xs text-gray-600">View results</div>
+            {upcomingLabs.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                {upcomingLabs.length}
+              </span>
+            )}
           </button>
 
           {/* My Profile */}
@@ -343,6 +367,104 @@ export default function SimplePCMPatientDashboard() {
             Provider: {patient.providerName}
           </div>
         </div>
+
+        {/* Upcoming Labs */}
+        {upcomingLabs.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-lg p-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+              <Beaker className="w-5 h-5 text-orange-600" />
+              Upcoming Lab Work
+            </h3>
+
+            <div className="space-y-3">
+              {upcomingLabs.slice(0, 2).map((lab) => (
+                <div
+                  key={lab.id}
+                  className="border-2 border-orange-200 rounded-xl p-4 bg-orange-50 cursor-pointer hover:bg-orange-100 transition"
+                  onClick={() => navigate('/pcm/patient/labs')}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-semibold text-gray-900">
+                        {lab.panelType || 'Lab Panel'}
+                      </div>
+                      <div className="text-sm text-gray-600 mt-1">
+                        Due: {new Date(lab.dueDate).toLocaleDateString()}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {lab.labsRequested.length} test(s) • {lab.priority} priority
+                      </div>
+                    </div>
+                    <ChevronRight className="w-6 h-6 text-orange-600" />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {upcomingLabs.length > 2 && (
+              <button
+                onClick={() => navigate('/pcm/patient/labs')}
+                className="mt-3 w-full text-center text-sm font-semibold text-orange-600 hover:text-orange-700"
+              >
+                View all {upcomingLabs.length} upcoming labs →
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Latest Weekly Check-in */}
+        {latestCall && (
+          <div className="bg-white rounded-2xl shadow-lg p-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+              <Clock className="w-5 h-5 text-blue-600" />
+              Latest Weekly Check-in
+            </h3>
+
+            <div className="border-2 border-blue-200 rounded-xl p-4 bg-blue-50">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <div className="font-semibold text-gray-900">
+                    Call on {new Date(latestCall.callDate).toLocaleDateString()}
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    {latestCall.extractedMetrics?.medicationAdherence === 'yes' && '✓ Taking medications'}
+                    {latestCall.extractedMetrics?.bloodSugarControl === 'good' && ' • ✓ Good blood sugar control'}
+                  </div>
+                </div>
+                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                  latestCall.urgencyLevel === 'routine' ? 'bg-green-100 text-green-800' :
+                  latestCall.urgencyLevel === 'moderate' ? 'bg-yellow-100 text-yellow-800' :
+                  latestCall.urgencyLevel === 'urgent' ? 'bg-orange-100 text-orange-800' :
+                  'bg-red-100 text-red-800'
+                }`}>
+                  {latestCall.urgencyLevel}
+                </span>
+              </div>
+
+              <p className="text-sm text-gray-700 mb-3">
+                {latestCall.summaryText.slice(0, 150)}...
+              </p>
+
+              {latestCall.flags && latestCall.flags.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {latestCall.flags.slice(0, 3).map((flag: string, idx: number) => (
+                    <span key={idx} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                      {flag}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <div className="text-xs text-gray-600">
+                {latestCall.reviewed ? (
+                  <span className="text-green-600 font-semibold">✓ Reviewed by care team</span>
+                ) : (
+                  <span className="text-orange-600 font-semibold">⏳ Pending review</span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Next Appointment (if any) */}
         <div className="bg-white rounded-2xl shadow-lg p-6">

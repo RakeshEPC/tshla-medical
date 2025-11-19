@@ -20,10 +20,13 @@ import {
   Activity,
   TrendingUp,
   Calendar,
-  Plus
+  Plus,
+  Beaker,
+  MessageCircle
 } from 'lucide-react';
 import PatientRiskCard, { type PCMPatient } from '../components/pcm/PatientRiskCard';
 import { pcmService } from '../services/pcm.service';
+import { pcmAICallService } from '../services/pcmAICall.service';
 
 type SortOption = 'risk' | 'contact' | 'compliance' | 'time';
 type FilterOption = 'all' | 'high' | 'medium' | 'low' | 'overdue';
@@ -38,10 +41,26 @@ export default function PCMProviderDashboard() {
   const [filterBy, setFilterBy] = useState<FilterOption>('all');
   const [selectedPatient, setSelectedPatient] = useState<PCMPatient | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [pendingLabsCount, setPendingLabsCount] = useState(0);
+  const [unreviewedCallsCount, setUnreviewedCallsCount] = useState(0);
 
   useEffect(() => {
     loadPatients();
+    loadLabsAndCalls();
   }, []);
+
+  const loadLabsAndCalls = async () => {
+    try {
+      const [labs, summaries] = await Promise.all([
+        pcmService.getLabOrders(undefined, 'pending'),
+        pcmAICallService.getCallSummaries({ reviewed: false })
+      ]);
+      setPendingLabsCount(labs.length);
+      setUnreviewedCallsCount(summaries.length);
+    } catch (error) {
+      console.error('Error loading labs and calls:', error);
+    }
+  };
 
   useEffect(() => {
     applyFiltersAndSort();
@@ -165,6 +184,30 @@ export default function PCMProviderDashboard() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              {unreviewedCallsCount > 0 && (
+                <button
+                  onClick={() => navigate('/pcm/calls')}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-semibold flex items-center gap-2 relative"
+                >
+                  <MessageCircle className="w-5 h-5" />
+                  Call Summaries
+                  <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+                    {unreviewedCallsCount}
+                  </span>
+                </button>
+              )}
+              {pendingLabsCount > 0 && (
+                <button
+                  onClick={() => navigate('/pcm/labs')}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold flex items-center gap-2 relative"
+                >
+                  <Beaker className="w-5 h-5" />
+                  Pending Labs
+                  <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+                    {pendingLabsCount}
+                  </span>
+                </button>
+              )}
               <button
                 onClick={() => navigate('/pcm/setup')}
                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold flex items-center gap-2"

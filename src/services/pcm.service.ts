@@ -635,6 +635,241 @@ class PCMService {
   }
 
   /**
+   * Lab Management System
+   */
+  async orderLabs(patientId: string, labData: {
+    tests: string[];
+    dueDate: string;
+    priority?: 'routine' | 'urgent' | 'stat';
+    panelType?: string;
+    notes?: string;
+    orderedBy: string;
+  }): Promise<any> {
+    const order = {
+      id: this.generateId(),
+      patientId,
+      orderedBy: labData.orderedBy,
+      orderDate: new Date().toISOString(),
+      dueDate: labData.dueDate,
+      status: 'pending',
+      labsRequested: labData.tests,
+      priority: labData.priority || 'routine',
+      panelType: labData.panelType,
+      notes: labData.notes
+    };
+
+    const key = `${this.STORAGE_PREFIX}lab_orders`;
+    const orders = this.getFromStorage<any[]>(key) || [];
+    orders.unshift(order);
+    this.saveToStorage(key, orders);
+
+    return order;
+  }
+
+  async getLabOrders(patientId?: string, status?: string): Promise<any[]> {
+    const key = `${this.STORAGE_PREFIX}lab_orders`;
+    let orders = this.getFromStorage<any[]>(key) || this.getDemoLabOrders();
+
+    if (patientId) {
+      orders = orders.filter(o => o.patientId === patientId);
+    }
+
+    if (status) {
+      orders = orders.filter(o => o.status === status);
+    }
+
+    return orders;
+  }
+
+  async addLabResults(orderId: string, results: Array<{
+    testName: string;
+    resultValue: string;
+    resultNumeric?: number;
+    unit?: string;
+    referenceRange?: string;
+    abnormalFlag?: boolean;
+  }>): Promise<void> {
+    const resultsKey = `${this.STORAGE_PREFIX}lab_results`;
+    const existingResults = this.getFromStorage<any[]>(resultsKey) || [];
+
+    results.forEach(result => {
+      existingResults.push({
+        id: this.generateId(),
+        labOrderId: orderId,
+        ...result,
+        resultDate: new Date().toISOString(),
+        status: 'final'
+      });
+    });
+
+    this.saveToStorage(resultsKey, existingResults);
+
+    // Update order status
+    const ordersKey = `${this.STORAGE_PREFIX}lab_orders`;
+    const orders = this.getFromStorage<any[]>(ordersKey) || [];
+    const order = orders.find(o => o.id === orderId);
+    if (order) {
+      order.status = 'completed';
+      this.saveToStorage(ordersKey, orders);
+    }
+  }
+
+  async getLabResults(patientId: string, testName?: string, limit: number = 10): Promise<any[]> {
+    const key = `${this.STORAGE_PREFIX}lab_results`;
+    let results = this.getFromStorage<any[]>(key) || this.getDemoLabResults(patientId);
+
+    // Filter by patient through orders
+    const orders = await this.getLabOrders(patientId);
+    const orderIds = orders.map(o => o.id);
+    results = results.filter(r => orderIds.includes(r.labOrderId));
+
+    if (testName) {
+      results = results.filter(r => r.testName === testName);
+    }
+
+    return results.slice(0, limit);
+  }
+
+  async getLabTrends(patientId: string, testName: string, duration: number = 12): Promise<any[]> {
+    const results = await this.getLabResults(patientId, testName, 100);
+
+    // Filter to last X months
+    const cutoffDate = new Date();
+    cutoffDate.setMonth(cutoffDate.getMonth() - duration);
+
+    return results
+      .filter(r => new Date(r.resultDate) >= cutoffDate)
+      .sort((a, b) => new Date(a.resultDate).getTime() - new Date(b.resultDate).getTime());
+  }
+
+  async getLabSchedule(patientId: string): Promise<any[]> {
+    const key = `${this.STORAGE_PREFIX}lab_schedules_${patientId}`;
+    return this.getFromStorage<any[]>(key) || this.getDemoLabSchedule(patientId);
+  }
+
+  async updateLabSchedule(patientId: string, schedules: Array<{
+    testName: string;
+    panelType?: string;
+    frequency: 'monthly' | 'quarterly' | 'biannual' | 'annual';
+    nextDueDate: string;
+  }>): Promise<void> {
+    const key = `${this.STORAGE_PREFIX}lab_schedules_${patientId}`;
+    const scheduleData = schedules.map(s => ({
+      id: this.generateId(),
+      patientId,
+      ...s,
+      enabled: true
+    }));
+    this.saveToStorage(key, scheduleData);
+  }
+
+  /**
+   * Demo Lab Data
+   */
+  private getDemoLabOrders(): any[] {
+    return [
+      {
+        id: 'order-001',
+        patientId: 'demo-patient-001',
+        orderedBy: 'provider-001',
+        orderDate: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
+        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        status: 'pending',
+        labsRequested: ['Hemoglobin A1C', 'Comprehensive Metabolic Panel', 'Lipid Panel'],
+        priority: 'routine',
+        panelType: 'diabetes_quarterly'
+      },
+      {
+        id: 'order-002',
+        patientId: 'demo-patient-001',
+        orderedBy: 'provider-001',
+        orderDate: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+        dueDate: new Date(Date.now() - 83 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        status: 'completed',
+        labsRequested: ['Hemoglobin A1C', 'Lipid Panel'],
+        priority: 'routine',
+        panelType: 'diabetes_quarterly'
+      }
+    ];
+  }
+
+  private getDemoLabResults(patientId: string): any[] {
+    return [
+      {
+        id: 'result-001',
+        labOrderId: 'order-002',
+        testName: 'Hemoglobin A1C',
+        resultValue: '8.2',
+        resultNumeric: 8.2,
+        unit: '%',
+        referenceRange: '<7.0',
+        abnormalFlag: true,
+        resultDate: new Date(Date.now() - 83 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        status: 'final'
+      },
+      {
+        id: 'result-002',
+        labOrderId: 'order-002',
+        testName: 'LDL Cholesterol',
+        resultValue: '145',
+        resultNumeric: 145,
+        unit: 'mg/dL',
+        referenceRange: '<100',
+        abnormalFlag: true,
+        resultDate: new Date(Date.now() - 83 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        status: 'final'
+      },
+      {
+        id: 'result-003',
+        labOrderId: 'order-002',
+        testName: 'HDL Cholesterol',
+        resultValue: '42',
+        resultNumeric: 42,
+        unit: 'mg/dL',
+        referenceRange: '>40',
+        abnormalFlag: false,
+        resultDate: new Date(Date.now() - 83 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        status: 'final'
+      }
+    ];
+  }
+
+  private getDemoLabSchedule(patientId: string): any[] {
+    return [
+      {
+        id: 'schedule-001',
+        patientId,
+        testName: 'Hemoglobin A1C',
+        panelType: 'diabetes_quarterly',
+        frequency: 'quarterly',
+        lastCompletedDate: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        nextDueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        enabled: true
+      },
+      {
+        id: 'schedule-002',
+        patientId,
+        testName: 'Lipid Panel',
+        panelType: 'diabetes_quarterly',
+        frequency: 'quarterly',
+        lastCompletedDate: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        nextDueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        enabled: true
+      },
+      {
+        id: 'schedule-003',
+        patientId,
+        testName: 'TSH',
+        panelType: 'diabetes_annual',
+        frequency: 'annual',
+        lastCompletedDate: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        nextDueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        enabled: true
+      }
+    ];
+  }
+
+  /**
    * Utility Functions
    */
   private generateId(): string {
