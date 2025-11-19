@@ -228,6 +228,11 @@ class PCMService {
     }
   }
 
+  async getPatientPhone(patientId: string): Promise<string | null> {
+    const patient = await this.getPatient(patientId);
+    return patient?.phone || null;
+  }
+
   /**
    * Patient Stats for Dashboard
    */

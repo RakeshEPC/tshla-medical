@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS pcm_lab_schedules (
 CREATE TABLE IF NOT EXISTS pcm_call_schedules (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+  patient_phone VARCHAR(20) NOT NULL, -- Phone number for outbound calls
   day_of_week INTEGER NOT NULL, -- 0=Sunday, 1=Monday, etc.
   call_time TIME NOT NULL DEFAULT '10:00:00',
   timezone VARCHAR(50) DEFAULT 'America/Chicago',
@@ -85,15 +86,19 @@ CREATE TABLE IF NOT EXISTS pcm_call_schedules (
 CREATE TABLE IF NOT EXISTS pcm_call_logs (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+  patient_phone VARCHAR(20), -- Phone number called
   schedule_id UUID REFERENCES pcm_call_schedules(id) ON DELETE SET NULL,
   call_date TIMESTAMPTZ DEFAULT NOW(),
-  status VARCHAR(50) NOT NULL, -- completed, missed, failed, in_progress
+  status VARCHAR(50) NOT NULL, -- completed, missed, failed, in_progress, ringing, no_answer
   duration_seconds INTEGER,
   transcript TEXT,
   audio_url TEXT, -- ElevenLabs recording URL
   call_sid VARCHAR(100), -- Twilio call identifier
+  call_direction VARCHAR(20) DEFAULT 'outbound', -- outbound (to patient), inbound (from patient)
   error_message TEXT,
   retry_count INTEGER DEFAULT 0,
+  answered BOOLEAN DEFAULT false,
+  answered_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -133,6 +138,7 @@ CREATE TABLE IF NOT EXISTS pcm_provider_responses (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   summary_id UUID NOT NULL REFERENCES pcm_call_summaries(id) ON DELETE CASCADE,
   patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+  patient_phone VARCHAR(20), -- Phone number for delivery
   provider_id UUID NOT NULL REFERENCES doctors(id) ON DELETE SET NULL,
 
   response_type VARCHAR(50) NOT NULL, -- encouraging, instructional, urgent_callback, emergency
@@ -141,9 +147,14 @@ CREATE TABLE IF NOT EXISTS pcm_provider_responses (
 
   -- Delivery
   sent_date TIMESTAMPTZ DEFAULT NOW(),
-  delivery_method VARCHAR(50) DEFAULT 'sms', -- sms, app_notification, automated_call
+  delivery_method VARCHAR(50) DEFAULT 'phone_call', -- phone_call, sms, app_notification
+  delivery_status VARCHAR(50) DEFAULT 'pending', -- pending, ringing, delivered, failed, no_answer
+  call_sid VARCHAR(100), -- Twilio call identifier for phone delivery
   patient_viewed BOOLEAN DEFAULT false,
   patient_viewed_date TIMESTAMPTZ,
+  call_answered BOOLEAN DEFAULT false,
+  call_answered_at TIMESTAMPTZ,
+  call_duration_seconds INTEGER,
 
   -- Follow-up
   requires_acknowledgment BOOLEAN DEFAULT false,

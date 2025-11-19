@@ -24,10 +24,12 @@ import {
   Calendar
 } from 'lucide-react';
 import { pcmAICallService, type CallSummary } from '../services/pcmAICall.service';
+import { pcmService } from '../services/pcm.service';
 
 export default function PCMCallSummaries() {
   const navigate = useNavigate();
   const [summaries, setSummaries] = useState<CallSummary[]>([]);
+  const [patientPhone, setPatientPhone] = useState<string>('');
   const [filteredSummaries, setFilteredSummaries] = useState<CallSummary[]>([]);
   const [selectedSummary, setSelectedSummary] = useState<CallSummary | null>(null);
   const [filterReviewed, setFilterReviewed] = useState<string>('unreviewed');
@@ -84,9 +86,13 @@ export default function PCMCallSummaries() {
     setFilteredSummaries(filtered);
   };
 
-  const handleOpenResponse = (summary: CallSummary) => {
+  const handleOpenResponse = async (summary: CallSummary) => {
     setSelectedSummary(summary);
     setShowResponseModal(true);
+
+    // Fetch patient phone number
+    const phone = await pcmService.getPatientPhone(summary.patientId);
+    setPatientPhone(phone || '');
 
     // Pre-populate response based on urgency
     if (summary.urgencyLevel === 'urgent' || summary.urgencyLevel === 'emergency') {
@@ -114,16 +120,20 @@ export default function PCMCallSummaries() {
       await pcmAICallService.recordProviderResponse({
         summaryId: selectedSummary.id,
         patientId: selectedSummary.patientId,
+        patientPhone: patientPhone || undefined,
         providerId: 'current-provider-id', // From auth context
         providerName: 'Dr. Johnson',
         responseType,
-        responseText
+        responseText,
+        deliveryMethod: 'phone_call' // Will make actual phone call
       });
 
       await loadSummaries();
       setShowResponseModal(false);
       setSelectedSummary(null);
       setResponseText('');
+      setPatientPhone('');
+      alert(`Voice response sent successfully to ${patientPhone}!`);
     } catch (error) {
       console.error('Error submitting response:', error);
       alert('Failed to send response');
@@ -408,11 +418,22 @@ export default function PCMCallSummaries() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b border-gray-200 p-6">
-              <h3 className="text-xl font-bold text-gray-900">Respond to {selectedSummary.patientName}</h3>
-              <p className="text-sm text-gray-600 mt-1">Your response will be converted to audio and sent to the patient</p>
+              <h3 className="text-xl font-bold text-gray-900">Call {selectedSummary.patientName}</h3>
+              <p className="text-sm text-gray-600 mt-1">Your message will be converted to speech and delivered via automated phone call</p>
             </div>
 
             <div className="p-6 space-y-6">
+              {/* Patient Phone Number */}
+              {patientPhone && (
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-3">
+                  <Phone className="w-5 h-5 text-blue-600" />
+                  <div>
+                    <div className="text-sm font-semibold text-blue-900">Call will be placed to:</div>
+                    <div className="text-lg font-bold text-blue-700">{patientPhone}</div>
+                  </div>
+                </div>
+              )}
+
               {/* Response Type */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-3">Response Type</label>
@@ -449,7 +470,7 @@ export default function PCMCallSummaries() {
                   placeholder="Write your message to the patient..."
                 />
                 <div className="text-xs text-gray-500 mt-1">
-                  This will be converted to speech using ElevenLabs AI
+                  This will be converted to speech using ElevenLabs AI and delivered via phone call
                 </div>
               </div>
 
@@ -460,6 +481,7 @@ export default function PCMCallSummaries() {
                     setShowResponseModal(false);
                     setSelectedSummary(null);
                     setResponseText('');
+                    setPatientPhone('');
                   }}
                   className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-semibold"
                 >
@@ -467,18 +489,18 @@ export default function PCMCallSummaries() {
                 </button>
                 <button
                   onClick={handleSubmitResponse}
-                  disabled={isSubmittingResponse || !responseText.trim()}
+                  disabled={isSubmittingResponse || !responseText.trim() || !patientPhone}
                   className="flex-1 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isSubmittingResponse ? (
                     <>
                       <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                      Sending...
+                      Calling patient...
                     </>
                   ) : (
                     <>
-                      <Mic className="w-5 h-5" />
-                      Send Voice Response
+                      <Phone className="w-5 h-5" />
+                      Call Patient & Deliver Response
                     </>
                   )}
                 </button>

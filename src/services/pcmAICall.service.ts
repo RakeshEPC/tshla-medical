@@ -6,11 +6,13 @@
  */
 
 import { elevenLabsService } from './elevenLabs.service';
+import { twilioCallService } from './twilioCall.service';
 
 export interface CallSchedule {
   id: string;
   patientId: string;
   patientName: string;
+  patientPhone: string; // Phone number for outbound calls
   dayOfWeek: number; // 0=Sunday, 1=Monday, etc.
   callTime: string;
   timezone: string;
@@ -24,12 +26,16 @@ export interface CallSchedule {
 export interface CallLog {
   id: string;
   patientId: string;
+  patientPhone?: string;
   scheduleId: string;
   callDate: string;
-  status: 'completed' | 'missed' | 'failed' | 'in_progress';
+  status: 'completed' | 'missed' | 'failed' | 'in_progress' | 'ringing' | 'no_answer';
   durationSeconds?: number;
   transcript?: string;
   audioUrl?: string;
+  callSid?: string; // Twilio call identifier
+  answered?: boolean;
+  answeredAt?: string;
   errorMessage?: string;
 }
 
@@ -61,11 +67,18 @@ export interface ProviderResponse {
   id: string;
   summaryId: string;
   patientId: string;
+  patientPhone?: string;
   providerId: string;
   providerName: string;
   responseType: 'encouraging' | 'instructional' | 'urgent_callback' | 'emergency';
   responseText: string;
   audioUrl?: string;
+  deliveryMethod?: 'phone_call' | 'sms' | 'app_notification';
+  deliveryStatus?: 'pending' | 'ringing' | 'delivered' | 'failed' | 'no_answer';
+  callSid?: string; // Twilio call identifier
+  callAnswered?: boolean;
+  callAnsweredAt?: string;
+  callDuration?: number;
   sentDate: string;
   patientViewed: boolean;
   patientViewedDate?: string;
@@ -159,9 +172,15 @@ class PCMAICallService {
       throw new Error('Schedule not found');
     }
 
+    // Validate phone number
+    if (!schedule.patientPhone || !twilioCallService.isValidPhoneNumber(schedule.patientPhone)) {
+      throw new Error('Invalid patient phone number');
+    }
+
     const callLog: CallLog = {
       id: this.generateId(),
       patientId: schedule.patientId,
+      patientPhone: schedule.patientPhone,
       scheduleId,
       callDate: new Date().toISOString(),
       status: 'in_progress'
@@ -172,9 +191,31 @@ class PCMAICallService {
     logs.push(callLog);
     this.saveToStorage(key, logs);
 
-    // In production, this would trigger ElevenLabs conversational AI call
-    // For demo, simulate completion
-    setTimeout(() => this.simulateCallCompletion(callLog.id), 2000);
+    // Make actual phone call via Twilio + ElevenLabs
+    try {
+      const formattedPhone = twilioCallService.formatPhoneNumber(schedule.patientPhone);
+      const callResult = await twilioCallService.initiateCheckInCall(
+        formattedPhone,
+        schedule.patientName,
+        'diabetes_weekly'
+      );
+
+      // Update call log with Twilio details
+      callLog.callSid = callResult.callSid;
+      callLog.status = callResult.status === 'failed' ? 'failed' : 'in_progress';
+      if (callResult.errorMessage) {
+        callLog.errorMessage = callResult.errorMessage;
+      }
+      this.saveToStorage(key, logs);
+
+      // For demo, simulate completion after delay
+      // In production, this would be triggered by Twilio webhook
+      setTimeout(() => this.simulateCallCompletion(callLog.id), 2000);
+    } catch (error) {
+      callLog.status = 'failed';
+      callLog.errorMessage = error instanceof Error ? error.message : 'Call failed';
+      this.saveToStorage(key, logs);
+    }
 
     return callLog;
   }
@@ -307,7 +348,9 @@ class PCMAICallService {
       ...response,
       id: this.generateId(),
       sentDate: new Date().toISOString(),
-      patientViewed: false
+      patientViewed: false,
+      deliveryMethod: response.deliveryMethod || 'phone_call',
+      deliveryStatus: 'pending'
     };
 
     // Generate audio if text provided
@@ -324,6 +367,36 @@ class PCMAICallService {
     const responses = this.getFromStorage<ProviderResponse[]>(key) || [];
     responses.push(newResponse);
     this.saveToStorage(key, responses);
+
+    // Make actual phone call if delivery method is phone_call
+    if (newResponse.deliveryMethod === 'phone_call' && newResponse.patientPhone && newResponse.audioUrl) {
+      try {
+        const formattedPhone = twilioCallService.formatPhoneNumber(newResponse.patientPhone);
+        const callResult = await twilioCallService.makeOutboundCall({
+          to: formattedPhone,
+          audioUrl: newResponse.audioUrl,
+          statusCallback: `${window.location.origin}/api/twilio/status`,
+          record: false
+        });
+
+        // Update response with call details
+        newResponse.callSid = callResult.callSid;
+        newResponse.deliveryStatus = callResult.status === 'failed' ? 'failed' :
+                                     callResult.status === 'no-answer' ? 'no_answer' :
+                                     callResult.status === 'completed' ? 'delivered' : 'ringing';
+        if (callResult.status === 'completed') {
+          newResponse.callAnswered = true;
+          newResponse.callAnsweredAt = callResult.startedAt;
+          newResponse.callDuration = callResult.duration;
+        }
+
+        this.saveToStorage(key, responses);
+      } catch (error) {
+        console.error('Failed to make phone call:', error);
+        newResponse.deliveryStatus = 'failed';
+        this.saveToStorage(key, responses);
+      }
+    }
 
     // Mark summary as having response
     const summariesKey = `${this.STORAGE_PREFIX}summaries`;
@@ -387,6 +460,7 @@ class PCMAICallService {
         id: 'schedule-001',
         patientId: 'demo-patient-001',
         patientName: 'Jane Smith',
+        patientPhone: '(555) 123-4567',
         dayOfWeek: 1, // Monday
         callTime: '10:00:00',
         timezone: 'America/Chicago',
