@@ -1,4 +1,6 @@
 import { logError, logWarn, logInfo, logDebug } from './logger.service';
+import type { OrderExtractionResult } from './orderExtraction.service';
+
 /**
  * Dictated Notes Service
  * Frontend service for managing dictated notes storage and retrieval
@@ -45,6 +47,7 @@ export interface DictatedNote {
   last_edited_at?: string;
   signed_at?: string;
   signed_by_provider_name?: string;
+  extracted_orders?: OrderExtractionResult;
 }
 
 export interface CreateNoteRequest {
@@ -75,6 +78,7 @@ export interface CreateNoteRequest {
   processing_confidence_score?: number;
   medical_terms_detected?: any;
   status?: string;
+  extracted_orders?: OrderExtractionResult;
 }
 
 export interface UpdateNoteRequest {
@@ -301,6 +305,7 @@ class DictatedNotesService {
     providerName: string;
     providerEmail?: string;
     appointmentId?: string;
+    extractedOrders?: OrderExtractionResult;
   }): Promise<string> {
     const noteRequest: CreateNoteRequest = {
       provider_id: sessionData.providerId,
@@ -319,6 +324,7 @@ class DictatedNotesService {
       template_sections: sessionData.selectedTemplate?.sections,
       ai_model_used: 'claude-3-5-sonnet',
       status: 'draft',
+      extracted_orders: sessionData.extractedOrders,
     };
 
     return this.saveDictatedNote(noteRequest);

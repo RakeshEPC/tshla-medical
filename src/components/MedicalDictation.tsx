@@ -19,6 +19,8 @@ import NoteFormatter from './NoteFormatter';
 import { NoteSharing } from './NoteSharing';
 import { noteSharingService, type ShareableNote } from '../services/noteSharing.service';
 import { AudioSummaryModal } from './echo/AudioSummaryModal';
+import { OrdersDisplay } from './OrdersDisplay';
+import type { OrderExtractionResult } from '../services/orderExtraction.service';
 import '../styles/modernUI.css';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
 
@@ -72,6 +74,9 @@ export default function MedicalDictation({ patientId, preloadPatientData = false
   const [processedNoteVersions, setProcessedNoteVersions] = useState<ProcessedNoteVersion[]>([]);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [showAudioSummaryModal, setShowAudioSummaryModal] = useState(false);
+
+  // Extracted orders state
+  const [extractedOrders, setExtractedOrders] = useState<OrderExtractionResult | null>(null);
 
   // Patient details for live editing
   const [patientDetails, setPatientDetails] = useState({
@@ -845,6 +850,18 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
       // Extract just the formatted note from the result
       const processedContent = result.formatted;
 
+      // Extract orders if available
+      if (result.extractedOrders) {
+        setExtractedOrders(result.extractedOrders);
+        logInfo('MedicalDictation', 'Extracted orders from note', {
+          medications: result.extractedOrders.medications.length,
+          labs: result.extractedOrders.labs.length,
+          imaging: result.extractedOrders.imaging.length,
+          priorAuths: result.extractedOrders.priorAuths.length,
+          referrals: result.extractedOrders.referrals.length
+        });
+      }
+
       logDebug('MedicalDictation', 'Debug message', {});
 
       // Save version to history before updating current
@@ -901,6 +918,7 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
     setShowProcessed(false);
     setAiProcessingFailed(false);
     setAiProcessingError('');
+    setExtractedOrders(null);
   };
 
   const copyToClipboard = async (text: string) => {
@@ -1656,6 +1674,19 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
                 )}
               </div>
             </div>
+
+            {/* Orders for Staff Section */}
+            {extractedOrders && showProcessed && (
+              <OrdersDisplay
+                orders={extractedOrders}
+                patientName={patientDetails.name}
+                onCopyOrders={(ordersText) => {
+                  logInfo('MedicalDictation', 'Orders copied to clipboard', {
+                    patientName: patientDetails.name
+                  });
+                }}
+              />
+            )}
 
             {/* Version History Panel */}
             {showVersionHistory && processedNoteVersions.length > 0 && (

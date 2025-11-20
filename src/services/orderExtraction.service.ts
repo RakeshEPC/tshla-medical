@@ -33,29 +33,35 @@ class OrderExtractionService {
     decrease: ['decrease', 'lower', 'reduce', 'less', 'down', 'taper'],
   };
 
-  // Lab keywords
+  // Lab keywords - expanded with common tests
   private labKeywords = [
-    'order',
-    "let's get",
-    "let's check",
-    'draw',
-    'check',
-    'labs',
-    'blood work',
-    'bloodwork',
-    'test',
-    'panel',
-    'cbc',
-    'cmp',
-    'bmp',
-    'tsh',
-    'a1c',
-    'hemoglobin',
-    'glucose',
-    'lipid',
-    'liver',
-    'kidney',
-    'electrolytes',
+    // Action words
+    'order', "let's get", "let's check", "let's order", 'draw', 'check', 'obtain', 'send',
+    'labs', 'blood work', 'bloodwork', 'test', 'panel', 'screen', 'workup',
+
+    // General panels
+    'cbc', 'complete blood count', 'cmp', 'comprehensive metabolic', 'bmp', 'basic metabolic',
+    'lft', 'liver function', 'rft', 'renal function', 'lipid panel', 'metabolic panel',
+
+    // Specific tests
+    'tsh', 'thyroid', 't3', 't4', 'free t4', 'thyroid stimulating',
+    'a1c', 'hemoglobin a1c', 'hba1c', 'glycated hemoglobin',
+    'glucose', 'fasting glucose', 'blood sugar', 'random glucose',
+    'creatinine', 'bun', 'egfr', 'kidney function',
+    'alt', 'ast', 'alkaline phosphatase', 'bilirubin', 'albumin',
+    'lipid', 'cholesterol', 'ldl', 'hdl', 'triglycerides',
+    'hemoglobin', 'hematocrit', 'platelets', 'wbc', 'white blood',
+    'inr', 'pt', 'ptt', 'coagulation', 'clotting',
+    'urinalysis', 'ua', 'urine', 'microalbumin', 'protein/creatinine',
+    'vitamin d', '25-oh vitamin d', 'vitamin b12', 'folate', 'iron', 'ferritin',
+    'cortisol', 'acth', 'testosterone', 'estrogen', 'progesterone',
+    'psa', 'prostate', 'cea', 'tumor marker',
+    'crp', 'c-reactive protein', 'esr', 'sed rate', 'inflammatory',
+    'culture', 'sensitivity', 'blood culture', 'urine culture',
+    'strep', 'covid', 'flu', 'rsv', 'rapid test',
+    'electrolytes', 'sodium', 'potassium', 'chloride', 'co2', 'bicarbonate',
+    'troponin', 'bnp', 'cardiac enzymes', 'cpk', 'ck-mb',
+    'hcg', 'pregnancy test', 'beta hcg',
   ];
 
   // Lab value keywords (for detecting existing lab results, not orders)
@@ -121,31 +127,53 @@ class OrderExtractionService {
     'schedule with',
   ];
 
-  // Common medication names for better detection
+  // Common medication names for better detection (expanded)
   private commonMedications = [
-    'metformin',
-    'insulin',
-    'glipizide',
-    'januvia',
-    'ozempic',
-    'trulicity',
-    'jardiance',
-    'farxiga',
-    'humalog',
-    'lantus',
-    'levothyroxine',
-    'synthroid',
-    'lisinopril',
-    'metoprolol',
-    'atorvastatin',
-    'simvastatin',
-    'aspirin',
-    'clopidogrel',
-    'warfarin',
-    'eliquis',
-    'xarelto',
-    'gabapentin',
-    'lyrica',
+    // Diabetes medications
+    'metformin', 'glucophage', 'insulin', 'glipizide', 'glyburide', 'januvia', 'janumet',
+    'ozempic', 'semaglutide', 'trulicity', 'dulaglutide', 'victoza', 'liraglutide',
+    'jardiance', 'empagliflozin', 'farxiga', 'dapagliflozin', 'invokana', 'canagliflozin',
+    'humalog', 'novolog', 'lantus', 'levemir', 'basaglar', 'tresiba', 'toujeo',
+    'glimepiride', 'amaryl', 'tradjenta', 'onglyza', 'nesina',
+
+    // Thyroid medications
+    'levothyroxine', 'synthroid', 'levoxyl', 'tirosint', 'armour thyroid', 'cytomel', 'liothyronine',
+
+    // Cardiovascular medications
+    'lisinopril', 'enalapril', 'ramipril', 'losartan', 'valsartan', 'olmesartan', 'irbesartan',
+    'metoprolol', 'atenolol', 'carvedilol', 'bisoprolol', 'propranolol',
+    'amlodipine', 'nifedipine', 'diltiazem', 'verapamil',
+    'atorvastatin', 'simvastatin', 'rosuvastatin', 'pravastatin', 'lovastatin',
+    'lipitor', 'crestor', 'zocor',
+    'aspirin', 'clopidogrel', 'plavix', 'warfarin', 'coumadin', 'eliquis', 'apixaban',
+    'xarelto', 'rivaroxaban', 'pradaxa', 'dabigatran',
+    'furosemide', 'lasix', 'hydrochlorothiazide', 'hctz', 'chlorthalidone', 'spironolactone',
+
+    // Pain/Anti-inflammatory
+    'gabapentin', 'lyrica', 'pregabalin', 'ibuprofen', 'naproxen', 'meloxicam', 'celecoxib',
+    'tramadol', 'acetaminophen', 'tylenol', 'diclofenac',
+
+    // Antibiotics (common)
+    'amoxicillin', 'augmentin', 'azithromycin', 'zithromax', 'ciprofloxacin', 'cipro',
+    'levofloxacin', 'levaquin', 'doxycycline', 'cephalexin', 'keflex', 'bactrim', 'sulfamethoxazole',
+
+    // Respiratory
+    'albuterol', 'proair', 'ventolin', 'advair', 'symbicort', 'spiriva', 'tiotropium',
+    'montelukast', 'singulair', 'fluticasone', 'flonase',
+
+    // GI medications
+    'omeprazole', 'prilosec', 'pantoprazole', 'protonix', 'esomeprazole', 'nexium',
+    'ranitidine', 'famotidine', 'pepcid', 'zofran', 'ondansetron', 'metoclopramide', 'reglan',
+
+    // Mental health
+    'sertraline', 'zoloft', 'escitalopram', 'lexapro', 'fluoxetine', 'prozac',
+    'citalopram', 'celexa', 'paroxetine', 'paxil', 'venlafaxine', 'effexor',
+    'duloxetine', 'cymbalta', 'bupropion', 'wellbutrin', 'trazodone',
+    'alprazolam', 'xanax', 'lorazepam', 'ativan', 'clonazepam', 'klonopin',
+
+    // Other common
+    'prednisone', 'methylprednisolone', 'vitamin d', 'calcium', 'multivitamin',
+    'potassium', 'magnesium', 'iron', 'folic acid', 'b12', 'cobalamin',
   ];
 
   /**
@@ -289,31 +317,92 @@ class OrderExtractionService {
   }
 
   /**
+   * Calculate confidence score for an extraction
+   */
+  private calculateConfidence(
+    sentence: string,
+    type: 'medication' | 'lab' | 'imaging' | 'prior_auth' | 'referral' | 'other',
+    hasAction: boolean,
+    hasSpecificTerm: boolean
+  ): number {
+    let confidence = 0.5; // Base confidence
+
+    // Boost for specific action words
+    if (hasAction) {
+      confidence += 0.2;
+    }
+
+    // Boost for known medication names or lab tests
+    if (hasSpecificTerm) {
+      confidence += 0.25;
+    }
+
+    // Boost for dosage information (medications)
+    if (type === 'medication' && /\d+\s*(mg|mcg|units?|ml|g|tablets?|capsules?)/i.test(sentence)) {
+      confidence += 0.15;
+    }
+
+    // Boost for frequency information (medications)
+    if (type === 'medication' && /(daily|twice|bid|tid|qid|prn|every|once|morning|evening|bedtime)/i.test(sentence)) {
+      confidence += 0.1;
+    }
+
+    // Penalty for vague language
+    if (/(maybe|possibly|consider|might|could)/i.test(sentence)) {
+      confidence -= 0.15;
+    }
+
+    // Penalty for questions
+    if (/\?|should we|do we want/i.test(sentence)) {
+      confidence -= 0.2;
+    }
+
+    // Cap between 0 and 1
+    return Math.max(0, Math.min(1, confidence));
+  }
+
+  /**
    * Extract medication order from sentence
    */
   private extractMedicationOrder(sentence: string): ExtractedOrder | null {
     const lowerSentence = sentence.toLowerCase();
+    let action: string | undefined;
+    let hasSpecificMed = false;
 
     // Check for medication action keywords
-    for (const [action, keywords] of Object.entries(this.medicationKeywords)) {
+    for (const [actionType, keywords] of Object.entries(this.medicationKeywords)) {
       for (const keyword of keywords) {
         if (lowerSentence.includes(keyword)) {
-          // Check if it's actually about medication
-          const isMedication =
-            this.commonMedications.some(med => lowerSentence.includes(med.toLowerCase())) ||
-            lowerSentence.includes('mg') ||
-            lowerSentence.includes('medication');
-
-          if (isMedication) {
-            return {
-              type: 'medication',
-              text: sentence,
-              action: action as any,
-              confidence: 0.85,
-            };
-          }
+          action = actionType;
+          break;
         }
       }
+      if (action) break;
+    }
+
+    // Check for specific medication names
+    hasSpecificMed = this.commonMedications.some(med => lowerSentence.includes(med.toLowerCase()));
+
+    // Check if it's actually about medication
+    const isMedication =
+      hasSpecificMed ||
+      lowerSentence.includes('mg') ||
+      lowerSentence.includes('mcg') ||
+      lowerSentence.includes('units') ||
+      lowerSentence.includes('medication') ||
+      lowerSentence.includes('prescription') ||
+      lowerSentence.includes('drug');
+
+    if (isMedication && action) {
+      const confidence = this.calculateConfidence(sentence, 'medication', !!action, hasSpecificMed);
+
+      return {
+        type: 'medication',
+        text: sentence.trim(),
+        action: action as any,
+        confidence,
+        urgency: this.extractUrgency(sentence),
+      };
     }
 
     return null;
@@ -344,13 +433,25 @@ class OrderExtractionService {
    */
   private extractLabOrder(sentence: string): ExtractedOrder {
     const urgency = this.extractUrgency(sentence);
+    const lowerSentence = sentence.toLowerCase();
+
+    // Check if specific lab test is mentioned
+    const hasSpecificTest = this.labKeywords.some(keyword => {
+      // Only count specific tests, not action words
+      return keyword.length > 4 && lowerSentence.includes(keyword);
+    });
+
+    // Check for action words
+    const hasAction = /order|check|get|draw|obtain|send/i.test(sentence);
+
+    const confidence = this.calculateConfidence(sentence, 'lab', hasAction, hasSpecificTest);
 
     return {
       type: 'lab',
-      text: sentence,
+      text: sentence.trim(),
       action: 'order',
       urgency,
-      confidence: 0.8,
+      confidence,
     };
   }
 
