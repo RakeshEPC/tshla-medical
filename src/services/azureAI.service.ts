@@ -522,9 +522,30 @@ class AzureAIService {
       console.log('Full sections object:', extractedSections);
       console.log('🔍 ============================================================');
 
+      // Extract orders from the original transcript (before AI processing)
+      const extractedOrders = orderExtractionService.extractOrders(transcript);
+
+      // Log extracted orders for debugging
+      if (extractedOrders && (
+        extractedOrders.medications.length > 0 ||
+        extractedOrders.labs.length > 0 ||
+        extractedOrders.imaging.length > 0 ||
+        extractedOrders.priorAuths.length > 0 ||
+        extractedOrders.referrals.length > 0
+      )) {
+        logInfo('azureAI', 'Extracted orders from transcript', {
+          medications: extractedOrders.medications.length,
+          labs: extractedOrders.labs.length,
+          imaging: extractedOrders.imaging.length,
+          priorAuths: extractedOrders.priorAuths.length,
+          referrals: extractedOrders.referrals.length
+        });
+      }
+
       return {
         formatted: formattedNote,
         sections: extractedSections,
+        extractedOrders: extractedOrders,
         metadata: {
           processedAt: new Date().toISOString(),
           model: model,
