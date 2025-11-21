@@ -1724,16 +1724,33 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
               </div>
             </div>
 
+            {/* Orders for Staff Section - DEBUG */}
+            {showProcessed && (
+              <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4 my-4">
+                <h3 className="font-bold text-lg mb-2">🔍 DEBUG: Order Extraction Status</h3>
+                <div className="text-sm space-y-1">
+                  <p><strong>extractedOrders exists:</strong> {extractedOrders ? 'YES ✅' : 'NO ❌'}</p>
+                  <p><strong>showProcessed:</strong> {showProcessed ? 'YES ✅' : 'NO ❌'}</p>
+                  {extractedOrders && (
+                    <>
+                      <p><strong>Medications:</strong> {extractedOrders.medications?.length || 0}</p>
+                      <p><strong>Labs:</strong> {extractedOrders.labs?.length || 0}</p>
+                      <p><strong>Imaging:</strong> {extractedOrders.imaging?.length || 0}</p>
+                      <p><strong>Prior Auths:</strong> {extractedOrders.priorAuths?.length || 0}</p>
+                      <p><strong>Referrals:</strong> {extractedOrders.referrals?.length || 0}</p>
+                      <details className="mt-2">
+                        <summary className="cursor-pointer font-semibold">View Raw Data</summary>
+                        <pre className="text-xs bg-white p-2 mt-2 overflow-auto max-h-60">
+                          {JSON.stringify(extractedOrders, null, 2)}
+                        </pre>
+                      </details>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Orders for Staff Section */}
-            {(() => {
-              console.log('🔍 OrdersDisplay render check:', {
-                extractedOrders: !!extractedOrders,
-                showProcessed,
-                shouldRender: !!(extractedOrders && showProcessed),
-                ordersContent: extractedOrders
-              });
-              return null;
-            })()}
             {extractedOrders && showProcessed && (
               <OrdersDisplay
                 orders={extractedOrders}
