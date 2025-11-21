@@ -850,9 +850,16 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
       // Extract just the formatted note from the result
       const processedContent = result.formatted;
 
+      // 🔍 DEBUG: Check what we got back from AI service
+      console.log('🔍 ==================== AI SERVICE RESULT ====================');
+      console.log('Has extractedOrders?', !!result.extractedOrders);
+      console.log('extractedOrders:', result.extractedOrders);
+      console.log('🔍 ===========================================================');
+
       // Extract orders if available
       if (result.extractedOrders) {
         setExtractedOrders(result.extractedOrders);
+        console.log('✅ Setting extractedOrders state:', result.extractedOrders);
         logInfo('MedicalDictation', 'Extracted orders from note', {
           medications: result.extractedOrders.medications.length,
           labs: result.extractedOrders.labs.length,
@@ -860,6 +867,8 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
           priorAuths: result.extractedOrders.priorAuths.length,
           referrals: result.extractedOrders.referrals.length
         });
+      } else {
+        console.log('❌ No extractedOrders in result');
       }
 
       logDebug('MedicalDictation', 'Debug message', {});
@@ -1716,6 +1725,15 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
             </div>
 
             {/* Orders for Staff Section */}
+            {(() => {
+              console.log('🔍 OrdersDisplay render check:', {
+                extractedOrders: !!extractedOrders,
+                showProcessed,
+                shouldRender: !!(extractedOrders && showProcessed),
+                ordersContent: extractedOrders
+              });
+              return null;
+            })()}
             {extractedOrders && showProcessed && (
               <OrdersDisplay
                 orders={extractedOrders}
