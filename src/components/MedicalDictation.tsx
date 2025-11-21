@@ -1731,6 +1731,7 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
                 <div className="text-sm space-y-1">
                   <p><strong>extractedOrders exists:</strong> {extractedOrders ? 'YES ✅' : 'NO ❌'}</p>
                   <p><strong>showProcessed:</strong> {showProcessed ? 'YES ✅' : 'NO ❌'}</p>
+                  <p><strong>Transcript length:</strong> {transcript.length} characters</p>
                   {extractedOrders && (
                     <>
                       <p><strong>Medications:</strong> {extractedOrders.medications?.length || 0}</p>
@@ -1746,6 +1747,12 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
                       </details>
                     </>
                   )}
+                  <details className="mt-2">
+                    <summary className="cursor-pointer font-semibold text-blue-600">🔍 View Transcript (for debugging order extraction)</summary>
+                    <pre className="text-xs bg-white p-2 mt-2 overflow-auto max-h-60 border">
+                      {transcript}
+                    </pre>
+                  </details>
                 </div>
               </div>
             )}

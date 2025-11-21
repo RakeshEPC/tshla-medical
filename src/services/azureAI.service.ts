@@ -758,9 +758,18 @@ class AzureAIService {
     patient?: PatientData,
     settings?: DoctorSettings
   ): Promise<ProcessedNote> {
+    console.log('🔍 ==================== ENHANCE WITH ORDER EXTRACTION ====================');
+    console.log('📝 Transcript length:', transcript.length);
+    console.log('📝 Transcript preview (first 200 chars):', transcript.substring(0, 200));
+
     logDebug('azureAI', 'Enhancing note with order extraction and validation');
     const correctedTranscript = medicalCorrections.correctTranscription(transcript);
     const extractedOrders = orderExtractionService.extractOrders(correctedTranscript);
+
+    console.log('🔍 Extracted orders result:', extractedOrders);
+    console.log('🔍 Medications found:', extractedOrders?.medications?.length || 0);
+    console.log('🔍 Labs found:', extractedOrders?.labs?.length || 0);
+    console.log('🔍 Imaging found:', extractedOrders?.imaging?.length || 0);
 
     if (extractedOrders && (
       extractedOrders.medications.length > 0 ||
@@ -769,12 +778,16 @@ class AzureAIService {
       extractedOrders.priorAuths.length > 0 ||
       extractedOrders.referrals.length > 0
     )) {
+      console.log('✅ Orders found! Adding to processedNote.extractedOrders');
       const ordersAndActions = orderExtractionService.formatOrdersForTemplate(extractedOrders);
       processedNote.sections.ordersAndActions = ordersAndActions;
       processedNote.extractedOrders = extractedOrders;
       processedNote.formatted += `\n\n**ORDERS & ACTIONS:**\n${ordersAndActions}`;
       logInfo('azureAI', 'Enhanced note with extracted orders', { orderCount: extractedOrders.medications.length + extractedOrders.labs.length });
+    } else {
+      console.log('❌ No orders found in transcript');
     }
+    console.log('🔍 ===========================================================');
 
     // IMPROVED: Validate template compliance with multiple retry attempts
     if (template) {
