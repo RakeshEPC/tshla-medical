@@ -35,6 +35,12 @@ interface LabOrder {
   priority: 'routine' | 'urgent' | 'stat';
   panelType?: string;
   notes?: string;
+  source?: 'manual' | 'ai_extraction'; // Track if order came from dictation
+  orderType?: 'medication' | 'lab' | 'imaging' | 'prior_auth' | 'referral';
+  orderText?: string;
+  action?: string;
+  confidence?: number;
+  requiresVerification?: boolean;
 }
 
 const LAB_PANELS = [
@@ -388,6 +394,11 @@ export default function PCMLabOrders() {
                             <span className={`text-xs font-semibold px-2 py-1 rounded-full ${getPriorityBadge(order.priority)}`}>
                               {order.priority.toUpperCase()}
                             </span>
+                            {(order as any).source === 'ai_extraction' && (
+                              <span className="text-xs font-bold px-2 py-1 rounded-full bg-blue-100 text-blue-800 border border-blue-300">
+                                🤖 FROM DICTATION
+                              </span>
+                            )}
                             {order.panelType && (
                               <span className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded-full">
                                 {order.panelType.replace('_', ' ').toUpperCase()}
@@ -436,12 +447,22 @@ export default function PCMLabOrders() {
                     <div className="bg-gray-50 rounded-lg p-4">
                       <div className="text-xs font-semibold text-gray-700 mb-2">Tests Requested:</div>
                       <div className="flex flex-wrap gap-2">
-                        {order.labsRequested.map((test, idx) => (
+                        {order.labsRequested?.map((test, idx) => (
                           <span key={idx} className="text-xs bg-white px-3 py-1 rounded-full border border-gray-200">
                             {test}
                           </span>
                         ))}
+                        {(order as any).orderText && !(order as any).labsRequested && (
+                          <span className="text-xs bg-white px-3 py-1 rounded-full border border-gray-200">
+                            {(order as any).orderText}
+                          </span>
+                        )}
                       </div>
+                      {(order as any).requiresVerification && (
+                        <div className="mt-3 p-2 bg-yellow-50 border border-yellow-300 rounded text-xs text-yellow-800">
+                          <strong>⚠️ Verification Required:</strong> This order was extracted from dictation with {Math.round(((order as any).confidence || 0) * 100)}% confidence. Please verify accuracy before processing.
+                        </div>
+                      )}
                       {order.notes && (
                         <div className="mt-3 pt-3 border-t border-gray-200">
                           <div className="text-xs font-semibold text-gray-700 mb-1">Notes:</div>

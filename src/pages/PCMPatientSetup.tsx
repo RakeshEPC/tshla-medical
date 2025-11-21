@@ -76,6 +76,46 @@ export default function PCMPatientSetup() {
     if (patientId) {
       loadPatientData(patientId);
     }
+
+    // Check if coming from dictation with pre-filled data
+    const params = new URLSearchParams(window.location.search);
+    const fromDictation = params.get('fromDictation');
+
+    if (fromDictation === 'true') {
+      const name = params.get('name') || '';
+      const phone = params.get('phone') || '';
+      const email = params.get('email') || '';
+      const mrn = params.get('mrn') || '';
+      const age = params.get('age') || '';
+      const hasOrders = params.get('hasOrders') === 'true';
+      const medicationCount = parseInt(params.get('medicationCount') || '0');
+      const labCount = parseInt(params.get('labCount') || '0');
+
+      // Pre-fill patient data
+      setPcmData(prev => ({
+        ...prev,
+        patientId: mrn || 'patient-' + Date.now(),
+        patientName: name,
+        age: parseInt(age) || 0,
+        phone: phone,
+        email: email,
+        clinicalNotes: hasOrders
+          ? `Patient referred from dictation.\n${medicationCount} medication order(s) and ${labCount} lab order(s) were extracted from clinical note.\n\nReview extracted orders in the Orders section.`
+          : 'Patient referred from dictation for PCM enrollment.'
+      }));
+
+      // Set selected patient
+      setSelectedPatient({
+        id: mrn || 'patient-' + Date.now(),
+        name: name,
+        age: parseInt(age) || 65,
+        phone: phone,
+        email: email
+      });
+
+      // Skip search step, go directly to setup
+      setStep('setup');
+    }
   }, [patientId]);
 
   const loadPatientData = async (id: string) => {
@@ -155,6 +195,33 @@ export default function PCMPatientSetup() {
       // In production: Save to Supabase
       // For now: Save to demo data
       console.log('Saving PCM enrollment:', pcmPatient);
+
+      // Check if this enrollment came from dictation with extracted orders
+      const params = new URLSearchParams(window.location.search);
+      const extractedOrdersJSON = params.get('extractedOrders');
+
+      if (extractedOrdersJSON) {
+        try {
+          const extractedOrders = JSON.parse(decodeURIComponent(extractedOrdersJSON));
+
+          // Create PCM lab orders from extracted dictation orders
+          const result = await pcmService.createLabOrdersFromExtraction(
+            extractedOrders,
+            pcmData.patientId,
+            pcmData.patientName,
+            'provider-001', // TODO: Get from auth context
+            'Dr. Provider' // TODO: Get from auth context
+          );
+
+          console.log(`Created ${result.created} PCM orders from dictation extraction`);
+
+          // Update clinical notes to include order creation
+          pcmData.clinicalNotes += `\n\nAuto-created ${result.created} orders from dictation extraction.`;
+        } catch (orderError) {
+          console.error('Error creating orders from extraction:', orderError);
+          // Don't fail enrollment if order creation fails
+        }
+      }
 
       // Show success
       setStep('confirm');

@@ -1362,6 +1362,46 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
                 {isSavingToDatabase ? '💾 SAVING...' : '💾 SAVE TO DATABASE'}
               </button>
 
+              {/* Enroll in PCM Button */}
+              {patientDetails.name.trim() && (
+                <button
+                  onClick={() => {
+                    // Navigate to PCM enrollment with pre-filled patient data and extracted orders
+                    const params: Record<string, string> = {
+                      name: patientDetails.name,
+                      phone: patientDetails.phone || '',
+                      email: patientDetails.email || '',
+                      mrn: patientDetails.mrn || '',
+                      age: patientDetails.age?.toString() || '',
+                      fromDictation: 'true',
+                      hasOrders: extractedOrders ? 'true' : 'false',
+                      medicationCount: extractedOrders?.medications.length.toString() || '0',
+                      labCount: extractedOrders?.labs.length.toString() || '0'
+                    };
+
+                    // If we have extracted orders, pass them as JSON
+                    if (extractedOrders) {
+                      params.extractedOrders = encodeURIComponent(JSON.stringify(extractedOrders));
+                    }
+
+                    const queryParams = new URLSearchParams(params);
+                    navigate(`/pcm-patient-setup?${queryParams.toString()}`);
+                  }}
+                  className="px-6 py-3 bg-blue-600 text-white text-base font-bold rounded-lg hover:bg-blue-700 transition-all flex items-center gap-2 shadow-lg"
+                  title="Enroll this patient in PCM (Principal Care Management) program and auto-create orders"
+                >
+                  <User className="w-5 h-5" />
+                  ENROLL IN PCM
+                  {extractedOrders && (
+                    <span className="px-2 py-0.5 bg-white text-blue-600 rounded-full text-xs font-bold">
+                      +{(extractedOrders.medications.length + extractedOrders.labs.length +
+                        extractedOrders.imaging.length + extractedOrders.priorAuths.length +
+                        extractedOrders.referrals.length)} orders
+                    </span>
+                  )}
+                </button>
+              )}
+
               <button
                 onClick={clearAll}
                 className="px-4 py-3 bg-red-100 text-red-700 text-base font-bold rounded-lg hover:bg-red-200 transition shadow"

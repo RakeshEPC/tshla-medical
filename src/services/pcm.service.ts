@@ -5,6 +5,7 @@
  */
 
 import type { PCMPatient } from '../components/pcm/PatientRiskCard';
+import type { OrderExtractionResult, ExtractedOrder } from './orderExtraction.service';
 
 export interface VitalReading {
   id: string;
@@ -669,6 +670,116 @@ class PCMService {
     this.saveToStorage(key, orders);
 
     return order;
+  }
+
+  /**
+   * Create PCM lab orders from extracted dictation orders
+   * Converts OrderExtractionResult to PCM lab orders format
+   */
+  async createLabOrdersFromExtraction(
+    extractedOrders: OrderExtractionResult,
+    pcmPatientId: string,
+    pcmPatientName: string,
+    providerId: string,
+    providerName: string
+  ): Promise<{ created: number; orders: any[] }> {
+    const createdOrders: any[] = [];
+    const key = `${this.STORAGE_PREFIX}lab_orders`;
+    const existingOrders = this.getFromStorage<any[]>(key) || [];
+
+    // Helper function to create PCM order from extracted order
+    const createPCMOrder = (
+      extractedOrder: ExtractedOrder,
+      orderType: 'medication' | 'lab' | 'imaging' | 'prior_auth' | 'referral'
+    ) => {
+      const order = {
+        id: this.generateId(),
+        patientId: pcmPatientId,
+        patientName: pcmPatientName,
+        orderedBy: providerId,
+        orderedByName: providerName,
+        orderDate: new Date().toISOString(),
+        orderType,
+        orderText: extractedOrder.text,
+        action: extractedOrder.action,
+        urgency: extractedOrder.urgency || 'routine',
+        status: 'pending',
+        source: 'ai_extraction', // Track that this came from dictation
+        confidence: extractedOrder.confidence,
+        requiresVerification: !extractedOrder.confidence || extractedOrder.confidence < 0.8,
+        dueDate: this.calculateDueDate(extractedOrder.urgency || 'routine'),
+        notes: `Automatically extracted from dictation. Confidence: ${Math.round((extractedOrder.confidence || 0) * 100)}%`,
+        labsRequested: orderType === 'lab' ? [extractedOrder.text] : undefined,
+        priority: extractedOrder.urgency || 'routine'
+      };
+      return order;
+    };
+
+    // Process medications
+    for (const med of extractedOrders.medications) {
+      const order = createPCMOrder(med, 'medication');
+      existingOrders.unshift(order);
+      createdOrders.push(order);
+    }
+
+    // Process labs
+    for (const lab of extractedOrders.labs) {
+      const order = createPCMOrder(lab, 'lab');
+      existingOrders.unshift(order);
+      createdOrders.push(order);
+    }
+
+    // Process imaging
+    for (const img of extractedOrders.imaging) {
+      const order = createPCMOrder(img, 'imaging');
+      existingOrders.unshift(order);
+      createdOrders.push(order);
+    }
+
+    // Process prior authorizations
+    for (const auth of extractedOrders.priorAuths) {
+      const order = createPCMOrder(auth, 'prior_auth');
+      existingOrders.unshift(order);
+      createdOrders.push(order);
+    }
+
+    // Process referrals
+    for (const ref of extractedOrders.referrals) {
+      const order = createPCMOrder(ref, 'referral');
+      existingOrders.unshift(order);
+      createdOrders.push(order);
+    }
+
+    // Save all orders
+    this.saveToStorage(key, existingOrders);
+
+    return {
+      created: createdOrders.length,
+      orders: createdOrders
+    };
+  }
+
+  /**
+   * Calculate due date based on urgency
+   */
+  private calculateDueDate(urgency: 'routine' | 'urgent' | 'stat'): string {
+    const today = new Date();
+    let daysToAdd = 7; // Default: routine = 7 days
+
+    switch (urgency) {
+      case 'stat':
+        daysToAdd = 1; // 1 day for STAT
+        break;
+      case 'urgent':
+        daysToAdd = 3; // 3 days for urgent
+        break;
+      case 'routine':
+        daysToAdd = 7; // 7 days for routine
+        break;
+    }
+
+    today.setDate(today.getDate() + daysToAdd);
+    return today.toISOString().split('T')[0];
   }
 
   async getLabOrders(patientId?: string, status?: string): Promise<any[]> {
