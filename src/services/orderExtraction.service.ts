@@ -503,44 +503,207 @@ class OrderExtractionService {
   }
 
   /**
+   * Get CPT code for lab order
+   */
+  private getCPTCode(labText: string): string {
+    const lower = labText.toLowerCase();
+
+    // Common lab CPT codes
+    const cptMap: Record<string, string> = {
+      'cmp': '80053',
+      'comprehensive metabolic': '80053',
+      'bmp': '80048',
+      'basic metabolic': '80048',
+      'cbc': '85025',
+      'complete blood count': '85025',
+      'lipid panel': '80061',
+      'lipid': '80061',
+      'a1c': '83036',
+      'hemoglobin a1c': '83036',
+      'hba1c': '83036',
+      'tsh': '84443',
+      'thyroid': '84443',
+      'vitamin d': '82306',
+      'b12': '82607',
+      'vitamin b12': '82607',
+      'folate': '82746',
+      'iron': '83540',
+      'ferritin': '82728',
+      'urinalysis': '81001',
+      'ua': '81001',
+      'psa': '84153',
+      'testosterone': '84403',
+      'estrogen': '82670',
+      'cortisol': '82533',
+      'crp': '86140',
+      'esr': '85652',
+      'inr': '85610',
+      'pt': '85610',
+      'ptt': '85730',
+      'lft': '80076',
+      'liver function': '80076',
+      'alt': '84460',
+      'ast': '84450',
+      'troponin': '84484',
+      'bnp': '83880',
+      'hcg': '84702',
+      'pregnancy test': '84702',
+    };
+
+    // Find matching CPT code
+    for (const [keyword, cpt] of Object.entries(cptMap)) {
+      if (lower.includes(keyword)) {
+        return cpt;
+      }
+    }
+
+    return ''; // No CPT code found
+  }
+
+  /**
+   * Normalize numeric text (convert words to digits)
+   */
+  private normalizeNumbers(text: string): string {
+    const numberWords: Record<string, string> = {
+      'zero': '0', 'one': '1', 'two': '2', 'three': '3', 'four': '4',
+      'five': '5', 'six': '6', 'seven': '7', 'eight': '8', 'nine': '9',
+      'ten': '10', 'eleven': '11', 'twelve': '12', 'thirteen': '13', 'fourteen': '14',
+      'fifteen': '15', 'sixteen': '16', 'seventeen': '17', 'eighteen': '18', 'nineteen': '19',
+      'twenty': '20', 'thirty': '30', 'forty': '40', 'fifty': '50',
+      'sixty': '60', 'seventy': '70', 'eighty': '80', 'ninety': '90',
+      'hundred': '100', 'thousand': '1000'
+    };
+
+    let result = text;
+
+    // Replace number words with digits
+    for (const [word, digit] of Object.entries(numberWords)) {
+      const regex = new RegExp(`\\b${word}\\b`, 'gi');
+      result = result.replace(regex, digit);
+    }
+
+    // Handle compound numbers like "twenty five" -> "25"
+    result = result.replace(/(\d+)\s+(\d+)(?=\s+(mg|mcg|units?|ml|g|lbs|pounds|weeks?|days?|times?|milligrams?))/gi, (match, tens, ones) => {
+      return (parseInt(tens) + parseInt(ones)).toString();
+    });
+
+    return result;
+  }
+
+  /**
+   * Clean and format order text for staff readability
+   */
+  private cleanOrderText(text: string): string {
+    // Normalize numbers first
+    let cleaned = this.normalizeNumbers(text);
+
+    // Remove conversational phrases
+    cleaned = cleaned
+      .replace(/^We'll\s+/i, '')
+      .replace(/^Let's\s+/i, '')
+      .replace(/^I'll\s+/i, '')
+      .replace(/^Will\s+/i, '')
+      .replace(/\s+for\s+that$/i, '')
+      .replace(/\s+as\s+well$/i, '');
+
+    // Capitalize first letter
+    cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+
+    return cleaned.trim();
+  }
+
+  /**
    * Format orders for display in note template
+   * Enhanced for staff readability with action items, CPT codes, and confidence warnings
    */
   formatOrdersForTemplate(orders: OrderExtractionResult): string {
     const sections: string[] = [];
 
+    // MEDICATIONS
     if (orders.medications.length > 0) {
-      sections.push('MEDICATIONS:');
-      orders.medications.forEach(med => {
+      sections.push('═══════════════════════════════════════════════════════');
+      sections.push('📋 MEDICATION ORDERS');
+      sections.push('═══════════════════════════════════════════════════════');
+      orders.medications.forEach((med, index) => {
         const action = med.action ? med.action.toUpperCase() : 'ORDER';
-        sections.push(`- ${action}: ${med.text}`);
+        const cleanText = this.cleanOrderText(med.text);
+        const urgency = med.urgency === 'stat' ? ' ⚡ STAT' : med.urgency === 'urgent' ? ' 🔴 URGENT' : '';
+        const confidence = med.confidence < 0.7 ? ` ⚠️ Low confidence (${Math.round(med.confidence * 100)}%) - verify` : '';
+
+        sections.push(`\n${index + 1}. ✅ ${action}`);
+        sections.push(`   ${cleanText}${urgency}${confidence}`);
       });
+      sections.push('');
     }
 
+    // LAB ORDERS
     if (orders.labs.length > 0) {
-      sections.push('\nLABS:');
-      orders.labs.forEach(lab => {
-        sections.push(`- ${lab.text}`);
+      sections.push('═══════════════════════════════════════════════════════');
+      sections.push('🧪 LAB ORDERS');
+      sections.push('═══════════════════════════════════════════════════════');
+      orders.labs.forEach((lab, index) => {
+        const cleanText = this.cleanOrderText(lab.text);
+        const cpt = this.getCPTCode(lab.text);
+        const cptDisplay = cpt ? ` [CPT: ${cpt}]` : '';
+        const urgency = lab.urgency === 'stat' ? ' ⚡ STAT' : lab.urgency === 'urgent' ? ' 🔴 URGENT' : '';
+        const confidence = lab.confidence < 0.7 ? ` ⚠️ Low confidence (${Math.round(lab.confidence * 100)}%) - verify` : '';
+
+        sections.push(`\n${index + 1}. ✅ ORDER LAB`);
+        sections.push(`   ${cleanText}${cptDisplay}${urgency}${confidence}`);
       });
+      sections.push('');
     }
 
+    // IMAGING ORDERS
     if (orders.imaging.length > 0) {
-      sections.push('\nIMAGING:');
-      orders.imaging.forEach(img => {
-        sections.push(`- ${img.text}`);
+      sections.push('═══════════════════════════════════════════════════════');
+      sections.push('📷 IMAGING ORDERS');
+      sections.push('═══════════════════════════════════════════════════════');
+      orders.imaging.forEach((img, index) => {
+        const cleanText = this.cleanOrderText(img.text);
+        const urgency = img.urgency === 'stat' ? ' ⚡ STAT' : img.urgency === 'urgent' ? ' 🔴 URGENT' : '';
+        const confidence = img.confidence < 0.7 ? ` ⚠️ Low confidence (${Math.round(img.confidence * 100)}%) - verify` : '';
+
+        sections.push(`\n${index + 1}. ✅ ORDER IMAGING`);
+        sections.push(`   ${cleanText}${urgency}${confidence}`);
       });
+      sections.push('');
     }
 
+    // PRIOR AUTHORIZATIONS
     if (orders.priorAuths.length > 0) {
-      sections.push('\nPRIOR AUTHORIZATIONS:');
-      orders.priorAuths.forEach(auth => {
-        sections.push(`- ${auth.text}`);
+      sections.push('═══════════════════════════════════════════════════════');
+      sections.push('⚠️ PRIOR AUTHORIZATION REQUIRED');
+      sections.push('═══════════════════════════════════════════════════════');
+      sections.push('ACTION REQUIRED: Submit prior authorizations for:');
+      sections.push('');
+      orders.priorAuths.forEach((auth, index) => {
+        const cleanText = this.cleanOrderText(auth.text);
+
+        sections.push(`${index + 1}. 🔒 PRIOR AUTH NEEDED`);
+        sections.push(`   ${cleanText}`);
+
+        // Try to extract medication/service name for better clarity
+        const medMatch = cleanText.match(/(?:for|authorization|auth)\s+(.+?)(?:\s*-|\s*$)/i);
+        if (medMatch) {
+          sections.push(`   Medication/Service: ${medMatch[1].trim()}`);
+        }
+        sections.push('');
       });
     }
 
+    // FOLLOW-UP / REFERRALS
     if (orders.referrals.length > 0) {
-      sections.push('\nREFERRALS:');
-      orders.referrals.forEach(ref => {
-        sections.push(`- ${ref.text}`);
+      sections.push('═══════════════════════════════════════════════════════');
+      sections.push('📅 FOLLOW-UP APPOINTMENTS');
+      sections.push('═══════════════════════════════════════════════════════');
+      orders.referrals.forEach((ref, index) => {
+        const cleanText = this.cleanOrderText(ref.text);
+        const confidence = ref.confidence < 0.7 ? ` ⚠️ Low confidence (${Math.round(ref.confidence * 100)}%) - verify` : '';
+
+        sections.push(`${index + 1}. 📆 SCHEDULE FOLLOW-UP`);
+        sections.push(`   ${cleanText}${confidence}`);
+        sections.push('');
       });
     }
 
