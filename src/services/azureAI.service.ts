@@ -681,6 +681,7 @@ class AzureAIService {
         // Convert Azure OpenAI result to our ProcessedNote format
         const processedNote: ProcessedNote = this.convertAzureToProcessedNote(azureResult, patient);
 
+        alert('✅ About to call enhanceWithOrderExtraction!');
         // Pass template data for validation and retry logic
         return await this.enhanceWithOrderExtraction(
           processedNote,
@@ -690,6 +691,7 @@ class AzureAIService {
           customTemplate?.doctorSettings
         );
     } catch (azureError: any) {
+      alert(`❌ AZURE OPENAI ERROR: ${azureError?.message}`);
       console.error('❌ [azureAI] AZURE OPENAI ERROR:', azureError);
       console.error('❌ [azureAI] Error details:', {
         message: azureError?.message,
