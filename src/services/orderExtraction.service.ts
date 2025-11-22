@@ -433,9 +433,22 @@ class OrderExtractionService {
         urgency = this.extractUrgency(sentence);
       }
 
+      // Clean the text: normalize numbers and remove conversational phrases BEFORE storing
+      let cleanedText = this.normalizeNumbers(sentence);
+      cleanedText = cleanedText
+        .replace(/^We'll\s+/i, '')
+        .replace(/^Let's\s+/i, '')
+        .replace(/^I'll\s+/i, '')
+        .replace(/^Will\s+/i, '')
+        .replace(/\s+for\s+that$/i, '')
+        .replace(/\s+as\s+well$/i, '');
+
+      // Capitalize first letter
+      cleanedText = cleanedText.charAt(0).toUpperCase() + cleanedText.slice(1);
+
       return {
         type: 'medication',
-        text: sentence.trim(),
+        text: cleanedText.trim(),
         action: action as any,
         confidence,
         urgency,
@@ -485,15 +498,23 @@ class OrderExtractionService {
       return [sentence]; // Return as-is if not a list
     }
 
-    // Extract the action phrase (e.g., "We'll check", "Order", "Get")
-    const actionMatch = sentence.match(/^(.*?)(check|order|get|draw|obtain|send)\s+/i);
-    const actionPrefix = actionMatch ? actionMatch[0] : '';
+    // Extract the action phrase and handle "We'll check, A1C" format
+    // Match: "We'll check" or "Order" or "Get" etc.
+    const actionMatch = sentence.match(/^(.*?)(check|order|get|draw|obtain|send)(?:\s+|,\s*)/i);
 
-    // Find the part after the action that contains labs
-    const labPart = actionPrefix ? sentence.substring(actionPrefix.length) : sentence;
+    if (!actionMatch) {
+      return [sentence]; // Can't parse, return as-is
+    }
 
-    // Remove follow-up text (e.g., "and we'll see you back in")
-    const cleanLabPart = labPart.replace(/\s+(and\s+)?(we'll\s+)?(see|schedule|return|come\s+back).*/i, '');
+    // Get the clean action word (e.g., "check" from "We'll check,")
+    const actionWord = actionMatch[2];
+
+    // Find where the lab list starts (after the action word and optional comma/space)
+    const labListStart = actionMatch[0].length;
+    const labPart = sentence.substring(labListStart);
+
+    // Remove follow-up text (e.g., "and we'll see you back in two weeks")
+    const cleanLabPart = labPart.replace(/\s*,?\s*(and\s+)?(we'll\s+|we\s+will\s+)?(see|schedule|return|come\s+back).*/i, '');
 
     // Split on commas and "and"
     const labItems = cleanLabPart
@@ -501,11 +522,13 @@ class OrderExtractionService {
       .map(item => item.trim())
       .filter(item => item.length > 0);
 
-    // Reconstruct each lab with the action prefix
+    // Reconstruct each lab with "Check [lab name]" format
     return labItems.map(lab => {
       // Clean up extra words
       const cleanLab = lab.replace(/^(a|an|the)\s+/i, '').trim();
-      return actionPrefix ? `${actionPrefix}${cleanLab}` : cleanLab;
+      // Use capitalized action word: "Check A1C", "Check CBC"
+      const capitalizedAction = actionWord.charAt(0).toUpperCase() + actionWord.slice(1);
+      return `${capitalizedAction} ${cleanLab}`;
     });
   }
 
@@ -545,9 +568,19 @@ class OrderExtractionService {
 
     const confidence = this.calculateConfidence(sentence, 'lab', hasAction, hasSpecificTest);
 
+    // Clean text: remove any remaining conversational phrases
+    // (expandLabList already creates clean "Check A1C" format, but clean up any remnants)
+    let cleanedText = sentence
+      .replace(/^We'll\s+/i, '')
+      .replace(/^Let's\s+/i, '')
+      .replace(/^I'll\s+/i, '');
+
+    // Capitalize first letter if not already
+    cleanedText = cleanedText.charAt(0).toUpperCase() + cleanedText.slice(1);
+
     return {
       type: 'lab',
-      text: sentence.trim(),
+      text: cleanedText.trim(),
       action: 'order',
       urgency,
       confidence,
@@ -828,24 +861,12 @@ class OrderExtractionService {
 
   /**
    * Clean and format order text for staff readability
+   * Note: Text cleaning now happens during extraction, so this just ensures consistency
    */
   private cleanOrderText(text: string): string {
-    // Normalize numbers first
-    let cleaned = this.normalizeNumbers(text);
-
-    // Remove conversational phrases
-    cleaned = cleaned
-      .replace(/^We'll\s+/i, '')
-      .replace(/^Let's\s+/i, '')
-      .replace(/^I'll\s+/i, '')
-      .replace(/^Will\s+/i, '')
-      .replace(/\s+for\s+that$/i, '')
-      .replace(/\s+as\s+well$/i, '');
-
-    // Capitalize first letter
-    cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
-
-    return cleaned.trim();
+    // Text is already cleaned during extraction (numbers normalized, conversational phrases removed)
+    // Just return as-is, ensuring proper trimming
+    return text.trim();
   }
 
   /**
