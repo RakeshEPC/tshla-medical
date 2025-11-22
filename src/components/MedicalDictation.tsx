@@ -847,6 +847,8 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
         templateInstructions // Pass custom template instructions
       );
 
+      alert(`📦 COMPONENT RECEIVED RESULT!\nextractedOrders: ${result.extractedOrders ? 'EXISTS ✅' : 'NULL ❌'}\nMeds: ${result.extractedOrders?.medications?.length || 0}\nLabs: ${result.extractedOrders?.labs?.length || 0}`);
+
       // Extract just the formatted note from the result
       const processedContent = result.formatted;
 
@@ -859,6 +861,7 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
       // Extract orders if available
       if (result.extractedOrders) {
         setExtractedOrders(result.extractedOrders);
+        alert(`✅ CALLING setExtractedOrders!\nMeds: ${result.extractedOrders.medications.length}\nLabs: ${result.extractedOrders.labs.length}`);
         console.log('✅ Setting extractedOrders state:', result.extractedOrders);
         logInfo('MedicalDictation', 'Extracted orders from note', {
           medications: result.extractedOrders.medications.length,
