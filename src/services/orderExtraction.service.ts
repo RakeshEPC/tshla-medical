@@ -89,6 +89,11 @@ class OrderExtractionService {
     'patient with',
     'history of',
     'diagnosed with',
+    'hyperlipidemia',
+    'hypertension',
+    'diabetes',
+    'type 2 diabetes',
+    'type 1 diabetes',
   ];
 
   // Imaging keywords
@@ -142,6 +147,7 @@ class OrderExtractionService {
     // Diabetes medications
     'metformin', 'glucophage', 'insulin', 'glipizide', 'glyburide', 'januvia', 'janumet',
     'ozempic', 'semaglutide', 'trulicity', 'dulaglutide', 'victoza', 'liraglutide',
+    'mounjaro', 'tirzepatide', 'rybelsus', 'wegovy',
     'jardiance', 'empagliflozin', 'farxiga', 'dapagliflozin', 'invokana', 'canagliflozin',
     'humalog', 'novolog', 'lantus', 'levemir', 'basaglar', 'tresiba', 'toujeo',
     'glimepiride', 'amaryl', 'tradjenta', 'onglyza', 'nesina',
@@ -154,6 +160,7 @@ class OrderExtractionService {
     'metoprolol', 'atenolol', 'carvedilol', 'bisoprolol', 'propranolol',
     'amlodipine', 'nifedipine', 'diltiazem', 'verapamil',
     'atorvastatin', 'simvastatin', 'rosuvastatin', 'pravastatin', 'lovastatin',
+    'zetia', 'ezetimibe',
     'lipitor', 'crestor', 'zocor',
     'aspirin', 'clopidogrel', 'plavix', 'warfarin', 'coumadin', 'eliquis', 'apixaban',
     'xarelto', 'rivaroxaban', 'pradaxa', 'dabigatran',
@@ -210,9 +217,9 @@ class OrderExtractionService {
       let wasProcessed = false;
 
       // Check for medications FIRST (highest priority)
-      const medicationOrder = this.extractMedicationOrder(sentence);
-      if (medicationOrder) {
-        result.medications.push(medicationOrder);
+      const medicationOrders = this.extractMedicationOrders(sentence);
+      if (medicationOrders.length > 0) {
+        result.medications.push(...medicationOrders);
         orderSentences.push(sentence);
         processedSentences.add(sentence);
         wasProcessed = true;
@@ -394,6 +401,44 @@ class OrderExtractionService {
   /**
    * Extract medication order from sentence
    */
+  /**
+   * Extract multiple medication orders from a single sentence if it contains multiple medications
+   * Example: "Continue Lisinopril 20 mg a day Add amlodipine 5 mg a day" → TWO medication orders
+   */
+  private extractMedicationOrders(sentence: string): ExtractedOrder[] {
+    // Check if sentence contains multiple medication actions
+    const actionMatches = [];
+    const actionPattern = /\b(start|begin|initiate|add|continue|stop|discontinue|hold|increase|decrease|change|switch|refill|renew)\b/gi;
+
+    let match;
+    while ((match = actionPattern.exec(sentence)) !== null) {
+      actionMatches.push({ action: match[1], index: match.index });
+    }
+
+    // If multiple actions found, split the sentence
+    if (actionMatches.length > 1) {
+      const medicationSentences: string[] = [];
+
+      for (let i = 0; i < actionMatches.length; i++) {
+        const startIndex = actionMatches[i].index;
+        const endIndex = i < actionMatches.length - 1 ? actionMatches[i + 1].index : sentence.length;
+        const medSentence = sentence.substring(startIndex, endIndex).trim();
+        medicationSentences.push(medSentence);
+      }
+
+      // Extract each medication
+      const orders = medicationSentences
+        .map(s => this.extractMedicationOrder(s))
+        .filter(order => order !== null) as ExtractedOrder[];
+
+      return orders;
+    }
+
+    // Single medication - use existing method
+    const order = this.extractMedicationOrder(sentence);
+    return order ? [order] : [];
+  }
+
   private extractMedicationOrder(sentence: string): ExtractedOrder | null {
     const lowerSentence = sentence.toLowerCase();
     let action: string | undefined;
@@ -435,6 +480,10 @@ class OrderExtractionService {
 
       // Clean the text: normalize numbers and remove conversational phrases BEFORE storing
       let cleanedText = this.normalizeNumbers(sentence);
+
+      // Fix common dosage typos like "5 100" → "500"
+      cleanedText = cleanedText.replace(/\b(\d)\s+(\d{2,3})\s+(mg|mcg|units?)\b/gi, '$1$2 $3');
+
       cleanedText = cleanedText
         .replace(/^We'll\s+/i, '')
         .replace(/^Let's\s+/i, '')
@@ -445,6 +494,15 @@ class OrderExtractionService {
 
       // Capitalize first letter
       cleanedText = cleanedText.charAt(0).toUpperCase() + cleanedText.slice(1);
+
+      // If medication has "units" but no specific medication name, try to infer it's insulin
+      if (!hasSpecificMed && /\d+\s*units?\b/i.test(cleanedText)) {
+        // Check if "insulin" or brand name already mentioned
+        if (!/insulin|lantus|novolog|humalog|levemir|basaglar|tresiba|toujeo/i.test(cleanedText)) {
+          // Add "insulin" as generic placeholder
+          cleanedText = cleanedText.replace(/\b(start|begin|go ahead and start)\b/i, '$1 insulin');
+        }
+      }
 
       return {
         type: 'medication',
@@ -485,21 +543,27 @@ class OrderExtractionService {
   }
 
   /**
-   * Expand comma-separated lab list into individual orders
+   * Expand comma-separated OR space-separated lab list into individual orders
    * "Check A1C, CBC, CMP" → ["Check A1C", "Check CBC", "Check CMP"]
+   * "Check CBC hemoglobin A1C" → ["Check CBC", "Check hemoglobin A1C"]
    */
   private expandLabList(sentence: string): string[] {
     const lower = sentence.toLowerCase();
 
-    // Check if this contains a comma-separated list of labs
+    // Check if this contains a comma-separated list OR multiple lab keywords (space-separated)
     const hasCommaList = sentence.includes(',') && this.labKeywords.some(kw => lower.includes(kw));
 
-    if (!hasCommaList) {
+    // Count how many lab keywords are in the sentence (excluding action words)
+    const labKeywordMatches = this.labKeywords.filter(kw => {
+      return kw.length > 4 && lower.includes(kw); // Only specific lab names
+    });
+    const hasMultipleLabs = labKeywordMatches.length > 1;
+
+    if (!hasCommaList && !hasMultipleLabs) {
       return [sentence]; // Return as-is if not a list
     }
 
-    // Extract the action phrase and handle "We'll check, A1C" format
-    // Match: "We'll check" or "Order" or "Get" etc.
+    // Extract the action phrase
     const actionMatch = sentence.match(/^(.*?)(check|order|get|draw|obtain|send)(?:\s+|,\s*)/i);
 
     if (!actionMatch) {
@@ -516,11 +580,19 @@ class OrderExtractionService {
     // Remove follow-up text (e.g., "and we'll see you back in two weeks")
     const cleanLabPart = labPart.replace(/\s*,?\s*(and\s+)?(we'll\s+|we\s+will\s+)?(see|schedule|return|come\s+back).*/i, '');
 
-    // Split on commas and "and"
-    const labItems = cleanLabPart
-      .split(/,|\s+and\s+/i)
-      .map(item => item.trim())
-      .filter(item => item.length > 0);
+    let labItems: string[] = [];
+
+    if (hasCommaList) {
+      // Split on commas and "and"
+      labItems = cleanLabPart
+        .split(/,|\s+and\s+/i)
+        .map(item => item.trim())
+        .filter(item => item.length > 0);
+    } else if (hasMultipleLabs) {
+      // Space-separated list - split by lab keyword boundaries
+      // Example: "CBC hemoglobin A1C lipid panel" → ["CBC", "hemoglobin A1C", "lipid panel"]
+      labItems = this.splitSpaceSeparatedLabs(cleanLabPart);
+    }
 
     // Reconstruct each lab with "Check [lab name]" format
     return labItems.map(lab => {
@@ -530,6 +602,49 @@ class OrderExtractionService {
       const capitalizedAction = actionWord.charAt(0).toUpperCase() + actionWord.slice(1);
       return `${capitalizedAction} ${cleanLab}`;
     });
+  }
+
+  /**
+   * Split space-separated lab names
+   * "CBC hemoglobin A1C cortisol" → ["CBC", "hemoglobin A1C", "cortisol"]
+   */
+  private splitSpaceSeparatedLabs(text: string): string[] {
+    const words = text.split(/\s+/);
+    const labs: string[] = [];
+    let currentLab = '';
+
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i];
+      currentLab += (currentLab ? ' ' : '') + word;
+
+      // Check if current accumulated words match a lab keyword
+      const matchesLabKeyword = this.labKeywords.some(kw => {
+        return kw.length > 3 && currentLab.toLowerCase().includes(kw);
+      });
+
+      // Look ahead to see if next word would also match
+      const nextWord = words[i + 1];
+      let nextWouldExtend = false;
+      if (nextWord) {
+        const withNext = currentLab + ' ' + nextWord;
+        nextWouldExtend = this.labKeywords.some(kw => {
+          return kw.length > 3 && withNext.toLowerCase().includes(kw) && kw.length > currentLab.toLowerCase().length;
+        });
+      }
+
+      // If we match and next word doesn't extend, save this lab
+      if (matchesLabKeyword && !nextWouldExtend) {
+        labs.push(currentLab);
+        currentLab = '';
+      }
+    }
+
+    // Add any remaining text
+    if (currentLab) {
+      labs.push(currentLab);
+    }
+
+    return labs.filter(lab => lab.trim().length > 0);
   }
 
   /**
@@ -654,18 +769,30 @@ class OrderExtractionService {
   private extractPriorAuthOrder(sentence: string, medications: ExtractedOrder[]): ExtractedOrder {
     let medName = '';
 
-    // Try to extract medication name from the sentence
-    const medMatch = sentence.match(/(for|authorization\s+for|auth\s+for|pa\s+for)\s+([a-z]+)/i);
-    if (medMatch) {
+    // Try to extract medication name from the sentence (e.g., "need PA for Zetia")
+    const medMatch = sentence.match(/(for|authorization\s+for|auth\s+for|pa\s+for)\s+([A-Z][a-z]+(?:aro|lin|pril|stat|log|met|ide|mab|nib)?)\b/i);
+    if (medMatch && medMatch[2] && medMatch[2].toLowerCase() !== 'that') {
       medName = medMatch[2];
     } else {
-      // Look in recently extracted medications
+      // Sentence says "for that" - look in recently extracted medications
       if (medications.length > 0) {
         const lastMed = medications[medications.length - 1];
-        // Extract medication name from last medication order
-        const nameMatch = lastMed.text.match(/\b([A-Z][a-z]+(?:aro|lin|pril|stat|log|met|ide)?)\b/);
-        if (nameMatch) {
-          medName = nameMatch[1];
+        // Extract medication name from last medication order - try multiple patterns
+        const namePatterns = [
+          // Match common medication name patterns with suffixes
+          /\b([A-Z][a-z]+(?:aro|lin|pril|stat|log|met|ide|mab|nib|cin|lol|pine|zole|pam|done|cet|vir|mycin|cillin|oxin|azole|terol|prazole|jaro))\b/,
+          // Match capitalized drug names
+          /\b([A-Z][a-z]{3,})\b/,
+          // Match two-word drug names
+          /\b([A-Z][a-z]+\s+[A-Z][a-z]+)\b/,
+        ];
+
+        for (const pattern of namePatterns) {
+          const nameMatch = lastMed.text.match(pattern);
+          if (nameMatch) {
+            medName = nameMatch[1];
+            break;
+          }
         }
       }
     }
@@ -761,10 +888,13 @@ class OrderExtractionService {
       'urine analysis': '81001',
 
       // Hormones
+      'testosterone free': '84402',
+      'free testosterone': '84402',
       'testosterone': '84403',
       'testosterone total': '84403',
       'estrogen': '82670',
       'cortisol': '82533',
+      'cortisol am': '82533',
       'progesterone': '84144',
 
       // Cardiac
