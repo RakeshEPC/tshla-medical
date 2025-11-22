@@ -557,6 +557,30 @@ class OrderExtractionService {
     const urgency = this.extractUrgency(sentence);
     const lowerSentence = sentence.toLowerCase();
 
+    // Clean text first: remove any remaining conversational phrases
+    let cleanedText = sentence
+      .replace(/^We'll\s+/i, '')
+      .replace(/^Let's\s+/i, '')
+      .replace(/^I'll\s+/i, '');
+
+    // Capitalize first letter if not already
+    cleanedText = cleanedText.charAt(0).toUpperCase() + cleanedText.slice(1).trim();
+
+    // Filter out invalid/ambiguous lab names
+    // Remove the action word to check the actual lab name
+    const labNameOnly = cleanedText.replace(/^(Check|Order|Get|Draw|Obtain|Send)\s+/i, '').trim();
+
+    // Reject if lab name is too short (< 3 chars) or is just abbreviation like "CS" without context
+    if (labNameOnly.length < 3) {
+      return null; // Too ambiguous
+    }
+
+    // Reject common invalid patterns
+    const invalidPatterns = /^(cs|c\s*s)$/i;
+    if (invalidPatterns.test(labNameOnly)) {
+      return null; // Known invalid abbreviation
+    }
+
     // Check if specific lab test is mentioned
     const hasSpecificTest = this.labKeywords.some(keyword => {
       // Only count specific tests, not action words
@@ -568,19 +592,9 @@ class OrderExtractionService {
 
     const confidence = this.calculateConfidence(sentence, 'lab', hasAction, hasSpecificTest);
 
-    // Clean text: remove any remaining conversational phrases
-    // (expandLabList already creates clean "Check A1C" format, but clean up any remnants)
-    let cleanedText = sentence
-      .replace(/^We'll\s+/i, '')
-      .replace(/^Let's\s+/i, '')
-      .replace(/^I'll\s+/i, '');
-
-    // Capitalize first letter if not already
-    cleanedText = cleanedText.charAt(0).toUpperCase() + cleanedText.slice(1);
-
     return {
       type: 'lab',
-      text: cleanedText.trim(),
+      text: cleanedText,
       action: 'order',
       urgency,
       confidence,
@@ -893,21 +907,21 @@ class OrderExtractionService {
       sections.push('');
     }
 
-    // LAB ORDERS
+    // LAB ORDERS - condensed format with CPT codes
     if (orders.labs.length > 0) {
       sections.push('═══════════════════════════════════════════════════════');
       sections.push('🧪 LAB ORDERS');
       sections.push('═══════════════════════════════════════════════════════');
-      orders.labs.forEach((lab, index) => {
+
+      const labItems = orders.labs.map((lab, index) => {
         const cleanText = this.cleanOrderText(lab.text);
         const cpt = this.getCPTCode(lab.text);
         const cptDisplay = cpt ? ` [CPT: ${cpt}]` : '';
-        const urgency = lab.urgency === 'stat' ? ' ⚡ STAT' : lab.urgency === 'urgent' ? ' 🔴 URGENT' : '';
-        const confidence = lab.confidence < 0.7 ? ` ⚠️ Low confidence (${Math.round(lab.confidence * 100)}%) - verify` : '';
-
-        sections.push(`\n${index + 1}. ✅ ORDER LAB`);
-        sections.push(`   ${cleanText}${cptDisplay}${urgency}${confidence}`);
+        return `${cleanText}${cptDisplay}`;
       });
+
+      // Join all labs in one line, separated by commas
+      sections.push(labItems.join(', '));
       sections.push('');
     }
 
