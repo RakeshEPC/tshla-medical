@@ -279,7 +279,8 @@ class BedrockService {
           extractedOrders.priorAuths.length > 0 ||
           extractedOrders.referrals.length > 0
         )) {
-          const ordersAndActions = orderExtractionService.formatOrdersForTemplate(extractedOrders);
+          // Pass the AI-generated note to include detailed PA justifications
+          const ordersAndActions = orderExtractionService.formatOrdersForTemplate(extractedOrders, processedNote.formatted);
           processedNote.sections.ordersAndActions = ordersAndActions;
           processedNote.extractedOrders = extractedOrders;
           processedNote.formatted += `\n\n**ORDERS & ACTIONS:**\n${ordersAndActions}`;
@@ -518,11 +519,12 @@ IMPORTANT: Only return the medical note content. Do not include instructions or 
         extractedOrders.priorAuths.length > 0 ||
         extractedOrders.referrals.length > 0
       )) {
-        ordersAndActions = orderExtractionService.formatOrdersForTemplate(extractedOrders);
-        
+        // Pass the AI-generated note to include detailed PA justifications
+        ordersAndActions = orderExtractionService.formatOrdersForTemplate(extractedOrders, formatted);
+
         // Add to formatted output
         formatted += `\n\n**ORDERS & ACTIONS:**\n${ordersAndActions}`;
-        
+
         // Add to sections
         parsed.sections.ordersAndActions = ordersAndActions;
 

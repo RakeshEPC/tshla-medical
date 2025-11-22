@@ -1014,11 +1014,45 @@ class OrderExtractionService {
   }
 
   /**
+   * Extract prior authorization details from AI-generated clinical note
+   */
+  private extractPriorAuthFromNote(aiNote: string): Map<string, string> {
+    const priorAuthMap = new Map<string, string>();
+
+    // Find the PRIOR AUTH section
+    const priorAuthMatch = aiNote.match(/(?:PRIOR AUTH|PRIOR AUTHORIZATION)[:\s]*\n([\s\S]*?)(?:\n\n|\n--|\n═|$)/i);
+
+    if (priorAuthMatch) {
+      const priorAuthSection = priorAuthMatch[1];
+
+      // Parse each medication's PA details
+      // Format: • Zetia (Ezetimibe) – Prior authorization required; indication is...
+      const paLines = priorAuthSection.split('\n').filter(line => line.trim().startsWith('•'));
+
+      for (const line of paLines) {
+        // Extract medication name (first word or phrase before parenthesis/dash)
+        const medMatch = line.match(/^•\s*([A-Za-z]+(?:\s+[A-Za-z]+)?)\s*(?:\(|–|—|-)/);
+        if (medMatch) {
+          const medName = medMatch[1].trim();
+          // Extract full justification (everything after the bullet)
+          const justification = line.replace(/^•\s*/, '').trim();
+          priorAuthMap.set(medName.toLowerCase(), justification);
+        }
+      }
+    }
+
+    return priorAuthMap;
+  }
+
+  /**
    * Format orders for display in note template
    * Enhanced for staff readability with action items, CPT codes, and confidence warnings
    */
-  formatOrdersForTemplate(orders: OrderExtractionResult): string {
+  formatOrdersForTemplate(orders: OrderExtractionResult, aiGeneratedNote?: string): string {
     const sections: string[] = [];
+
+    // Extract PA details from AI note if available
+    const priorAuthDetails = aiGeneratedNote ? this.extractPriorAuthFromNote(aiGeneratedNote) : new Map();
 
     // MEDICATIONS
     if (orders.medications.length > 0) {
@@ -1071,7 +1105,7 @@ class OrderExtractionService {
       sections.push('');
     }
 
-    // PRIOR AUTHORIZATIONS
+    // PRIOR AUTHORIZATIONS with detailed clinical justification
     if (orders.priorAuths.length > 0) {
       sections.push('═══════════════════════════════════════════════════════');
       sections.push('⚠️ PRIOR AUTHORIZATION REQUIRED');
@@ -1081,14 +1115,26 @@ class OrderExtractionService {
       orders.priorAuths.forEach((auth, index) => {
         const cleanText = this.cleanOrderText(auth.text);
 
-        sections.push(`${index + 1}. 🔒 PRIOR AUTH NEEDED`);
-        sections.push(`   ${cleanText}`);
+        // Extract medication name from the auth text
+        const medMatch = cleanText.match(/(?:for|authorization needed for|auth needed for)\s+([A-Za-z]+)/i);
+        const medName = medMatch ? medMatch[1].toLowerCase() : '';
 
-        // Try to extract medication/service name for better clarity
-        const medMatch = cleanText.match(/(?:for|authorization|auth)\s+(.+?)(?:\s*-|\s*$)/i);
-        if (medMatch) {
-          sections.push(`   Medication/Service: ${medMatch[1].trim()}`);
+        // Check if we have detailed PA justification from AI note
+        let detailedJustification = '';
+        if (medName && priorAuthDetails.has(medName)) {
+          detailedJustification = priorAuthDetails.get(medName)!;
         }
+
+        sections.push(`${index + 1}. 🔒 PRIOR AUTH NEEDED`);
+
+        if (detailedJustification) {
+          // Show detailed clinical justification from AI note
+          sections.push(`   ${detailedJustification}`);
+        } else {
+          // Fall back to simple message
+          sections.push(`   ${cleanText}`);
+        }
+
         sections.push('');
       });
     }
