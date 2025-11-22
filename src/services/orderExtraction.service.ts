@@ -203,28 +203,34 @@ class OrderExtractionService {
     // Split text into sentences for better parsing
     const sentences = this.splitIntoSentences(text);
     const orderSentences: string[] = [];
+    const processedSentences = new Set<string>(); // Track to prevent duplicates
 
     for (const sentence of sentences) {
       const lowerSentence = sentence.toLowerCase();
+      let wasProcessed = false;
 
-      // Check for medications
+      // Check for medications FIRST (highest priority)
       const medicationOrder = this.extractMedicationOrder(sentence);
       if (medicationOrder) {
         result.medications.push(medicationOrder);
         orderSentences.push(sentence);
+        processedSentences.add(sentence);
+        wasProcessed = true;
       }
 
-      // Check for labs
-      if (this.containsLabOrder(lowerSentence)) {
-        const labOrder = this.extractLabOrder(sentence);
-        if (labOrder) {
-          result.labs.push(labOrder);
+      // Check for labs - expand comma-separated lists
+      if (!wasProcessed && this.containsLabOrder(lowerSentence)) {
+        const labOrders = this.extractLabOrders(sentence); // Returns array now
+        if (labOrders.length > 0) {
+          result.labs.push(...labOrders);
           orderSentences.push(sentence);
+          processedSentences.add(sentence);
+          wasProcessed = true;
         }
       }
 
       // Check for imaging
-      if (this.containsImagingOrder(lowerSentence)) {
+      if (!wasProcessed && this.containsImagingOrder(lowerSentence)) {
         result.imaging.push({
           type: 'imaging',
           text: sentence,
@@ -232,21 +238,21 @@ class OrderExtractionService {
           confidence: 0.8,
         });
         orderSentences.push(sentence);
+        processedSentences.add(sentence);
+        wasProcessed = true;
       }
 
-      // Check for prior auth
-      if (this.containsPriorAuth(lowerSentence)) {
-        result.priorAuths.push({
-          type: 'prior_auth',
-          text: sentence,
-          action: 'order',
-          confidence: 0.9,
-        });
+      // Check for prior auth - try to extract medication name
+      if (!wasProcessed && this.containsPriorAuth(lowerSentence)) {
+        const priorAuthOrder = this.extractPriorAuthOrder(sentence, result.medications);
+        result.priorAuths.push(priorAuthOrder);
         orderSentences.push(sentence);
+        processedSentences.add(sentence);
+        wasProcessed = true;
       }
 
-      // Check for referrals
-      if (this.containsReferral(lowerSentence)) {
+      // Check for follow-up appointments (not referrals)
+      if (!wasProcessed && this.isFollowUpAppointment(lowerSentence)) {
         result.referrals.push({
           type: 'referral',
           text: sentence,
@@ -254,6 +260,20 @@ class OrderExtractionService {
           confidence: 0.7,
         });
         orderSentences.push(sentence);
+        processedSentences.add(sentence);
+        wasProcessed = true;
+      }
+
+      // Check for actual referrals (to specialists)
+      if (!wasProcessed && this.containsReferral(lowerSentence)) {
+        result.referrals.push({
+          type: 'referral',
+          text: sentence,
+          action: 'order',
+          confidence: 0.7,
+        });
+        orderSentences.push(sentence);
+        processedSentences.add(sentence);
       }
     }
 
@@ -406,12 +426,19 @@ class OrderExtractionService {
     if (isMedication && action) {
       const confidence = this.calculateConfidence(sentence, 'medication', !!action, hasSpecificMed);
 
+      // Determine urgency - "continue" medications are ALWAYS routine
+      let urgency: 'routine' | 'urgent' | 'stat' = 'routine';
+      if (action !== 'continue' && action !== 'refill') {
+        // Only check for urgency markers on new/changed orders
+        urgency = this.extractUrgency(sentence);
+      }
+
       return {
         type: 'medication',
         text: sentence.trim(),
         action: action as any,
         confidence,
-        urgency: this.extractUrgency(sentence),
+        urgency,
       };
     }
 
@@ -445,9 +472,65 @@ class OrderExtractionService {
   }
 
   /**
-   * Extract lab order details
+   * Expand comma-separated lab list into individual orders
+   * "Check A1C, CBC, CMP" → ["Check A1C", "Check CBC", "Check CMP"]
    */
-  private extractLabOrder(sentence: string): ExtractedOrder {
+  private expandLabList(sentence: string): string[] {
+    const lower = sentence.toLowerCase();
+
+    // Check if this contains a comma-separated list of labs
+    const hasCommaList = sentence.includes(',') && this.labKeywords.some(kw => lower.includes(kw));
+
+    if (!hasCommaList) {
+      return [sentence]; // Return as-is if not a list
+    }
+
+    // Extract the action phrase (e.g., "We'll check", "Order", "Get")
+    const actionMatch = sentence.match(/^(.*?)(check|order|get|draw|obtain|send)\s+/i);
+    const actionPrefix = actionMatch ? actionMatch[0] : '';
+
+    // Find the part after the action that contains labs
+    const labPart = actionPrefix ? sentence.substring(actionPrefix.length) : sentence;
+
+    // Remove follow-up text (e.g., "and we'll see you back in")
+    const cleanLabPart = labPart.replace(/\s+(and\s+)?(we'll\s+)?(see|schedule|return|come\s+back).*/i, '');
+
+    // Split on commas and "and"
+    const labItems = cleanLabPart
+      .split(/,|\s+and\s+/i)
+      .map(item => item.trim())
+      .filter(item => item.length > 0);
+
+    // Reconstruct each lab with the action prefix
+    return labItems.map(lab => {
+      // Clean up extra words
+      const cleanLab = lab.replace(/^(a|an|the)\s+/i, '').trim();
+      return actionPrefix ? `${actionPrefix}${cleanLab}` : cleanLab;
+    });
+  }
+
+  /**
+   * Extract lab orders - returns array to handle comma-separated lists
+   */
+  private extractLabOrders(sentence: string): ExtractedOrder[] {
+    // Expand comma-separated lists first
+    const labSentences = this.expandLabList(sentence);
+    const orders: ExtractedOrder[] = [];
+
+    for (const labSentence of labSentences) {
+      const order = this.extractSingleLabOrder(labSentence);
+      if (order) {
+        orders.push(order);
+      }
+    }
+
+    return orders;
+  }
+
+  /**
+   * Extract single lab order details
+   */
+  private extractSingleLabOrder(sentence: string): ExtractedOrder | null {
     const urgency = this.extractUrgency(sentence);
     const lowerSentence = sentence.toLowerCase();
 
@@ -486,14 +569,74 @@ class OrderExtractionService {
   }
 
   /**
-   * Check if sentence contains referral
+   * Check if sentence is a follow-up appointment (not a specialist referral)
    */
-  private containsReferral(sentence: string): boolean {
-    return this.referralKeywords.some(keyword => sentence.includes(keyword));
+  private isFollowUpAppointment(sentence: string): boolean {
+    const followUpPatterns = [
+      /see\s+you\s+back/i,
+      /return\s+in/i,
+      /come\s+back\s+in/i,
+      /follow[\s-]?up\s+in/i,
+      /recheck\s+in/i,
+      /appointment\s+in/i,
+    ];
+
+    return followUpPatterns.some(pattern => pattern.test(sentence));
   }
 
   /**
-   * Extract urgency from order
+   * Check if sentence contains referral to specialist
+   */
+  private containsReferral(sentence: string): boolean {
+    // Only true referrals to specialists
+    const referralPatterns = [
+      /refer\s+to/i,
+      /referral\s+to/i,
+      /send\s+to/i,
+      /consult\s+(with\s+)?cardiology|endocrin|neurology|psychiatry|dermatology|orthopedic/i,
+      /see\s+(a\s+)?specialist/i,
+      /appointment\s+with\s+(dr\.|doctor)/i,
+    ];
+
+    return referralPatterns.some(pattern => pattern.test(sentence));
+  }
+
+  /**
+   * Extract prior authorization order with medication name
+   */
+  private extractPriorAuthOrder(sentence: string, medications: ExtractedOrder[]): ExtractedOrder {
+    let medName = '';
+
+    // Try to extract medication name from the sentence
+    const medMatch = sentence.match(/(for|authorization\s+for|auth\s+for|pa\s+for)\s+([a-z]+)/i);
+    if (medMatch) {
+      medName = medMatch[2];
+    } else {
+      // Look in recently extracted medications
+      if (medications.length > 0) {
+        const lastMed = medications[medications.length - 1];
+        // Extract medication name from last medication order
+        const nameMatch = lastMed.text.match(/\b([A-Z][a-z]+(?:aro|lin|pril|stat|log|met|ide)?)\b/);
+        if (nameMatch) {
+          medName = nameMatch[1];
+        }
+      }
+    }
+
+    const enhancedText = medName
+      ? `Prior authorization needed for ${medName}`
+      : sentence;
+
+    return {
+      type: 'prior_auth',
+      text: enhancedText,
+      action: 'order',
+      confidence: medName ? 0.9 : 0.6,
+    };
+  }
+
+  /**
+   * Extract urgency from order - ONLY if explicitly stated
    */
   private extractUrgency(text: string): 'routine' | 'urgent' | 'stat' {
     const lowerText = text.toLowerCase();
@@ -649,26 +792,34 @@ class OrderExtractionService {
       return `${wholeNum}.${decimalNum}`;
     });
 
-    // Replace number words with digits (before units like mg, units, etc.)
-    // Only replace if followed by a unit or dosage keyword
-    for (const [word, digit] of Object.entries(numberWords)) {
-      // Match number word followed by unit or another number
-      const regex = new RegExp(`\\b${word}\\b(?=\\s+(mg|mcg|units?|milligrams?|micrograms?|ml|g|lbs|pounds|weeks?|days?|times?|point|zero|one|two|three|four|five|six|seven|eight|nine|ten|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety))`, 'gi');
-      result = result.replace(regex, digit);
-    }
-
-    // Also replace standalone number words at the end
-    for (const [word, digit] of Object.entries(numberWords)) {
-      const regex = new RegExp(`\\b${word}\\b(?=\\s*(mg|mcg|units?|milligrams?|micrograms?|a day|daily|twice|once)\\b)`, 'gi');
-      result = result.replace(regex, digit);
-    }
-
-    // Handle compound numbers like "20 5" -> "25" when followed by units
-    result = result.replace(/\b(\d{2})\s+(\d)\s+(mg|mcg|units?|ml|g|milligrams?)/gi, (match, tens, ones, unit) => {
-      return `${parseInt(tens) + parseInt(ones)}${unit}`;
+    // Handle compound numbers (e.g., "twenty five" -> "25")
+    result = result.replace(/\b(twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)[\s-]+(one|two|three|four|five|six|seven|eight|nine)\b/gi, (match, tens, ones) => {
+      const tensNum = parseInt(numberWords[tens.toLowerCase()]);
+      const onesNum = parseInt(numberWords[ones.toLowerCase()]);
+      return String(tensNum + onesNum);
     });
 
-    // Normalize "milligrams" to "mg", "units" stays as "units"
+    // Replace all number words with digits when they appear before common medical/dosage keywords
+    // This handles: "ten units", "twenty milligrams", "five times a day", etc.
+    const dosageContext = /(mg|mcg|units?|milligrams?|micrograms?|ml|g|lbs|pounds|weeks?|days?|months?|years?|times?|hours?|capsules?|tablets?|pills?|drops?|sprays?|puffs?|a\s+day|daily|twice|once|bid|tid|qid|prn)/i;
+
+    for (const [word, digit] of Object.entries(numberWords)) {
+      // Match number word followed by dosage-related terms
+      const regex = new RegExp(`\\b${word}\\b(?=\\s+${dosageContext.source})`, 'gi');
+      result = result.replace(regex, digit);
+    }
+
+    // Also replace number words that appear after medication names
+    // This handles: "Simvastatin twenty" -> "Simvastatin 20"
+    for (const [word, digit] of Object.entries(numberWords)) {
+      // Match medication name patterns followed by number word
+      const regex = new RegExp(`(\\b[A-Z][a-z]+(?:aro|lin|pril|stat|log|met|ide|mab|nib|cin|lol|pine|zole|pam|done|cet|vir|mycin|cillin|oxin|azole|terol|prazole)?)\\s+${word}\\b`, 'gi');
+      result = result.replace(regex, (match, medName) => {
+        return `${medName} ${digit}`;
+      });
+    }
+
+    // Normalize "milligrams" to "mg", "micrograms" to "mcg" AFTER number conversion
     result = result.replace(/\bmilligrams?\b/gi, 'mg');
     result = result.replace(/\bmicrograms?\b/gi, 'mcg');
 
