@@ -1038,6 +1038,13 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
                 ← Dashboard
               </button>
               <button
+                onClick={() => navigate('/staff-orders')}
+                className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-1"
+                title="View all patient orders"
+              >
+                📋 Staff Orders
+              </button>
+              <button
                 onClick={async () => {
                   await logout();
                   navigate('/login');
@@ -1365,6 +1372,14 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
               </button>
 
               {/* Enroll in PCM Button - Show if we have processed content or extracted orders */}
+              {(() => {
+                console.log('🔍 ENROLL IN PCM Button Check:', {
+                  showProcessed,
+                  hasExtractedOrders: !!extractedOrders,
+                  shouldShow: showProcessed || extractedOrders
+                });
+                return null;
+              })()}
               {(showProcessed || extractedOrders) && (
                 <button
                   onClick={() => {
