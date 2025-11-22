@@ -842,6 +842,8 @@ class AzureAIService {
         );
 
         if (retryResult) {
+          // IMPORTANT: Preserve extractedOrders from original note
+          retryResult.extractedOrders = processedNote.extractedOrders;
           currentNote = retryResult;
         } else {
           logError('azureAI', `Retry ${retryCount} failed - using previous result`);
@@ -849,7 +851,10 @@ class AzureAIService {
         }
       }
 
+      // IMPORTANT: Preserve extractedOrders when updating processedNote
+      const preservedOrders = processedNote.extractedOrders;
       processedNote = currentNote;
+      processedNote.extractedOrders = preservedOrders;
     }
 
     // Validate output quality
