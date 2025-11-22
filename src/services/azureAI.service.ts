@@ -1002,6 +1002,7 @@ class AzureAIService {
     processedNote.formatted = this.rebuildFormattedNote(processedNote, template);
 
     logInfo('azureAI', 'Note validation complete');
+    alert(`🔬 validateAndClean RETURNING:\nextractedOrders = ${!!processedNote.extractedOrders ? 'EXISTS ✅' : 'NULL ❌'}\nMeds: ${processedNote.extractedOrders?.medications?.length || 0}`);
     return processedNote;
   }
 
