@@ -761,6 +761,7 @@ class AzureAIService {
     console.log('🔍 ==================== ENHANCE WITH ORDER EXTRACTION ====================');
     console.log('📝 Transcript length:', transcript.length);
     console.log('📝 Transcript preview (first 200 chars):', transcript.substring(0, 200));
+    alert(`🔍 ORDER EXTRACTION CALLED!\nTranscript length: ${transcript.length}\nPreview: ${transcript.substring(0, 100)}...`);
 
     logDebug('azureAI', 'Enhancing note with order extraction and validation');
     const correctedTranscript = medicalCorrections.correctTranscription(transcript);
@@ -770,6 +771,7 @@ class AzureAIService {
     console.log('🔍 Medications found:', extractedOrders?.medications?.length || 0);
     console.log('🔍 Labs found:', extractedOrders?.labs?.length || 0);
     console.log('🔍 Imaging found:', extractedOrders?.imaging?.length || 0);
+    alert(`🔍 EXTRACTION RESULT:\nMeds: ${extractedOrders?.medications?.length || 0}\nLabs: ${extractedOrders?.labs?.length || 0}\nImaging: ${extractedOrders?.imaging?.length || 0}`);
 
     if (extractedOrders && (
       extractedOrders.medications.length > 0 ||
@@ -779,6 +781,7 @@ class AzureAIService {
       extractedOrders.referrals.length > 0
     )) {
       console.log('✅ Orders found! Adding to processedNote.extractedOrders');
+      alert('✅ ORDERS FOUND! Adding to result...');
       const ordersAndActions = orderExtractionService.formatOrdersForTemplate(extractedOrders);
       processedNote.sections.ordersAndActions = ordersAndActions;
       processedNote.extractedOrders = extractedOrders;
@@ -786,6 +789,7 @@ class AzureAIService {
       logInfo('azureAI', 'Enhanced note with extracted orders', { orderCount: extractedOrders.medications.length + extractedOrders.labs.length });
     } else {
       console.log('❌ No orders found in transcript');
+      alert('❌ NO ORDERS FOUND in transcript');
     }
     console.log('🔍 ===========================================================');
 
