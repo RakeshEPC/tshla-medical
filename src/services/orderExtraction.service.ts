@@ -422,6 +422,12 @@ class OrderExtractionService {
    * Check if sentence contains lab order
    */
   private containsLabOrder(sentence: string): boolean {
+    // EXCLUDE if it looks like a medication (has dosage units)
+    const hasMedicationUnits = /(mg|mcg|units?|ml|g|tablets?|capsules?|milligrams?|micrograms?)\b/i.test(sentence);
+    if (hasMedicationUnits) {
+      return false; // It's a medication, not a lab
+    }
+
     // Check for actual lab orders (not just lab values)
     const hasLabOrder = this.labKeywords.some(keyword => sentence.includes(keyword));
 
@@ -508,49 +514,109 @@ class OrderExtractionService {
   private getCPTCode(labText: string): string {
     const lower = labText.toLowerCase();
 
-    // Common lab CPT codes
+    // Common lab CPT codes - more specific matches first
     const cptMap: Record<string, string> = {
+      // Metabolic panels
       'cmp': '80053',
       'comprehensive metabolic': '80053',
+      'complete metabolic': '80053',
       'bmp': '80048',
       'basic metabolic': '80048',
+
+      // Blood counts
       'cbc': '85025',
       'complete blood count': '85025',
+
+      // Lipids
       'lipid panel': '80061',
-      'lipid': '80061',
+      'lipid profile': '80061',
+      'cholesterol panel': '80061',
+
+      // Diabetes
       'a1c': '83036',
       'hemoglobin a1c': '83036',
       'hba1c': '83036',
+      'glycated hemoglobin': '83036',
+      'fasting glucose': '82947',
+      'glucose fasting': '82947',
+      'random glucose': '82947',
+
+      // Thyroid - specific matches
+      't3 free': '84481',
+      'free t3': '84481',
+      't3': '84480',
+      't4 free': '84439',
+      'free t4': '84439',
+      't4': '84436',
       'tsh': '84443',
-      'thyroid': '84443',
+      'thyroid stimulating': '84443',
+
+      // Vitamins
       'vitamin d': '82306',
+      '25-oh vitamin d': '82306',
       'b12': '82607',
       'vitamin b12': '82607',
       'folate': '82746',
+      'folic acid': '82746',
+
+      // Minerals
       'iron': '83540',
       'ferritin': '82728',
+      'magnesium': '83735',
+      'calcium': '82310',
+
+      // Urinalysis
       'urinalysis': '81001',
       'ua': '81001',
-      'psa': '84153',
+      'urine analysis': '81001',
+
+      // Hormones
       'testosterone': '84403',
+      'testosterone total': '84403',
       'estrogen': '82670',
       'cortisol': '82533',
-      'crp': '86140',
-      'esr': '85652',
-      'inr': '85610',
-      'pt': '85610',
-      'ptt': '85730',
+      'progesterone': '84144',
+
+      // Cardiac
+      'troponin': '84484',
+      'bnp': '83880',
+      'cpk': '82550',
+      'ck-mb': '82553',
+
+      // Liver function
       'lft': '80076',
       'liver function': '80076',
       'alt': '84460',
       'ast': '84450',
-      'troponin': '84484',
-      'bnp': '83880',
+      'alkaline phosphatase': '84075',
+      'bilirubin': '82247',
+      'albumin': '82040',
+
+      // Kidney function
+      'creatinine': '82565',
+      'bun': '84520',
+      'egfr': '80069',
+
+      // Coagulation
+      'inr': '85610',
+      'pt': '85610',
+      'ptt': '85730',
+      'aptt': '85730',
+
+      // Inflammation
+      'crp': '86140',
+      'c-reactive protein': '86140',
+      'esr': '85652',
+      'sed rate': '85652',
+
+      // Other
+      'psa': '84153',
       'hcg': '84702',
       'pregnancy test': '84702',
+      'acth': '82024',
     };
 
-    // Find matching CPT code
+    // Find matching CPT code - check for exact matches first
     for (const [keyword, cpt] of Object.entries(cptMap)) {
       if (lower.includes(keyword)) {
         return cpt;
@@ -576,16 +642,35 @@ class OrderExtractionService {
 
     let result = text;
 
-    // Replace number words with digits
+    // First, handle "point" for decimals (e.g., "two point five" -> "2.5")
+    result = result.replace(/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten)\s+point\s+(zero|one|two|three|four|five|six|seven|eight|nine)\b/gi, (match, whole, decimal) => {
+      const wholeNum = numberWords[whole.toLowerCase()] || whole;
+      const decimalNum = numberWords[decimal.toLowerCase()] || decimal;
+      return `${wholeNum}.${decimalNum}`;
+    });
+
+    // Replace number words with digits (before units like mg, units, etc.)
+    // Only replace if followed by a unit or dosage keyword
     for (const [word, digit] of Object.entries(numberWords)) {
-      const regex = new RegExp(`\\b${word}\\b`, 'gi');
+      // Match number word followed by unit or another number
+      const regex = new RegExp(`\\b${word}\\b(?=\\s+(mg|mcg|units?|milligrams?|micrograms?|ml|g|lbs|pounds|weeks?|days?|times?|point|zero|one|two|three|four|five|six|seven|eight|nine|ten|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety))`, 'gi');
       result = result.replace(regex, digit);
     }
 
-    // Handle compound numbers like "twenty five" -> "25"
-    result = result.replace(/(\d+)\s+(\d+)(?=\s+(mg|mcg|units?|ml|g|lbs|pounds|weeks?|days?|times?|milligrams?))/gi, (match, tens, ones) => {
-      return (parseInt(tens) + parseInt(ones)).toString();
+    // Also replace standalone number words at the end
+    for (const [word, digit] of Object.entries(numberWords)) {
+      const regex = new RegExp(`\\b${word}\\b(?=\\s*(mg|mcg|units?|milligrams?|micrograms?|a day|daily|twice|once)\\b)`, 'gi');
+      result = result.replace(regex, digit);
+    }
+
+    // Handle compound numbers like "20 5" -> "25" when followed by units
+    result = result.replace(/\b(\d{2})\s+(\d)\s+(mg|mcg|units?|ml|g|milligrams?)/gi, (match, tens, ones, unit) => {
+      return `${parseInt(tens) + parseInt(ones)}${unit}`;
     });
+
+    // Normalize "milligrams" to "mg", "units" stays as "units"
+    result = result.replace(/\bmilligrams?\b/gi, 'mg');
+    result = result.replace(/\bmicrograms?\b/gi, 'mcg');
 
     return result;
   }
