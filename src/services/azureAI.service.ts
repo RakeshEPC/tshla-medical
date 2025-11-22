@@ -177,6 +177,7 @@ class AzureAIService {
         logDebug('azureAI', 'Debug message', {});
         const azureResult = await this.processWithAzureOpenAI(transcript, patient, template, additionalContext, customTemplate);
         logInfo('azureAI', 'Azure OpenAI processing completed successfully');
+        alert(`🎯 ABOUT TO RETURN FROM processMedicalTranscription!\nextractedOrders: ${azureResult.extractedOrders ? 'EXISTS ✅' : 'NULL ❌'}\nMeds: ${azureResult.extractedOrders?.medications?.length || 0}`);
         return azureResult;
       } catch (azureError: any) {
         console.error('❌ Azure OpenAI FAILED:', azureError);
