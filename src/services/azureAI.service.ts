@@ -146,6 +146,8 @@ class AzureAIService {
     additionalContext?: string,
     customTemplate?: { template: DoctorTemplate; doctorSettings: DoctorSettings }
   ): Promise<ProcessedNote> {
+    alert(`🚀 processMedicalTranscription CALLED!\nProvider: ${this.primaryProvider}\nTranscript length: ${transcript.length}`);
+
     // Log processing request
     logInfo('azureAI', 'Starting medical transcription processing', {
       transcriptLength: transcript.length,
@@ -570,6 +572,7 @@ class AzureAIService {
     additionalContext?: string,
     customTemplate?: { template: DoctorTemplate; doctorSettings: DoctorSettings }
   ): Promise<ProcessedNote> {
+    alert('🔥 processWithAzureOpenAI CALLED!');
     console.log('🔥 [azureAI] ============ processWithAzureOpenAI CALLED ============');
     console.log('🔥 [azureAI] Has customTemplate?', !!customTemplate);
     console.log('🔥 [azureAI] Has template?', !!template);
