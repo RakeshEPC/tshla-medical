@@ -1364,13 +1364,13 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
                 {isSavingToDatabase ? '💾 SAVING...' : '💾 SAVE TO DATABASE'}
               </button>
 
-              {/* Enroll in PCM Button */}
-              {patientDetails.name.trim() && (
+              {/* Enroll in PCM Button - Show if we have processed content or extracted orders */}
+              {(showProcessed || extractedOrders) && (
                 <button
                   onClick={() => {
                     // Navigate to PCM enrollment with pre-filled patient data and extracted orders
                     const params: Record<string, string> = {
-                      name: patientDetails.name,
+                      name: patientDetails.name || 'Unidentified Patient',
                       phone: patientDetails.phone || '',
                       email: patientDetails.email || '',
                       mrn: patientDetails.mrn || '',

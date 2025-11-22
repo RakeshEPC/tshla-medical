@@ -41,6 +41,7 @@ const DoctorDashboardUnified = lazy(() => import('./pages/DoctorDashboardUnified
 // Staff Management
 const StaffDashboard = lazy(() => import('./pages/StaffDashboard'));
 const StaffWorkflowDashboard = lazy(() => import('./pages/StaffWorkflowDashboard'));
+const StaffOrdersQueue = lazy(() => import('./pages/StaffOrdersQueue'));
 const CaseManagementDashboard = lazy(() => import('./pages/CaseManagementDashboard'));
 const MADashboard = lazy(() => import('./pages/MADashboard'));
 
@@ -233,6 +234,16 @@ function App() {
                   <ProtectedRoute>
                     <Suspense fallback={<LoadingSpinner />}>
                       <StaffWorkflowDashboard />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/staff-orders"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <StaffOrdersQueue />
                     </Suspense>
                   </ProtectedRoute>
                 }
