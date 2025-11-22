@@ -860,7 +860,10 @@ class AzureAIService {
       });
     }
 
-    return this.validateAndCleanProcessedNote(processedNote, transcript, template);
+    alert(`🔍 BEFORE validateAndClean: extractedOrders = ${!!processedNote.extractedOrders ? 'EXISTS ✅' : 'NULL ❌'}`);
+    const finalNote = this.validateAndCleanProcessedNote(processedNote, transcript, template);
+    alert(`🔍 AFTER validateAndClean: extractedOrders = ${!!finalNote.extractedOrders ? 'EXISTS ✅' : 'NULL ❌'}`);
+    return finalNote;
   }
 
   /**
