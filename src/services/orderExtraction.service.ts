@@ -106,14 +106,24 @@ class OrderExtractionService {
     'dexa',
   ];
 
-  // Prior auth keywords
+  // Prior auth keywords - expanded for better detection
   private priorAuthKeywords = [
     'prior auth',
     'prior authorization',
     'pre-auth',
     'preauth',
-    'authorization',
+    'pre auth',
+    'authorization needed',
+    'needs authorization',
+    'requires authorization',
     'approval needed',
+    'needs approval',
+    'requires approval',
+    'pa needed',
+    'pa required',
+    'get pa',
+    'obtain pa',
+    'submit for authorization',
   ];
 
   // Referral keywords

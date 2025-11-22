@@ -23,6 +23,8 @@ import {
 } from 'lucide-react';
 import { pcmService } from '../services/pcm.service';
 import type { PCMPatient } from '../components/pcm/PatientRiskCard';
+import { pcmDataExtractionService, type PCMExtractionResult } from '../services/pcmDataExtraction.service';
+import { patientAccessGenerator } from '../services/patientAccessGenerator.service';
 
 export default function PCMPatientSetup() {
   const navigate = useNavigate();
@@ -32,6 +34,14 @@ export default function PCMPatientSetup() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPatient, setSelectedPatient] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Auto-extracted PCM data from dictation
+  const [extractedPCMData, setExtractedPCMData] = useState<PCMExtractionResult | null>(null);
+  const [autoPopulatedFields, setAutoPopulatedFields] = useState<Set<string>>(new Set());
+
+  // Patient portal access
+  const [sendPatientAccess, setSendPatientAccess] = useState(true); // Default to true
+  const [patientAccessResult, setPatientAccessResult] = useState<string>('');
 
   // PCM enrollment data
   const [pcmData, setPcmData] = useState({
@@ -91,9 +101,25 @@ export default function PCMPatientSetup() {
       const medicationCount = parseInt(params.get('medicationCount') || '0');
       const labCount = parseInt(params.get('labCount') || '0');
 
+      // NEW: Extract PCM data from clinical note if provided
+      const clinicalNoteParam = params.get('clinicalNote');
+      let pcmExtracted: PCMExtractionResult | null = null;
+      const autoFields = new Set<string>();
+
+      if (clinicalNoteParam) {
+        try {
+          const decodedNote = decodeURIComponent(clinicalNoteParam);
+          pcmExtracted = pcmDataExtractionService.extractPCMData(decodedNote);
+          setExtractedPCMData(pcmExtracted);
+
+          console.log('🔍 Extracted PCM Data from Dictation:', pcmExtracted);
+        } catch (error) {
+          console.error('Error extracting PCM data:', error);
+        }
+      }
+
       // Pre-fill patient data
-      setPcmData(prev => ({
-        ...prev,
+      const initialData: any = {
         patientId: mrn || 'patient-' + Date.now(),
         patientName: name,
         age: parseInt(age) || 0,
@@ -102,7 +128,69 @@ export default function PCMPatientSetup() {
         clinicalNotes: hasOrders
           ? `Patient referred from dictation.\n${medicationCount} medication order(s) and ${labCount} lab order(s) were extracted from clinical note.\n\nReview extracted orders in the Orders section.`
           : 'Patient referred from dictation for PCM enrollment.'
-      }));
+      };
+
+      // Auto-populate baseline values from extracted PCM data
+      if (pcmExtracted) {
+        if (pcmExtracted.a1c?.currentValue) {
+          initialData.currentA1C = String(pcmExtracted.a1c.currentValue);
+          autoFields.add('currentA1C');
+        }
+        if (pcmExtracted.a1c?.targetValue) {
+          initialData.targetA1C = String(pcmExtracted.a1c.targetValue);
+          autoFields.add('targetA1C');
+        }
+
+        if (pcmExtracted.bloodPressure?.currentValue) {
+          initialData.currentBP = String(pcmExtracted.bloodPressure.currentValue);
+          autoFields.add('currentBP');
+        }
+        if (pcmExtracted.bloodPressure?.targetValue) {
+          initialData.targetBP = String(pcmExtracted.bloodPressure.targetValue);
+          autoFields.add('targetBP');
+        }
+
+        if (pcmExtracted.weight?.currentValue) {
+          initialData.currentWeight = String(pcmExtracted.weight.currentValue);
+          autoFields.add('currentWeight');
+        }
+        if (pcmExtracted.weight?.targetValue) {
+          initialData.targetWeight = String(pcmExtracted.weight.targetValue);
+          autoFields.add('targetWeight');
+        }
+
+        if (pcmExtracted.ldl?.currentValue) {
+          initialData.ldlCholesterol = String(pcmExtracted.ldl.currentValue);
+          autoFields.add('ldlCholesterol');
+        }
+        if (pcmExtracted.hdl?.currentValue) {
+          initialData.hdlCholesterol = String(pcmExtracted.hdl.currentValue);
+          autoFields.add('hdlCholesterol');
+        }
+        if (pcmExtracted.triglycerides?.currentValue) {
+          initialData.triglycerides = String(pcmExtracted.triglycerides.currentValue);
+          autoFields.add('triglycerides');
+        }
+        if (pcmExtracted.egfr?.currentValue) {
+          initialData.eGFR = String(pcmExtracted.egfr.currentValue);
+          autoFields.add('eGFR');
+        }
+
+        // Add current medications
+        if (pcmExtracted.currentMedications.length > 0) {
+          initialData.currentMedications = pcmExtracted.currentMedications.join(', ');
+          autoFields.add('currentMedications');
+        }
+
+        // Add note about auto-extraction
+        const extractionSummary = pcmDataExtractionService.formatForDisplay(pcmExtracted);
+        if (extractionSummary) {
+          initialData.clinicalNotes += `\n\n📊 Auto-Extracted PCM Data:\n${extractionSummary}`;
+        }
+      }
+
+      setPcmData(prev => ({ ...prev, ...initialData }));
+      setAutoPopulatedFields(autoFields);
 
       // Set selected patient
       setSelectedPatient({
@@ -154,6 +242,18 @@ export default function PCMPatientSetup() {
     return bmi.toFixed(1);
   };
 
+  // Helper: Render auto-extraction badge if field was auto-populated
+  const AutoExtractedBadge = ({ fieldName }: { fieldName: string }) => {
+    if (!autoPopulatedFields.has(fieldName)) return null;
+
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full border border-blue-300">
+        <span className="text-blue-500">✨</span>
+        Auto-extracted
+      </span>
+    );
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
 
@@ -195,6 +295,34 @@ export default function PCMPatientSetup() {
       // In production: Save to Supabase
       // For now: Save to demo data
       console.log('Saving PCM enrollment:', pcmPatient);
+
+      // NEW: Send patient portal access if requested
+      if (sendPatientAccess && pcmData.email) {
+        console.log('📧 Sending patient portal access...');
+
+        const accessResult = await patientAccessGenerator.createPatientAccess({
+          email: pcmData.email,
+          patientName: pcmData.patientName,
+          phone: pcmData.phone,
+          mrn: pcmData.patientId,
+          pcmEnrollmentId: pcmData.patientId
+        });
+
+        if (accessResult.success) {
+          setPatientAccessResult(
+            `✅ Patient portal access sent to ${pcmData.email}\n` +
+            `Temporary password: ${accessResult.temporaryPassword}\n` +
+            `Consent form: ${accessResult.consentFormUrl}`
+          );
+          console.log('✅ Patient access created successfully:', accessResult);
+        } else {
+          setPatientAccessResult(
+            `⚠️ Failed to send patient access: ${accessResult.error}\n` +
+            `Please create access manually or use password reset.`
+          );
+          console.error('❌ Failed to create patient access:', accessResult.error);
+        }
+      }
 
       // Check if this enrollment came from dictation with extracted orders
       const params = new URLSearchParams(window.location.search);
@@ -369,8 +497,9 @@ export default function PCMPatientSetup() {
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
-                    <label className="block text-sm font-semibold text-red-900 mb-2">
+                    <label className="block text-sm font-semibold text-red-900 mb-2 flex items-center gap-2">
                       Current A1C <span className="text-red-600">*</span>
+                      <AutoExtractedBadge fieldName="currentA1C" />
                     </label>
                     <div className="flex items-center gap-2">
                       <input
@@ -386,8 +515,9 @@ export default function PCMPatientSetup() {
                     <p className="text-xs text-red-700 mt-2">Latest lab value</p>
                   </div>
                   <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
-                    <label className="block text-sm font-semibold text-green-900 mb-2">
+                    <label className="block text-sm font-semibold text-green-900 mb-2 flex items-center gap-2">
                       Target A1C <span className="text-red-600">*</span>
+                      <AutoExtractedBadge fieldName="targetA1C" />
                     </label>
                     <div className="flex items-center gap-2">
                       <input
@@ -413,8 +543,9 @@ export default function PCMPatientSetup() {
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-4">
-                    <label className="block text-sm font-semibold text-orange-900 mb-2">
+                    <label className="block text-sm font-semibold text-orange-900 mb-2 flex items-center gap-2">
                       Current Blood Pressure
+                      <AutoExtractedBadge fieldName="currentBP" />
                     </label>
                     <input
                       type="text"
@@ -426,8 +557,9 @@ export default function PCMPatientSetup() {
                     <p className="text-xs text-orange-700 mt-2">Format: systolic/diastolic</p>
                   </div>
                   <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
-                    <label className="block text-sm font-semibold text-green-900 mb-2">
+                    <label className="block text-sm font-semibold text-green-900 mb-2 flex items-center gap-2">
                       Target Blood Pressure
+                      <AutoExtractedBadge fieldName="targetBP" />
                     </label>
                     <input
                       type="text"
@@ -449,8 +581,9 @@ export default function PCMPatientSetup() {
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-4">
-                    <label className="block text-sm font-semibold text-purple-900 mb-2">
+                    <label className="block text-sm font-semibold text-purple-900 mb-2 flex items-center gap-2">
                       Current Weight
+                      <AutoExtractedBadge fieldName="currentWeight" />
                     </label>
                     <div className="flex items-center gap-2">
                       <input
@@ -468,8 +601,9 @@ export default function PCMPatientSetup() {
                     )}
                   </div>
                   <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
-                    <label className="block text-sm font-semibold text-green-900 mb-2">
+                    <label className="block text-sm font-semibold text-green-900 mb-2 flex items-center gap-2">
                       Target Weight
+                      <AutoExtractedBadge fieldName="targetWeight" />
                     </label>
                     <div className="flex items-center gap-2">
                       <input
@@ -495,7 +629,10 @@ export default function PCMPatientSetup() {
                 </h2>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">LDL</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                      LDL
+                      <AutoExtractedBadge fieldName="ldlCholesterol" />
+                    </label>
                     <input
                       type="number"
                       value={pcmData.ldlCholesterol}
@@ -506,7 +643,10 @@ export default function PCMPatientSetup() {
                     <p className="text-xs text-gray-500 mt-1">mg/dL</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">HDL</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                      HDL
+                      <AutoExtractedBadge fieldName="hdlCholesterol" />
+                    </label>
                     <input
                       type="number"
                       value={pcmData.hdlCholesterol}
@@ -517,7 +657,10 @@ export default function PCMPatientSetup() {
                     <p className="text-xs text-gray-500 mt-1">mg/dL</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Triglycerides</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                      Triglycerides
+                      <AutoExtractedBadge fieldName="triglycerides" />
+                    </label>
                     <input
                       type="number"
                       value={pcmData.triglycerides}
@@ -528,7 +671,10 @@ export default function PCMPatientSetup() {
                     <p className="text-xs text-gray-500 mt-1">mg/dL</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">eGFR</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                      eGFR
+                      <AutoExtractedBadge fieldName="eGFR" />
+                    </label>
                     <input
                       type="number"
                       value={pcmData.eGFR}
@@ -583,6 +729,50 @@ export default function PCMPatientSetup() {
                   placeholder="Enter any relevant clinical notes, comorbidities, special considerations..."
                 />
               </div>
+
+              {/* Patient Portal Access */}
+              {pcmData.email && (
+                <div className="border-2 border-blue-200 rounded-lg p-6 bg-blue-50">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={sendPatientAccess}
+                      onChange={(e) => setSendPatientAccess(e.target.checked)}
+                      className="mt-1 w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <div>
+                      <div className="font-semibold text-gray-900 flex items-center gap-2">
+                        <User className="w-4 h-4 text-blue-600" />
+                        Send Patient Portal Access
+                      </div>
+                      <p className="text-sm text-gray-700 mt-1">
+                        Automatically create patient portal login and send invitation email to{' '}
+                        <span className="font-semibold text-blue-700">{pcmData.email}</span>
+                      </p>
+                      <p className="text-xs text-gray-600 mt-2">
+                        ✅ Includes: Temporary password, login link, and consent form
+                      </p>
+                    </div>
+                  </label>
+
+                  {patientAccessResult && (
+                    <div className="mt-4 p-3 bg-white border-2 border-blue-300 rounded-lg">
+                      <pre className="text-xs text-gray-800 whitespace-pre-wrap font-mono">
+                        {patientAccessResult}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!pcmData.email && (
+                <div className="border-2 border-yellow-200 rounded-lg p-4 bg-yellow-50">
+                  <p className="text-sm text-yellow-800 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4" />
+                    <span>Patient email required to send portal access</span>
+                  </p>
+                </div>
+              )}
 
               {/* Action Buttons */}
               <div className="flex gap-4 pt-6 border-t border-gray-200">

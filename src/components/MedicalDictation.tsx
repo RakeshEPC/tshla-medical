@@ -1396,6 +1396,12 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
                       labCount: extractedOrders?.labs.length.toString() || '0'
                     };
 
+                    // Pass clinical note for PCM data extraction (baseline values and goals)
+                    const clinicalNoteText = processedNote || transcript;
+                    if (clinicalNoteText.trim()) {
+                      params.clinicalNote = encodeURIComponent(clinicalNoteText);
+                    }
+
                     // If we have extracted orders, pass them as JSON
                     if (extractedOrders) {
                       params.extractedOrders = encodeURIComponent(JSON.stringify(extractedOrders));

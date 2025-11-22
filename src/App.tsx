@@ -111,6 +111,7 @@ const PCMProviderDashboard = lazy(() => import('./pages/PCMProviderDashboard'));
 const PCMStaffWorkflow = lazy(() => import('./pages/PCMStaffWorkflow'));
 const PCMPatientSetup = lazy(() => import('./pages/PCMPatientSetup'));
 const PCMPatientGoals = lazy(() => import('./pages/PCMPatientGoals'));
+const PatientConsent = lazy(() => import('./pages/PatientConsent'));
 const PCMPatientProfile = lazy(() => import('./pages/PCMPatientProfile'));
 const PCMMessages = lazy(() => import('./pages/PCMMessages'));
 const PCMLabOrders = lazy(() => import('./pages/PCMLabOrders'));
@@ -611,6 +612,22 @@ function App() {
                       <PCMPatientGoals />
                     </Suspense>
                   </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/patient-consent"
+                element={
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <PatientConsent />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/pcm-patient-setup"
+                element={
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <PCMPatientSetup />
+                  </Suspense>
                 }
               />
               <Route
