@@ -1019,22 +1019,15 @@ class OrderExtractionService {
   private extractPriorAuthFromNote(aiNote: string): Map<string, string> {
     const priorAuthMap = new Map<string, string>();
 
-    console.log('=== EXTRACTING PA FROM AI NOTE ===');
-    console.log('AI Note length:', aiNote.length);
-
     // Find the PRIOR AUTH section with more flexible matching
     const priorAuthMatch = aiNote.match(/(?:PRIOR AUTH(?:ORIZATION)?)[:\s]*\n([\s\S]*?)(?:\n\n[A-Z]|\n--|\n═|$)/i);
 
-    console.log('Prior Auth Match found:', !!priorAuthMatch);
-
     if (priorAuthMatch) {
       const priorAuthSection = priorAuthMatch[1];
-      console.log('Prior Auth Section:', priorAuthSection);
 
       // Parse each medication's PA details
       // Format: • Zetia (Ezetimibe) – Prior authorization required; indication is...
       const paLines = priorAuthSection.split('\n').filter(line => line.trim().startsWith('•'));
-      console.log('PA Lines found:', paLines.length, paLines);
 
       for (const line of paLines) {
         // Extract medication name (first word or phrase before parenthesis/dash)
@@ -1043,13 +1036,11 @@ class OrderExtractionService {
           const medName = medMatch[1].trim();
           // Extract full justification (everything after the bullet)
           const justification = line.replace(/^•\s*/, '').trim();
-          console.log(`Adding PA: ${medName.toLowerCase()} -> ${justification}`);
           priorAuthMap.set(medName.toLowerCase(), justification);
         }
       }
     }
 
-    console.log('Final PA Map size:', priorAuthMap.size);
     return priorAuthMap;
   }
 
@@ -1059,10 +1050,6 @@ class OrderExtractionService {
    */
   formatOrdersForTemplate(orders: OrderExtractionResult, aiGeneratedNote?: string): string {
     const sections: string[] = [];
-
-    console.log('=== FORMAT ORDERS FOR TEMPLATE ===');
-    console.log('AI Note provided:', !!aiGeneratedNote);
-    console.log('AI Note preview:', aiGeneratedNote ? aiGeneratedNote.substring(0, 500) : 'none');
 
     // Extract PA details from AI note if available
     const priorAuthDetails = aiGeneratedNote ? this.extractPriorAuthFromNote(aiGeneratedNote) : new Map();
