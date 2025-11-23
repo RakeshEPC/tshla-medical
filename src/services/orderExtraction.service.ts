@@ -555,7 +555,7 @@ class OrderExtractionService {
 
     // Count how many lab keywords are in the sentence (excluding action words)
     const labKeywordMatches = this.labKeywords.filter(kw => {
-      return kw.length > 4 && lower.includes(kw); // Only specific lab names
+      return kw.length > 2 && lower.includes(kw); // Include short lab names like CBC, TSH, etc
     });
     const hasMultipleLabs = labKeywordMatches.length > 1;
 
@@ -1020,7 +1020,8 @@ class OrderExtractionService {
     const priorAuthMap = new Map<string, string>();
 
     // Find the PRIOR AUTH section with more flexible matching
-    const priorAuthMatch = aiNote.match(/(?:PRIOR AUTH(?:ORIZATION)?)[:\s]*\n([\s\S]*?)(?:\n\n[A-Z]|\n--|\n═|$)/i);
+    // Handle both markdown (**PRIOR AUTH:**) and plain text (PRIOR AUTH:)
+    const priorAuthMatch = aiNote.match(/\*?\*?(?:PRIOR AUTH(?:ORIZATION)?)\*?\*?[:\s]*\n([\s\S]*?)(?:\n\n\*?\*?[A-Z]|\n\n--|\n\n═|\n\n$|$)/i);
 
     if (priorAuthMatch) {
       const priorAuthSection = priorAuthMatch[1];
