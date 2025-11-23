@@ -271,7 +271,13 @@ class BedrockService {
       // Extract orders from the original transcript (same as existing logic)
       if (transcript) {
         logDebug('bedrock', 'Debug message', {});
-        const extractedOrders = orderExtractionService.extractOrders(transcript);
+        let extractedOrders = orderExtractionService.extractOrders(transcript);
+
+        // Enrich prior auth orders with detailed justifications from AI note
+        if (extractedOrders && extractedOrders.priorAuths.length > 0) {
+          extractedOrders = orderExtractionService.enrichPriorAuthOrders(extractedOrders, processedNote.formatted);
+        }
+
         if (extractedOrders && (
           extractedOrders.medications.length > 0 ||
           extractedOrders.labs.length > 0 ||
@@ -519,6 +525,11 @@ IMPORTANT: Only return the medical note content. Do not include instructions or 
         extractedOrders.priorAuths.length > 0 ||
         extractedOrders.referrals.length > 0
       )) {
+        // Enrich prior auth orders with detailed justifications from AI note
+        if (extractedOrders.priorAuths.length > 0) {
+          extractedOrders = orderExtractionService.enrichPriorAuthOrders(extractedOrders, formatted);
+        }
+
         // Pass the AI-generated note to include detailed PA justifications
         ordersAndActions = orderExtractionService.formatOrdersForTemplate(extractedOrders, formatted);
 

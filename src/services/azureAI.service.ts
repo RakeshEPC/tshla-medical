@@ -765,12 +765,17 @@ class AzureAIService {
 
     logDebug('azureAI', 'Enhancing note with order extraction and validation');
     const correctedTranscript = medicalCorrections.correctTranscription(transcript);
-    const extractedOrders = orderExtractionService.extractOrders(correctedTranscript);
+    let extractedOrders = orderExtractionService.extractOrders(correctedTranscript);
 
     console.log('🔍 Extracted orders result:', extractedOrders);
     console.log('🔍 Medications found:', extractedOrders?.medications?.length || 0);
     console.log('🔍 Labs found:', extractedOrders?.labs?.length || 0);
     console.log('🔍 Imaging found:', extractedOrders?.imaging?.length || 0);
+
+    // Enrich prior auth orders with detailed justifications from AI note
+    if (extractedOrders && extractedOrders.priorAuths.length > 0) {
+      extractedOrders = orderExtractionService.enrichPriorAuthOrders(extractedOrders, processedNote.formatted);
+    }
 
     if (extractedOrders && (
       extractedOrders.medications.length > 0 ||
@@ -1610,6 +1615,11 @@ RULES:
         extractedOrders.priorAuths.length > 0 ||
         extractedOrders.referrals.length > 0
       )) {
+        // Enrich prior auth orders with detailed justifications from AI note
+        if (extractedOrders.priorAuths.length > 0) {
+          extractedOrders = orderExtractionService.enrichPriorAuthOrders(extractedOrders, formatted);
+        }
+
         // Pass the AI-generated note to include detailed PA justifications
         ordersAndActions = orderExtractionService.formatOrdersForTemplate(extractedOrders, formatted);
 

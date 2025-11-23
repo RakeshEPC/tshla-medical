@@ -707,9 +707,13 @@ class OrderExtractionService {
 
     const confidence = this.calculateConfidence(sentence, 'lab', hasAction, hasSpecificTest);
 
+    // Add CPT code if available
+    const cptCode = this.getCPTCode(cleanedText);
+    const textWithCPT = cptCode ? `${cleanedText} [CPT: ${cptCode}]` : cleanedText;
+
     return {
       type: 'lab',
-      text: cleanedText,
+      text: textWithCPT,
       action: 'order',
       urgency,
       confidence,
@@ -1043,6 +1047,45 @@ class OrderExtractionService {
     }
 
     return priorAuthMap;
+  }
+
+  /**
+   * Enrich prior authorization orders with detailed justifications from AI note
+   * This should be called after extractOrders() to add clinical context to PA orders
+   */
+  enrichPriorAuthOrders(orders: OrderExtractionResult, aiGeneratedNote: string): OrderExtractionResult {
+    if (!aiGeneratedNote || orders.priorAuths.length === 0) {
+      return orders;
+    }
+
+    const priorAuthDetails = this.extractPriorAuthFromNote(aiGeneratedNote);
+
+    if (priorAuthDetails.size === 0) {
+      return orders;
+    }
+
+    // Create new array with enriched prior auth orders
+    const enrichedPriorAuths = orders.priorAuths.map(auth => {
+      // Extract medication name from the auth text
+      const medMatch = auth.text.match(/(?:for|authorization needed for|auth needed for)\s+([A-Za-z]+)/i);
+      const medName = medMatch ? medMatch[1].toLowerCase() : '';
+
+      // Check if we have detailed PA justification from AI note
+      if (medName && priorAuthDetails.has(medName)) {
+        const detailedJustification = priorAuthDetails.get(medName)!;
+        return {
+          ...auth,
+          text: detailedJustification
+        };
+      }
+
+      return auth;
+    });
+
+    return {
+      ...orders,
+      priorAuths: enrichedPriorAuths
+    };
   }
 
   /**
