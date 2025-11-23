@@ -1023,23 +1023,16 @@ class OrderExtractionService {
   private extractPriorAuthFromNote(aiNote: string): Map<string, string> {
     const priorAuthMap = new Map<string, string>();
 
-    console.log('🔍 [extractPriorAuthFromNote] AI Note length:', aiNote.length);
-    console.log('🔍 [extractPriorAuthFromNote] AI Note preview (500 chars):', aiNote.substring(0, 500));
-
     // Find the PRIOR AUTH section with more flexible matching
     // Handle both markdown (**PRIOR AUTH:**) and plain text (PRIOR AUTH:)
     const priorAuthMatch = aiNote.match(/\*?\*?(?:PRIOR AUTH(?:ORIZATION)?)\*?\*?[:\s]*\n([\s\S]*?)(?:\n\n\*?\*?[A-Z]|\n\n--|\n\n═|\n\n$|$)/i);
 
-    console.log('🔍 [extractPriorAuthFromNote] Regex match found:', !!priorAuthMatch);
-
     if (priorAuthMatch) {
       const priorAuthSection = priorAuthMatch[1];
-      console.log('🔍 [extractPriorAuthFromNote] PA Section extracted:', priorAuthSection);
 
       // Parse each medication's PA details
       // Format: • Zetia (Ezetimibe) – Prior authorization required; indication is...
       const paLines = priorAuthSection.split('\n').filter(line => line.trim().startsWith('•'));
-      console.log('🔍 [extractPriorAuthFromNote] PA Lines found:', paLines.length, paLines);
 
       for (const line of paLines) {
         // Extract medication name (first word or phrase before parenthesis/dash)
@@ -1048,25 +1041,10 @@ class OrderExtractionService {
           const medName = medMatch[1].trim();
           // Extract full justification (everything after the bullet)
           const justification = line.replace(/^•\s*/, '').trim();
-          console.log(`🔍 [extractPriorAuthFromNote] Adding: "${medName.toLowerCase()}" => "${justification}"`);
           priorAuthMap.set(medName.toLowerCase(), justification);
-        } else {
-          console.log('🔍 [extractPriorAuthFromNote] No match for line:', line);
         }
       }
-    } else {
-      console.log('🔍 [extractPriorAuthFromNote] Searching for PRIOR AUTH in note...');
-      const hasPA = aiNote.toLowerCase().includes('prior auth');
-      console.log('🔍 [extractPriorAuthFromNote] Contains "prior auth":', hasPA);
-      if (hasPA) {
-        const paIndex = aiNote.toLowerCase().indexOf('prior auth');
-        console.log('🔍 [extractPriorAuthFromNote] PA found at index:', paIndex);
-        console.log('🔍 [extractPriorAuthFromNote] Context around PA:', aiNote.substring(Math.max(0, paIndex - 50), Math.min(aiNote.length, paIndex + 300)));
-      }
     }
-
-    console.log('🔍 [extractPriorAuthFromNote] Final map size:', priorAuthMap.size);
-    console.log('🔍 [extractPriorAuthFromNote] Map entries:', Array.from(priorAuthMap.entries()));
 
     return priorAuthMap;
   }
@@ -1076,49 +1054,34 @@ class OrderExtractionService {
    * This should be called after extractOrders() to add clinical context to PA orders
    */
   enrichPriorAuthOrders(orders: OrderExtractionResult, aiGeneratedNote: string): OrderExtractionResult {
-    console.log('🔍 [enrichPriorAuthOrders] Called with', orders.priorAuths.length, 'PA orders');
-    console.log('🔍 [enrichPriorAuthOrders] AI note provided:', !!aiGeneratedNote);
-
     if (!aiGeneratedNote || orders.priorAuths.length === 0) {
-      console.log('🔍 [enrichPriorAuthOrders] Returning early - no note or no PAs');
       return orders;
     }
 
     const priorAuthDetails = this.extractPriorAuthFromNote(aiGeneratedNote);
 
     if (priorAuthDetails.size === 0) {
-      console.log('🔍 [enrichPriorAuthOrders] No PA details found in AI note');
       return orders;
     }
 
-    console.log('🔍 [enrichPriorAuthOrders] Processing', orders.priorAuths.length, 'PA orders');
-
     // Create new array with enriched prior auth orders
-    const enrichedPriorAuths = orders.priorAuths.map((auth, index) => {
-      console.log(`🔍 [enrichPriorAuthOrders] PA ${index + 1}: "${auth.text}"`);
-
+    const enrichedPriorAuths = orders.priorAuths.map(auth => {
       // Extract medication name from the auth text
       const medMatch = auth.text.match(/(?:for|authorization needed for|auth needed for)\s+([A-Za-z]+)/i);
       const medName = medMatch ? medMatch[1].toLowerCase() : '';
 
-      console.log(`🔍 [enrichPriorAuthOrders] Extracted med name: "${medName}"`);
-      console.log(`🔍 [enrichPriorAuthOrders] Has details for "${medName}":`, priorAuthDetails.has(medName));
-
       // Check if we have detailed PA justification from AI note
       if (medName && priorAuthDetails.has(medName)) {
         const detailedJustification = priorAuthDetails.get(medName)!;
-        console.log(`🔍 [enrichPriorAuthOrders] Enriching with: "${detailedJustification}"`);
         return {
           ...auth,
           text: detailedJustification
         };
       }
 
-      console.log(`🔍 [enrichPriorAuthOrders] No enrichment for "${medName}"`);
       return auth;
     });
 
-    console.log('🔍 [enrichPriorAuthOrders] Done enriching');
     return {
       ...orders,
       priorAuths: enrichedPriorAuths
