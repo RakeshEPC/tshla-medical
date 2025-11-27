@@ -220,9 +220,7 @@ CREATE TABLE IF NOT EXISTS pcm_tasks (
 
   -- Due Date & Priority
   due_date DATE,
-  is_overdue BOOLEAN GENERATED ALWAYS AS (
-    NOT is_completed AND due_date IS NOT NULL AND due_date < CURRENT_DATE
-  ) STORED,
+  is_overdue BOOLEAN DEFAULT FALSE, -- Updated by trigger
   priority VARCHAR(20) DEFAULT 'medium', -- high, medium, low
   urgency_score INT DEFAULT 50, -- 0-100
 
@@ -725,6 +723,26 @@ CREATE TRIGGER trg_pcm_goals_updated_at
   BEFORE UPDATE ON pcm_goals
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
+
+-- Function to update is_overdue status
+CREATE OR REPLACE FUNCTION update_task_overdue_status()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Update is_overdue based on current date
+  NEW.is_overdue := (
+    NOT NEW.is_completed
+    AND NEW.due_date IS NOT NULL
+    AND NEW.due_date < CURRENT_DATE
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger to auto-update overdue status
+CREATE TRIGGER trg_pcm_tasks_overdue
+  BEFORE INSERT OR UPDATE ON pcm_tasks
+  FOR EACH ROW
+  EXECUTE FUNCTION update_task_overdue_status();
 
 -- =====================================================
 -- MIGRATION COMPLETE
