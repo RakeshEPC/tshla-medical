@@ -19,9 +19,11 @@ const twilioClient = twilio(
 );
 const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER;
 
-// OpenAI configuration for AI summary generation
-const OPENAI_API_KEY = process.env.VITE_OPENAI_API_KEY;
-const OPENAI_MODEL = process.env.VITE_OPENAI_MODEL_STAGE4 || 'gpt-4o-mini';
+// Azure OpenAI configuration for AI summary generation (HIPAA compliant)
+const AZURE_OPENAI_KEY = process.env.VITE_AZURE_OPENAI_KEY;
+const AZURE_OPENAI_ENDPOINT = process.env.VITE_AZURE_OPENAI_ENDPOINT;
+const AZURE_OPENAI_DEPLOYMENT = process.env.VITE_AZURE_OPENAI_DEPLOYMENT || 'gpt-4';
+const AZURE_API_VERSION = process.env.VITE_AZURE_OPENAI_API_VERSION || '2024-02-01';
 
 // ElevenLabs configuration
 const ELEVENLABS_API_KEY = process.env.VITE_ELEVENLABS_API_KEY;
@@ -58,39 +60,41 @@ ${soapNote}
 
 Generate ONLY the conversational phone script:`;
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${OPENAI_API_KEY}`
-    },
-    body: JSON.stringify({
-      model: OPENAI_MODEL,
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a medical communication specialist creating patient-friendly phone call scripts. Be conversational, warm, and clear.'
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      temperature: 0.7,
-      max_tokens: 300
-    })
-  });
+  const response = await fetch(
+    `${AZURE_OPENAI_ENDPOINT}/openai/deployments/${AZURE_OPENAI_DEPLOYMENT}/chat/completions?api-version=${AZURE_API_VERSION}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': AZURE_OPENAI_KEY
+      },
+      body: JSON.stringify({
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a medical communication specialist creating patient-friendly phone call scripts. Be conversational, warm, and clear.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 300
+      })
+    }
+  );
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
+    throw new Error(`Azure OpenAI API error: ${response.status} - ${errorText}`);
   }
 
   const data = await response.json();
   const script = data.choices[0]?.message?.content || '';
 
   if (!script.trim()) {
-    throw new Error('OpenAI returned empty response');
+    throw new Error('Azure OpenAI returned empty response');
   }
 
   const wordCount = script.split(/\s+/).length;
@@ -190,8 +194,9 @@ router.post('/generate-preview', async (req, res) => {
 
     console.log('🎙️ [Echo Preview] Generating AI summary preview...');
     console.log('   SOAP note length:', soapNote.length, 'characters');
-    console.log('   OpenAI API key configured:', !!OPENAI_API_KEY);
-    console.log('   OpenAI model:', OPENAI_MODEL);
+    console.log('   Azure OpenAI endpoint:', AZURE_OPENAI_ENDPOINT);
+    console.log('   Azure OpenAI deployment:', AZURE_OPENAI_DEPLOYMENT);
+    console.log('   Azure OpenAI API key configured:', !!AZURE_OPENAI_KEY);
 
     const summary = await generatePatientSummary(soapNote);
 
@@ -212,10 +217,10 @@ router.post('/generate-preview', async (req, res) => {
 
     // Provide helpful error messages
     let userMessage = error.message;
-    if (error.message.includes('OpenAI API error: 401')) {
-      userMessage = 'OpenAI API key is invalid or expired. Please update VITE_OPENAI_API_KEY in your .env file.';
-    } else if (error.message.includes('OpenAI')) {
-      userMessage = 'OpenAI API error: ' + error.message;
+    if (error.message.includes('Azure OpenAI API error: 401')) {
+      userMessage = 'Azure OpenAI API key is invalid or expired. Please check VITE_AZURE_OPENAI_KEY in your environment variables.';
+    } else if (error.message.includes('Azure OpenAI')) {
+      userMessage = 'Azure OpenAI API error: ' + error.message;
     }
 
     res.status(500).json({
