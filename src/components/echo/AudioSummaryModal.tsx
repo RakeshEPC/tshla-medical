@@ -45,6 +45,10 @@ export const AudioSummaryModal: React.FC<AudioSummaryModalProps> = ({
     setError(null);
 
     try {
+      console.log('🎙️ [Echo] Step 1: Generating AI script from SOAP note...');
+      console.log('   API URL:', import.meta.env.VITE_API_URL);
+      console.log('   SOAP length:', soapNote.length);
+
       // Call backend to generate AI script
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/echo/generate-preview`, {
         method: 'POST',
@@ -53,18 +57,37 @@ export const AudioSummaryModal: React.FC<AudioSummaryModalProps> = ({
       });
 
       if (!response.ok) {
-        throw new Error('Failed to generate preview');
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('❌ [Echo] Backend error:', errorData);
+        throw new Error(errorData.error || `Backend returned ${response.status}`);
       }
 
       const data = await response.json();
+      console.log('✅ [Echo] AI script generated:', data.script.substring(0, 100) + '...');
       setGeneratedScript(data.script);
 
       // Generate audio preview locally with selected voice
+      console.log('🔊 [Echo] Step 2: Generating audio with ElevenLabs...');
+      console.log('   Voice ID:', selectedVoice);
       const audioResult = await elevenLabsService.generateSpeech(data.script, selectedVoice);
+      console.log('✅ [Echo] Audio generated successfully');
       setAudioPreviewUrl(audioResult.audioUrl);
 
     } catch (err: any) {
-      setError(err.message || 'Failed to generate preview');
+      console.error('❌ [Echo] Failed to generate preview:', err);
+
+      // Provide specific error messages
+      let errorMessage = err.message || 'Failed to generate preview';
+
+      if (errorMessage.includes('OpenAI')) {
+        errorMessage = '🔑 OpenAI API key issue. Please check your VITE_OPENAI_API_KEY in .env file.';
+      } else if (errorMessage.includes('ElevenLabs')) {
+        errorMessage = '🔊 ElevenLabs API issue. Please check your VITE_ELEVENLABS_API_KEY in .env file.';
+      } else if (errorMessage.includes('fetch')) {
+        errorMessage = '🌐 Network error. Please ensure the API server is running on port 3000.';
+      }
+
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

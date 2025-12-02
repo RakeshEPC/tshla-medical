@@ -181,6 +181,7 @@ router.post('/generate-preview', async (req, res) => {
     const { soapNote } = req.body;
 
     if (!soapNote) {
+      console.warn('⚠️ [Echo Preview] Missing SOAP note in request');
       return res.status(400).json({
         success: false,
         error: 'Missing required field: soapNote'
@@ -188,8 +189,15 @@ router.post('/generate-preview', async (req, res) => {
     }
 
     console.log('🎙️ [Echo Preview] Generating AI summary preview...');
+    console.log('   SOAP note length:', soapNote.length, 'characters');
+    console.log('   OpenAI API key configured:', !!OPENAI_API_KEY);
+    console.log('   OpenAI model:', OPENAI_MODEL);
 
     const summary = await generatePatientSummary(soapNote);
+
+    console.log('✅ [Echo Preview] Summary generated successfully');
+    console.log('   Word count:', summary.wordCount);
+    console.log('   Estimated duration:', summary.estimatedSeconds, 'seconds');
 
     res.json({
       success: true,
@@ -200,9 +208,19 @@ router.post('/generate-preview', async (req, res) => {
 
   } catch (error) {
     console.error('❌ [Echo Preview] Error:', error.message);
+    console.error('   Stack trace:', error.stack);
+
+    // Provide helpful error messages
+    let userMessage = error.message;
+    if (error.message.includes('OpenAI API error: 401')) {
+      userMessage = 'OpenAI API key is invalid or expired. Please update VITE_OPENAI_API_KEY in your .env file.';
+    } else if (error.message.includes('OpenAI')) {
+      userMessage = 'OpenAI API error: ' + error.message;
+    }
+
     res.status(500).json({
       success: false,
-      error: error.message
+      error: userMessage
     });
   }
 });
