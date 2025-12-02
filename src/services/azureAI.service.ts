@@ -421,10 +421,10 @@ class AzureAIService {
         
         // Create basic note with order extraction
         const basicNote = this.createBasicFormattedNote(transcript, patient);
-        
-        // Extract orders even for basic formatting - use corrected transcript
-        const correctedTranscript = medicalCorrections.correctTranscription(transcript);
-        const extractedOrders = orderExtractionService.extractOrders(correctedTranscript);
+
+        // Extract orders from the formatted basic note (not raw transcript)
+        // This ensures we extract from properly structured clinical text
+        const extractedOrders = orderExtractionService.extractOrders(basicNote.formatted);
         if (extractedOrders && (
           extractedOrders.medications.length > 0 ||
           extractedOrders.labs.length > 0 ||
@@ -523,8 +523,9 @@ class AzureAIService {
       console.log('Full sections object:', extractedSections);
       console.log('🔍 ============================================================');
 
-      // Extract orders from the original transcript (before AI processing)
-      const extractedOrders = orderExtractionService.extractOrders(transcript);
+      // Extract orders from the AI-formatted note (NOT the raw transcript)
+      // This ensures we extract from properly structured clinical text instead of messy conversation
+      const extractedOrders = orderExtractionService.extractOrders(formattedNote);
 
       // Log extracted orders for debugging
       if (extractedOrders && (
@@ -534,7 +535,7 @@ class AzureAIService {
         extractedOrders.priorAuths.length > 0 ||
         extractedOrders.referrals.length > 0
       )) {
-        logInfo('azureAI', 'Extracted orders from transcript', {
+        logInfo('azureAI', 'Extracted orders from formatted note', {
           medications: extractedOrders.medications.length,
           labs: extractedOrders.labs.length,
           imaging: extractedOrders.imaging.length,
@@ -760,12 +761,13 @@ class AzureAIService {
     settings?: DoctorSettings
   ): Promise<ProcessedNote> {
     console.log('🔍 ==================== ENHANCE WITH ORDER EXTRACTION ====================');
-    console.log('📝 Transcript length:', transcript.length);
-    console.log('📝 Transcript preview (first 200 chars):', transcript.substring(0, 200));
+    console.log('📝 Formatted note length:', processedNote.formatted.length);
+    console.log('📝 Formatted note preview (first 200 chars):', processedNote.formatted.substring(0, 200));
 
     logDebug('azureAI', 'Enhancing note with order extraction and validation');
-    const correctedTranscript = medicalCorrections.correctTranscription(transcript);
-    let extractedOrders = orderExtractionService.extractOrders(correctedTranscript);
+    // Extract orders from the AI-formatted note (NOT the raw transcript)
+    // This ensures we extract from properly structured clinical text instead of messy conversation
+    let extractedOrders = orderExtractionService.extractOrders(processedNote.formatted);
 
     console.log('🔍 Extracted orders result:', extractedOrders);
     console.log('🔍 Medications found:', extractedOrders?.medications?.length || 0);
@@ -1560,19 +1562,9 @@ RULES:
         .replace(/\r\n/g, '\n') // Normalize line endings
         .replace(/\r/g, '\n')
         .trim();
-      
-      // Extract orders from the original transcript (not just the AI response)
-      // This ensures we catch orders that might be in the source material
-      let extractedOrders: OrderExtractionResult | undefined;
-      if (originalTranscript) {
-        logDebug('azureAI', 'Debug message', {});
-        const correctedOriginalTranscript = medicalCorrections.correctTranscription(originalTranscript);
-        extractedOrders = orderExtractionService.extractOrders(correctedOriginalTranscript);
-        logInfo('azureAI', 'Info message', {});
-      }
-      
+
       let parsed: any;
-      
+
       // Check if response is JSON or markdown
       if (cleanedResponse.startsWith('{') || cleanedResponse.startsWith('[')) {
         // Try to parse JSON response
@@ -1588,14 +1580,14 @@ RULES:
         logDebug('azureAI', 'Debug message', {});
         return this.parseMarkdownResponse(cleanedResponse, patient);
       }
-      
+
       // Format based on template type
       let formatted: string;
       logDebug('azureAI', 'Debug message', {});
       logDebug('azureAI', 'Debug message', {});
       logDebug('azureAI', 'Debug message', {});
-      logDebug('azureAI', 'Debug message', {}); 
-      
+      logDebug('azureAI', 'Debug message', {});
+
       if (template && template.sections && parsed.sections) {
         logDebug('azureAI', 'Debug message', {});
         // Format using custom template sections
@@ -1605,7 +1597,16 @@ RULES:
         // Use default formatting
         formatted = this.formatNote(parsed.sections, patient);
       }
-      
+
+      // Extract orders from the AI-formatted note (NOT the raw transcript)
+      // This ensures we extract from properly structured clinical text instead of messy conversation
+      let extractedOrders: OrderExtractionResult | undefined;
+      if (formatted) {
+        logDebug('azureAI', 'Extracting orders from formatted note');
+        extractedOrders = orderExtractionService.extractOrders(formatted);
+        logInfo('azureAI', 'Orders extracted from formatted note');
+      }
+
       // Add Orders & Actions section if we have extracted orders
       let ordersAndActions = '';
       if (extractedOrders && (

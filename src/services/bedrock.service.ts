@@ -268,10 +268,11 @@ class BedrockService {
         }
       };
 
-      // Extract orders from the original transcript (same as existing logic)
-      if (transcript) {
-        logDebug('bedrock', 'Debug message', {});
-        let extractedOrders = orderExtractionService.extractOrders(transcript);
+      // Extract orders from the AI-formatted note (NOT the raw transcript)
+      // This ensures we extract from properly structured clinical text instead of messy conversation
+      if (processedNote.formatted) {
+        logDebug('bedrock', 'Extracting orders from formatted note');
+        let extractedOrders = orderExtractionService.extractOrders(processedNote.formatted);
 
         // Enrich prior auth orders with detailed justifications from AI note
         if (extractedOrders && extractedOrders.priorAuths.length > 0) {
@@ -475,18 +476,9 @@ IMPORTANT: Only return the medical note content. Do not include instructions or 
         .replace(/\r\n/g, '\n') // Normalize line endings
         .replace(/\r/g, '\n')
         .trim();
-      
-      // Extract orders from the original transcript (not just the AI response)
-      // This ensures we catch orders that might be in the source material
-      let extractedOrders: OrderExtractionResult | undefined;
-      if (originalTranscript) {
-        logDebug('bedrock', 'Debug message', {});
-        extractedOrders = orderExtractionService.extractOrders(originalTranscript);
-        logInfo('bedrock', 'Info message', {});
-      }
-      
+
       let parsed: any;
-      
+
       // Check if response is JSON or markdown
       if (cleanedResponse.startsWith('{') || cleanedResponse.startsWith('[')) {
         // Try to parse JSON response
@@ -502,10 +494,10 @@ IMPORTANT: Only return the medical note content. Do not include instructions or 
         logDebug('bedrock', 'Debug message', {});
         return this.parseMarkdownResponse(cleanedResponse, patient);
       }
-      
+
       // Format based on template type
-      let formatted: string 
-      
+      let formatted: string
+
       if (template && template.sections && parsed.sections) {
         logDebug('bedrock', 'Debug message', {});
         // Format using custom template sections
@@ -515,7 +507,16 @@ IMPORTANT: Only return the medical note content. Do not include instructions or 
         // Use default formatting
         formatted = this.formatNote(parsed.sections, patient);
       }
-      
+
+      // Extract orders from the AI-formatted note (NOT the raw transcript)
+      // This ensures we extract from properly structured clinical text instead of messy conversation
+      let extractedOrders: OrderExtractionResult | undefined;
+      if (formatted) {
+        logDebug('bedrock', 'Extracting orders from formatted note');
+        extractedOrders = orderExtractionService.extractOrders(formatted);
+        logInfo('bedrock', 'Orders extracted from formatted note');
+      }
+
       // Add Orders & Actions section if we have extracted orders
       let ordersAndActions = '';
       if (extractedOrders && (
