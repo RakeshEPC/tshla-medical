@@ -1638,23 +1638,24 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
                 </div>
               )}
 
-              {/* Transcript Display */}
-              <div className="border border-gray-200 rounded-lg p-3 min-h-[200px] max-h-[300px] overflow-y-auto bg-gray-50">
+              {/* Transcript Display / Paste Area */}
+              <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
                 <h3 className="text-sm font-medium text-gray-700 mb-2">
                   {recordingMode === 'conversation' ? 'Conversation Transcript:' : 'Dictation Transcript:'}
                 </h3>
-                {transcript || interimText ? (
-                  <div className="text-sm text-gray-800 whitespace-pre-wrap">
-                    {transcript}
-                    {interimText && (
-                      <span className="text-gray-500 italic">{interimText}</span>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-400 italic">
-                    {isRecording ? 'Listening...' : 'Click "Start Recording" to begin'}
-                  </p>
-                )}
+                <textarea
+                  value={transcript + (interimText ? interimText : '')}
+                  onChange={(e) => setTranscript(e.target.value)}
+                  placeholder={isRecording ? 'Listening...' : 'Click "Start Recording" to begin, or paste your transcript here...'}
+                  className="w-full min-h-[200px] max-h-[300px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y bg-white"
+                  disabled={isRecording}
+                />
+                <div className="mt-2 text-xs text-gray-500 flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  You can type or paste transcripts directly into this field, then click "Process with AI" below
+                </div>
               </div>
 
             </div>
