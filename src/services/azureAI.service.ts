@@ -1,6 +1,8 @@
 /**
  * Azure AI Service for HIPAA-Compliant Medical Note Processing
  *
+ * VERSION: 2.0.1 - Fixed order extraction to use AI-formatted notes
+ *
  * HIPAA COMPLIANCE STATUS:
  * ========================
  * ✅ PRIMARY: Azure OpenAI (GPT-4o)
@@ -26,6 +28,10 @@
  * 1. Try Azure OpenAI (primary, HIPAA-compliant)
  * 2. Fallback to AWS Bedrock (secondary, HIPAA-compliant)
  * 3. Final fallback to client-side processor (no PHI transmission)
+ *
+ * ORDER EXTRACTION:
+ * - Orders are extracted from AI-formatted notes (NOT raw transcripts)
+ * - This prevents false positives from conversational noise
  */
 
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
