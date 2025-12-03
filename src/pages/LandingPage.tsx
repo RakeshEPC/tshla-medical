@@ -121,6 +121,96 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Diabetes Education Section - Tesla Style */}
+      <section className="py-24 bg-tesla-dark-gray text-white">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h3 className="text-4xl lg:text-5xl font-bold mb-4">
+              Diabetes Education
+            </h3>
+            <p className="text-xl font-light text-gray-300 max-w-2xl mx-auto">
+              24/7 AI Support • Talk to an expert anytime
+            </p>
+          </div>
+
+          <div className="bg-tesla-medium-gray rounded-lg p-8 lg:p-12">
+            <div className="grid lg:grid-cols-2 gap-12 items-center">
+              <div className="space-y-6">
+                <p className="text-lg font-light text-gray-200 leading-relaxed">
+                  Get personalized answers about your diabetes care. Our AI diabetes educator knows your medications,
+                  lab results, and medical history to provide tailored guidance.
+                </p>
+
+                <ul className="space-y-4">
+                  <li className="flex items-start">
+                    <span className="text-blue-400 font-bold mr-3">✓</span>
+                    <span className="font-light text-gray-200">Ask about your medications and side effects</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-blue-400 font-bold mr-3">✓</span>
+                    <span className="font-light text-gray-200">Understand your lab results and A1C</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-blue-400 font-bold mr-3">✓</span>
+                    <span className="font-light text-gray-200">Learn about diet and lifestyle changes</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-blue-400 font-bold mr-3">✓</span>
+                    <span className="font-light text-gray-200">Get answers about diabetes complications</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-blue-400 font-bold mr-3">✓</span>
+                    <span className="font-light text-gray-200">Available in English, Spanish, and French</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="bg-white rounded-lg p-8 text-center space-y-6">
+                <div className="w-20 h-20 bg-blue-500 rounded-full flex items-center justify-center mx-auto">
+                  <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
+                </div>
+
+                <div>
+                  <p className="text-sm font-medium text-gray-600 mb-2">Call Now - Available 24/7</p>
+                  <p className="text-3xl font-bold text-tesla-dark-gray mb-1">
+                    +1 (XXX) XXX-XXXX
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    10-minute consultations • Secure & confidential
+                  </p>
+                </div>
+
+                <div className="pt-4 border-t border-gray-200">
+                  <p className="text-sm text-gray-600 mb-3">
+                    <strong className="text-gray-900">How it works:</strong>
+                  </p>
+                  <ol className="text-left text-sm text-gray-700 space-y-2">
+                    <li className="flex items-start">
+                      <span className="font-bold text-blue-600 mr-2">1.</span>
+                      Your clinic creates your account and uploads your medical info
+                    </li>
+                    <li className="flex items-start">
+                      <span className="font-bold text-blue-600 mr-2">2.</span>
+                      Call the number above from your registered phone
+                    </li>
+                    <li className="flex items-start">
+                      <span className="font-bold text-blue-600 mr-2">3.</span>
+                      Talk to the AI educator about any diabetes questions
+                    </li>
+                  </ol>
+                </div>
+
+                <p className="text-xs text-gray-500 italic">
+                  Available only to registered patients. Contact your clinic to enroll.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Get Started Card - Tesla Minimal */}
       <section className="py-24 bg-tesla-silver">
         <div className="max-w-2xl mx-auto px-4">

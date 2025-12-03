@@ -117,6 +117,9 @@ const PCMPatientProfile = lazy(() => import('./pages/PCMPatientProfile'));
 const PCMMessages = lazy(() => import('./pages/PCMMessages'));
 const PCMLabOrders = lazy(() => import('./pages/PCMLabOrders'));
 const PCMPatientLabs = lazy(() => import('./pages/PCMPatientLabs'));
+
+// Diabetes Education System
+const DiabetesEducationAdmin = lazy(() => import('./pages/DiabetesEducationAdmin'));
 const PCMCallSummaries = lazy(() => import('./pages/PCMCallSummaries'));
 
 function App() {
@@ -689,6 +692,18 @@ function App() {
                   <ProtectedRoute>
                     <Suspense fallback={<LoadingSpinner />}>
                       <PCMCallSummaries />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* ===== DIABETES EDUCATION ROUTES ===== */}
+              <Route
+                path="/diabetes-education"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <DiabetesEducationAdmin />
                     </Suspense>
                   </ProtectedRoute>
                 }
