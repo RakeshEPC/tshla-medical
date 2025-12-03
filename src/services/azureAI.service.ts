@@ -1,40 +1,33 @@
 /**
  * Azure AI Service for HIPAA-Compliant Medical Note Processing
  *
- * VERSION: 2.0.1 - Fixed order extraction to use AI-formatted notes
+ * VERSION: 3.0.0 - Simplified to Azure OpenAI only (no fallbacks)
  *
  * HIPAA COMPLIANCE STATUS:
  * ========================
- * ✅ PRIMARY: Azure OpenAI (GPT-4o)
+ * ✅ Azure OpenAI (GPT-4o)
  *    - Microsoft BAA available and signed
  *    - HIPAA-compliant when properly configured
  *    - Data processed in Microsoft's secure infrastructure
+ *    - 100% reliable, no erratic fallback behavior
  *
- * ✅ FALLBACK: AWS Bedrock (Claude)
- *    - AWS BAA available and signed
- *    - HIPAA-compliant service
- *    - Used when Azure OpenAI is unavailable
+ * ❌ REMOVED SERVICES:
+ *    - OpenAI API (no BAA available) - REMOVED
+ *    - AWS Bedrock (fallback complexity) - REMOVED
+ *    - Client-side fallback (caused "[Not mentioned in transcription]" errors) - REMOVED
  *
- * ✅ CLIENT FALLBACK: clientAIProcessor.service.ts
- *    - 100% client-side processing (no PHI transmission)
- *    - Used when both cloud services fail
- *    - Rule-based extraction, no AI models
- *
- * ❌ ARCHIVED SERVICES (Not HIPAA-compliant):
- *    - OpenAI API (no BAA available) - ARCHIVED
- *    - Standard AI services without BAA - ARCHIVED
- *
- * WORKFLOW:
- * 1. Try Azure OpenAI (primary, HIPAA-compliant)
- * 2. Fallback to AWS Bedrock (secondary, HIPAA-compliant)
- * 3. Final fallback to client-side processor (no PHI transmission)
+ * ARCHITECTURE:
+ * =============
+ * Single provider: Azure OpenAI only
+ * - No fallbacks = consistent, predictable results
+ * - Clear error messages instead of silent degradation
+ * - Comprehensive console logging for debugging
  *
  * ORDER EXTRACTION:
  * - Orders are extracted from AI-formatted notes (NOT raw transcripts)
  * - This prevents false positives from conversational noise
  */
 
-import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import type { Template } from '../types/template.types';
 import type { PatientData } from './patientData.service';
 import { specialtyService } from './specialty.service';
@@ -77,73 +70,22 @@ export interface ProcessedNote {
 }
 
 class AzureAIService {
-  private client: BedrockRuntimeClient;
-  // MIGRATION PHASE 1: Azure OpenAI PRIMARY, AWS Bedrock FALLBACK ONLY
-  private primaryProvider = import.meta.env.VITE_PRIMARY_AI_PROVIDER || 'openai'; // Use env var for provider
-  private modelId = 'us.anthropic.claude-opus-4-1-20250805-v1:0'; // AWS Bedrock fallback model
-  private fallbackModelId = 'anthropic.claude-3-5-sonnet-20241022-v2:0'; // AWS Bedrock secondary fallback
-  private workingModelId: string | null = null;
-  private migrationMode = false; // Phase 1 of migration DISABLED - use env var instead
+  // VERSION 3.0.0: Azure OpenAI only, no fallbacks
 
   constructor() {
-    if (this.migrationMode) {
-      logInfo('azureAI', 'Info message', {});
-      logInfo('azureAI', 'Info message', {});
-      logDebug('azureAI', 'Debug message', {});
-      logDebug('azureAI', 'Debug message', {});
-      logDebug('azureAI', 'Debug message', {});
-    }
-    
-    const bearerToken = import.meta.env.VITE_AWS_BEARER_TOKEN_BEDROCK;
-    
-    // Check if we have standard AWS credentials first
-    if (import.meta.env.VITE_AWS_ACCESS_KEY_ID && import.meta.env.VITE_AWS_SECRET_ACCESS_KEY) {
-      logDebug('azureAI', 'Debug message', {});
-      this.client = new BedrockRuntimeClient({
-        region: import.meta.env.VITE_AWS_REGION || 'us-east-1',
-        credentials: {
-          accessKeyId: import.meta.env.VITE_AWS_ACCESS_KEY_ID,
-          secretAccessKey: import.meta.env.VITE_AWS_SECRET_ACCESS_KEY
-        }
-      });
-    } else if (bearerToken) {
-      // Bearer token authentication needs special handling
-      logDebug('azureAI', 'Debug message', {});
-      logWarn('azureAI', 'Warning message', {});
-      
-      // For browser-based Bearer token auth, we need a different approach
-      // The Bearer token should be used in Authorization header
-      this.client = new BedrockRuntimeClient({
-        region: import.meta.env.VITE_AWS_REGION || 'us-east-1',
-        credentials: {
-          accessKeyId: 'dummy', // Required but not used with Bearer token
-          secretAccessKey: 'dummy' // Required but not used with Bearer token
-        },
-        customUserAgent: 'BedrockAPIKey',
-        // Add custom request handler for Bearer token
-        requestHandler: {
-          handle: async (request: any) => {
-            request.headers['Authorization'] = `Bearer ${bearerToken}`;
-            return request;
-          }
-        } as any
-      });
-    } else {
-      logWarn('azureAI', 'Warning message', {});
-      // Create a dummy client to avoid errors
-      this.client = new BedrockRuntimeClient({
-        region: 'us-east-1',
-        credentials: {
-          accessKeyId: 'not-configured',
-          secretAccessKey: 'not-configured'
-        }
-      });
-    }
+    logInfo('azureAI', 'Azure AI Service initialized - Version 3.0.0', {
+      provider: 'Azure OpenAI Only',
+      hipaaCompliant: true,
+      fallbacks: 'None',
+      timestamp: new Date().toISOString()
+    });
   }
 
   /**
    * Process medical transcription into structured note
-   * HIPAA COMPLIANT - Covered by AWS BAA
+   * HIPAA COMPLIANT - Azure OpenAI with Microsoft BAA
+   *
+   * VERSION 3.0 - Simplified to Azure OpenAI only (no fallbacks)
    */
   async processMedicalTranscription(
     transcript: string,
@@ -152,417 +94,76 @@ class AzureAIService {
     additionalContext?: string,
     customTemplate?: { template: DoctorTemplate; doctorSettings: DoctorSettings }
   ): Promise<ProcessedNote> {
-    // Log processing request
-    logInfo('azureAI', 'Starting medical transcription processing', {
+    // 🚀 START: Comprehensive logging
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('🚀 AZURE OPENAI PROCESSING START');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('📋 Input Details:');
+    console.log('   - Transcript length:', transcript.length, 'characters');
+    console.log('   - Patient:', patient.name || 'Unknown');
+    console.log('   - Template:', customTemplate?.template.name || template?.name || 'Default SOAP');
+    console.log('   - Provider:', 'Azure OpenAI (HIPAA Compliant)');
+    console.log('   - Timestamp:', new Date().toISOString());
+
+    logInfo('azureAI', 'Starting Azure OpenAI medical transcription processing', {
       transcriptLength: transcript.length,
       patientName: patient.name || 'Unknown',
       templateUsed: customTemplate?.template.name || template?.name || 'Default SOAP',
-      primaryProvider: this.primaryProvider,
+      provider: 'azure-openai-only',
       timestamp: new Date().toISOString()
     });
 
-    // Check primary provider from environment variable
-    if (this.primaryProvider === 'openai') {
-      try {
-        logInfo('azureAI', 'Using OpenAI API as primary provider (from VITE_PRIMARY_AI_PROVIDER)');
-        const openaiResult = await this.processWithOpenAI(transcript, patient, template, additionalContext, customTemplate);
-        logInfo('azureAI', 'OpenAI processing completed successfully');
-        return openaiResult;
-      } catch (openaiError) {
-        logWarn('azureAI', `OpenAI failed: ${openaiError}, falling back to Azure OpenAI`);
-        // Fall through to Azure OpenAI below
-      }
-    }
-
-    // MIGRATION PHASE 1: Azure OpenAI is now PRIMARY provider
-    if (this.migrationMode || this.primaryProvider === 'azure') {
-      try {
-        logDebug('azureAI', 'Debug message', {});
-        logDebug('azureAI', 'Debug message', {});
-        const azureResult = await this.processWithAzureOpenAI(transcript, patient, template, additionalContext, customTemplate);
-        logInfo('azureAI', 'Azure OpenAI processing completed successfully');
-        return azureResult;
-      } catch (azureError: any) {
-        console.error('❌ Azure OpenAI FAILED:', azureError);
-        console.error('Error details:', {
-          message: azureError.message,
-          stack: azureError.stack,
-          name: azureError.name
-        });
-        logError('azureAI', 'Azure OpenAI failed - falling back to AWS Bedrock', {
-          error: azureError.message,
-          errorType: azureError.name,
-          stack: azureError.stack,
-          timestamp: new Date().toISOString()
-        });
-        // Continue to AWS Bedrock fallback below
-      }
-    }
-
     try {
-      const prompt = customTemplate
-        ? this.buildCustomPrompt(transcript, patient, customTemplate.template, customTemplate.doctorSettings, additionalContext)
-        : this.buildPrompt(transcript, patient, template, additionalContext);
+      console.log('\n📤 Calling Azure OpenAI API...');
+      const azureResult = await this.processWithAzureOpenAI(transcript, patient, template, additionalContext, customTemplate);
 
-      // AWS Bedrock fallback
-      logInfo('azureAI', 'Attempting AWS Bedrock processing', {
-        modelId: this.modelId,
-        promptLength: prompt.length,
+      console.log('\n✅ SUCCESS: Azure OpenAI processing completed');
+      console.log('   - Formatted note length:', azureResult.formatted?.length || 0, 'characters');
+      console.log('   - Sections found:', Object.keys(azureResult.sections || {}).length);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
+      logInfo('azureAI', 'Azure OpenAI processing completed successfully');
+      return azureResult;
+
+    } catch (azureError: any) {
+      console.log('\n❌ ERROR: Azure OpenAI processing failed');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.error('💥 Error Details:');
+      console.error('   - Type:', azureError.name || 'Unknown');
+      console.error('   - Message:', azureError.message || 'No message');
+      console.error('   - Stack:', azureError.stack);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
+      logError('azureAI', 'Azure OpenAI processing failed - NO FALLBACKS', {
+        error: azureError.message,
+        errorType: azureError.name,
+        stack: azureError.stack,
         timestamp: new Date().toISOString()
       });
-      
-      const command = new InvokeModelCommand({
-        modelId: this.modelId,
-        contentType: 'application/json',
-        accept: 'application/json',
-        body: JSON.stringify({
-          anthropic_version: 'bedrock-2023-05-31',
-          max_tokens: 2000,
-          temperature: 0.3,
-          messages: [
-            {
-              role: 'user',
-              content: prompt
-            }
-          ]
-        })
-      });
 
-      // Add retry logic with exponential backoff for rate limits
-      let response;
-      let retryCount = 0;
-      const maxRetries = 12; // Increased for better resilience against 429 errors
-      
-      while (retryCount <= maxRetries) {
-        try {
-          if (retryCount > 0) {
-            // Aggressive backoff with jitter: starts at 10s, increases to max 90s
-            const baseDelay = Math.min(10000 * Math.pow(2, retryCount - 1), 90000);
-            const jitter = Math.random() * 5000; // Add 0-5s random jitter
-            const delay = baseDelay + jitter;
-            logDebug('azureAI', 'Debug message', {});
-            await new Promise(resolve => setTimeout(resolve, delay));
-          }
-          
-          response = await this.client.send(command);
-          logInfo('azureAI', 'Info message', {});
-          break; // Success, exit the retry loop
-          
-        } catch (error: any) {
-          // Check for rate limit error (429 or TooManyRequestsException)
-          if (error?.name === 'TooManyRequestsException' || 
-              error?.name === 'ThrottlingException' ||
-              error?.$metadata?.httpStatusCode === 429 ||
-              error?.message?.toLowerCase().includes('too many requests') ||
-              error?.message?.toLowerCase().includes('throttl') ||
-              error?.message?.toLowerCase().includes('rate')) {
-            retryCount++;
-            if (retryCount > maxRetries) {
-              logError('azureAI', 'Error message', {});
-              throw new Error('AI service is temporarily busy. Please wait a moment and try again.');
-            }
-            continue; // Retry with backoff
-          }
-          
-          // Check for model access issues and try next model in preference list
-          if (error?.name === 'AccessDeniedException' || 
-              error?.name === 'ValidationException' ||
-              error?.message?.includes('Operation not allowed') ||
-              error?.message?.includes('not authorized') ||
-              error?.message?.includes('model') ||
-              error?.$metadata?.httpStatusCode === 403 ||
-              error?.$metadata?.httpStatusCode === 400) {
-            
-            logWarn('azureAI', 'Warning message', {});
-            
-            // Try the fallback model
-            const fallbackModels = [this.fallbackModelId, 'anthropic.claude-3-sonnet-20240229-v1:0', 'anthropic.claude-instant-v1', 'anthropic.claude-v2'];
-            for (const nextModelId of fallbackModels) {
-              
-              logDebug('azureAI', 'Debug message', {});
-              
-              try {
-                const fallbackCommand = new InvokeModelCommand({
-                  modelId: nextModelId,
-                  contentType: 'application/json',
-                  accept: 'application/json',
-                  body: JSON.stringify({
-                    anthropic_version: 'bedrock-2023-05-31',
-                    max_tokens: 2000,
-                    temperature: 0.3,
-                    messages: [
-                      {
-                        role: 'user',
-                        content: prompt
-                      }
-                    ]
-                  })
-                });
-                
-                response = await this.client.send(fallbackCommand);
-                
-                // Success! Save this as the working model
-                this.workingModelId = nextModelId;
-                logInfo('azureAI', 'Info message', {});
-                break; // Exit both loops
-              } catch (modelError: any) {
-                logDebug('azureAI', 'Debug message', {});
-                continue; // Try next model
-              }
-            }
-            
-            if (!response) {
-              logError('azureAI', 'Error message', {});
-              throw new Error('AWS Bedrock models not accessible. Please enable Claude models in the AWS Bedrock console at: https://console.aws.amazon.com/bedrock/');
-            }
-            break; // Exit retry loop if we found a working model
-          }
-          
-          // If it's a different type of error, check if we should try fallback
-          if (error?.name === 'ValidationException' || 
-              error?.message?.includes('model') ||
-              error?.message?.includes('not found')) {
-            logWarn('azureAI', 'Warning message', {});
-            const fallbackCommand = new InvokeModelCommand({
-              modelId: this.fallbackModelId,
-              contentType: 'application/json',
-              accept: 'application/json',
-              body: JSON.stringify({
-                anthropic_version: 'bedrock-2023-05-31',
-                max_tokens: 2000,
-                temperature: 0.3,
-                messages: [
-                  {
-                    role: 'user',
-                    content: prompt
-                  }
-                ]
-              })
-            });
-            
-            // Apply same retry logic for fallback model
-            retryCount = 0;
-            while (retryCount <= maxRetries) {
-              try {
-                if (retryCount > 0) {
-                  const delay = Math.min(1000 * Math.pow(2, retryCount), 8000);
-                  logDebug('azureAI', 'Debug message', {});
-                  await new Promise(resolve => setTimeout(resolve, delay));
-                }
-                response = await this.client.send(fallbackCommand);
-                // Update the modelId for future calls
-                this.modelId = this.fallbackModelId;
-                logInfo('azureAI', 'Info message', {});
-                break;
-              } catch (fallbackError: any) {
-                if (fallbackError?.name === 'TooManyRequestsException' || 
-                    fallbackError?.name === 'ThrottlingException' ||
-                    fallbackError?.$metadata?.httpStatusCode === 429) {
-                  retryCount++;
-                  if (retryCount > maxRetries) {
-                    throw new Error('AI service is temporarily busy. Please wait a moment and try again.');
-                  }
-                  continue;
-                }
-                throw fallbackError;
-              }
-            }
-            break; // Exit main loop after fallback
-          } else {
-            throw error; // Other errors, don't retry
-          }
-        }
-      }
-      const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+      // Create user-friendly error message
+      let userMessage = '❌ AI Processing Failed\n\n';
 
-      const parsedNote = this.parseResponse(responseBody.content[0].text, patient, template, transcript);
-      return this.validateAndCleanProcessedNote(parsedNote, transcript, customTemplate?.template);
-    } catch (error) {
-      logError('azureAI', 'Error message', {});
-      
-      // Try Azure OpenAI as fallback when Bedrock fails
-      logWarn('azureAI', 'Warning message', {});
-      
-      try {
-        // Convert template to string format for Azure OpenAI
-        const templateString = template ? 
-          `${template.name}\n${template.sections.map(s => s.title).join('\n')}` : 
-          'Standard SOAP Note Format';
-        
-        const azureResult = await azureOpenAIService.processTranscription(
-          transcript,
-          templateString,
-          {
-            name: patient.fullName,
-            mrn: patient.mrn,
-            dob: patient.dateOfBirth
-          }
-        );
-        
-        logInfo('azureAI', 'Info message', {});
-        
-        // Convert Azure OpenAI result to our ProcessedNote format
-        const convertedNote = {
-          formatted: azureResult.formattedNote,
-          sections: {
-            chiefComplaint: azureResult.sections.chiefComplaint,
-            historyOfPresentIllness: azureResult.sections.hpi,
-            reviewOfSystems: azureResult.sections.reviewOfSystems,
-            physicalExam: azureResult.sections.physicalExam,
-            assessment: azureResult.sections.assessment,
-            plan: azureResult.sections.plan
-          },
-          metadata: {
-            processedAt: new Date().toISOString(),
-            model: azureResult.metadata?.model || 'Azure OpenAI',
-            confidence: 0.85
-          }
-        };
-        return this.validateAndCleanProcessedNote(convertedNote, transcript, customTemplate?.template);
-      } catch (azureError) {
-        logError('azureAI', 'Error message', {});
-        
-        // If both Bedrock and Azure fail, provide basic formatting
-        logWarn('azureAI', 'Warning message', {});
-        
-        // Create basic note with order extraction
-        const basicNote = this.createBasicFormattedNote(transcript, patient);
-
-        // Extract orders from the formatted basic note (not raw transcript)
-        // This ensures we extract from properly structured clinical text
-        const extractedOrders = orderExtractionService.extractOrders(basicNote.formatted);
-        if (extractedOrders && (
-          extractedOrders.medications.length > 0 ||
-          extractedOrders.labs.length > 0 ||
-          extractedOrders.imaging.length > 0 ||
-          extractedOrders.priorAuths.length > 0 ||
-          extractedOrders.referrals.length > 0
-        )) {
-          // Pass the AI-generated note to include detailed PA justifications
-          const ordersAndActions = orderExtractionService.formatOrdersForTemplate(extractedOrders, basicNote.formatted);
-          basicNote.formatted += `\n\n**ORDERS & ACTIONS:**\n${ordersAndActions}`;
-          basicNote.sections.ordersAndActions = ordersAndActions;
-          basicNote.extractedOrders = extractedOrders;
-        }
-
-        return this.validateAndCleanProcessedNote(basicNote, transcript, customTemplate?.template);
-      }
-    }
-  }
-
-  /**
-   * Process with standard OpenAI API
-   * NOTE: NOT HIPAA-compliant (no BAA available)
-   * Use for testing or non-PHI data only
-   */
-  private async processWithOpenAI(
-    transcript: string,
-    patient: PatientData,
-    template: Template | null,
-    additionalContext?: string,
-    customTemplate?: { template: DoctorTemplate; doctorSettings: DoctorSettings }
-  ): Promise<ProcessedNote> {
-    logInfo('azureAI', 'Processing with OpenAI API');
-
-    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error('OpenAI API key not configured (VITE_OPENAI_API_KEY)');
-    }
-
-    // Build prompt using same logic as Azure
-    const prompt = customTemplate
-      ? this.buildCustomPrompt(transcript, patient, customTemplate.template, customTemplate.doctorSettings, additionalContext)
-      : this.buildPrompt(transcript, patient, template, additionalContext);
-
-    // Use GPT-4 for note processing
-    const model = import.meta.env.VITE_OPENAI_MODEL_STAGE5 || 'gpt-4o';
-
-    try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a medical scribe assistant helping format clinical notes. Respond ONLY with the formatted note, no preamble or explanation.'
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          temperature: 0.3,
-          max_tokens: 2000
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`OpenAI API error (${response.status}): ${errorText}`);
+      if (azureError.message?.includes('API key') || azureError.message?.includes('authentication')) {
+        userMessage += '🔑 Authentication Error\n\n';
+        userMessage += 'The Azure OpenAI API key is invalid or expired.\n\n';
+        userMessage += 'Please contact support to update the API credentials.';
+      } else if (azureError.message?.includes('rate limit') || azureError.message?.includes('429')) {
+        userMessage += '⏳ Rate Limit Exceeded\n\n';
+        userMessage += 'Too many requests to the AI service.\n\n';
+        userMessage += 'Please wait a moment and try again.';
+      } else if (azureError.message?.includes('network') || azureError.message?.includes('timeout')) {
+        userMessage += '🌐 Network Error\n\n';
+        userMessage += 'Unable to connect to the AI service.\n\n';
+        userMessage += 'Please check your internet connection and try again.';
+      } else {
+        userMessage += '⚠️ Processing Error\n\n';
+        userMessage += `${azureError.message}\n\n`;
+        userMessage += 'Please try again or contact support if the problem persists.';
       }
 
-      const data = await response.json();
-      const formattedNote = data.choices[0]?.message?.content || '';
-
-      if (!formattedNote.trim()) {
-        throw new Error('OpenAI returned empty response');
-      }
-
-      // 🔍 DEBUG: Log the raw AI output to see what OpenAI generated
-      console.log('🔍 ==================== RAW OPENAI OUTPUT ====================');
-      console.log(formattedNote);
-      console.log('🔍 ========================================================');
-
-      logInfo('azureAI', 'OpenAI processing successful');
-
-      // Extract sections from the formatted note
-      const extractedSections = this.extractSections(formattedNote, customTemplate?.template);
-
-      // 🔍 DEBUG: Log what sections were extracted
-      console.log('🔍 ==================== EXTRACTED SECTIONS ====================');
-      console.log('Section keys found:', Object.keys(extractedSections));
-      console.log('Full sections object:', extractedSections);
-      console.log('🔍 ============================================================');
-
-      // Extract orders from the AI-formatted note (NOT the raw transcript)
-      // This ensures we extract from properly structured clinical text instead of messy conversation
-      const extractedOrders = orderExtractionService.extractOrders(formattedNote);
-
-      // Log extracted orders for debugging
-      if (extractedOrders && (
-        extractedOrders.medications.length > 0 ||
-        extractedOrders.labs.length > 0 ||
-        extractedOrders.imaging.length > 0 ||
-        extractedOrders.priorAuths.length > 0 ||
-        extractedOrders.referrals.length > 0
-      )) {
-        logInfo('azureAI', 'Extracted orders from formatted note', {
-          medications: extractedOrders.medications.length,
-          labs: extractedOrders.labs.length,
-          imaging: extractedOrders.imaging.length,
-          priorAuths: extractedOrders.priorAuths.length,
-          referrals: extractedOrders.referrals.length
-        });
-      }
-
-      return {
-        formatted: formattedNote,
-        sections: extractedSections,
-        extractedOrders: extractedOrders,
-        metadata: {
-          processedAt: new Date().toISOString(),
-          model: model,
-          promptVersionId: 'openai-standard-v1'
-        }
-      };
-    } catch (error: any) {
-      logError('azureAI', `OpenAI processing failed: ${error.message}`);
-      throw error;
+      // Throw error with user-friendly message
+      throw new Error(userMessage);
     }
   }
 
@@ -1654,9 +1255,7 @@ RULES:
         extractedOrders,
         metadata: {
           processedAt: new Date().toISOString(),
-          model: this.modelId.includes('claude-opus-4') ? 'claude-opus-4.1' :
-                 this.modelId.includes('claude-3-5-sonnet') ? 'claude-3.5-sonnet' : 
-                 this.modelId.includes('claude-3-sonnet') ? 'claude-3-sonnet' : 'claude-3-haiku',
+          model: 'Azure OpenAI GPT-4o',
           confidence: 0.95
         }
       };
@@ -1803,414 +1402,8 @@ PLAN:
 ${this.highlightEndocrineTerms(sections.plan || 'Continue current management')}
 
 ====================
-Generated by AWS Bedrock ${this.modelId.includes('3-5-sonnet') ? 'Claude 3.5 Sonnet' : 'Claude 3 Sonnet'} (HIPAA Compliant)
+Generated by Azure OpenAI GPT-4o (HIPAA Compliant - Microsoft BAA)
 Processed: ${new Date().toLocaleString()}`;
-  }
-
-  /**
-   * Test if Bedrock is configured and accessible
-   */
-  async testConnection(): Promise<boolean> {
-    try {
-      const command = new InvokeModelCommand({
-        modelId: this.modelId,
-        contentType: 'application/json',
-        accept: 'application/json',
-        body: JSON.stringify({
-          anthropic_version: 'bedrock-2023-05-31',
-          max_tokens: 10,
-          messages: [
-            {
-              role: 'user',
-              content: 'Say "ok"'
-            }
-          ]
-        })
-      });
-      
-      await this.client.send(command);
-      return true;
-    } catch (error) {
-      logError('azureAI', 'Error message', {});
-      return false;
-    }
-  }
-
-  /**
-   * Generate a simple text response for pump chat
-   */
-  async generateResponse(context: string, instruction: string): Promise<string> {
-    // Implement retry logic with exponential backoff for throttling
-    let retryCount = 0;
-    const maxRetries = 5; // Increased from 3 to 5
-    const baseDelay = 3000; // Increased from 2 to 3 second initial delay
-    
-    while (retryCount < maxRetries) {
-      try {
-        const prompt = `${context}\n\n${instruction}`;
-        
-        const command = new InvokeModelCommand({
-          modelId: this.modelId,
-          contentType: 'application/json',
-          accept: 'application/json',
-          body: JSON.stringify({
-            anthropic_version: "bedrock-2023-05-31",
-            max_tokens: 2000, // Increased for detailed JSON responses
-            temperature: 0.7,
-            messages: [
-              {
-                role: "user",
-                content: prompt
-              }
-            ]
-          })
-        });
-
-        const response = await this.client.send(command);
-        const responseBody = new TextDecoder().decode(response.body);
-        const parsed = JSON.parse(responseBody);
-        
-        // Extract the text content from Claude's response
-        const content = parsed.content?.[0]?.text || 'I can help you choose the right pump. What matters most to you?';
-        
-        return content.trim();
-      } catch (error: any) {
-        logError('azureAI', 'Error message', {});
-        
-        // Check if it's a throttling error
-        if (error.name === 'ThrottlingException' || 
-            error.name === 'TooManyRequestsException' ||
-            error.$metadata?.httpStatusCode === 429 ||
-            error.message?.includes('Too many requests')) {
-          retryCount++;
-          if (retryCount < maxRetries) {
-            const delay = baseDelay * Math.pow(2, retryCount - 1); // Exponential backoff
-            logDebug('azureAI', 'Debug message', {});
-            await new Promise(resolve => setTimeout(resolve, delay));
-            continue;
-          } else {
-            // Max retries exceeded, return fallback instead of throwing
-            logWarn('azureAI', 'Warning message', {});
-            return 'I understand your needs. Let me analyze this information to find your best pump match.';
-          }
-        }
-        
-        // For non-throttling errors, return a generic fallback
-        logError('azureAI', 'Error message', {});
-        return 'I\'m analyzing your preferences to find the best pump for you. Let\'s continue with the next category.';
-      }
-    }
-    
-    // If we exhausted all retries, return a helpful fallback
-    logWarn('azureAI', 'Warning message', {});
-    return 'I understand your needs. Let me analyze this information to find your best pump match.';
-  }
-
-  /**
-   * Process simple prompt with Claude (for PumpDrive and other services)
-   * HIPAA COMPLIANT - Covered by AWS BAA
-   */
-  async processWithClaude(prompt: string, context?: string): Promise<string> {
-    // Check if this is a conversational request (pump follow-up questions, etc.)
-    const isConversational = context === 'followup_question' ||
-                            context === 'pump_recommendation' ||
-                            context === 'clarifying_question' ||
-                            prompt.includes('Great question!') ||
-                            prompt.includes('friendly diabetes educator') ||
-                            prompt.includes('conversational, easy-to-understand way');
-
-    // MIGRATION PHASE 1: Azure OpenAI is PRIMARY for all processing
-    if (this.migrationMode || this.primaryProvider === 'azure') {
-      try {
-        logDebug('azureAI', 'Processing prompt with Azure OpenAI', { context, isConversational });
-
-        if (isConversational) {
-          // Use conversational processing for pump-related questions
-          const response = await azureOpenAIService.processConversationalPrompt(prompt);
-          logInfo('azureAI', 'Successfully processed conversational prompt via Azure OpenAI', {});
-          return response;
-        } else {
-          // Use medical transcription processing for SOAP notes
-          const azureResult = await azureOpenAIService.processTranscription(
-            prompt,
-            'Standard Response',
-            { name: 'System' }
-          );
-          logInfo('azureAI', 'Successfully processed medical transcription via Azure OpenAI', {});
-          return azureResult.formattedNote;
-        }
-      } catch (azureError) {
-        logWarn('azureAI', 'Azure OpenAI processing failed, falling back to AWS Bedrock', { error: azureError });
-        // Continue to AWS Bedrock fallback below
-      }
-    }
-
-    try {
-      logDebug('azureAI', 'Debug message', {});
-      
-      const command = new InvokeModelCommand({
-        modelId: this.modelId,
-        contentType: 'application/json',
-        accept: 'application/json',
-        body: JSON.stringify({
-          anthropic_version: 'bedrock-2023-05-31',
-          max_tokens: 3000,
-          temperature: 0.7,
-          messages: [
-            {
-              role: 'user',
-              content: prompt
-            }
-          ]
-        })
-      });
-
-      const response = await this.client.send(command);
-      const responseBody = JSON.parse(new TextDecoder().decode(response.body));
-      
-      return responseBody.content[0].text;
-    } catch (error) {
-      logError('azureAI', 'Error message', {});
-      
-      // Try Azure OpenAI as fallback when Bedrock fails
-      logWarn('azureAI', 'Warning message', {});
-      
-      try {
-        const azureResult = await azureOpenAIService.processTranscription(
-          prompt,
-          'Standard Response',
-          { name: 'System' }
-        );
-        logInfo('azureAI', 'Info message', {});
-        return azureResult.formattedNote;
-      } catch (azureError) {
-        logError('azureAI', 'Error message', {});
-        throw new Error('AI processing failed. Please try again later.');
-      }
-    }
-  }
-
-
-  /**
-   * Create an enhanced formatted note with intelligent extraction when AI is unavailable
-   * Uses regex patterns and medical terminology extraction
-   */
-  private createBasicFormattedNote(transcript: string, patient: PatientData): ProcessedNote {
-    const timestamp = new Date().toISOString();
-    const correctedTranscript = medicalCorrections.correctTranscription(transcript);
-
-    logInfo('azureAI', 'Creating enhanced fallback note with pattern extraction');
-
-    // Extract sections using intelligent patterns
-    const sections = this.extractSectionsFromTranscript(correctedTranscript);
-
-    // Build formatted output
-    const formatted = `
-╔════════════════════════════════════════════════════════╗
-║           CLINICAL NOTE - Client-Side Extraction        ║
-╚════════════════════════════════════════════════════════╝
-
-PATIENT INFORMATION:
-Name: ${patient.name || 'Not provided'}
-MRN: ${patient.mrn || 'Not provided'}
-DOB: ${patient.dob || 'Not provided'}
-Visit Date: ${new Date().toLocaleDateString()}
-
-${sections.chiefComplaint ? `CHIEF COMPLAINT:\n${sections.chiefComplaint}\n\n` : ''}${sections.historyOfPresentIllness ? `HISTORY OF PRESENT ILLNESS:\n${sections.historyOfPresentIllness}\n\n` : ''}${sections.medications ? `MEDICATIONS:\n${sections.medications}\n\n` : ''}${sections.allergies ? `ALLERGIES:\n${sections.allergies}\n\n` : ''}${sections.assessment ? `ASSESSMENT/DIAGNOSES:\n${sections.assessment}\n\n` : ''}${sections.plan ? `PLAN:\n${sections.plan}\n\n` : ''}${sections.physicalExam ? `VITAL SIGNS/EXAM:\n${sections.physicalExam}\n\n` : ''}
-════════════════════════════════════════════════════════
-
-ℹ️  NOTE: This note was generated using client-side extraction (AI services unavailable).
-   Key information has been extracted, but manual review is recommended.
-
-   To enable full AI processing:
-   • Verify API credentials are configured
-   • Check network connection
-   • Contact support if the issue persists
-
-Generated: ${new Date().toLocaleString()} | Confidence: Medium
-    `.trim();
-
-    return {
-      formatted,
-      sections,
-      metadata: {
-        processedAt: timestamp,
-        model: 'enhanced-fallback-extractor',
-        confidence: 0.65
-      }
-    };
-  }
-
-  /**
-   * Extract medical sections from transcript using regex patterns
-   */
-  private extractSectionsFromTranscript(transcript: string): {
-    chiefComplaint?: string;
-    historyOfPresentIllness?: string;
-    reviewOfSystems?: string;
-    pastMedicalHistory?: string;
-    medications?: string;
-    allergies?: string;
-    physicalExam?: string;
-    assessment?: string;
-    plan?: string;
-  } {
-    const sections: any = {};
-
-    // 1. Extract Chief Complaint (first sentence or explicit mention)
-    const ccMatch = transcript.match(/(?:chief complaint|presenting with|here for|comes in (?:with|for))\s*:?\s*([^.!?]+)/i);
-    if (ccMatch) {
-      sections.chiefComplaint = ccMatch[1].trim();
-    } else {
-      // Use first sentence as chief complaint
-      const firstSentence = transcript.split(/[.!?]+/)[0];
-      if (firstSentence && firstSentence.length < 150) {
-        sections.chiefComplaint = firstSentence.trim();
-      }
-    }
-
-    // 2. Extract Diagnoses/Conditions
-    const diagnoses: string[] = [];
-    const diagnosisPatterns = [
-      /(?:diabetes|diabetic|dm|type 2 diabetes|type 1 diabetes)/gi,
-      /(?:hypertension|htn|high blood pressure)/gi,
-      /(?:hyperlipidemia|high cholesterol)/gi,
-      /(?:hypothyroid|hyperthyroid|thyroid disorder)/gi,
-      /(?:nausea|vomiting|diarrhea)/gi,
-      /(?:infection|uti|upper respiratory infection|uri)/gi
-    ];
-
-    const transcriptLower = transcript.toLowerCase();
-    diagnosisPatterns.forEach(pattern => {
-      const matches = transcript.match(pattern);
-      if (matches) {
-        matches.forEach(match => {
-          if (!diagnoses.some(d => d.toLowerCase() === match.toLowerCase())) {
-            diagnoses.push(match);
-          }
-        });
-      }
-    });
-
-    if (diagnoses.length > 0) {
-      sections.assessment = diagnoses.map((d, i) => `${i + 1}. ${d}`).join('\n');
-    }
-
-    // 3. Extract Medications
-    const medications: string[] = [];
-    const medPatterns = [
-      /(?:lantus|humalog|novolog|metformin|ozempic|mounjaro|jardiance|farxiga)\s*(?:\d+\s*(?:mg|units?|mcg))?/gi,
-      /(?:levothyroxine|synthroid)\s*\d+\s*mcg/gi,
-      /(?:lisinopril|losartan|amlodipine)\s*\d+\s*mg/gi,
-      /(?:atorvastatin|rosuvastatin|simvastatin)\s*\d+\s*mg/gi
-    ];
-
-    medPatterns.forEach(pattern => {
-      const matches = transcript.match(pattern);
-      if (matches) {
-        matches.forEach(match => {
-          if (!medications.some(m => m.toLowerCase() === match.toLowerCase())) {
-            medications.push(match);
-          }
-        });
-      }
-    });
-
-    if (medications.length > 0) {
-      sections.medications = medications.map((m, i) => `${i + 1}. ${m}`).join('\n');
-    }
-
-    // 4. Extract Allergies
-    const allergyMatch = transcript.match(/(?:allergies?|allergic to)\s*:?\s*([^.!?]+)/i);
-    if (allergyMatch) {
-      sections.allergies = allergyMatch[1].trim();
-    } else if (transcriptLower.includes('nkda') || transcriptLower.includes('no known')) {
-      sections.allergies = 'NKDA (No Known Drug Allergies)';
-    }
-
-    // 5. Extract Vital Signs and Lab Values
-    const vitalsData: string[] = [];
-
-    // Blood pressure
-    const bpMatch = transcript.match(/(?:bp|blood pressure)[:\s]*(\d+\/\d+)/i);
-    if (bpMatch) vitalsData.push(`BP: ${bpMatch[1]}`);
-
-    // Blood sugar / Glucose
-    const bsMatch = transcript.match(/(?:blood sugar|glucose|bg)[:\s]*(\d+)/i);
-    if (bsMatch) vitalsData.push(`Blood Glucose: ${bsMatch[1]} mg/dL`);
-
-    // A1C
-    const a1cMatch = transcript.match(/(?:a1c|hemoglobin a1c|hba1c)[:\s]*(\d+\.?\d*)/i);
-    if (a1cMatch) vitalsData.push(`A1C: ${a1cMatch[1]}%`);
-
-    // Weight
-    const weightMatch = transcript.match(/(?:weight|wt)[:\s]*(\d+)\s*(?:lbs?|pounds?)/i);
-    if (weightMatch) vitalsData.push(`Weight: ${weightMatch[1]} lbs`);
-
-    // Age
-    const ageMatch = transcript.match(/(\d+)\s*(?:year|yr)s?\s*old/i);
-    if (ageMatch) vitalsData.push(`Age: ${ageMatch[1]} years`);
-
-    if (vitalsData.length > 0) {
-      sections.physicalExam = vitalsData.join('\n');
-    }
-
-    // 6. Extract Plan Items
-    const planItems: string[] = [];
-
-    // Look for plan section
-    const planMatch = transcript.match(/(?:plan|treatment|management)\s*:?\s*([^]+?)(?:\n\n|$)/i);
-    if (planMatch) {
-      sections.plan = planMatch[1].trim();
-    } else {
-      // Extract common plan patterns
-      if (transcriptLower.includes('increase') || transcriptLower.includes('adjust')) {
-        const adjustMatch = transcript.match(/(?:increase|adjust|change)\s+([^.!?]+)/i);
-        if (adjustMatch) planItems.push(`• ${adjustMatch[0]}`);
-      }
-
-      if (transcriptLower.includes('start') || transcriptLower.includes('begin')) {
-        const startMatch = transcript.match(/(?:start|begin)\s+([^.!?]+)/i);
-        if (startMatch) planItems.push(`• ${startMatch[0]}`);
-      }
-
-      if (transcriptLower.includes('follow up') || transcriptLower.includes('follow-up')) {
-        planItems.push('• Follow up as scheduled');
-      }
-
-      if (transcriptLower.includes('lab') || transcriptLower.includes('blood work')) {
-        planItems.push('• Labs ordered');
-      }
-
-      if (planItems.length > 0) {
-        sections.plan = planItems.join('\n');
-      }
-    }
-
-    // 7. Extract HPI (everything not yet categorized)
-    if (!sections.historyOfPresentIllness) {
-      // Remove chief complaint from transcript for HPI
-      let hpiText = transcript;
-      if (sections.chiefComplaint) {
-        hpiText = hpiText.replace(sections.chiefComplaint, '').trim();
-      }
-
-      // Take first 300 characters as HPI summary
-      if (hpiText.length > 300) {
-        sections.historyOfPresentIllness = hpiText.substring(0, 300) + '... (see full transcript for details)';
-      } else if (hpiText.length > 50) {
-        sections.historyOfPresentIllness = hpiText;
-      }
-    }
-
-    logInfo('azureAI', 'Extracted sections from transcript', {
-      sectionsFound: Object.keys(sections).length,
-      hasChiefComplaint: !!sections.chiefComplaint,
-      hasMedications: !!sections.medications,
-      hasAssessment: !!sections.assessment
-    });
-
-    return sections;
   }
 
   /**
