@@ -1,7 +1,8 @@
 import { logError, logWarn, logInfo, logDebug } from './logger.service';
-import { pumpAuthService } from './pumpAuth.service';
 import { supabase } from '../lib/supabase';
 import { supabaseAuthService } from './supabaseAuth.service';
+import { dtsqsService } from './dtsqs.service';
+import type { DTSQsResponse } from '../types/dtsqs.types';
 
 export interface AssessmentData {
   patientName: string;
@@ -39,6 +40,8 @@ export interface AssessmentData {
   thirdChoicePump?: string;
   recommendationDate?: string;
   assessmentVersion?: number;
+  // DTSQs baseline data (NEW)
+  dtsqsBaseline?: DTSQsResponse;
 }
 
 export interface SaveAssessmentResponse {
@@ -81,6 +84,16 @@ class PumpAssessmentService {
     // Collect conversation history
     const conversationHistory = JSON.parse(sessionStorage.getItem('pumpDriveConversation') || '[]');
 
+    // Collect DTSQs baseline data (NEW)
+    const dtsqsBaseline = dtsqsService.getSessionStorageResponses();
+    if (dtsqsBaseline) {
+      logInfo('PumpAssessment', 'DTSQs baseline data included in assessment', {
+        totalScore: dtsqsBaseline.total_score
+      });
+    } else {
+      logWarn('PumpAssessment', 'No DTSQs baseline data found - assessment may be incomplete', {});
+    }
+
     // Determine assessment flow
     let assessmentFlow = 'hybrid';
     if (Object.keys(sliderValues).length > 0) {
@@ -106,7 +119,8 @@ class PumpAssessmentService {
       },
       conversationHistory,
       assessmentFlow,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      dtsqsBaseline: dtsqsBaseline || undefined
     };
   }
 
@@ -175,6 +189,7 @@ class PumpAssessmentService {
         recommendation_date: new Date().toISOString(),
         assessment_version: assessmentData.assessmentVersion || 1,
         created_at: assessmentData.timestamp,
+        dtsqs_baseline: assessmentData.dtsqsBaseline || null, // DTSQs baseline data (NEW)
       };
 
       console.log('🔍 [PumpAssessment] Preparing to insert data:', {

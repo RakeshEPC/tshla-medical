@@ -165,10 +165,10 @@ export default function PatientRegister() {
       }
 
       // Determine redirect destination
-      let redirectPath = '/pumpdrive/assessment'; // default
+      let redirectPath = '/pumpdrive/dtsqs'; // Start with DTSQs questionnaire
 
       if (result.user.accessType === 'pumpdrive') {
-        redirectPath = '/pumpdrive/assessment';
+        redirectPath = '/pumpdrive/dtsqs'; // PumpDrive users start with treatment satisfaction questionnaire
       } else if (result.user.accessType === 'patient') {
         redirectPath = '/patient/dashboard';
       }

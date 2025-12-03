@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { sliderMCPService } from '../services/sliderMCP.service';
 import { freeTextMCPService } from '../services/freeTextMCP.service';
+import { dtsqsService } from '../services/dtsqs.service';
+import { logInfo, logWarn } from '../services/logger.service';
 import { PUMP_FEATURES } from '../data/pumpFeatures';
 import type { PumpFeature } from '../data/pumpFeatures';
 
@@ -110,6 +112,28 @@ const PumpDriveUnified: React.FC = () => {
   const [clarifyingQuestions, setClarifyingQuestions] = useState<string[]>([]);
   const [clarifyingAnswers, setClarifyingAnswers] = useState<string[]>([]);
   
+  // CHECK: DTSQs must be completed before accessing assessment
+  useEffect(() => {
+    const checkDTSQsCompletion = async () => {
+      try {
+        const completion = await dtsqsService.getDTSQsCompletion();
+        if (!completion.completed) {
+          logWarn('PumpDriveUnified', 'DTSQs not completed - redirecting', {});
+          navigate('/pumpdrive/dtsqs');
+        } else {
+          logInfo('PumpDriveUnified', 'DTSQs completed - proceeding with assessment', {
+            completedAt: completion.completedAt
+          });
+        }
+      } catch (error) {
+        logWarn('PumpDriveUnified', 'Error checking DTSQs completion', { error });
+        // Don't block on error - they might be returning user
+      }
+    };
+
+    checkDTSQsCompletion();
+  }, [navigate]);
+
   // Load saved data on mount
   useEffect(() => {
     const completedStepsToAdd: AssessmentStep[] = [];

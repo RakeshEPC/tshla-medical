@@ -20,6 +20,9 @@ const PumpDriveLoader = () => (
 // Authentication components (use unified PatientLogin page)
 const PatientLogin = lazy(() => import('../../pages/PatientLogin'));
 
+// DTSQs Baseline Questionnaire (NEW - required before assessment)
+const PumpDriveDTSQs = lazy(() => import('../../pages/PumpDriveDTSQs'));
+
 // PumpDrive components (require authentication)
 const PumpDriveUnified = lazy(() => import('../../pages/PumpDriveUnified'));
 const PumpDriveResults = lazy(() => import('../../pages/PumpDriveResults'));
@@ -38,6 +41,13 @@ export default function PumpDriveBundle() {
         {/* Authentication Routes (Public) */}
         <Route path="create-account" element={<Navigate to="/patient-register" replace />} />
         <Route path="login" element={<PatientLogin />} />
+
+        {/* DTSQs Baseline Questionnaire (Required first step) */}
+        <Route path="dtsqs" element={
+          <PumpDriveAuthGuard>
+            <PumpDriveDTSQs />
+          </PumpDriveAuthGuard>
+        } />
 
         {/* Protected Assessment Routes */}
         <Route path="assessment" element={
@@ -76,10 +86,10 @@ export default function PumpDriveBundle() {
         {/* <Route path="payment-provider" element={<PumpDrivePaymentProvider />} /> */}
         {/* <Route path="provider-sent" element={<PumpDriveProviderSent />} /> */}
 
-        {/* Main Assessment Route (Protected) */}
+        {/* Main Assessment Route (Protected) - Start with DTSQs */}
         <Route index element={
           <PumpDriveAuthGuard>
-            <Navigate to="/pumpdrive/assessment" replace />
+            <Navigate to="/pumpdrive/dtsqs" replace />
           </PumpDriveAuthGuard>
         } />
 
