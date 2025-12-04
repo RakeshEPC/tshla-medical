@@ -445,9 +445,20 @@ class DeepgramSDKService implements SpeechServiceInterface {
 
       this.connection.on(LiveTranscriptionEvents.Close, (closeEvent: any) => {
         const wasClean = closeEvent?.wasClean !== false;
+        console.log('🚨 CLOSE EVENT DETAILS:', {
+          code: closeEvent?.code,
+          reason: closeEvent?.reason,
+          wasClean,
+          type: closeEvent?.type,
+          timestamp: new Date().toISOString()
+        });
         logInfo('deepgramSDK', `Deepgram connection closed (code: ${closeEvent?.code}, clean: ${wasClean})`);
 
         this.isRecording = false;
+
+        // TEMPORARY: Disable auto-reconnect to stop the alert loop
+        console.warn('⚠️ AUTO-RECONNECT DISABLED FOR DEBUGGING');
+        return;
 
         // Attempt automatic reconnection if it was not a clean close
         // and we haven't exceeded max attempts

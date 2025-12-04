@@ -1431,15 +1431,25 @@ if (!DEEPGRAM_API_KEY) {
         }
       });
 
-      clientWs.on('close', () => {
-        console.log('🔌 Client disconnected');
+      clientWs.on('close', (code, reason) => {
+        console.log('🔌 Client disconnected:', {
+          code,
+          reason: reason?.toString() || 'no reason',
+          wasClean: code === 1000,
+          timestamp: new Date().toISOString()
+        });
         if (deepgramConnection) {
           deepgramConnection.finish();
         }
       });
 
       clientWs.on('error', (error) => {
-        console.error('❌ Client WebSocket error:', error);
+        console.error('❌ Client WebSocket error:', {
+          error: error?.message || error,
+          code: error?.code,
+          stack: error?.stack,
+          timestamp: new Date().toISOString()
+        });
         if (deepgramConnection) {
           deepgramConnection.finish();
         }
