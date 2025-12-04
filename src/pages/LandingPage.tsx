@@ -175,7 +175,7 @@ export default function LandingPage() {
                 <div>
                   <p className="text-sm font-medium text-gray-600 mb-2">Call Now - Available 24/7</p>
                   <p className="text-3xl font-bold text-tesla-dark-gray mb-1">
-                    +1 (XXX) XXX-XXXX
+                    +1 (832) 400-3930
                   </p>
                   <p className="text-xs text-gray-500">
                     10-minute consultations • Secure & confidential
