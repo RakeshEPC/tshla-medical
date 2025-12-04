@@ -166,6 +166,7 @@ jobs:
             "VITE_AZURE_OPENAI_API_VERSION=2024-02-01" \
             "NODE_ENV=production" \
             "PORT=3000" \
+            "API_BASE_URL=https://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io" \
             "CLINIC_PHONE_NUMBER=+18325938100"
 
     - name: Get Container App URL
