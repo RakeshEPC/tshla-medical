@@ -8,8 +8,7 @@
  * Created: 2025-12-03
  */
 
-import { Request, Response } from 'express';
-import { createClient } from '@supabase/supabase-js';
+const { createClient } = require('@supabase/supabase-js');
 
 // =====================================================
 // CONFIGURATION
@@ -20,7 +19,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 // ElevenLabs Agent IDs by language
-const AGENT_IDS: Record<string, string> = {
+const AGENT_IDS = {
   'en': process.env.ELEVENLABS_DIABETES_AGENT_EN || '',
   'es': process.env.ELEVENLABS_DIABETES_AGENT_ES || '',
   'fr': process.env.ELEVENLABS_DIABETES_AGENT_FR || '',
@@ -42,7 +41,7 @@ const MAX_CALL_DURATION_SECONDS = 600;
 /**
  * Format phone number to E.164 for database lookup
  */
-function formatPhoneNumber(phone: string): string {
+function formatPhoneNumber(phone) {
   const digits = phone.replace(/\D/g, '');
 
   if (digits.length === 10) {
@@ -59,7 +58,7 @@ function formatPhoneNumber(phone: string): string {
 /**
  * Generate TwiML for unauthenticated caller
  */
-function generateRejectionTwiML(): string {
+function generateRejectionTwiML() {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="alice" language="en-US">
@@ -74,7 +73,7 @@ function generateRejectionTwiML(): string {
 /**
  * Generate TwiML for authenticated caller with WebSocket stream to ElevenLabs
  */
-function generateStreamTwiML(callSid: string, patientData: any): string {
+function generateStreamTwiML(callSid, patientData) {
   // URL encode patient data for passing to WebSocket bridge
   const contextData = encodeURIComponent(JSON.stringify({
     patient_id: patientData.id,
@@ -108,7 +107,7 @@ function generateStreamTwiML(callSid: string, patientData: any): string {
  * Handle inbound Twilio call
  * POST /api/twilio/diabetes-education-inbound
  */
-export default async function handler(req: Request, res: Response) {
+async function handler(req, res) {
   console.log('\n📞 [DiabetesEdu] Incoming call received');
 
   try {
@@ -186,10 +185,6 @@ export default async function handler(req: Request, res: Response) {
       console.error('❌ [DiabetesEdu] Error logging call:', logError);
     }
 
-    // Schedule auto-disconnect after 10 minutes
-    // Note: This is handled by Twilio's timeout parameter in <Dial>
-    // and by ElevenLabs agent system prompt warning at 8 minutes
-
     // Generate TwiML to connect call to ElevenLabs agent
     const twiml = generateStreamTwiML(CallSid, patient);
 
@@ -225,7 +220,7 @@ export default async function handler(req: Request, res: Response) {
  * Handle call status updates from Twilio
  * POST /api/twilio/diabetes-education-status
  */
-export async function handleCallStatus(req: Request, res: Response) {
+async function handleCallStatus(req, res) {
   console.log('\n📊 [DiabetesEdu] Call status update received');
 
   try {
@@ -242,7 +237,7 @@ export async function handleCallStatus(req: Request, res: Response) {
 
     // Update call record in database
     if (CallStatus === 'completed' || CallStatus === 'failed' || CallStatus === 'no-answer' || CallStatus === 'busy') {
-      const updates: any = {
+      const updates = {
         call_ended_at: new Date().toISOString(),
         call_status: CallStatus,
       };
@@ -259,11 +254,6 @@ export async function handleCallStatus(req: Request, res: Response) {
         } else {
           updates.disconnect_reason = CallStatus;
         }
-      }
-
-      if (RecordingUrl) {
-        // Store recording URL if needed (optional)
-        // updates.recording_url = RecordingUrl;
       }
 
       const { error: updateError } = await supabase
@@ -294,7 +284,7 @@ export async function handleCallStatus(req: Request, res: Response) {
  * Handle call end - receive transcript from ElevenLabs
  * POST /api/twilio/diabetes-education-complete
  */
-export async function handleCallComplete(req: Request, res: Response) {
+async function handleCallComplete(req, res) {
   console.log('\n🎬 [DiabetesEdu] Call completed - processing transcript');
 
   try {
@@ -309,7 +299,7 @@ export async function handleCallComplete(req: Request, res: Response) {
       return res.status(400).json({ error: 'Missing callSid' });
     }
 
-    const updates: any = {
+    const updates = {
       transcript: transcript || null,
       elevenlabs_conversation_id: conversationId || null,
     };
@@ -322,8 +312,8 @@ export async function handleCallComplete(req: Request, res: Response) {
     if (transcript && transcript.length > 50) {
       try {
         // Use OpenAI to summarize the call
-        const openai = require('openai');
-        const client = new openai.OpenAI({ apiKey: process.env.VITE_OPENAI_API_KEY });
+        const { OpenAI } = require('openai');
+        const client = new OpenAI({ apiKey: process.env.VITE_OPENAI_API_KEY });
 
         const summaryResponse = await client.chat.completions.create({
           model: 'gpt-4o-mini',
@@ -371,3 +361,9 @@ export async function handleCallComplete(req: Request, res: Response) {
     res.status(500).json({ error: 'Failed to process call completion' });
   }
 }
+
+module.exports = {
+  default: handler,
+  handleCallStatus,
+  handleCallComplete
+};
