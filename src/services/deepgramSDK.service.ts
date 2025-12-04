@@ -226,7 +226,10 @@ class DeepgramSDKService implements SpeechServiceInterface {
         }
 
         // Handle different message types from proxy
-        if (data.type === 'open') {
+        if (data.type === 'proxy_ready') {
+          // Proxy connection ready - just log it
+          console.log('✅ Proxy ready:', data.message);
+        } else if (data.type === 'open') {
           // Connection opened message - NOW call the Open event handlers!
           logInfo('deepgramSDK', 'Deepgram connection established via proxy');
           console.log('🎉 Backend sent {type: "open"} - calling LiveTranscriptionEvents.Open handlers now!');
@@ -257,6 +260,13 @@ class DeepgramSDKService implements SpeechServiceInterface {
     };
 
     ws.onerror = (error) => {
+      console.error('🔴 WebSocket onerror fired!', {
+        error,
+        errorType: typeof error,
+        errorConstructor: error?.constructor?.name,
+        readyState: ws.readyState,
+        timestamp: new Date().toISOString()
+      });
       logError('deepgramSDK', `Proxy WebSocket error: ${error}`);
       const handlers = eventHandlers[LiveTranscriptionEvents.Error] || [];
       handlers.forEach(handler => handler(error));
