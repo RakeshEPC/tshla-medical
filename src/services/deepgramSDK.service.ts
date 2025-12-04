@@ -180,9 +180,12 @@ class DeepgramSDKService implements SpeechServiceInterface {
     ws.onopen = () => {
       logInfo('deepgramSDK', 'Proxy WebSocket connection opened');
       console.log('✅ WebSocket onopen fired! ReadyState:', ws.readyState);
-      // DO NOT call Open handlers here - wait for {type: 'open'} message from backend
-      // The backend will send {type: 'open'} when Deepgram is actually ready
-      console.log('   Waiting for backend to send {type: "open"} message...');
+      console.log('   Event handlers for Open event:', eventHandlers[LiveTranscriptionEvents.Open]?.length || 0);
+      const handlers = eventHandlers[LiveTranscriptionEvents.Open] || [];
+      handlers.forEach(handler => {
+        console.log('   Calling Open event handler...');
+        handler();
+      });
     };
 
     ws.onmessage = async (event) => {
