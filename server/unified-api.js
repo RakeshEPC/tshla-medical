@@ -166,7 +166,8 @@ app.post('/api/twilio/previsit-twiml', async (req, res) => {
 // Diabetes Education Twilio handlers
 let diabetesEducationInbound = null;
 try {
-  diabetesEducationInbound = require('./api/twilio/diabetes-education-inbound');
+  const path = require('path');
+  diabetesEducationInbound = require(path.join(__dirname, 'api', 'twilio', 'diabetes-education-inbound'));
   app.post('/api/twilio/diabetes-education-inbound', diabetesEducationInbound.default);
   app.post('/api/twilio/diabetes-education-status', diabetesEducationInbound.handleCallStatus);
   app.post('/api/twilio/diabetes-education-complete', diabetesEducationInbound.handleCallComplete);
@@ -1226,7 +1227,8 @@ const adminApi = require('./admin-account-api');
 
 let diabetesEducationApi = null;
 try {
-  diabetesEducationApi = require('./diabetes-education-api');
+  const path = require('path');
+  diabetesEducationApi = require(path.join(__dirname, 'diabetes-education-api'));
   console.log('✅ Diabetes Education API loaded');
 } catch (e) {
   console.error('❌ Failed to load Diabetes Education API:', e.message);
@@ -1454,6 +1456,188 @@ if (!DEEPGRAM_API_KEY) {
   });
 
   console.log('✅ WebSocket server ready on /ws/deepgram');
+}
+
+// ============================================
+// ELEVENLABS DIABETES EDUCATION BRIDGE
+// ============================================
+
+const ELEVENLABS_DIABETES_AGENTS = {
+  'en': process.env.ELEVENLABS_DIABETES_AGENT_EN,
+  'es': process.env.ELEVENLABS_DIABETES_AGENT_ES,
+  'fr': process.env.ELEVENLABS_DIABETES_AGENT_FR,
+};
+
+const hasAnyDiabetesAgent = Object.values(ELEVENLABS_DIABETES_AGENTS).some(id => id);
+
+if (!ELEVENLABS_API_KEY || !hasAnyDiabetesAgent) {
+  console.warn('⚠️  ElevenLabs API key or diabetes agents not configured - bridge will not be available');
+} else {
+  console.log('✅ ElevenLabs Diabetes Education Bridge enabled');
+
+  // Create WebSocket server for Twilio-to-ElevenLabs bridge
+  const elevenLabsBridge = new WebSocket.Server({
+    server,
+    path: '/ws/elevenlabs-diabetes'
+  });
+
+  elevenLabsBridge.on('connection', async (twilioWs, req) => {
+    console.log('\n🌉 [ElevenLabs Bridge] Twilio connected');
+
+    // Get agent ID from query parameters
+    const params = new URL(req.url, 'ws://localhost').searchParams;
+    const agentId = params.get('agentId');
+    const patientName = params.get('patientName') || 'Patient';
+
+    if (!agentId) {
+      console.error('❌ [ElevenLabs Bridge] No agent ID provided');
+      twilioWs.close();
+      return;
+    }
+
+    console.log(`   Agent ID: ${agentId}`);
+    console.log(`   Patient: ${patientName}`);
+
+    let elevenLabsWs = null;
+    let streamSid = null;
+
+    try {
+      // Get signed URL from ElevenLabs
+      const signedUrl = await new Promise((resolve, reject) => {
+        const https = require('https');
+        const options = {
+          hostname: 'api.elevenlabs.io',
+          path: `/v1/convai/conversation/get_signed_url?agent_id=${agentId}`,
+          method: 'GET',
+          headers: { 'xi-api-key': ELEVENLABS_API_KEY }
+        };
+
+        const req = https.request(options, (res) => {
+          let data = '';
+          res.on('data', (chunk) => { data += chunk; });
+          res.on('end', () => {
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.signed_url) {
+                resolve(parsed.signed_url);
+              } else {
+                reject(new Error('No signed_url in response'));
+              }
+            } catch (e) {
+              reject(e);
+            }
+          });
+        });
+
+        req.on('error', reject);
+        req.end();
+      });
+
+      console.log('✅ [ElevenLabs Bridge] Got signed URL from ElevenLabs');
+
+      // Connect to ElevenLabs
+      elevenLabsWs = new WebSocket(signedUrl);
+
+      elevenLabsWs.on('open', () => {
+        console.log('🤖 [ElevenLabs Bridge] Connected to AI agent');
+      });
+
+      elevenLabsWs.on('error', (error) => {
+        console.error('❌ [ElevenLabs Bridge] ElevenLabs error:', error.message);
+      });
+
+      elevenLabsWs.on('close', () => {
+        console.log('🤖 [ElevenLabs Bridge] ElevenLabs disconnected');
+        if (twilioWs.readyState === WebSocket.OPEN) {
+          twilioWs.close();
+        }
+      });
+
+      // Handle messages from ElevenLabs (AI responses)
+      elevenLabsWs.on('message', (data) => {
+        try {
+          const msg = JSON.parse(data);
+
+          // ElevenLabs sends audio in `audio` field
+          if (msg.audio && msg.audio.chunk) {
+            // Send audio back to Twilio
+            if (twilioWs.readyState === WebSocket.OPEN && streamSid) {
+              const mediaMessage = {
+                event: 'media',
+                streamSid: streamSid,
+                media: {
+                  payload: msg.audio.chunk
+                }
+              };
+              twilioWs.send(JSON.stringify(mediaMessage));
+            }
+          }
+
+          // Log other events for debugging
+          if (msg.type) {
+            console.log(`🤖 [ElevenLabs] Event: ${msg.type}`);
+          }
+        } catch (e) {
+          console.error('❌ [ElevenLabs Bridge] Error parsing ElevenLabs message:', e.message);
+        }
+      });
+
+      // Handle messages from Twilio (caller audio)
+      twilioWs.on('message', (message) => {
+        try {
+          const msg = JSON.parse(message);
+
+          if (msg.event === 'start') {
+            streamSid = msg.start.streamSid;
+            console.log(`📞 [Twilio] Stream started: ${streamSid}`);
+            console.log(`📞 [Twilio] Call SID: ${msg.start.callSid}`);
+
+            // Send connected event back to Twilio
+            const connectedMessage = {
+              event: 'connected',
+              protocol: 'Call',
+              version: '1.0.0'
+            };
+            twilioWs.send(JSON.stringify(connectedMessage));
+          }
+          else if (msg.event === 'media' && msg.media.payload) {
+            // Forward audio to ElevenLabs
+            if (elevenLabsWs && elevenLabsWs.readyState === WebSocket.OPEN) {
+              const audioMessage = {
+                user_audio_chunk: Buffer.from(msg.media.payload, 'base64').toString('base64')
+              };
+              elevenLabsWs.send(JSON.stringify(audioMessage));
+            }
+          }
+          else if (msg.event === 'stop') {
+            console.log('📞 [Twilio] Stream stopped');
+            if (elevenLabsWs) {
+              elevenLabsWs.close();
+            }
+          }
+        } catch (e) {
+          console.error('❌ [ElevenLabs Bridge] Error processing Twilio message:', e.message);
+        }
+      });
+
+      twilioWs.on('close', () => {
+        console.log('📞 [Twilio] Disconnected');
+        if (elevenLabsWs) {
+          elevenLabsWs.close();
+        }
+      });
+
+      twilioWs.on('error', (error) => {
+        console.error('❌ [ElevenLabs Bridge] Twilio error:', error.message);
+      });
+
+    } catch (error) {
+      console.error('❌ [ElevenLabs Bridge] Setup error:', error.message);
+      twilioWs.close();
+    }
+  });
+
+  console.log('✅ WebSocket server ready on /ws/elevenlabs-diabetes');
 }
 
 // Error handling middleware

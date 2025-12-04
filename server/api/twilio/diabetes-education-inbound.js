@@ -41,44 +41,6 @@ const MAX_CALL_DURATION_SECONDS = 600;
 // =====================================================
 
 /**
- * Get signed WebSocket URL from ElevenLabs for agent conversation
- */
-async function getElevenLabsSignedUrl(agentId) {
-  const https = require('https');
-
-  return new Promise((resolve, reject) => {
-    const options = {
-      hostname: 'api.elevenlabs.io',
-      path: `/v1/convai/conversation/get_signed_url?agent_id=${agentId}`,
-      method: 'GET',
-      headers: {
-        'xi-api-key': ELEVENLABS_API_KEY
-      }
-    };
-
-    const req = https.request(options, (res) => {
-      let data = '';
-      res.on('data', (chunk) => { data += chunk; });
-      res.on('end', () => {
-        try {
-          const parsed = JSON.parse(data);
-          if (parsed.signed_url) {
-            resolve(parsed.signed_url);
-          } else {
-            reject(new Error('No signed_url in response: ' + data));
-          }
-        } catch (e) {
-          reject(new Error('Failed to parse ElevenLabs response: ' + e.message));
-        }
-      });
-    });
-
-    req.on('error', reject);
-    req.end();
-  });
-}
-
-/**
  * Format phone number to E.164 for database lookup
  */
 function formatPhoneNumber(phone) {
@@ -111,19 +73,19 @@ function generateRejectionTwiML() {
 }
 
 /**
- * Generate TwiML for authenticated caller with WebSocket stream to ElevenLabs
+ * Generate TwiML for authenticated caller with WebSocket stream to ElevenLabs bridge
  */
-function generateStreamTwiML(signedUrl, patientData) {
+function generateStreamTwiML(agentId, patientData) {
+  // Bridge URL with agent ID as query parameter
+  const bridgeUrl = `${API_BASE_URL.replace('http', 'ws')}/ws/elevenlabs-diabetes?agentId=${agentId}&patientName=${encodeURIComponent(patientData.first_name)}`;
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="alice" language="${patientData.preferred_language === 'es' ? 'es-MX' : 'en-US'}">
     Connecting you to your diabetes educator. Please wait.
   </Say>
   <Connect>
-    <Stream url="${signedUrl}">
-      <Parameter name="first_name" value="${patientData.first_name}"/>
-      <Parameter name="patient_id" value="${patientData.id}"/>
-    </Stream>
+    <Stream url="${bridgeUrl}"/>
   </Connect>
   <Say voice="alice">
     Thank you for calling. Goodbye.
@@ -205,26 +167,6 @@ async function handler(req, res) {
 
     console.log(`   Using ElevenLabs agent: ${agentId}`);
 
-    // Get signed WebSocket URL from ElevenLabs
-    let signedUrl;
-    try {
-      console.log('🔗 [DiabetesEdu] Getting signed URL from ElevenLabs...');
-      signedUrl = await getElevenLabsSignedUrl(agentId);
-      console.log('✅ [DiabetesEdu] Got signed URL');
-    } catch (urlError) {
-      console.error('❌ [DiabetesEdu] Failed to get ElevenLabs signed URL:', urlError.message);
-      const errorTwiML = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say voice="alice">
-    We're sorry, but we're having trouble connecting to your educator.
-    Please try again later or contact your clinic.
-  </Say>
-  <Hangup/>
-</Response>`;
-      res.type('text/xml');
-      return res.send(errorTwiML);
-    }
-
     // Log call start in database
     try {
       const { data: callLog, error: logError } = await supabase
@@ -248,8 +190,8 @@ async function handler(req, res) {
       console.error('❌ [DiabetesEdu] Error logging call:', logError);
     }
 
-    // Generate TwiML to connect call to ElevenLabs agent
-    const twiml = generateStreamTwiML(signedUrl, patient);
+    // Generate TwiML to connect call to ElevenLabs agent via bridge
+    const twiml = generateStreamTwiML(agentId, patient);
 
     console.log('✅ [DiabetesEdu] Connecting call to AI agent');
     console.log(`   Max duration: ${MAX_CALL_DURATION_SECONDS} seconds (10 minutes)`);
