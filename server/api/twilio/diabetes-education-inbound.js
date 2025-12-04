@@ -18,6 +18,9 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+// ElevenLabs configuration
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || process.env.VITE_ELEVENLABS_API_KEY || '';
+
 // ElevenLabs Agent IDs by language
 const AGENT_IDS = {
   'en': process.env.ELEVENLABS_DIABETES_AGENT_EN || '',
@@ -29,7 +32,6 @@ const AGENT_IDS = {
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const API_BASE_URL = process.env.API_BASE_URL || process.env.VITE_API_BASE_URL || 'http://localhost:3000';
-const WEBSOCKET_BRIDGE_URL = process.env.WEBSOCKET_BRIDGE_URL || 'wss://your-bridge-url.com/ws';
 
 // Call duration limit: 10 minutes = 600 seconds
 const MAX_CALL_DURATION_SECONDS = 600;
@@ -37,6 +39,44 @@ const MAX_CALL_DURATION_SECONDS = 600;
 // =====================================================
 // HELPER FUNCTIONS
 // =====================================================
+
+/**
+ * Get signed WebSocket URL from ElevenLabs for agent conversation
+ */
+async function getElevenLabsSignedUrl(agentId) {
+  const https = require('https');
+
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: 'api.elevenlabs.io',
+      path: `/v1/convai/conversation/get_signed_url?agent_id=${agentId}`,
+      method: 'GET',
+      headers: {
+        'xi-api-key': ELEVENLABS_API_KEY
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.signed_url) {
+            resolve(parsed.signed_url);
+          } else {
+            reject(new Error('No signed_url in response: ' + data));
+          }
+        } catch (e) {
+          reject(new Error('Failed to parse ElevenLabs response: ' + e.message));
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.end();
+  });
+}
 
 /**
  * Format phone number to E.164 for database lookup
@@ -73,24 +113,16 @@ function generateRejectionTwiML() {
 /**
  * Generate TwiML for authenticated caller with WebSocket stream to ElevenLabs
  */
-function generateStreamTwiML(callSid, patientData) {
-  // URL encode patient data for passing to WebSocket bridge
-  const contextData = encodeURIComponent(JSON.stringify({
-    patient_id: patientData.id,
-    first_name: patientData.first_name,
-    language: patientData.preferred_language,
-    medical_data: patientData.medical_data,
-  }));
-
+function generateStreamTwiML(signedUrl, patientData) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="alice" language="${patientData.preferred_language === 'es' ? 'es-MX' : 'en-US'}">
     Connecting you to your diabetes educator. Please wait.
   </Say>
   <Connect>
-    <Stream url="${WEBSOCKET_BRIDGE_URL}?callSid=${callSid}&amp;context=${contextData}">
-      <Parameter name="patientId" value="${patientData.id}"/>
-      <Parameter name="language" value="${patientData.preferred_language}"/>
+    <Stream url="${signedUrl}">
+      <Parameter name="first_name" value="${patientData.first_name}"/>
+      <Parameter name="patient_id" value="${patientData.id}"/>
     </Stream>
   </Connect>
   <Say voice="alice">
@@ -156,10 +188,41 @@ async function handler(req, res) {
     console.log(`   Has medical data: ${patient.medical_data ? 'Yes' : 'No'}`);
 
     // Check if agent exists for patient's language
-    const agentId = AGENT_IDS[patient.preferred_language];
+    const agentId = AGENT_IDS[patient.preferred_language] || AGENT_IDS['en'];
     if (!agentId) {
-      console.warn(`⚠️ [DiabetesEdu] No agent configured for language: ${patient.preferred_language}`);
-      console.log('   Falling back to English agent');
+      console.error('❌ [DiabetesEdu] No ElevenLabs agent configured!');
+      const errorTwiML = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="alice">
+    We're sorry, but the diabetes education service is not configured.
+    Please contact your clinic for assistance.
+  </Say>
+  <Hangup/>
+</Response>`;
+      res.type('text/xml');
+      return res.send(errorTwiML);
+    }
+
+    console.log(`   Using ElevenLabs agent: ${agentId}`);
+
+    // Get signed WebSocket URL from ElevenLabs
+    let signedUrl;
+    try {
+      console.log('🔗 [DiabetesEdu] Getting signed URL from ElevenLabs...');
+      signedUrl = await getElevenLabsSignedUrl(agentId);
+      console.log('✅ [DiabetesEdu] Got signed URL');
+    } catch (urlError) {
+      console.error('❌ [DiabetesEdu] Failed to get ElevenLabs signed URL:', urlError.message);
+      const errorTwiML = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="alice">
+    We're sorry, but we're having trouble connecting to your educator.
+    Please try again later or contact your clinic.
+  </Say>
+  <Hangup/>
+</Response>`;
+      res.type('text/xml');
+      return res.send(errorTwiML);
     }
 
     // Log call start in database
@@ -186,7 +249,7 @@ async function handler(req, res) {
     }
 
     // Generate TwiML to connect call to ElevenLabs agent
-    const twiml = generateStreamTwiML(CallSid, patient);
+    const twiml = generateStreamTwiML(signedUrl, patient);
 
     console.log('✅ [DiabetesEdu] Connecting call to AI agent');
     console.log(`   Max duration: ${MAX_CALL_DURATION_SECONDS} seconds (10 minutes)`);
