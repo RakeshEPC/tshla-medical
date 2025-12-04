@@ -164,11 +164,16 @@ app.post('/api/twilio/previsit-twiml', async (req, res) => {
 });
 
 // Diabetes Education Twilio handlers
-const diabetesEducationInbound = require('./api/twilio/diabetes-education-inbound');
-app.post('/api/twilio/diabetes-education-inbound', diabetesEducationInbound.default);
-app.post('/api/twilio/diabetes-education-status', diabetesEducationInbound.handleCallStatus);
-app.post('/api/twilio/diabetes-education-complete', diabetesEducationInbound.handleCallComplete);
-console.log('✅ Diabetes Education Twilio webhooks registered');
+let diabetesEducationInbound = null;
+try {
+  diabetesEducationInbound = require('./api/twilio/diabetes-education-inbound');
+  app.post('/api/twilio/diabetes-education-inbound', diabetesEducationInbound.default);
+  app.post('/api/twilio/diabetes-education-status', diabetesEducationInbound.handleCallStatus);
+  app.post('/api/twilio/diabetes-education-complete', diabetesEducationInbound.handleCallComplete);
+  console.log('✅ Diabetes Education Twilio webhooks registered');
+} catch (e) {
+  console.error('❌ Failed to load Diabetes Education Twilio handlers:', e.message);
+}
 
 // Pre-Visit Conversations API
 // Endpoints for fetching and displaying ElevenLabs conversation transcripts
@@ -1218,7 +1223,15 @@ const pumpApi = require('./pump-report-api');
 const authApi = require('./medical-auth-api');
 const scheduleApi = require('./enhanced-schedule-notes-api');
 const adminApi = require('./admin-account-api');
-const diabetesEducationApi = require('./diabetes-education-api');
+
+let diabetesEducationApi = null;
+try {
+  diabetesEducationApi = require('./diabetes-education-api');
+  console.log('✅ Diabetes Education API loaded');
+} catch (e) {
+  console.error('❌ Failed to load Diabetes Education API:', e.message);
+  console.error(e.stack);
+}
 
 let patientChartApi = null;
 try {
@@ -1256,8 +1269,12 @@ app.use(pumpApi);    // Routes: /api/auth/*, /api/stripe/*, /api/provider/*, /ap
 app.use(authApi);     // Routes: /api/medical/*
 app.use(scheduleApi); // Routes: /api/providers/*, /api/appointments/*, /api/schedule/*, /api/notes/*
 app.use(adminApi);    // Routes: /api/accounts/*
-app.use('/api/diabetes-education', diabetesEducationApi); // Routes: /api/diabetes-education/* (Diabetes Education Phone System)
-console.log('✅ Diabetes Education API mounted at /api/diabetes-education');
+if (diabetesEducationApi) {
+  app.use('/api/diabetes-education', diabetesEducationApi); // Routes: /api/diabetes-education/* (Diabetes Education Phone System)
+  console.log('✅ Diabetes Education API mounted at /api/diabetes-education');
+} else {
+  console.error('❌ Diabetes Education API not mounted - module failed to load');
+}
 if (patientChartApi) {
   app.use('/api/patient-chart', patientChartApi); // Routes: /api/patient-chart/* (Unified Patient Charts)
   console.log('✅ Patient Chart API mounted at /api/patient-chart');
