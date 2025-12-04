@@ -1310,7 +1310,7 @@ if (!DEEPGRAM_API_KEY) {
   // Create Deepgram client (reused for all connections)
   const deepgram = createClient(DEEPGRAM_API_KEY);
 
-  wss.on('connection', (clientWs) => {
+  wss.on('connection', (clientWs, req) => {
     console.log('📡 WebSocket client connected');
 
     let deepgramConnection = null;
@@ -1318,8 +1318,22 @@ if (!DEEPGRAM_API_KEY) {
     try {
       // FIXED: Use medical model with full parameters from client's query string
       // The client sends all parameters via query string - parse them here
-      const url = new URL(clientWs.upgradeReq?.url || '/ws/deepgram', 'http://localhost');
+      const url = new URL(req.url || '/ws/deepgram', 'http://localhost');
       const params = url.searchParams;
+
+      console.log('🔍 WebSocket URL:', req.url);
+
+      // Send immediate acknowledgment that proxy is ready
+      // This prevents browser timeout while we connect to Deepgram
+      try {
+        clientWs.send(JSON.stringify({
+          type: 'proxy_ready',
+          message: 'WebSocket proxy connected, initializing Deepgram...'
+        }));
+        console.log('✅ Sent proxy_ready message to client');
+      } catch (sendError) {
+        console.error('❌ Failed to send proxy_ready message:', sendError.message);
+      }
 
       const deepgramConfig = {
         model: params.get('model') || process.env.VITE_DEEPGRAM_MODEL || 'nova-2-medical',
@@ -1355,11 +1369,21 @@ if (!DEEPGRAM_API_KEY) {
       // Forward Deepgram events to client
       deepgramConnection.on(LiveTranscriptionEvents.Open, () => {
         console.log('✅ Deepgram connection opened with model:', deepgramConfig.model);
-        clientWs.send(JSON.stringify({
+
+        const openMessage = {
           type: 'open',  // Frontend expects 'open' not 'deepgram_ready'
           message: 'Connected to Deepgram',
           model: deepgramConfig.model
-        }));
+        };
+
+        try {
+          console.log('📤 Sending {type: "open"} message to client...');
+          clientWs.send(JSON.stringify(openMessage));
+          console.log('✅ Successfully sent {type: "open"} message');
+        } catch (sendError) {
+          console.error('❌ Failed to send {type: "open"} message:', sendError.message);
+          console.error('   Client WebSocket state:', clientWs.readyState);
+        }
       });
 
       deepgramConnection.on(LiveTranscriptionEvents.Transcript, (data) => {
