@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'server/**'
+      - 'Dockerfile.unified'
       - '.github/workflows/deploy-unified-container-app.yml'
   workflow_dispatch:
 
