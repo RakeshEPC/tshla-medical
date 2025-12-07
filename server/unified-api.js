@@ -1326,11 +1326,19 @@ if (!DEEPGRAM_API_KEY) {
       // Don't send proxy_ready - wait for Deepgram connection to actually open
       // Sending proxy_ready before Deepgram connects causes confusing errors
 
+      const requestedSampleRate = parseInt(params.get('sample_rate') || '48000');
+
+      // CRITICAL FIX: Deepgram SDK has issues with 44100/48000 Hz
+      // Force to 16000 Hz which is guaranteed to work with all Deepgram models
+      const deepgramSampleRate = 16000;
+
+      console.log(`⚠️ Sample rate override: Client requested ${requestedSampleRate}Hz, using ${deepgramSampleRate}Hz for Deepgram`);
+
       const deepgramConfig = {
         model: params.get('model') || process.env.VITE_DEEPGRAM_MODEL || 'nova-2-medical',
         language: params.get('language') || process.env.VITE_DEEPGRAM_LANGUAGE || 'en-US',
         encoding: params.get('encoding') || 'linear16',
-        sample_rate: parseInt(params.get('sample_rate') || '48000'),
+        sample_rate: deepgramSampleRate, // Force 16000 Hz
         channels: parseInt(params.get('channels') || '1'),
         smart_format: params.get('smart_format') !== 'false',
         interim_results: params.get('interim_results') !== 'false',
