@@ -1331,7 +1331,7 @@ if (!DEEPGRAM_API_KEY) {
       deepgramConnection.on(LiveTranscriptionEvents.Open, () => {
         console.log('✅ Deepgram connection opened');
         clientWs.send(JSON.stringify({
-          type: 'deepgram_ready',
+          type: 'open',
           message: 'Connected to Deepgram'
         }));
       });
