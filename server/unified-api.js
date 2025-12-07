@@ -1170,6 +1170,73 @@ if (DEEPGRAM_API_KEY) {
     });
   });
 
+  // Test Deepgram SDK WebSocket connectivity from Azure
+  app.get('/api/deepgram/test-websocket', async (req, res) => {
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Credentials', 'true');
+
+    console.log('🧪 Testing Deepgram SDK WebSocket connectivity...');
+
+    try {
+      const testClient = createClient(DEEPGRAM_API_KEY);
+      console.log('✅ Deepgram client created');
+
+      const testConnection = testClient.listen.live({
+        model: 'nova-3-medical',
+        language: 'en-US',
+        smart_format: true,
+        interim_results: true
+      });
+
+      console.log('✅ Deepgram connection object created');
+
+      let connectionOpened = false;
+      let connectionError = null;
+      let connectionClosed = false;
+
+      testConnection.on(LiveTranscriptionEvents.Open, () => {
+        console.log('✅ Test connection OPENED successfully!');
+        connectionOpened = true;
+      });
+
+      testConnection.on(LiveTranscriptionEvents.Error, (error) => {
+        console.error('❌ Test connection ERROR:', error);
+        connectionError = error;
+      });
+
+      testConnection.on(LiveTranscriptionEvents.Close, () => {
+        console.log('🔌 Test connection closed');
+        connectionClosed = true;
+      });
+
+      // Wait 5 seconds to see if connection opens
+      await new Promise(resolve => setTimeout(resolve, 5000));
+
+      // Clean up
+      if (testConnection) {
+        testConnection.finish();
+      }
+
+      res.json({
+        success: connectionOpened && !connectionError,
+        connectionOpened,
+        connectionError: connectionError ? String(connectionError) : null,
+        connectionClosed,
+        timestamp: new Date().toISOString(),
+        message: connectionOpened ? 'WebSocket SDK connection works!' : 'WebSocket SDK connection failed'
+      });
+
+    } catch (error) {
+      console.error('❌ Test failed with exception:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+
   // Deepgram API key verification endpoint (for debugging)
   app.get('/api/deepgram/verify', async (req, res) => {
     res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
