@@ -1364,7 +1364,26 @@ if (!DEEPGRAM_API_KEY) {
       });
 
       // Create Deepgram live transcription connection with client parameters
-      deepgramConnection = deepgram.listen.live(deepgramConfig);
+      console.log('🔄 Creating Deepgram connection...');
+      console.log('   Deepgram client type:', typeof deepgram);
+      console.log('   Has listen method:', !!deepgram?.listen);
+      console.log('   Has live method:', !!deepgram?.listen?.live);
+
+      try {
+        deepgramConnection = deepgram.listen.live(deepgramConfig);
+        console.log('✅ Deepgram connection object created');
+        console.log('   Connection type:', typeof deepgramConnection);
+        console.log('   Initial ready state:', deepgramConnection?.getReadyState?.());
+      } catch (connectionError) {
+        console.error('❌ CRITICAL: Failed to create Deepgram connection:', {
+          error: connectionError.message,
+          stack: connectionError.stack,
+          apiKeyPresent: !!DEEPGRAM_API_KEY,
+          apiKeyLength: DEEPGRAM_API_KEY?.length,
+          config: deepgramConfig
+        });
+        throw connectionError;
+      }
 
       // Forward Deepgram events to client
       deepgramConnection.on(LiveTranscriptionEvents.Open, () => {
@@ -1419,11 +1438,24 @@ if (!DEEPGRAM_API_KEY) {
       });
 
       deepgramConnection.on(LiveTranscriptionEvents.Error, (error) => {
-        console.error('❌ Deepgram error:', error);
-        clientWs.send(JSON.stringify({
-          type: 'error',
-          error: error.message
-        }));
+        console.error('❌ Deepgram SDK Error Event:', {
+          error: error,
+          message: error?.message,
+          type: error?.type,
+          reason: error?.reason,
+          code: error?.code,
+          stack: error?.stack,
+          timestamp: new Date().toISOString()
+        });
+
+        try {
+          clientWs.send(JSON.stringify({
+            type: 'error',
+            error: error?.message || String(error)
+          }));
+        } catch (sendError) {
+          console.error('❌ Failed to send error to client:', sendError.message);
+        }
       });
 
       deepgramConnection.on(LiveTranscriptionEvents.Close, () => {
