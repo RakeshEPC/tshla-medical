@@ -1323,17 +1323,8 @@ if (!DEEPGRAM_API_KEY) {
 
       console.log('🔍 WebSocket URL:', req.url);
 
-      // Send immediate acknowledgment that proxy is ready
-      // This prevents browser timeout while we connect to Deepgram
-      try {
-        clientWs.send(JSON.stringify({
-          type: 'proxy_ready',
-          message: 'WebSocket proxy connected, initializing Deepgram...'
-        }));
-        console.log('✅ Sent proxy_ready message to client');
-      } catch (sendError) {
-        console.error('❌ Failed to send proxy_ready message:', sendError.message);
-      }
+      // Don't send proxy_ready - wait for Deepgram connection to actually open
+      // Sending proxy_ready before Deepgram connects causes confusing errors
 
       const deepgramConfig = {
         model: params.get('model') || process.env.VITE_DEEPGRAM_MODEL || 'nova-2-medical',
