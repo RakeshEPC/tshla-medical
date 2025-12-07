@@ -1400,6 +1400,7 @@ if (!DEEPGRAM_API_KEY) {
 
       console.log('✅ Deepgram connection object created');
       console.log('   Initial ready state:', deepgramConnection?.getReadyState?.());
+      console.log('   Client WebSocket still open?', clientWs.readyState === 1);
 
       // Forward Deepgram events to client
       deepgramConnection.on(LiveTranscriptionEvents.Open, () => {
