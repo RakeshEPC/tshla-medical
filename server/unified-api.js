@@ -1312,10 +1312,14 @@ if (!DEEPGRAM_API_KEY) {
 
   wss.on('connection', (clientWs) => {
     console.log('📡 WebSocket client connected');
+    console.log('   Client ready state:', clientWs.readyState);
+    console.log('   Deepgram SDK available:', !!deepgram);
 
     let deepgramConnection = null;
 
     try {
+      console.log('🔄 Creating Deepgram connection...');
+
       // Create Deepgram live transcription connection with simple, proven configuration
       deepgramConnection = deepgram.listen.live({
         model: process.env.VITE_DEEPGRAM_MODEL || 'nova-3-medical',
@@ -1326,6 +1330,9 @@ if (!DEEPGRAM_API_KEY) {
         vad_events: true,
         endpointing: 300,
       });
+
+      console.log('✅ Deepgram connection object created');
+      console.log('   Initial ready state:', deepgramConnection?.getReadyState?.());
 
       // Forward Deepgram events to client
       deepgramConnection.on(LiveTranscriptionEvents.Open, () => {
@@ -1369,26 +1376,44 @@ if (!DEEPGRAM_API_KEY) {
         }
       });
 
-      clientWs.on('close', () => {
-        console.log('🔌 Client disconnected');
+      clientWs.on('close', (code, reason) => {
+        console.log('🔌 Client disconnected:', {
+          code,
+          reason: reason?.toString() || 'no reason provided',
+          timestamp: new Date().toISOString()
+        });
         if (deepgramConnection) {
           deepgramConnection.finish();
         }
       });
 
       clientWs.on('error', (error) => {
-        console.error('❌ Client WebSocket error:', error);
+        console.error('❌ Client WebSocket error:', {
+          error: error?.message || error,
+          code: error?.code,
+          timestamp: new Date().toISOString()
+        });
         if (deepgramConnection) {
           deepgramConnection.finish();
         }
       });
 
     } catch (error) {
-      console.error('❌ Error setting up Deepgram connection:', error);
-      clientWs.send(JSON.stringify({
-        type: 'error',
-        error: 'Failed to connect to Deepgram'
-      }));
+      console.error('❌ CRITICAL: Error setting up Deepgram connection:', {
+        error: error?.message || error,
+        stack: error?.stack,
+        timestamp: new Date().toISOString()
+      });
+
+      try {
+        clientWs.send(JSON.stringify({
+          type: 'error',
+          error: 'Failed to connect to Deepgram'
+        }));
+      } catch (sendError) {
+        console.error('❌ Failed to send error message to client:', sendError);
+      }
+
       clientWs.close();
     }
   });
