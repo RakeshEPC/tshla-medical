@@ -1310,120 +1310,33 @@ if (!DEEPGRAM_API_KEY) {
   // Create Deepgram client (reused for all connections)
   const deepgram = createClient(DEEPGRAM_API_KEY);
 
-  wss.on('connection', (clientWs, req) => {
+  wss.on('connection', (clientWs) => {
     console.log('📡 WebSocket client connected');
 
     let deepgramConnection = null;
 
     try {
-      // FIXED: Use medical model with full parameters from client's query string
-      // The client sends all parameters via query string - parse them here
-      const url = new URL(req.url || '/ws/deepgram', 'http://localhost');
-      const params = url.searchParams;
-
-      console.log('🔍 WebSocket URL:', req.url);
-
-      // Don't send proxy_ready - wait for Deepgram connection to actually open
-      // Sending proxy_ready before Deepgram connects causes confusing errors
-
-      const requestedSampleRate = parseInt(params.get('sample_rate') || '48000');
-
-      // CRITICAL FIX: Deepgram SDK has issues with 44100/48000 Hz
-      // Force to 16000 Hz which is guaranteed to work with all Deepgram models
-      const deepgramSampleRate = 16000;
-
-      console.log(`⚠️ Sample rate override: Client requested ${requestedSampleRate}Hz, using ${deepgramSampleRate}Hz for Deepgram`);
-
-      const deepgramConfig = {
-        model: params.get('model') || process.env.VITE_DEEPGRAM_MODEL || 'nova-2-medical',
-        language: params.get('language') || process.env.VITE_DEEPGRAM_LANGUAGE || 'en-US',
-        encoding: params.get('encoding') || 'linear16',
-        sample_rate: deepgramSampleRate, // Force 16000 Hz
-        channels: parseInt(params.get('channels') || '1'),
-        smart_format: params.get('smart_format') !== 'false',
-        interim_results: params.get('interim_results') !== 'false',
-        vad_events: params.get('vad_events') !== 'false',
-        endpointing: parseInt(params.get('endpointing') || '300'),
-        punctuate: params.get('punctuate') !== 'false',
-        utterances: params.get('utterances') !== 'false',
-        diarize: params.get('diarize') === 'true'
-      };
-
-      // Add keywords if provided
-      const keywords = params.getAll('keywords');
-      if (keywords.length > 0) {
-        deepgramConfig.keywords = keywords;
-      }
-
-      console.log('🎯 Deepgram config:', {
-        model: deepgramConfig.model,
-        sample_rate: deepgramConfig.sample_rate,
-        keywords: keywords.length,
-        encoding: deepgramConfig.encoding
+      // Create Deepgram live transcription connection with simple, proven configuration
+      deepgramConnection = deepgram.listen.live({
+        model: process.env.VITE_DEEPGRAM_MODEL || 'nova-3-medical',
+        language: process.env.VITE_DEEPGRAM_LANGUAGE || 'en-US',
+        smart_format: true,
+        interim_results: true,
+        utterance_end_ms: 1000,
+        vad_events: true,
+        endpointing: 300,
       });
-
-      // Create Deepgram live transcription connection with client parameters
-      console.log('🔄 Creating Deepgram connection...');
-      console.log('   Deepgram client type:', typeof deepgram);
-      console.log('   Has listen method:', !!deepgram?.listen);
-      console.log('   Has live method:', !!deepgram?.listen?.live);
-
-      try {
-        deepgramConnection = deepgram.listen.live(deepgramConfig);
-        console.log('✅ Deepgram connection object created');
-        console.log('   Connection type:', typeof deepgramConnection);
-        console.log('   Initial ready state:', deepgramConnection?.getReadyState?.());
-      } catch (connectionError) {
-        console.error('❌ CRITICAL: Failed to create Deepgram connection:', {
-          error: connectionError.message,
-          stack: connectionError.stack,
-          apiKeyPresent: !!DEEPGRAM_API_KEY,
-          apiKeyLength: DEEPGRAM_API_KEY?.length,
-          config: deepgramConfig
-        });
-        throw connectionError;
-      }
 
       // Forward Deepgram events to client
       deepgramConnection.on(LiveTranscriptionEvents.Open, () => {
-        console.log('✅ Deepgram connection opened with model:', deepgramConfig.model);
-
-        const openMessage = {
-          type: 'open',  // Frontend expects 'open' not 'deepgram_ready'
-          message: 'Connected to Deepgram',
-          model: deepgramConfig.model
-        };
-
-        try {
-          console.log('📤 Sending {type: "open"} message to client...');
-          clientWs.send(JSON.stringify(openMessage));
-          console.log('✅ Successfully sent {type: "open"} message');
-        } catch (sendError) {
-          console.error('❌ Failed to send {type: "open"} message:', sendError.message);
-          console.error('   Client WebSocket state:', clientWs.readyState);
-        }
+        console.log('✅ Deepgram connection opened');
+        clientWs.send(JSON.stringify({
+          type: 'deepgram_ready',
+          message: 'Connected to Deepgram'
+        }));
       });
 
       deepgramConnection.on(LiveTranscriptionEvents.Transcript, (data) => {
-        // DIAGNOSTIC: Enhanced logging to debug "No Audio Captured"
-        const transcript = data.channel?.alternatives?.[0]?.transcript || '';
-        const hasTranscript = transcript && transcript.trim().length > 0;
-
-        if (hasTranscript) {
-          console.log('✅ TRANSCRIPT:', {
-            text: transcript.substring(0, 100),
-            length: transcript.length,
-            isFinal: data.is_final,
-            confidence: data.channel.alternatives[0].confidence
-          });
-        } else {
-          console.log('⚠️ Empty transcript received from Deepgram:', {
-            type: data.type,
-            isFinal: data.is_final,
-            dataKeys: Object.keys(data)
-          });
-        }
-
         // Forward transcript to client
         clientWs.send(JSON.stringify(data));
       });
@@ -1437,74 +1350,34 @@ if (!DEEPGRAM_API_KEY) {
       });
 
       deepgramConnection.on(LiveTranscriptionEvents.Error, (error) => {
-        console.error('❌ Deepgram SDK Error Event:', {
-          error: error,
-          message: error?.message,
-          type: error?.type,
-          reason: error?.reason,
-          code: error?.code,
-          stack: error?.stack,
-          timestamp: new Date().toISOString()
-        });
-
-        try {
-          clientWs.send(JSON.stringify({
-            type: 'error',
-            error: error?.message || String(error)
-          }));
-        } catch (sendError) {
-          console.error('❌ Failed to send error to client:', sendError.message);
-        }
+        console.error('❌ Deepgram error:', error);
+        clientWs.send(JSON.stringify({
+          type: 'error',
+          error: error.message
+        }));
       });
 
       deepgramConnection.on(LiveTranscriptionEvents.Close, () => {
         console.log('🔌 Deepgram connection closed');
       });
 
-      // Forward client audio to Deepgram with validation
-      let audioChunksReceived = 0;
+      // Forward client audio to Deepgram
       clientWs.on('message', (message) => {
         if (deepgramConnection && deepgramConnection.getReadyState() === 1) {
-          // DIAGNOSTIC: Log audio data reception
-          audioChunksReceived++;
-
-          if (audioChunksReceived === 1) {
-            console.log('🎤 First audio chunk received:', {
-              type: typeof message,
-              size: message.length || message.byteLength || 'unknown',
-              isBuffer: Buffer.isBuffer(message),
-              isArrayBuffer: message instanceof ArrayBuffer
-            });
-          } else if (audioChunksReceived % 100 === 0) {
-            console.log(`🎤 Audio chunks received: ${audioChunksReceived}`);
-          }
-
           // Forward audio data to Deepgram
           deepgramConnection.send(message);
-        } else {
-          console.warn('⚠️ Cannot forward audio - Deepgram connection not ready:', deepgramConnection?.getReadyState());
         }
       });
 
-      clientWs.on('close', (code, reason) => {
-        console.log('🔌 Client disconnected:', {
-          code,
-          reason: reason?.toString() || 'no reason',
-          wasClean: code === 1000,
-          timestamp: new Date().toISOString()
-        });
+      clientWs.on('close', () => {
+        console.log('🔌 Client disconnected');
         if (deepgramConnection) {
           deepgramConnection.finish();
         }
       });
 
       clientWs.on('error', (error) => {
-        console.error('❌ Client WebSocket error:', {
-          error: error?.message || error,
-          code: error?.code,
-          stack: error?.stack,
-          timestamp: new Date().toISOString()
-        });
+        console.error('❌ Client WebSocket error:', error);
         if (deepgramConnection) {
           deepgramConnection.finish();
         }
