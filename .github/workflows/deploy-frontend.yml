@@ -47,30 +47,21 @@ jobs:
 
       - name: Build application
         env:
+          # 🔐 SECRETS ONLY - All other config comes from .env.production
+          # ⚠️  DO NOT add non-secret environment variables here!
+          # ⚠️  Update .env.production instead to prevent configuration drift
+          #
+          # Why: Hardcoding env vars here caused 7-week Deepgram outage (Dec 2025)
+          #      when .env.production was updated but this file wasn't.
+          #
+          # Only API keys and secrets belong here:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          VITE_PUMP_API_URL: https://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io
-          VITE_SCHEDULE_API_URL: https://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io
-          VITE_AUTH_API_URL: https://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io
-          VITE_ADMIN_ACCOUNT_API_URL: https://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io
           VITE_OPENAI_API_KEY: ${{ secrets.VITE_OPENAI_API_KEY }}
-          VITE_OPENAI_MODEL_STAGE4: gpt-4o-mini
-          VITE_OPENAI_MODEL_STAGE5: gpt-4o
-          VITE_OPENAI_MODEL_STAGE6: gpt-4o
-          VITE_PRIMARY_AI_PROVIDER: azure
           VITE_AZURE_OPENAI_ENDPOINT: ${{ secrets.VITE_AZURE_OPENAI_ENDPOINT }}
           VITE_AZURE_OPENAI_KEY: ${{ secrets.VITE_AZURE_OPENAI_KEY }}
           VITE_AZURE_OPENAI_DEPLOYMENT: ${{ secrets.VITE_AZURE_OPENAI_DEPLOYMENT }}
-          VITE_AZURE_OPENAI_API_VERSION: 2024-02-01
           VITE_DEEPGRAM_API_KEY: ${{ secrets.VITE_DEEPGRAM_API_KEY }}
-          VITE_DEEPGRAM_MODEL: nova-2-medical
-          VITE_DEEPGRAM_LANGUAGE: en-US
-          VITE_DEEPGRAM_TIER: enhanced
-          VITE_PRIMARY_STT_PROVIDER: deepgram
-          VITE_USE_DEEPGRAM_SDK: "true"
-          VITE_PRIMARY_SPEECH_PROVIDER: deepgram
-          VITE_USE_DEEPGRAM_PROXY: "true"
-          VITE_DEEPGRAM_PROXY_URL: wss://tshla-deepgram-proxy.redpebble-e4551b7a.eastus.azurecontainerapps.io
         run: npm run build
 
       - name: Post-Build Validation
