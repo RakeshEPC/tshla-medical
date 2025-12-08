@@ -1321,17 +1321,25 @@ try {
   console.log('⚠️  Patient summary API not available:', e.message);
 }
 try {
-  echoAudioSummaryRoutes = require('./routes/echo-audio-summary');
-  console.log('✅ Echo routes loaded');
+  // Use Azure Communication Services instead of Twilio (HIPAA compliant)
+  echoAudioSummaryRoutes = require('./routes/echo-audio-summary-azure');
+  console.log('✅ Echo routes loaded (Azure Communication Services)');
 } catch (e) {
   console.log('⚠️  Echo routes not available:', e.message);
+  // Fallback to old Twilio version if Azure not configured
+  try {
+    echoAudioSummaryRoutes = require('./routes/echo-audio-summary');
+    console.log('⚠️  Using legacy Twilio Echo routes (consider migrating to Azure)');
+  } catch (e2) {
+    console.log('❌ No Echo routes available');
+  }
 }
 
 // Mount each API (they already have their own route prefixes like /api/*)
 // Since each API has its own namespace, we can mount them directly
 // IMPORTANT: Echo routes must be mounted FIRST to avoid being caught by pump-report-api's catch-all route
 if (echoAudioSummaryRoutes) {
-  app.use('/api/echo', echoAudioSummaryRoutes); // Routes: /api/echo/* (Echo Audio Summary with Twilio)
+  app.use('/api/echo', echoAudioSummaryRoutes); // Routes: /api/echo/* (Echo Audio Summary with Azure Communication Services)
   console.log('✅ Echo routes mounted at /api/echo');
 }
 app.use(pumpApi);    // Routes: /api/auth/*, /api/stripe/*, /api/provider/*, /api/pump-*
