@@ -120,12 +120,11 @@ class DeepgramSDKService implements SpeechServiceInterface {
     params.set('interim_results', config.interim_results.toString());
     params.set('vad_events', config.vad_events.toString());
 
-    // Add keywords
-    if (config.keywords && Array.isArray(config.keywords)) {
-      config.keywords.forEach((keyword: string) => {
-        params.append('keywords', keyword);
-      });
-    }
+    // NOTE: Keywords are NOT sent via URL query parameters
+    // Deepgram's WebSocket API doesn't support keywords in the URL
+    // They must be sent in the initial configuration message after connection
+    // Sending 70+ keywords in URL causes 400 error (URL too long)
+    // The proxy will handle keywords in its Deepgram SDK configuration
 
     return `${proxyUrl}?${params.toString()}`;
   }
