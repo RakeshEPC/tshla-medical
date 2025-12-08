@@ -70,7 +70,7 @@ jobs:
           VITE_USE_DEEPGRAM_SDK: "true"
           VITE_PRIMARY_SPEECH_PROVIDER: deepgram
           VITE_USE_DEEPGRAM_PROXY: "true"
-          VITE_DEEPGRAM_PROXY_URL: wss://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io/ws/deepgram
+          VITE_DEEPGRAM_PROXY_URL: wss://tshla-deepgram-proxy.redpebble-e4551b7a.eastus.azurecontainerapps.io
         run: npm run build
 
       - name: Post-Build Validation
