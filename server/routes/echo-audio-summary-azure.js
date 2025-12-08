@@ -42,6 +42,9 @@ const CLINIC_PHONE_NUMBER = process.env.CLINIC_PHONE_NUMBER || '+18325938100';
 let callAutomationClient = null;
 let blobServiceClient = null;
 
+// In-memory storage for call audio URLs (use Redis/database in production)
+const callAudioMap = new Map();
+
 if (ACS_CONNECTION_STRING) {
   try {
     callAutomationClient = new CallAutomationClient(ACS_CONNECTION_STRING);
@@ -245,25 +248,28 @@ async function makePhoneCall(phoneNumber, audioUrl, scriptText) {
     }
   );
 
-  console.log(`✅ Call initiated: ${result.callConnectionId}`);
+  console.log(`✅ Call initiated successfully`);
+  console.log(`   Call Connection ID: ${result.callConnectionId}`);
 
-  // After call is connected, play the audio
-  // Note: In production, you'd use the callback webhook to detect CallConnected event
-  // and then play the audio. For now, we'll try to play immediately.
-  try {
-    const callConnection = callAutomationClient.getCallConnection(result.callConnectionId);
-    await callConnection.playMedia([{ kind: 'fileSource', url: audioUrl }], [targetParticipant]);
-    console.log(`✅ Audio playback started`);
-  } catch (playError) {
-    console.warn(`⚠️ Could not auto-play audio: ${playError.message}`);
-    // This is expected - we'll play the audio via the callback webhook instead
-  }
+  // Store the audio URL and phone number for the callback to use
+  callAudioMap.set(result.callConnectionId, {
+    audioUrl: audioUrl,
+    phoneNumber: phoneNumber,
+    timestamp: Date.now()
+  });
+  console.log(`📝 Audio URL stored for callback: ${audioUrl}`);
+
+  // Clean up old entries after 1 hour
+  setTimeout(() => {
+    callAudioMap.delete(result.callConnectionId);
+  }, 60 * 60 * 1000);
 
   return {
     callId: result.callConnectionId,
     status: 'initiated',
     usingElevenLabs: true,
-    audioUrl: audioUrl
+    audioUrl: audioUrl,
+    message: 'Call initiated. Audio will play when call connects.'
   };
 }
 
@@ -420,32 +426,64 @@ router.post('/acs-callback', async (req, res) => {
       // Handle different event types
       switch (eventType) {
         case 'Microsoft.Communication.CallConnected':
-          console.log('✅ Call connected:', evt.data?.callConnectionId || evt.callConnectionId);
+          {
+            const callId = evt.data?.callConnectionId || evt.callConnectionId;
+            console.log('✅ Call connected:', callId);
 
-          // Store audio URL from operation context if available
-          // In production, you'd store this mapping in a database/cache
-          const audioUrlFromContext = evt.data?.operationContext;
-          if (audioUrlFromContext) {
-            console.log('🔊 Audio URL from context:', audioUrlFromContext);
+            // Retrieve audio URL from our map
+            const callData = callAudioMap.get(callId);
+            if (callData && callAutomationClient) {
+              console.log('🔊 Playing audio:', callData.audioUrl);
+              try {
+                const callConnection = callAutomationClient.getCallConnection(callId);
+
+                // Play the audio file using FileSource
+                await callConnection.getCallMedia().play(
+                  {
+                    kind: 'fileSource',
+                    file: callData.audioUrl
+                  },
+                  { operationContext: 'echo-playback' }
+                );
+
+                console.log('✅ Audio playback started successfully');
+              } catch (playError) {
+                console.error('❌ Failed to play audio:', playError.message);
+                console.error('   Full error:', playError);
+              }
+            } else {
+              console.warn('⚠️ No audio URL found for call:', callId);
+            }
           }
           break;
 
         case 'Microsoft.Communication.CallDisconnected':
-          console.log('📴 Call disconnected:', evt.data?.callConnectionId || evt.callConnectionId);
+          {
+            const callId = evt.data?.callConnectionId || evt.callConnectionId;
+            console.log('📴 Call disconnected:', callId);
+
+            // Clean up the audio URL mapping
+            if (callAudioMap.has(callId)) {
+              callAudioMap.delete(callId);
+              console.log('🗑️ Cleaned up audio URL mapping for call:', callId);
+            }
+          }
           break;
 
         case 'Microsoft.Communication.PlayCompleted':
-          console.log('🔊 Audio playback completed');
+          {
+            console.log('🔊 Audio playback completed');
 
-          // Hang up the call after audio completes
-          const callId = evt.data?.callConnectionId || evt.callConnectionId;
-          if (callId && callAutomationClient) {
-            try {
-              const callConnection = callAutomationClient.getCallConnection(callId);
-              await callConnection.hangUp(true); // true = hang up for all participants
-              console.log('📴 Call ended after audio playback');
-            } catch (hangupError) {
-              console.error('Failed to hang up call:', hangupError.message);
+            // Hang up the call after audio completes
+            const callId = evt.data?.callConnectionId || evt.callConnectionId;
+            if (callId && callAutomationClient) {
+              try {
+                const callConnection = callAutomationClient.getCallConnection(callId);
+                await callConnection.hangUp(true); // true = hang up for all participants
+                console.log('📴 Call ended after audio playback');
+              } catch (hangupError) {
+                console.error('Failed to hang up call:', hangupError.message);
+              }
             }
           }
           break;
