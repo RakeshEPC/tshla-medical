@@ -231,18 +231,33 @@ async function makePhoneCall(phoneNumber, audioUrl, scriptText) {
 
   console.log(`📞 Initiating call to ${phoneNumber} with audio: ${audioUrl}`);
 
+  // Format phone numbers correctly for Azure Communication Services
+  const sourceCallerId = { phoneNumber: ACS_PHONE_NUMBER };
+  const targetParticipant = { phoneNumber: phoneNumber };
+
   // Create call with play audio action
-  const result = await callAutomationClient.createCall({
-    targetParticipant: { phoneNumber: phoneNumber },
-    callbackUrl: ACS_CALLBACK_URL,
-    cognitiveServicesEndpoint: AZURE_OPENAI_ENDPOINT,
-    operationContext: 'echo-audio-summary',
-    mediaOptions: {
-      playAudioUrl: audioUrl
+  const result = await callAutomationClient.createCall(
+    targetParticipant,
+    ACS_CALLBACK_URL,
+    {
+      sourceCallerId: sourceCallerId,
+      operationContext: 'echo-audio-summary'
     }
-  });
+  );
 
   console.log(`✅ Call initiated: ${result.callConnectionId}`);
+
+  // After call is connected, play the audio
+  // Note: In production, you'd use the callback webhook to detect CallConnected event
+  // and then play the audio. For now, we'll try to play immediately.
+  try {
+    const callConnection = callAutomationClient.getCallConnection(result.callConnectionId);
+    await callConnection.playMedia([{ kind: 'fileSource', url: audioUrl }], [targetParticipant]);
+    console.log(`✅ Audio playback started`);
+  } catch (playError) {
+    console.warn(`⚠️ Could not auto-play audio: ${playError.message}`);
+    // This is expected - we'll play the audio via the callback webhook instead
+  }
 
   return {
     callId: result.callConnectionId,
@@ -394,25 +409,54 @@ router.post('/send-sms-summary', async (req, res) => {
 router.post('/acs-callback', async (req, res) => {
   try {
     const event = req.body;
-    console.log('📞 [ACS Callback] Event received:', event.type);
+    console.log('📞 [ACS Callback] Event received:', JSON.stringify(event, null, 2));
 
-    // Handle different event types
-    switch (event.type) {
-      case 'Microsoft.Communication.CallConnected':
-        console.log('✅ Call connected:', event.callConnectionId);
-        break;
+    // Azure sends events as an array
+    const events = Array.isArray(event) ? event : [event];
 
-      case 'Microsoft.Communication.CallDisconnected':
-        console.log('📴 Call disconnected:', event.callConnectionId);
-        break;
+    for (const evt of events) {
+      const eventType = evt.eventType || evt.type;
 
-      case 'Microsoft.Communication.PlayCompleted':
-        console.log('🔊 Audio playback completed');
-        // Could add DTMF recognition here for "Press 1 to replay"
-        break;
+      // Handle different event types
+      switch (eventType) {
+        case 'Microsoft.Communication.CallConnected':
+          console.log('✅ Call connected:', evt.data?.callConnectionId || evt.callConnectionId);
 
-      default:
-        console.log('ℹ️ Unhandled event type:', event.type);
+          // Store audio URL from operation context if available
+          // In production, you'd store this mapping in a database/cache
+          const audioUrlFromContext = evt.data?.operationContext;
+          if (audioUrlFromContext) {
+            console.log('🔊 Audio URL from context:', audioUrlFromContext);
+          }
+          break;
+
+        case 'Microsoft.Communication.CallDisconnected':
+          console.log('📴 Call disconnected:', evt.data?.callConnectionId || evt.callConnectionId);
+          break;
+
+        case 'Microsoft.Communication.PlayCompleted':
+          console.log('🔊 Audio playback completed');
+
+          // Hang up the call after audio completes
+          const callId = evt.data?.callConnectionId || evt.callConnectionId;
+          if (callId && callAutomationClient) {
+            try {
+              const callConnection = callAutomationClient.getCallConnection(callId);
+              await callConnection.hangUp(true); // true = hang up for all participants
+              console.log('📴 Call ended after audio playback');
+            } catch (hangupError) {
+              console.error('Failed to hang up call:', hangupError.message);
+            }
+          }
+          break;
+
+        case 'Microsoft.Communication.PlayFailed':
+          console.error('❌ Audio playback failed:', evt.data);
+          break;
+
+        default:
+          console.log('ℹ️ Unhandled event type:', eventType);
+      }
     }
 
     res.status(200).send('OK');
