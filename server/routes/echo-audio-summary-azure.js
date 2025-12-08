@@ -437,19 +437,27 @@ router.post('/acs-callback', async (req, res) => {
               try {
                 const callConnection = callAutomationClient.getCallConnection(callId);
 
-                // Play the audio file using FileSource
-                await callConnection.getCallMedia().play(
+                // Play the audio file to all participants
+                // Azure SDK expects: playToAll(playSources, options)
+                await callConnection.getCallMedia().playToAll(
+                  [
+                    {
+                      kind: 'fileSource',
+                      fileSource: {
+                        url: callData.audioUrl
+                      }
+                    }
+                  ],
                   {
-                    kind: 'fileSource',
-                    file: callData.audioUrl
-                  },
-                  { operationContext: 'echo-playback' }
+                    operationContext: 'echo-playback',
+                    loop: false
+                  }
                 );
 
                 console.log('✅ Audio playback started successfully');
               } catch (playError) {
                 console.error('❌ Failed to play audio:', playError.message);
-                console.error('   Full error:', playError);
+                console.error('   Full error:', JSON.stringify(playError, null, 2));
               }
             } else {
               console.warn('⚠️ No audio URL found for call:', callId);
