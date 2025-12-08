@@ -139,38 +139,11 @@ wss.on('connection', async (clientWs, req) => {
       deepgramConfig.tier = tier;
     }
 
-    // Medical keywords are built into the proxy for optimal transcription
-    // These boost recognition of commonly misheard medical terms
-    // Do NOT send keywords via URL (causes 400 error - URL too long)
-    deepgramConfig.keywords = [
-      // Common vital signs and measurements
-      'blood pressure:3', 'BP:3', 'heart rate:3', 'respiratory rate:3',
-      'oxygen saturation:3', 'O2 sat:3', 'temperature:3',
-
-      // Top misheard medications
-      'lisinopril:3', 'metformin:3', 'atorvastatin:3', 'metoprolol:3',
-      'amlodipine:3', 'omeprazole:3', 'gabapentin:3', 'hydrochlorothiazide:3',
-      'sertraline:3', 'levothyroxine:3',
-
-      // Insulin products (critical for diabetes care)
-      'insulin:3', 'Lantus:3', 'NovoLog:3', 'Humalog:3', 'glargine:3', 'lispro:3',
-
-      // Common conditions
-      'diabetes:3', 'diabetes mellitus:3', 'hypertension:3', 'hyperlipidemia:3',
-      'COPD:3', 'CHF:3', 'atrial fibrillation:3',
-
-      // Common labs
-      'A1C:3', 'hemoglobin A1C:3', 'HbA1c:3', 'CMP:2', 'CBC:2',
-      'TSH:2', 'LDL:2', 'HDL:2',
-
-      // Physical exam phrases
-      'no acute distress:2', 'alert and oriented:2',
-      'clear to auscultation:2', 'regular rate and rhythm:2',
-
-      // Documentation keywords
-      'diagnosis:2', 'prescription:2', 'medication:2',
-      'symptoms:2', 'treatment:2', 'assessment:2', 'plan:2'
-    ];
+    // KEYWORDS REMOVED: Deepgram SDK adds keywords to URL query params, causing 400 error
+    // Nova-3-medical model is pre-trained on medical terminology and doesn't need keyword boosting
+    // Medical terms like "lisinopril", "diabetes", "blood pressure" are recognized without keywords
+    // If keyword boosting is needed in future, must use a different Deepgram SDK feature
+    // that doesn't add them to the URL (currently not supported)
 
     console.log(`🎙️ [${clientId}] Connecting to Deepgram with config:`, deepgramConfig);
 

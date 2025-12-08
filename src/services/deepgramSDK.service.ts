@@ -341,25 +341,8 @@ class DeepgramSDKService implements SpeechServiceInterface {
         smart_format: true, // Format numbers, dates, times properly
         utterances: true, // Get utterance-level results
         endpointing: 300, // Wait 300ms for end of speech
-        // Custom vocabulary boost for medical terms (format: 'term:boost_level' where boost 1-4)
-        // Focus on commonly misheard terms - nova-2-medical model already handles most medical vocab
-        keywords: [
-          // Common vital signs and measurements
-          'blood pressure:3', 'BP:3', 'heart rate:3', 'respiratory rate:3', 'oxygen saturation:3', 'O2 sat:3', 'temperature:3',
-          // Top misheard medications
-          'lisinopril:3', 'metformin:3', 'atorvastatin:3', 'metoprolol:3', 'amlodipine:3', 'omeprazole:3',
-          'gabapentin:3', 'hydrochlorothiazide:3', 'sertraline:3', 'levothyroxine:3',
-          // Common insulin names
-          'insulin:3', 'Lantus:3', 'NovoLog:3', 'Humalog:3', 'glargine:3', 'lispro:3',
-          // Common conditions
-          'diabetes:3', 'diabetes mellitus:3', 'hypertension:3', 'hyperlipidemia:3', 'COPD:3', 'CHF:3', 'atrial fibrillation:3',
-          // Common lab tests
-          'A1C:3', 'hemoglobin A1C:3', 'HbA1c:3', 'CMP:2', 'CBC:2', 'TSH:2', 'LDL:2', 'HDL:2',
-          // Physical exam phrases
-          'no acute distress:2', 'alert and oriented:2', 'clear to auscultation:2', 'regular rate and rhythm:2',
-          // Medical document types
-          'diagnosis:2', 'prescription:2', 'medication:2', 'symptoms:2', 'treatment:2', 'assessment:2', 'plan:2'
-        ],
+        // Keywords removed: Deepgram SDK adds them to URL causing 400 error (URL too long)
+        // Nova-3-medical model is pre-trained on medical terms and doesn't need keyword boosting
         // Note: tier parameter removed - Deepgram determines tier based on model and API key
         interim_results: true,
         vad_events: true
