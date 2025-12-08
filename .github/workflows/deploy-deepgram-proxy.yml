@@ -13,7 +13,7 @@ on:
 env:
   CONTAINER_APP_NAME: tshla-deepgram-proxy
   RESOURCE_GROUP: tshla-backend-rg
-  CONTAINER_REGISTRY: tshlacr
+  CONTAINER_REGISTRY: tshlaregistry
   IMAGE_NAME: deepgram-proxy
 
 jobs:
