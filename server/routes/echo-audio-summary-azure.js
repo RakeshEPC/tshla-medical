@@ -436,28 +436,33 @@ router.post('/acs-callback', async (req, res) => {
               console.log('🔊 Playing audio:', callData.audioUrl);
               try {
                 const callConnection = callAutomationClient.getCallConnection(callId);
+                const callMedia = callConnection.getCallMedia();
 
-                // Play the audio file to all participants
-                // Azure SDK expects: playToAll(playSources, options)
-                await callConnection.getCallMedia().playToAll(
-                  [
-                    {
-                      kind: 'fileSource',
-                      fileSource: {
-                        url: callData.audioUrl
-                      }
-                    }
-                  ],
-                  {
-                    operationContext: 'echo-playback',
-                    loop: false
+                // Play the audio file using the correct Azure SDK format
+                // Reference: https://learn.microsoft.com/en-us/javascript/api/@azure/communication-call-automation
+                const playSource = {
+                  kind: "fileSource",
+                  fileSource: {
+                    uri: callData.audioUrl  // Changed from 'url' to 'uri'
                   }
-                );
+                };
+
+                await callMedia.playToAll([playSource], {
+                  operationContext: 'echo-playback'
+                });
 
                 console.log('✅ Audio playback started successfully');
               } catch (playError) {
                 console.error('❌ Failed to play audio:', playError.message);
-                console.error('   Full error:', JSON.stringify(playError, null, 2));
+                console.error('   Error stack:', playError.stack);
+
+                // If playback fails, try to get more details
+                if (playError.statusCode) {
+                  console.error('   Status code:', playError.statusCode);
+                }
+                if (playError.code) {
+                  console.error('   Error code:', playError.code);
+                }
               }
             } else {
               console.warn('⚠️ No audio URL found for call:', callId);
