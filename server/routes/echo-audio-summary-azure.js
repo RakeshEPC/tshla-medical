@@ -234,16 +234,19 @@ async function makePhoneCall(phoneNumber, audioUrl, scriptText) {
 
   console.log(`📞 Initiating call to ${phoneNumber} with audio: ${audioUrl}`);
 
-  // Format phone numbers correctly for Azure Communication Services
-  const sourceCallerId = { phoneNumber: ACS_PHONE_NUMBER };
-  const targetParticipant = { phoneNumber: phoneNumber };
+  // Format phone numbers for Azure Communication Services
+  // The SDK expects PhoneNumberIdentifier objects
+  const { PhoneNumberIdentifier } = require('@azure/communication-common');
 
-  // Create call with play audio action
+  const source = new PhoneNumberIdentifier(ACS_PHONE_NUMBER);
+  const target = new PhoneNumberIdentifier(phoneNumber);
+
+  // Create call with proper identifier types
   const result = await callAutomationClient.createCall(
-    targetParticipant,
+    target,
     ACS_CALLBACK_URL,
     {
-      sourceCallerId: sourceCallerId,
+      sourceCallerId: source,
       operationContext: 'echo-audio-summary'
     }
   );
