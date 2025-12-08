@@ -1384,6 +1384,17 @@ if (!DEEPGRAM_API_KEY) {
 
     let deepgramConnection = null;
 
+    // Send immediate acknowledgment to client to keep connection alive
+    try {
+      clientWs.send(JSON.stringify({
+        type: 'proxy_connected',
+        message: 'Proxy ready, connecting to Deepgram...'
+      }));
+      console.log('✅ Sent proxy_connected acknowledgment to client');
+    } catch (ackError) {
+      console.error('❌ Failed to send acknowledgment:', ackError);
+    }
+
     try {
       console.log('🔄 Creating Deepgram connection...');
 
