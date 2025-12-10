@@ -76,7 +76,8 @@ const FEATURE_CATEGORIES = [
   { id: 'design', name: 'Design & Size', emoji: '🎨' },
   { id: 'interface', name: 'Controls & Interface', emoji: '📱' },
   { id: 'convenience', name: 'Convenience Features', emoji: '✨' },
-  { id: 'automation', name: 'Automation Level', emoji: '🤖' }
+  { id: 'automation', name: 'Automation Level', emoji: '🤖' },
+  { id: 'innovation', name: 'Latest Innovation', emoji: '🚀' }
 ];
 
 type AssessmentStep = 'sliders' | 'features' | 'story' | 'clarify' | 'results';
