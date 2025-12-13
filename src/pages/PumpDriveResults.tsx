@@ -5,19 +5,9 @@ import { pumpDrivePureAI } from '../services/pumpDrivePureAI.service';
 import { pumpDriveAIService } from '../services/pumpDriveAI.service';
 import { pumpAssessmentService, type AssessmentData } from '../services/pumpAssessment.service';
 import { supabaseAuthService } from '../services/supabaseAuth.service';
-import { assessmentHistoryService, type StoredAssessment } from '../services/assessmentHistory.service';
-import AssessmentDataViewer from '../components/pumpdrive/AssessmentDataViewer';
+import { assessmentHistoryService } from '../services/assessmentHistory.service';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
-import ExpandableEducation, { EducationalCard } from '../components/pumpdrive/ExpandableEducation';
-import { HelpIcon } from '../components/pumpdrive/EducationalTooltip';
-import {
-  resultInterpretation,
-  pumpFeatureEducation,
-  nextSteps,
-  decisionFactorsEducation,
-  comparisonEducation,
-  importantDisclaimers
-} from '../data/pumpEducation';
+import { importantDisclaimers } from '../data/pumpEducation';
 import { getManufacturerByPumpName } from '../data/pumpManufacturers';
 
 interface PumpRecommendation {
@@ -38,7 +28,6 @@ interface PumpRecommendation {
   decisionSummary: {
     userPriorities: string[];
     keyFactors: string[];
-    confidence: number;
   };
   detailedAnalysis: string;
 }
@@ -109,23 +98,11 @@ const extractPumpNameFromText = (text: string): string => {
 export default function PumpDriveResults() {
   const navigate = useNavigate();
   const [recommendation, setRecommendation] = useState<PumpRecommendation | null>(null);
-  // Voice functionality removed
-  // const [isSpeaking, setIsSpeaking] = useState(false);
-  // const [hasPlayedIntro, setHasPlayedIntro] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasAttempted, setHasAttempted] = useState(false);
-
   const [assessmentSaved, setAssessmentSaved] = useState(false);
   const [assessmentId, setAssessmentId] = useState<number | null>(null);
-  const [patientName] = useState(() => {
-    return sessionStorage.getItem('pumpDrivePatientName') || '';
-  });
-
-  // New state for database assessment data
-  const [storedAssessment, setStoredAssessment] = useState<StoredAssessment | null>(null);
-  const [showFullDetails, setShowFullDetails] = useState(false);
-  const [loadingStoredData, setLoadingStoredData] = useState(false);
   const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [providerEmail, setProviderEmail] = useState('');
   const [patientMessage, setPatientMessage] = useState('');
@@ -389,7 +366,6 @@ export default function PumpDriveResults() {
             decisionSummary: {
               userPriorities: simplifiedResult.keyFactors,
               keyFactors: simplifiedResult.keyFactors,
-              confidence: 90,
             },
             detailedAnalysis: simplifiedResult.personalizedInsights,
           };
@@ -457,7 +433,6 @@ export default function PumpDriveResults() {
                 decisionSummary: {
                   userPriorities: azureResult.keyFactors || ['Your key preferences'],
                   keyFactors: azureResult.keyFactors || [],
-                  confidence: 90,
                 },
                 detailedAnalysis: azureResult.personalizedInsights || '',
               };
@@ -499,7 +474,6 @@ export default function PumpDriveResults() {
             decisionSummary: {
               userPriorities: ['Active lifestyle', 'Convenience'],
               keyFactors: ['API service unavailable - using fallback'],
-              confidence: 70,
             },
             detailedAnalysis: 'Recommendations generated from fallback system due to API unavailability. Please try again later for personalized AI recommendations.',
           };
@@ -590,7 +564,6 @@ export default function PumpDriveResults() {
           decisionSummary: {
             userPriorities: legacyRec.keyFactors,
             keyFactors: legacyRec.keyFactors,
-            confidence: 85,
           },
           detailedAnalysis: legacyRec.personalizedInsights || 'Analysis not available',
         };
@@ -764,698 +737,215 @@ export default function PumpDriveResults() {
       pros: [],
       cons: []
     },
-    alternatives = [],
-    decisionSummary = {
-      userPriorities: [],
-      keyFactors: [],
-      confidence: 0
-    },
-    detailedAnalysis = ''
+    alternatives = []
   } = recommendation || {};
 
+  // Prepare all 3 pumps for display
+  const allPumps = [
+    {
+      rank: 1,
+      icon: '🏆',
+      name: topRecommendation.name,
+      score: topRecommendation.score,
+      explanation: topRecommendation.explanation,
+      pros: topRecommendation.pros.slice(0, 3),
+      cons: topRecommendation.cons.slice(0, 2),
+    },
+    ...(alternatives.slice(0, 2).map((alt, index) => ({
+      rank: index + 2,
+      icon: index === 0 ? '🥈' : '🥉',
+      name: alt.name,
+      score: alt.score,
+      explanation: alt.explanation,
+      pros: alt.keyFeatures?.slice(0, 3) || [],
+      cons: [`${topRecommendation.score - alt.score}% lower match than top choice`],
+    })))
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-100 p-6">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 p-4 md:p-8">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">
-            Your Personalized Pump Recommendation
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
+            Your Pump Recommendations
           </h1>
-          <p className="text-gray-600">
-            Based on your specific preferences and AI analysis
+          <p className="text-gray-600 text-lg">
+            Top 3 matches based on your preferences
           </p>
-          {assessmentSaved && (
-            <div className="mt-3 p-2 bg-green-100 border border-green-400 rounded-lg text-green-700 text-sm">
-              ✅ Assessment saved to database (ID: {assessmentId})
-            </div>
-          )}
         </div>
 
-        {/* Understanding Your Results Section */}
-        <div className="mb-8 space-y-4">
-          <EducationalCard title="Understanding Your Results" icon="📖" defaultExpanded={true}>
-            <div className="space-y-6">
-              {/* Match Score Explanation */}
-              <div>
-                <div className="flex items-center mb-2">
-                  <h4 className="font-bold text-gray-800">{resultInterpretation.matchScore.icon} {resultInterpretation.matchScore.title}</h4>
-                  <HelpIcon tooltip="Your match score shows how well this specific pump aligns with YOUR stated priorities and lifestyle." />
-                </div>
-                <p className="text-gray-700 mb-2">{resultInterpretation.matchScore.description}</p>
-                <div className="bg-blue-50 rounded-lg p-4 text-sm">
-                  <pre className="whitespace-pre-line font-sans text-gray-600">{resultInterpretation.matchScore.details}</pre>
-                </div>
-              </div>
+        {/* Side-by-Side Pump Comparison */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+          {allPumps.map((pump) => {
+            const manufacturer = getManufacturerByPumpName(pump.name);
 
-              {/* Confidence Score Explanation */}
-              <div>
-                <div className="flex items-center mb-2">
-                  <h4 className="font-bold text-gray-800">{resultInterpretation.confidenceScore.icon} {resultInterpretation.confidenceScore.title}</h4>
-                  <HelpIcon tooltip="Confidence reflects how clearly your preferences point to this specific recommendation." />
-                </div>
-                <p className="text-gray-700 mb-2">{resultInterpretation.confidenceScore.description}</p>
-                <div className="bg-purple-50 rounded-lg p-4 text-sm">
-                  <pre className="whitespace-pre-line font-sans text-gray-600">{resultInterpretation.confidenceScore.details}</pre>
-                </div>
-              </div>
-
-              {/* How to Use This Information */}
-              <div>
-                <div className="flex items-center mb-2">
-                  <h4 className="font-bold text-gray-800">{resultInterpretation.howToUse.icon} {resultInterpretation.howToUse.title}</h4>
-                </div>
-                <p className="text-gray-700 mb-2">{resultInterpretation.howToUse.description}</p>
-                <div className="bg-green-50 rounded-lg p-4 text-sm">
-                  <pre className="whitespace-pre-line font-sans text-gray-600">{resultInterpretation.howToUse.details}</pre>
-                </div>
-              </div>
-
-              {/* Important Disclaimer */}
-              <div className="bg-amber-50 border-l-4 border-amber-400 p-4 rounded">
-                <div className="flex items-start">
-                  <span className="text-2xl mr-3">⚠️</span>
-                  <div className="text-sm">
-                    <p className="font-semibold text-amber-800 mb-1">Important Medical Disclaimer</p>
-                    <p className="text-amber-700">{importantDisclaimers.medical}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </EducationalCard>
-        </div>
-
-        {/* User Input Summary - PROMINENT DISPLAY */}
-        <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl shadow-lg p-8 mb-8">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-            <span className="mr-3">📋</span> Your Input Summary
-          </h2>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            {/* Slider Values */}
-            <div className="bg-white rounded-lg p-6 shadow-md">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                <span className="mr-2">🎚️</span> Your Lifestyle Preferences
-              </h3>
-              {(() => {
-                const sliderData = sessionStorage.getItem('pumpDriveSliders');
-                if (sliderData) {
-                  const sliders = JSON.parse(sliderData);
-                  return (
-                    <div className="space-y-3">
-                      {Object.entries(sliders).map(([key, value]) => (
-                        <div key={key} className="flex items-center justify-between">
-                          <span className="text-sm font-medium text-gray-700 capitalize">
-                            {key.replace(/([A-Z])/g, ' $1').trim()}:
-                          </span>
-                          <div className="flex items-center">
-                            <span className="text-sm font-bold text-blue-600 mr-2">{value as number}/10</span>
-                            <div className="w-16 bg-gray-200 rounded-full h-2">
-                              <div
-                                className="bg-blue-500 h-2 rounded-full"
-                                style={{ width: `${((value as number) / 10) * 100}%` }}
-                              ></div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                }
-                return <p className="text-gray-500 text-sm">No slider data available</p>;
-              })()}
-            </div>
-
-            {/* Selected Features */}
-            <div className="bg-white rounded-lg p-6 shadow-md">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                <span className="mr-2">⭐</span> Selected Features
-              </h3>
-              {(() => {
-                const featureData = sessionStorage.getItem('selectedPumpFeatures');
-                if (featureData) {
-                  const features = JSON.parse(featureData);
-                  return (
-                    <div className="space-y-2">
-                      {features.map((feature: any, index: number) => (
-                        <div key={index} className="flex items-center">
-                          <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-                          <span className="text-sm text-gray-700">
-                            {feature.name || feature.title || feature.id || feature}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                }
-                return <p className="text-gray-500 text-sm">No features selected</p>;
-              })()}
-            </div>
-
-            {/* User Story/Text */}
-            <div className="bg-white rounded-lg p-6 shadow-md">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                <span className="mr-2">💭</span> Your Story & Priorities
-              </h3>
-              {(() => {
-                const textData = sessionStorage.getItem('pumpDriveFreeText');
-                if (textData) {
-                  const parsed = JSON.parse(textData);
-                  const userText = parsed.currentSituation || parsed.userStory || '';
-                  if (userText) {
-                    return (
-                      <div className="text-sm text-gray-700 leading-relaxed">
-                        <p className="italic">"{userText}"</p>
-                      </div>
-                    );
-                  }
-                }
-                return <p className="text-gray-500 text-sm">No personal story provided</p>;
-              })()}
-            </div>
-          </div>
-
-          {/* Clarifying Responses if any */}
-          {(() => {
-            const clarifyingData = sessionStorage.getItem('pumpDriveClarifyingResponses');
-            if (clarifyingData) {
-              const responses = JSON.parse(clarifyingData);
-              return (
-                <div className="mt-6 bg-white rounded-lg p-6 shadow-md">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                    <span className="mr-2">❓</span> Your Clarifying Responses
-                  </h3>
-                  <div className="space-y-3">
-                    {Object.entries(responses).map(([question, answer], index) => (
-                      <div key={index} className="border-l-4 border-purple-400 pl-4">
-                        <p className="text-sm font-medium text-gray-800 mb-1">Q: {question}</p>
-                        <p className="text-sm text-gray-600 italic">A: {answer as string}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            }
-            return null;
-          })()}
-
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
-              ✅ All of this information was considered by our AI in making your recommendation below
-            </p>
-          </div>
-        </div>
-
-        {/* Top Recommendation Card */}
-        <div className="bg-white rounded-xl shadow-lg p-8 mb-8 border-l-4 border-green-500">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                🏆 Best Match: {topRecommendation.name}
-              </h2>
-              <div className="flex items-center space-x-4">
-                <div className="bg-green-100 px-3 py-1 rounded-full">
-                  <span className="text-green-800 font-semibold">
-                    {topRecommendation.score}% Match
-                  </span>
-                </div>
-                <div className="bg-blue-100 px-3 py-1 rounded-full">
-                  <span className="text-blue-800 font-semibold">
-                    {decisionSummary.confidence}% Confidence
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6 rounded">
-            <p className="text-sm text-blue-800 font-medium mb-1">Why This Pump?</p>
-            <p className="text-gray-700 text-lg leading-relaxed">
-              {topRecommendation.explanation}
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-6 mb-6">
-            {/* Key Features */}
-            <div>
-              <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
-                <span className="mr-2">⭐</span> Key Features
-              </h3>
-              <ul className="space-y-2">
-                {topRecommendation.keyFeatures.map((feature, index) => (
-                  <li key={index} className="text-gray-600 text-sm flex items-center">
-                    <span className="mr-2">•</span>
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Pros */}
-            <div>
-              <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
-                <span className="mr-2">✅</span> Perfect For You
-              </h3>
-              <ul className="space-y-2">
-                {topRecommendation.pros.map((pro, index) => (
-                  <li key={index} className="text-green-600 text-sm flex items-center">
-                    <span className="mr-2">•</span>
-                    {pro}
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Considerations */}
-            <div>
-              <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
-                <span className="mr-2">💭</span> Consider
-              </h3>
-              <ul className="space-y-2">
-                {topRecommendation.cons.map((con, index) => (
-                  <li key={index} className="text-amber-600 text-sm flex items-center">
-                    <span className="mr-2">•</span>
-                    {con}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-
-          {/* Educational Feature Explanations */}
-          <div className="border-t pt-6 space-y-3">
-            <h3 className="font-semibold text-gray-800 mb-4 flex items-center">
-              <span className="mr-2">📚</span> Learn More About Key Features
-            </h3>
-            <div className="grid md:grid-cols-2 gap-3">
-              <ExpandableEducation
-                title={pumpFeatureEducation.automation.title}
-                icon={pumpFeatureEducation.automation.icon}
-                summary={pumpFeatureEducation.automation.description}
-                details={pumpFeatureEducation.automation.details || ''}
-                variant="info"
-              />
-              <ExpandableEducation
-                title={pumpFeatureEducation.cgmCompatibility.title}
-                icon={pumpFeatureEducation.cgmCompatibility.icon}
-                summary={pumpFeatureEducation.cgmCompatibility.description}
-                details={pumpFeatureEducation.cgmCompatibility.details || ''}
-                variant="info"
-              />
-              <ExpandableEducation
-                title={pumpFeatureEducation.tubing.title}
-                icon={pumpFeatureEducation.tubing.icon}
-                summary={pumpFeatureEducation.tubing.description}
-                details={pumpFeatureEducation.tubing.details || ''}
-                variant="info"
-              />
-              <ExpandableEducation
-                title={pumpFeatureEducation.phoneControl.title}
-                icon={pumpFeatureEducation.phoneControl.icon}
-                summary={pumpFeatureEducation.phoneControl.description}
-                details={pumpFeatureEducation.phoneControl.details || ''}
-                variant="info"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Next Steps Section */}
-        <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl shadow-lg p-8 mb-8 border-2 border-indigo-200">
-          <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-            <span className="mr-3">🎯</span> Your Next Steps
-          </h3>
-
-          {/* Contact Sales Rep Section */}
-          {(() => {
-            const manufacturerInfo = getManufacturerByPumpName(topRecommendation.name);
-            if (manufacturerInfo) {
-              return (
-                <div className="mb-8">
-                  <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                    <span className="mr-2">📞</span> {nextSteps.contactSalesRep.title}
-                  </h4>
-                  <p className="text-sm text-gray-600 mb-4">{nextSteps.contactSalesRep.description}</p>
-
-                  <div className="bg-white rounded-lg p-6 shadow-md border-l-4 border-green-500">
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <h5 className="text-xl font-bold text-gray-800">{manufacturerInfo.manufacturer}</h5>
-                        <p className="text-sm text-gray-600 mt-1">{manufacturerInfo.pumpModels.join(', ')}</p>
-                      </div>
-                      {manufacturerInfo.demoProgram && (
-                        <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">
-                          Demo Available
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="grid md:grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Website</p>
-                        <a
-                          href={manufacturerInfo.website}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-800 underline text-sm"
-                        >
-                          {manufacturerInfo.website}
-                        </a>
-                      </div>
-                      <div>
-                        <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Phone</p>
-                        <a href={`tel:${manufacturerInfo.phone}`} className="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                          {manufacturerInfo.phone}
-                        </a>
-                      </div>
-                      {manufacturerInfo.salesEmail && (
-                        <div className="md:col-span-2">
-                          <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Email</p>
-                          <a href={`mailto:${manufacturerInfo.salesEmail}`} className="text-blue-600 hover:text-blue-800 underline text-sm">
-                            {manufacturerInfo.salesEmail}
-                          </a>
-                        </div>
-                      )}
-                    </div>
-
-                    {manufacturerInfo.demoProgram && manufacturerInfo.demoDetails && (
-                      <div className="bg-green-50 rounded-lg p-3 mb-3">
-                        <p className="text-sm text-green-800">
-                          <span className="font-semibold">Demo Program:</span> {manufacturerInfo.demoDetails}
-                        </p>
-                      </div>
-                    )}
-
-                    {manufacturerInfo.specialNotes && manufacturerInfo.specialNotes.length > 0 && (
-                      <div className="border-t pt-3">
-                        <p className="text-xs font-semibold text-gray-600 mb-2">💡 Helpful Tips:</p>
-                        <ul className="space-y-1">
-                          {manufacturerInfo.specialNotes.map((note, idx) => (
-                            <li key={idx} className="text-xs text-gray-600 flex items-start">
-                              <span className="mr-2">•</span>
-                              <span>{note}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-4 bg-blue-50 border-l-4 border-blue-400 p-3 rounded">
-                    <p className="text-xs text-blue-800">
-                      <span className="font-semibold">Note:</span> {nextSteps.contactSalesRep.note}
-                    </p>
-                  </div>
-                </div>
-              );
-            }
-            return null;
-          })()}
-
-          {/* Questions for Provider */}
-          <div className="mb-8">
-            <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <span className="mr-2">❓</span> {nextSteps.questionsForProvider.title}
-            </h4>
-            <div className="bg-white rounded-lg p-6 shadow">
-              <p className="text-sm text-gray-600 mb-4">
-                Bring these questions to your appointment to have an informed discussion:
-              </p>
-              <ol className="space-y-3">
-                {nextSteps.questionsForProvider.questions.map((question, index) => (
-                  <li key={index} className="flex items-start">
-                    <span className="bg-indigo-100 text-indigo-700 font-bold rounded-full w-6 h-6 flex items-center justify-center text-xs mr-3 flex-shrink-0 mt-0.5">
-                      {index + 1}
-                    </span>
-                    <span className="text-gray-700 text-sm">{question}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          </div>
-
-          {/* What to Expect */}
-          <div className="mb-8">
-            <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <span className="mr-2">📅</span> {nextSteps.whatToExpect.title}
-            </h4>
-            <div className="grid md:grid-cols-2 gap-4">
-              {nextSteps.whatToExpect.steps.map((step, index) => (
-                <div key={index} className="bg-white rounded-lg p-4 shadow">
-                  <div className="flex items-center mb-2">
-                    <span className="text-2xl mr-2">{step.icon}</span>
-                    <h5 className="font-semibold text-gray-800">{step.title}</h5>
-                  </div>
-                  <p className="text-sm text-gray-600">{step.description}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Learning Resources */}
-          <div>
-            <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <span className="mr-2">📚</span> {nextSteps.learningResources.title}
-            </h4>
-            <p className="text-sm text-gray-600 mb-4">{nextSteps.learningResources.description}</p>
-            <div className="space-y-3">
-              {nextSteps.learningResources.resources.map((resource, index) => (
-                <div key={index} className="bg-white rounded-lg p-4 shadow-sm border-l-4 border-indigo-400">
-                  <h5 className="font-semibold text-gray-800 mb-1 text-sm">{resource.type}</h5>
-                  <p className="text-sm text-gray-600">{resource.description}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Alternative Options */}
-        <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
-          <div className="flex items-center mb-4">
-            <h3 className="text-xl font-semibold text-gray-800 flex items-center">
-              <span className="mr-2">🔄</span> Other Strong Options
-            </h3>
-            <HelpIcon tooltip={comparisonEducation.description} />
-          </div>
-
-          <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg p-4 mb-6">
-            <h4 className="font-semibold text-gray-800 mb-2">{comparisonEducation.title}</h4>
-            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
-              {comparisonEducation.guidance}
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {alternatives.map((alt, index) => {
-              // Ensure alt has all required properties with defaults
-              const safeAlt = {
-                name: alt?.name || 'Unknown Pump',
-                score: alt?.score || 0,
-                explanation: alt?.explanation || 'No explanation available',
-                keyFeatures: alt?.keyFeatures || []
-              };
-
-              const scoreDiff = topRecommendation.score - safeAlt.score;
-
-              return (
-                <div
-                  key={index}
-                  className="border-2 border-gray-200 rounded-lg p-5 hover:border-blue-300 hover:shadow-md transition-all"
-                >
-                  <div className="flex justify-between items-start mb-3">
-                    <h4 className="font-semibold text-gray-800 text-lg">{safeAlt.name}</h4>
-                    <div className="flex flex-col items-end">
-                      <span className="bg-blue-100 px-2 py-1 rounded text-sm font-semibold text-blue-700">
-                        {safeAlt.score}% Match
-                      </span>
-                      {scoreDiff > 0 && (
-                        <span className="text-xs text-gray-500 mt-1">
-                          -{scoreDiff}% vs top
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="bg-gray-50 rounded p-3 mb-3">
-                    <p className="text-gray-700 text-sm leading-relaxed">{safeAlt.explanation}</p>
-                  </div>
-
-                  <div>
-                    <h5 className="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">
-                      Key Features:
-                    </h5>
-                    <ul className="space-y-1.5">
-                      {safeAlt.keyFeatures.slice(0, 3).map((feature, i) => (
-                        <li key={i} className="text-sm text-gray-600 flex items-start">
-                          <span className="text-blue-500 mr-2 flex-shrink-0">✓</span>
-                          <span>{feature}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div className="mt-4 pt-3 border-t border-gray-200">
-                    <p className="text-xs text-gray-500 italic">
-                      Worth considering if: Your priorities shift, insurance coverage differs, or your healthcare provider has specific experience with this pump.
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Additional disclaimers */}
-          <div className="mt-6 space-y-3">
-            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
-              <div className="flex items-start">
-                <span className="text-xl mr-3">💰</span>
-                <div className="text-sm">
-                  <p className="font-semibold text-yellow-800 mb-1">Insurance Coverage Matters</p>
-                  <p className="text-yellow-700">{importantDisclaimers.insurance}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded">
-              <div className="flex items-start">
-                <span className="text-xl mr-3">👤</span>
-                <div className="text-sm">
-                  <p className="font-semibold text-blue-800 mb-1">Individual Results Vary</p>
-                  <p className="text-blue-700">{importantDisclaimers.individual}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Additional Educational Features Section */}
-        <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
-          <h3 className="text-xl font-semibold text-gray-800 mb-6 flex items-center">
-            <span className="mr-2">📚</span> Understanding Insulin Pump Features
-          </h3>
-
-          <p className="text-gray-600 mb-6">
-            Learn more about important pump features to help you understand your recommendation and prepare for discussions with your healthcare team.
-          </p>
-
-          <div className="grid md:grid-cols-2 gap-4">
-            <ExpandableEducation
-              title={pumpFeatureEducation.exerciseMode.title}
-              icon={pumpFeatureEducation.exerciseMode.icon}
-              summary={pumpFeatureEducation.exerciseMode.description}
-              details={pumpFeatureEducation.exerciseMode.details || ''}
-            />
-            <ExpandableEducation
-              title={pumpFeatureEducation.batteryType.title}
-              icon={pumpFeatureEducation.batteryType.icon}
-              summary={pumpFeatureEducation.batteryType.description}
-              details={pumpFeatureEducation.batteryType.details || ''}
-            />
-            <ExpandableEducation
-              title={pumpFeatureEducation.reservoirSize.title}
-              icon={pumpFeatureEducation.reservoirSize.icon}
-              summary={pumpFeatureEducation.reservoirSize.description}
-              details={pumpFeatureEducation.reservoirSize.details || ''}
-            />
-            <ExpandableEducation
-              title={pumpFeatureEducation.waterResistance.title}
-              icon={pumpFeatureEducation.waterResistance.icon}
-              summary={pumpFeatureEducation.waterResistance.description}
-              details={pumpFeatureEducation.waterResistance.details || ''}
-            />
-            <ExpandableEducation
-              title={pumpFeatureEducation.bolusSpeed.title}
-              icon={pumpFeatureEducation.bolusSpeed.icon}
-              summary={pumpFeatureEducation.bolusSpeed.description}
-              details={pumpFeatureEducation.bolusSpeed.details || ''}
-              variant="tip"
-            />
-          </div>
-        </div>
-
-
-
-        {/* View Full Details Section */}
-        {(storedAssessment || assessmentSaved) && (
-          <div className="mb-8">
-            <button
-              onClick={() => setShowFullDetails(!showFullDetails)}
-              className="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-lg rounded-xl shadow-lg hover:shadow-xl transform hover:scale-102 transition-all flex items-center justify-center gap-2"
-            >
-              {showFullDetails ? '📖 Hide' : '📋 View'} Full Assessment Details from Database
-              <span className="text-sm">
-                {showFullDetails ? '▲' : '▼'}
-              </span>
-            </button>
-
-            {showFullDetails && (
-              <div className="mt-6 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 shadow-inner">
+            return (
+              <div
+                key={pump.rank}
+                className={`bg-white rounded-2xl shadow-lg p-6 border-2 ${
+                  pump.rank === 1
+                    ? 'border-green-500 ring-2 ring-green-200'
+                    : 'border-gray-200'
+                } transition-all hover:shadow-xl`}
+              >
+                {/* Rank Badge */}
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-2xl font-bold text-gray-800">
-                    📊 Your Complete Assessment Data
-                  </h2>
-                  {loadingStoredData && (
-                    <div className="animate-spin h-6 w-6 border-2 border-purple-600 border-t-transparent rounded-full"></div>
-                  )}
+                  <span className="text-4xl">{pump.icon}</span>
+                  <div className={`px-3 py-1 rounded-full font-semibold text-sm ${
+                    pump.rank === 1
+                      ? 'bg-green-100 text-green-800'
+                      : pump.rank === 2
+                      ? 'bg-blue-100 text-blue-800'
+                      : 'bg-purple-100 text-purple-800'
+                  }`}>
+                    {pump.score}% Match
+                  </div>
                 </div>
 
-                {storedAssessment ? (
-                  <AssessmentDataViewer
-                    assessment={storedAssessment}
-                    showFullDetails={true}
-                  />
-                ) : (
-                  <div className="text-center py-8 text-gray-600">
-                    <p>Loading assessment data from database...</p>
-                    {!loadingStoredData && (
-                      <p className="text-sm mt-2">
-                        If data doesn't load, it will use information from your current session.
-                      </p>
-                    )}
-                  </div>
-                )}
+                {/* Pump Name */}
+                <h3 className="text-xl font-bold text-gray-900 mb-3">
+                  {pump.name}
+                </h3>
 
-                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-sm text-blue-800">
-                    <strong>✓ Stored in Database:</strong> Your assessment data has been securely saved.
-                    You can access this information anytime by logging into your account.
+                {/* Why This Pump */}
+                <div className="mb-4">
+                  <p className="text-sm font-semibold text-gray-700 mb-2">
+                    {pump.rank === 1 ? 'Why it\'s your #1 match:' : 'Why consider this:'}
+                  </p>
+                  <p className="text-gray-600 text-sm leading-relaxed">
+                    {pump.explanation.substring(0, 150)}
+                    {pump.explanation.length > 150 ? '...' : ''}
                   </p>
                 </div>
+
+                {/* Pros */}
+                <div className="mb-4">
+                  <p className="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">
+                    ✅ Best for you:
+                  </p>
+                  <ul className="space-y-1.5">
+                    {pump.pros.map((pro, i) => (
+                      <li key={i} className="text-sm text-gray-700 flex items-start">
+                        <span className="text-green-500 mr-2 mt-0.5">•</span>
+                        <span>{pro}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* Cons */}
+                <div className="mb-4">
+                  <p className="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">
+                    💭 Consider:
+                  </p>
+                  <ul className="space-y-1.5">
+                    {pump.cons.map((con, i) => (
+                      <li key={i} className="text-sm text-gray-600 flex items-start">
+                        <span className="text-amber-500 mr-2 mt-0.5">•</span>
+                        <span>{con}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* Contact Info */}
+                {manufacturer && (
+                  <div className="pt-4 border-t border-gray-200">
+                    <p className="text-xs font-semibold text-gray-500 uppercase mb-2">
+                      Contact Manufacturer:
+                    </p>
+                    <div className="space-y-1">
+                      <a
+                        href={`tel:${manufacturer.phone}`}
+                        className="text-blue-600 hover:text-blue-800 text-sm font-medium block"
+                      >
+                        📞 {manufacturer.phone}
+                      </a>
+                      <a
+                        href={manufacturer.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-800 text-sm block truncate"
+                      >
+                        🌐 {manufacturer.website.replace('https://', '')}
+                      </a>
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        )}
+            );
+          })}
+        </div>
+
+        {/* Questions for Your Doctor */}
+        <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
+            <span className="mr-3">💬</span>
+            Questions for Your Doctor
+          </h2>
+          <p className="text-gray-600 mb-6">
+            Bring these to your appointment for an informed discussion:
+          </p>
+          <ol className="space-y-3">
+            <li className="flex items-start">
+              <span className="bg-blue-100 text-blue-700 font-bold rounded-full w-7 h-7 flex items-center justify-center text-sm mr-3 flex-shrink-0 mt-0.5">
+                1
+              </span>
+              <span className="text-gray-700">
+                Is <strong>{topRecommendation.name}</strong> right for my specific diabetes needs?
+              </span>
+            </li>
+            <li className="flex items-start">
+              <span className="bg-blue-100 text-blue-700 font-bold rounded-full w-7 h-7 flex items-center justify-center text-sm mr-3 flex-shrink-0 mt-0.5">
+                2
+              </span>
+              <span className="text-gray-700">
+                Will my insurance cover this pump, and are there any out-of-pocket costs?
+              </span>
+            </li>
+            <li className="flex items-start">
+              <span className="bg-blue-100 text-blue-700 font-bold rounded-full w-7 h-7 flex items-center justify-center text-sm mr-3 flex-shrink-0 mt-0.5">
+                3
+              </span>
+              <span className="text-gray-700">
+                When can I start, and what training will I receive?
+              </span>
+            </li>
+          </ol>
+        </div>
 
         {/* Action Buttons */}
-        <div className="flex justify-center gap-4 mb-8 flex-wrap">
+        <div className="flex flex-wrap justify-center gap-4 mb-8">
           <button
             onClick={handlePrint}
-            className="px-8 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold text-lg rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
+            className="px-8 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
           >
-            🖨️ Print / Save as PDF
+            🖨️ Print / Save PDF
           </button>
 
           {assessmentId && (
             <button
               onClick={() => setEmailModalOpen(true)}
-              className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-bold text-lg rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
+              className="px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
             >
-              📧 Email to Provider
+              📧 Email to Doctor
             </button>
           )}
 
           <button
-            onClick={() => navigate('/pumpdrive/history')}
-            className="px-8 py-3 bg-gradient-to-r from-purple-600 to-violet-600 text-white font-bold text-lg rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
-          >
-            📚 View Assessment History
-          </button>
-
-          <button
             onClick={resetAndStartOver}
-            className="px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-lg rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
+            className="px-8 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
           >
-            🚀 Start New Assessment
+            🔄 Retake Assessment
           </button>
+        </div>
+
+        {/* Footer Disclaimer */}
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
+          <p className="text-sm text-amber-800">
+            <strong>⚠️ Important:</strong> {importantDisclaimers.medical}
+          </p>
         </div>
 
         {/* Email Modal */}
@@ -1464,7 +954,7 @@ export default function PumpDriveResults() {
             <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-bold text-gray-800">
-                  📧 Email Results to Provider
+                  📧 Email Results to Doctor
                 </h3>
                 <button
                   onClick={() => setEmailModalOpen(false)}
@@ -1477,42 +967,36 @@ export default function PumpDriveResults() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Provider's Email Address *
+                    Doctor's Email *
                   </label>
                   <input
                     type="email"
                     value={providerEmail}
                     onChange={(e) => setProviderEmail(e.target.value)}
                     placeholder="doctor@example.com"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     required
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Message to Provider (Optional)
+                    Message (Optional)
                   </label>
                   <textarea
                     value={patientMessage}
                     onChange={(e) => setPatientMessage(e.target.value)}
-                    placeholder="Any additional notes for your healthcare provider..."
-                    rows={4}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="Any notes for your doctor..."
+                    rows={3}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
 
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                  <p className="text-xs text-blue-800">
-                    This will send a comprehensive email containing your assessment results and AI recommendation to your healthcare provider.
-                  </p>
-                </div>
-
-                <div className="flex gap-3">
+                <div className="flex gap-3 pt-2">
                   <button
                     onClick={handleEmailToProvider}
                     disabled={emailSending || !providerEmail}
-                    className="flex-1 px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                    className="flex-1 px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition-colors"
                   >
                     {emailSending ? 'Sending...' : 'Send Email'}
                   </button>
@@ -1527,7 +1011,6 @@ export default function PumpDriveResults() {
             </div>
           </div>
         )}
-
       </div>
     </div>
   );
