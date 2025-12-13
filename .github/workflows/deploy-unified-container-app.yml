@@ -134,7 +134,8 @@ jobs:
             twilio-diabetes-education-number="${{ secrets.TWILIO_DIABETES_EDUCATION_NUMBER }}" \
             elevenlabs-diabetes-agent-en="${{ secrets.ELEVENLABS_DIABETES_AGENT_EN }}" \
             elevenlabs-diabetes-agent-es="${{ secrets.ELEVENLABS_DIABETES_AGENT_ES }}" \
-            elevenlabs-diabetes-agent-fr="${{ secrets.ELEVENLABS_DIABETES_AGENT_FR }}"
+            elevenlabs-diabetes-agent-fr="${{ secrets.ELEVENLABS_DIABETES_AGENT_FR }}" \
+            elevenlabs-agent-id="${{ secrets.ELEVENLABS_AGENT_ID }}"
 
         # Then update the container image and env vars
         echo "Updating container image and environment variables..."
@@ -158,6 +159,7 @@ jobs:
             "ELEVENLABS_DIABETES_AGENT_EN=secretref:elevenlabs-diabetes-agent-en" \
             "ELEVENLABS_DIABETES_AGENT_ES=secretref:elevenlabs-diabetes-agent-es" \
             "ELEVENLABS_DIABETES_AGENT_FR=secretref:elevenlabs-diabetes-agent-fr" \
+            "ELEVENLABS_AGENT_ID=secretref:elevenlabs-agent-id" \
             "VITE_DEEPGRAM_MODEL=nova-3-medical" \
             "VITE_DEEPGRAM_LANGUAGE=en-US" \
             "VITE_OPENAI_MODEL_STAGE4=gpt-4o-mini" \
