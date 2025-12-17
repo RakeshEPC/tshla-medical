@@ -214,18 +214,8 @@ app.post('/api/ccd/generate-summary', async (req, res) => {
 
     console.log('💾 Summary saved to database:', savedSummary.id);
 
-    // Log audit trail
-    await supabase.from('audit_logs').insert({
-      table_name: 'ccd_summaries',
-      record_id: savedSummary.id,
-      action: 'INSERT',
-      user_id: req.user?.id || null,
-      changed_data: {
-        patient_id: patientId,
-        word_count: wordCount,
-        ai_model: model
-      }
-    });
+    // Audit logging disabled (trigger removed due to schema mismatch)
+    // Can be re-enabled later once audit_logs table schema is confirmed
 
     res.json({
       success: true,
