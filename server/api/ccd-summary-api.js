@@ -180,11 +180,19 @@ app.post('/api/ccd/generate-summary', async (req, res) => {
     console.log('   - Word count:', wordCount);
     console.log('   - Model:', azureConfig.deployment);
 
+    // Validate patient_id (must be UUID or null)
+    const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(patientId);
+    const validPatientId = isValidUUID ? patientId : null;
+
+    if (!isValidUUID) {
+      console.log('⚠️  Invalid patient ID format, setting to null');
+    }
+
     // Save to database
     const { data: savedSummary, error } = await supabase
       .from('ccd_summaries')
       .insert({
-        patient_id: patientId,
+        patient_id: validPatientId,
         uploaded_by: req.user?.id || null,  // If using auth middleware
         ccd_xml_encrypted: ccdXml,
         file_name: fileName || 'ccd_file.xml',
