@@ -1360,6 +1360,16 @@ if (patientSummaryApi) {
   app.use(patientSummaryApi); // Routes: /api/patient-summaries/* (BETA)
 }
 
+// CCD Summary API - HIPAA-Compliant CCD file upload and summary generation
+let ccdSummaryApi = null;
+try {
+  ccdSummaryApi = require('./api/ccd-summary-api');
+  app.use(ccdSummaryApi); // Routes: /api/ccd/* (CCD Summary Generator)
+  console.log('✅ CCD Summary API mounted at /api/ccd');
+} catch (error) {
+  console.error('❌ CCD Summary API not mounted - module failed to load:', error.message);
+}
+
 // Create HTTP server (needed for WebSocket upgrade)
 const server = http.createServer(app);
 

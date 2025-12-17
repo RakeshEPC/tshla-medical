@@ -121,6 +121,79 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* CCD Summary Generator - NEW Feature Section */}
+      <section className="py-24 bg-gradient-to-r from-indigo-600 to-purple-700 text-white">
+        <div className="max-w-5xl mx-auto px-4 text-center">
+          <div className="mb-8">
+            <h3 className="text-4xl lg:text-5xl font-bold mb-6">
+              Upload Your CCD File
+            </h3>
+            <p className="text-xl lg:text-2xl font-light text-white/90 max-w-2xl mx-auto">
+              Get a comprehensive one-page summary (400 words) in seconds
+            </p>
+          </div>
+
+          <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 lg:p-12 mb-8">
+            <div className="grid lg:grid-cols-2 gap-8 items-center text-left">
+              <div className="space-y-6">
+                <p className="text-lg font-light text-white/90 leading-relaxed">
+                  Upload your Continuity of Care Document (CCD) from any EMR system and get an AI-powered
+                  one-page summary. Use your own custom prompt to focus on what matters most to you.
+                </p>
+
+                <ul className="space-y-4">
+                  <li className="flex items-start">
+                    <span className="text-green-300 font-bold mr-3">✓</span>
+                    <span className="font-light text-white/90">HIPAA-compliant secure processing</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-green-300 font-bold mr-3">✓</span>
+                    <span className="font-light text-white/90">Custom AI prompts - you control the output</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-green-300 font-bold mr-3">✓</span>
+                    <span className="font-light text-white/90">Comprehensive 400-word summaries</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-green-300 font-bold mr-3">✓</span>
+                    <span className="font-light text-white/90">Supports all EMR systems (EPIC, Athena, Cerner, etc.)</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="bg-white rounded-xl p-8 text-center space-y-6">
+                <div className="w-20 h-20 bg-indigo-500 rounded-full flex items-center justify-center mx-auto">
+                  <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+
+                <div>
+                  <p className="text-sm font-medium text-gray-600 mb-2">HIPAA-Compliant Processing</p>
+                  <p className="text-2xl font-bold text-tesla-dark-gray mb-1">
+                    Upload CCD File
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    XML format • Encrypted & secure
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => navigate('/login')}
+                  className="btn-tesla btn-tesla-primary w-full px-8 py-4 text-base"
+                >
+                  Get Started
+                </button>
+
+                <p className="text-xs text-gray-500 italic">
+                  Login required to access CCD Summary Generator
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Diabetes Education Section - Tesla Style */}
       <section className="py-24 bg-tesla-dark-gray text-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">

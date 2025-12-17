@@ -122,6 +122,9 @@ const PCMPatientLabs = lazy(() => import('./pages/PCMPatientLabs'));
 const DiabetesEducationAdmin = lazy(() => import('./pages/DiabetesEducationAdmin'));
 const PCMCallSummaries = lazy(() => import('./pages/PCMCallSummaries'));
 
+// CCD Summary Generator (HIPAA-Compliant)
+const CCDSummaryGenerator = lazy(() => import('./pages/CCDSummaryGenerator'));
+
 function App() {
   return (
     <AuthProvider>
@@ -487,6 +490,18 @@ function App() {
                   <ProtectedRoute>
                     <Suspense fallback={<LoadingSpinner />}>
                       <PatientDataImport />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* ===== CCD SUMMARY GENERATOR (HIPAA-COMPLIANT) ===== */}
+              <Route
+                path="/ccd-summary"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <CCDSummaryGenerator />
                     </Suspense>
                   </ProtectedRoute>
                 }
