@@ -41,9 +41,14 @@ const upload = multer({
   }
 });
 
-// Helper: Get OpenAI API key
-const getOpenAIKey = () => {
-  return process.env.VITE_OPENAI_API_KEY;
+// Helper: Get Azure OpenAI credentials (HIPAA compliant)
+const getAzureOpenAIConfig = () => {
+  return {
+    endpoint: process.env.VITE_AZURE_OPENAI_ENDPOINT,
+    apiKey: process.env.VITE_AZURE_OPENAI_KEY,
+    deployment: process.env.VITE_AZURE_OPENAI_DEPLOYMENT || 'gpt-4',
+    apiVersion: process.env.VITE_AZURE_OPENAI_API_VERSION || '2024-02-01'
+  };
 };
 
 /**
@@ -121,27 +126,30 @@ app.post('/api/ccd/generate-summary', async (req, res) => {
     console.log('   - Patient ID:', patientId);
     console.log('   - Custom prompt length:', customPrompt.length, 'characters');
 
-    // Get OpenAI API key
-    const apiKey = getOpenAIKey();
-    if (!apiKey) {
-      return res.status(500).json({ error: 'OpenAI API key not configured' });
+    // Get Azure OpenAI config (HIPAA compliant)
+    const azureConfig = getAzureOpenAIConfig();
+    if (!azureConfig.endpoint || !azureConfig.apiKey) {
+      return res.status(500).json({ error: 'Azure OpenAI not configured' });
     }
 
-    const model = process.env.VITE_OPENAI_MODEL_STAGE5 || 'gpt-4o';
+    console.log('   - Using Azure OpenAI (HIPAA compliant)');
+    console.log('   - Deployment:', azureConfig.deployment);
 
-    // Build context for OpenAI (structured data from CCD)
+    // Build context for AI (structured data from CCD)
     const medicalContext = buildMedicalContext(extractedData);
 
-    // Call OpenAI API with user's EXACT custom prompt
+    // Azure OpenAI endpoint format
+    const azureUrl = `${azureConfig.endpoint}/openai/deployments/${azureConfig.deployment}/chat/completions?api-version=${azureConfig.apiVersion}`;
+
+    // Call Azure OpenAI API with user's EXACT custom prompt
     // We provide the medical context as system message, and user's prompt as user message
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch(azureUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        'api-key': azureConfig.apiKey
       },
       body: JSON.stringify({
-        model: model,
         messages: [
           {
             role: 'system',
@@ -159,7 +167,7 @@ app.post('/api/ccd/generate-summary', async (req, res) => {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(`OpenAI API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
+      throw new Error(`Azure OpenAI API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
     }
 
     const data = await response.json();
@@ -170,7 +178,7 @@ app.post('/api/ccd/generate-summary', async (req, res) => {
 
     console.log('✅ AI summary generated');
     console.log('   - Word count:', wordCount);
-    console.log('   - Model:', model);
+    console.log('   - Model:', azureConfig.deployment);
 
     // Save to database
     const { data: savedSummary, error } = await supabase
@@ -184,8 +192,8 @@ app.post('/api/ccd/generate-summary', async (req, res) => {
         extracted_data: extractedData,
         custom_prompt: customPrompt,
         summary_text: summaryText,
-        ai_model: model,
-        ai_provider: 'openai',
+        ai_model: azureConfig.deployment,
+        ai_provider: 'azure-openai',
         word_count: wordCount
       })
       .select()
