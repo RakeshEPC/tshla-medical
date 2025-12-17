@@ -45,9 +45,9 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
-// Parse JSON request bodies
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Parse JSON request bodies (increased limit for CCD XML files)
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 console.log('🚀 TSHLA Medical Unified API Server');
 console.log('========================================');
