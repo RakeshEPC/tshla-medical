@@ -135,6 +135,24 @@ export default function PumpDriveDTSQs() {
     return effectiveValue >= 3 ? 'text-white' : 'text-white';
   };
 
+  // Generate descriptive label for each scale value
+  const getScaleLabel = (value: number) => {
+    // Endpoints use the exact question labels
+    if (value === question.leftValue) return question.leftLabel;
+    if (value === question.rightValue) return question.rightLabel;
+
+    // Middle values get descriptive labels
+    const middleLabels: Record<number, string> = {
+      5: 'very much so',
+      4: 'mostly',
+      3: 'somewhat',
+      2: 'a little',
+      1: 'very little'
+    };
+
+    return middleLabels[value] || '';
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50">
       {/* Header */}
@@ -198,12 +216,21 @@ export default function PumpDriveDTSQs() {
           </div>
 
           {/* Scale Labels */}
-          <div className="flex justify-between items-center mb-4 px-2">
-            <div className="text-sm font-medium text-gray-700 text-left flex-1">
-              {question.leftLabel}
-            </div>
-            <div className="text-sm font-medium text-gray-700 text-right flex-1">
-              {question.rightLabel}
+          <div className="mb-6 bg-gradient-to-r from-green-50 to-red-50 rounded-lg p-4">
+            <div className="flex justify-between items-center">
+              <div className="text-left flex-1">
+                <div className="text-xs text-gray-500 mb-1">6 = Best</div>
+                <div className="text-sm font-semibold text-green-700">
+                  {question.leftLabel}
+                </div>
+              </div>
+              <div className="text-center px-4 text-gray-400">→</div>
+              <div className="text-right flex-1">
+                <div className="text-xs text-gray-500 mb-1">0 = Worst</div>
+                <div className="text-sm font-semibold text-red-700">
+                  {question.rightLabel}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -227,7 +254,7 @@ export default function PumpDriveDTSQs() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
                       <div
-                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
                           isSelected
                             ? 'bg-white border-white'
                             : 'border-gray-400'
@@ -237,12 +264,17 @@ export default function PumpDriveDTSQs() {
                           <div className={`w-3 h-3 rounded-full ${colorClass.split(' ')[0]}`} />
                         )}
                       </div>
-                      <span className={`font-medium ${isSelected ? textColorClass : 'text-gray-900'}`}>
-                        {value}
-                      </span>
+                      <div className="flex items-baseline space-x-2">
+                        <span className={`text-xl font-bold ${isSelected ? textColorClass : 'text-gray-900'}`}>
+                          {value}
+                        </span>
+                        <span className={`text-sm font-medium ${isSelected ? textColorClass : 'text-gray-600'}`}>
+                          {getScaleLabel(value)}
+                        </span>
+                      </div>
                     </div>
                     {isSelected && (
-                      <CheckCircle className={`w-5 h-5 ${textColorClass}`} />
+                      <CheckCircle className={`w-5 h-5 flex-shrink-0 ${textColorClass}`} />
                     )}
                   </div>
                 </button>
