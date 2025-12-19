@@ -479,6 +479,21 @@ export default function DoctorDashboardUnified() {
             </button>
 
             <button
+              onClick={() => navigate('/ccd-summary')}
+              className="bg-white border border-gray-200 rounded-lg p-4 hover:border-blue-500 hover:shadow-md transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition">
+                  <FileText className="w-5 h-5 text-blue-600" />
+                </div>
+                <div className="text-left">
+                  <div className="font-semibold text-gray-900">CCD Upload</div>
+                  <div className="text-xs text-gray-500">Upload CCD/XML files</div>
+                </div>
+              </div>
+            </button>
+
+            <button
               onClick={() => navigate('/previsit-analytics')}
               className="bg-white border border-gray-200 rounded-lg p-4 hover:border-green-500 hover:shadow-md transition-all group"
             >
