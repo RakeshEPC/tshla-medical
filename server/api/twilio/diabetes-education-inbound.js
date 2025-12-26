@@ -25,7 +25,7 @@ const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || process.env.VITE_EL
 const AGENT_IDS = {
   'en': process.env.ELEVENLABS_DIABETES_AGENT_EN || '',
   'es': process.env.ELEVENLABS_DIABETES_AGENT_ES || '',
-  'fr': process.env.ELEVENLABS_DIABETES_AGENT_FR || '',
+  'hi': process.env.ELEVENLABS_DIABETES_AGENT_HI || '',
 };
 
 // Twilio configuration
