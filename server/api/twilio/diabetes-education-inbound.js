@@ -73,11 +73,11 @@ function generateRejectionTwiML() {
 }
 
 /**
- * Generate TwiML for authenticated caller with WebSocket stream to ElevenLabs bridge
+ * Generate TwiML for authenticated caller with direct ElevenLabs connection
  */
-function generateStreamTwiML(agentId, patientData) {
-  // Bridge URL with agent ID as query parameter
-  const bridgeUrl = `${API_BASE_URL.replace('http', 'ws')}/ws/elevenlabs-diabetes?agentId=${agentId}&patientName=${encodeURIComponent(patientData.first_name)}`;
+async function generateStreamTwiML(agentId, patientData) {
+  // Get signed URL directly from ElevenLabs
+  const signedUrl = await getElevenLabsSignedUrl(agentId);
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -85,12 +85,48 @@ function generateStreamTwiML(agentId, patientData) {
     Connecting you to your diabetes educator. Please wait.
   </Say>
   <Connect>
-    <Stream url="${bridgeUrl}"/>
+    <Stream url="${signedUrl}" track="both_tracks"/>
   </Connect>
   <Say voice="alice">
     Thank you for calling. Goodbye.
   </Say>
 </Response>`;
+}
+
+/**
+ * Get ElevenLabs signed URL for conversational AI
+ */
+function getElevenLabsSignedUrl(agentId) {
+  return new Promise((resolve, reject) => {
+    if (!ELEVENLABS_API_KEY || !agentId) {
+      reject(new Error('ElevenLabs not configured'));
+      return;
+    }
+
+    const https = require('https');
+    const options = {
+      hostname: 'api.elevenlabs.io',
+      path: `/v1/convai/conversation/get_signed_url?agent_id=${agentId}`,
+      method: 'GET',
+      headers: { 'xi-api-key': ELEVENLABS_API_KEY }
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          resolve(parsed.signed_url);
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.end();
+  });
 }
 
 // =====================================================
@@ -190,8 +226,8 @@ async function handler(req, res) {
       console.error('❌ [DiabetesEdu] Error logging call:', logError);
     }
 
-    // Generate TwiML to connect call to ElevenLabs agent via bridge
-    const twiml = generateStreamTwiML(agentId, patient);
+    // Generate TwiML to connect call to ElevenLabs agent directly
+    const twiml = await generateStreamTwiML(agentId, patient);
 
     console.log('✅ [DiabetesEdu] Connecting call to AI agent');
     console.log(`   Max duration: ${MAX_CALL_DURATION_SECONDS} seconds (10 minutes)`);
