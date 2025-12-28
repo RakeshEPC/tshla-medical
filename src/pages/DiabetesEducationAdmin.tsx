@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Phone, FileText, User, Calendar, Globe, Activity, X, Edit, Eye } from 'lucide-react';
+import { Plus, Phone, FileText, User, Calendar, Globe, Activity, X, Edit, Eye, Info } from 'lucide-react';
 import {
   getDiabetesEducationPatients,
   getPatientCallHistory,
@@ -23,6 +23,7 @@ import {
   type CallStats,
   type CreatePatientData,
 } from '../services/diabetesEducation.service';
+import PatientDetailModal from '../components/diabetes/PatientDetailModal';
 
 export default function DiabetesEducationAdmin() {
   const [patients, setPatients] = useState<DiabetesEducationPatient[]>([]);
@@ -32,6 +33,7 @@ export default function DiabetesEducationAdmin() {
   const [selectedPatient, setSelectedPatient] = useState<DiabetesEducationPatient | null>(null);
   const [selectedPatientCalls, setSelectedPatientCalls] = useState<DiabetesEducationCall[]>([]);
   const [showCallHistory, setShowCallHistory] = useState(false);
+  const [showPatientDetail, setShowPatientDetail] = useState(false);
 
   // Load data on mount
   useEffect(() => {
@@ -67,6 +69,18 @@ export default function DiabetesEducationAdmin() {
     }
   }
 
+  async function handleViewPatientDetail(patient: DiabetesEducationPatient) {
+    try {
+      const calls = await getPatientCallHistory(patient.id);
+      setSelectedPatient(patient);
+      setSelectedPatientCalls(calls);
+      setShowPatientDetail(true);
+    } catch (error) {
+      console.error('Error loading patient details:', error);
+      alert('Failed to load patient details');
+    }
+  }
+
   function handleCreatePatient() {
     setShowCreateModal(true);
   }
@@ -74,6 +88,7 @@ export default function DiabetesEducationAdmin() {
   function handleCloseModals() {
     setShowCreateModal(false);
     setShowCallHistory(false);
+    setShowPatientDetail(false);
     setSelectedPatient(null);
     setSelectedPatientCalls([]);
   }
@@ -233,13 +248,15 @@ export default function DiabetesEducationAdmin() {
                         {new Date(patient.created_at).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button
-                          onClick={() => handleViewCallHistory(patient)}
-                          className="inline-flex items-center gap-1 px-3 py-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors"
-                        >
-                          <Eye className="w-4 h-4" />
-                          View Calls
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleViewPatientDetail(patient)}
+                            className="inline-flex items-center gap-1 px-3 py-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors font-medium"
+                          >
+                            <Info className="w-4 h-4" />
+                            View Details
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -264,6 +281,16 @@ export default function DiabetesEducationAdmin() {
           patient={selectedPatient}
           calls={selectedPatientCalls}
           onClose={handleCloseModals}
+        />
+      )}
+
+      {/* Patient Detail Modal (NEW - comprehensive view with documents and notes) */}
+      {showPatientDetail && selectedPatient && (
+        <PatientDetailModal
+          patient={selectedPatient}
+          calls={selectedPatientCalls}
+          onClose={handleCloseModals}
+          onUpdate={loadData}
         />
       )}
     </div>

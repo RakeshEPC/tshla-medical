@@ -148,18 +148,79 @@ async function generateAudio(text, voiceId = null) {
   return Buffer.from(audioBuffer);
 }
 
-/**
- * Make Twilio phone call with audio
- */
-async function makePhoneCall(phoneNumber, audioBuffer, scriptText) {
-  // Note: For now, we'll use TwiML to play the audio
-  // In production, you'd upload the audio to a publicly accessible URL first
-  // For this implementation, we'll use Twilio's <Say> verb with the script text
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
 
-  const call = await twilioClient.calls.create({
-    from: TWILIO_PHONE_NUMBER,
-    to: phoneNumber,
-    twiml: `
+// Store audio files temporarily
+const AUDIO_DIR = path.join(__dirname, '..', 'temp-audio');
+if (!fs.existsSync(AUDIO_DIR)) {
+  fs.mkdirSync(AUDIO_DIR, { recursive: true });
+}
+
+// Map to store audio file paths for call replay
+const audioFileMap = new Map();
+
+/**
+ * Save audio buffer to temporary file and return public URL
+ * Audio files are automatically cleaned up after 1 hour
+ */
+function saveAudioTemporarily(audioBuffer) {
+  const filename = `echo-${crypto.randomBytes(16).toString('hex')}.mp3`;
+  const filepath = path.join(AUDIO_DIR, filename);
+
+  // Write audio to file
+  fs.writeFileSync(filepath, audioBuffer);
+
+  // Schedule cleanup after 1 hour
+  setTimeout(() => {
+    try {
+      if (fs.existsSync(filepath)) {
+        fs.unlinkSync(filepath);
+        console.log(`🗑️ Cleaned up audio file: ${filename}`);
+      }
+    } catch (err) {
+      console.error(`Failed to delete audio file ${filename}:`, err.message);
+    }
+  }, 60 * 60 * 1000); // 1 hour
+
+  // Return public URL (assumes server is accessible)
+  const baseUrl = process.env.API_BASE_URL || 'https://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io';
+  const publicUrl = `${baseUrl}/api/echo/audio/${filename}`;
+
+  console.log(`💾 Saved audio file: ${filename}`);
+  console.log(`🔗 Public URL: ${publicUrl}`);
+
+  // Store mapping for replay functionality
+  audioFileMap.set(filename, { filepath, scriptText: '' });
+
+  return { publicUrl, filename, filepath };
+}
+
+/**
+ * Make Twilio phone call with ElevenLabs audio
+ * Falls back to text-to-speech if audio upload fails
+ */
+async function makePhoneCall(phoneNumber, audioBuffer, scriptText, audioUrl = null) {
+  // Generate TwiML based on whether we have audio URL
+  let twiml;
+
+  if (audioUrl) {
+    // Use ElevenLabs audio with <Play>
+    console.log(`📞 Using ElevenLabs audio from: ${audioUrl}`);
+    twiml = `
+      <Response>
+        <Play>${audioUrl}</Play>
+        <Gather numDigits="1" action="/api/echo/handle-call-input">
+          <Say>Press 1 to hear this message again, or press 2 to speak with someone at the office.</Say>
+        </Gather>
+        <Hangup/>
+      </Response>
+    `;
+  } else {
+    // Fallback to Twilio TTS
+    console.log('⚠️ No audio URL available, falling back to Twilio TTS');
+    twiml = `
       <Response>
         <Say voice="Polly.Joanna">${scriptText}</Say>
         <Gather numDigits="1" action="/api/echo/handle-call-input">
@@ -167,12 +228,19 @@ async function makePhoneCall(phoneNumber, audioBuffer, scriptText) {
         </Gather>
         <Hangup/>
       </Response>
-    `
+    `;
+  }
+
+  const call = await twilioClient.calls.create({
+    from: TWILIO_PHONE_NUMBER,
+    to: phoneNumber,
+    twiml: twiml
   });
 
   return {
     callSid: call.sid,
-    status: call.status
+    status: call.status,
+    usingElevenLabs: !!audioUrl
   };
 }
 

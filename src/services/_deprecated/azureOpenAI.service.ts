@@ -673,11 +673,12 @@ Output only the formatted medical note with clear section headers (Chief Complai
 
   /**
    * Retry utility with exponential backoff for handling rate limits
+   * UPDATED: Increased retries (5) and delay (2s) to handle Azure quota resets
    */
   private async retryWithBackoff<T>(
     fn: () => Promise<T>,
-    maxRetries: number = 3,
-    initialDelay: number = 1000
+    maxRetries: number = 5,
+    initialDelay: number = 2000
   ): Promise<T> {
     let lastError: Error;
 
@@ -690,7 +691,11 @@ Output only the formatted medical note with clear section headers (Chief Complai
         // Check if it's a rate limit error (429)
         if (error instanceof Error && error.message.includes('429')) {
           const delay = initialDelay * Math.pow(2, attempt);
-          logInfo('AzureOpenAI', `Rate limited, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries + 1})`, {});
+          logInfo('AzureOpenAI', `⏳ Rate limited - waiting ${delay}ms before retry (attempt ${attempt + 1}/${maxRetries + 1})`, {
+            totalWaitTime: `${(delay / 1000).toFixed(1)}s`,
+            retryAttempt: attempt + 1,
+            maxRetries: maxRetries + 1
+          });
 
           if (attempt < maxRetries) {
             await new Promise(resolve => setTimeout(resolve, delay));

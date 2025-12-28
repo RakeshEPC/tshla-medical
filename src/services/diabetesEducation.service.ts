@@ -19,6 +19,8 @@ export interface DiabetesEducationPatient {
   preferred_language: string;
   medical_document_url?: string;
   medical_data?: MedicalData;
+  clinical_notes?: string;
+  focus_areas?: string[];
   created_at: string;
   updated_at: string;
   created_by_staff_id?: string;

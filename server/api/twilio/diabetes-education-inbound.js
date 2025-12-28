@@ -403,8 +403,150 @@ async function handleCallComplete(req, res) {
   }
 }
 
+// =====================================================
+// ELEVENLABS POST-CALL WEBHOOK
+// =====================================================
+
+/**
+ * Handle ElevenLabs post-call transcript webhook
+ * POST /api/elevenlabs/diabetes-education-transcript
+ *
+ * Expected payload from ElevenLabs:
+ * {
+ *   "type": "transcription",
+ *   "data": {
+ *     "agent_id": "...",
+ *     "conversation_id": "...",
+ *     "transcript": [...],
+ *     "metadata": {...}
+ *   }
+ * }
+ */
+async function handleElevenLabsTranscript(req, res) {
+  console.log('\n📝 [DiabetesEdu] ElevenLabs transcript webhook received');
+
+  try {
+    const webhookData = req.body;
+
+    // Log the payload for debugging
+    console.log('   Webhook type:', webhookData.type);
+    console.log('   Conversation ID:', webhookData.data?.conversation_id);
+
+    // Validate webhook type
+    if (webhookData.type !== 'transcription') {
+      console.log('⚠️  [DiabetesEdu] Ignoring non-transcription webhook:', webhookData.type);
+      return res.status(200).json({ success: true, message: 'Webhook type not handled' });
+    }
+
+    const conversationData = webhookData.data;
+    const conversationId = conversationData.conversation_id;
+
+    if (!conversationId) {
+      console.error('❌ [DiabetesEdu] Missing conversation_id in webhook');
+      return res.status(400).json({ error: 'Missing conversation_id' });
+    }
+
+    // Find the call record by ElevenLabs conversation ID
+    const { data: existingCall, error: findError } = await supabase
+      .from('diabetes_education_calls')
+      .select('*')
+      .eq('elevenlabs_conversation_id', conversationId)
+      .maybeSingle();
+
+    if (findError) {
+      console.error('❌ [DiabetesEdu] Error finding call:', findError);
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    if (!existingCall) {
+      console.log('⚠️  [DiabetesEdu] No call found for conversation_id:', conversationId);
+      // Still return 200 to acknowledge webhook
+      return res.status(200).json({ success: true, message: 'Call not found in database' });
+    }
+
+    // Extract transcript from ElevenLabs format
+    const transcript = conversationData.transcript;
+    let transcriptText = '';
+
+    if (Array.isArray(transcript)) {
+      // Convert transcript array to readable text format
+      transcriptText = transcript.map(turn => {
+        const speaker = turn.role === 'agent' ? 'AI' : 'Patient';
+        return `${speaker}: ${turn.message}`;
+      }).join('\n');
+    }
+
+    console.log('   Transcript length:', transcriptText.length, 'characters');
+
+    // Prepare updates
+    const updates = {
+      transcript: transcriptText || null,
+      elevenlabs_conversation_id: conversationId,
+    };
+
+    // Extract topics if available
+    if (conversationData.analysis?.topics) {
+      updates.topics_discussed = conversationData.analysis.topics;
+    }
+
+    // Generate AI summary if transcript exists
+    if (transcriptText && transcriptText.length > 50) {
+      try {
+        const { OpenAI } = require('openai');
+        const client = new OpenAI({ apiKey: process.env.VITE_OPENAI_API_KEY });
+
+        const summaryResponse = await client.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a medical AI assistant. Summarize this diabetes education call in 2-3 sentences. Focus on key topics discussed and patient concerns.'
+            },
+            {
+              role: 'user',
+              content: `Summarize this call transcript:\n\n${transcriptText}`
+            }
+          ],
+          max_tokens: 150,
+          temperature: 0.3,
+        });
+
+        const summary = summaryResponse.choices[0].message.content;
+        updates.summary = summary;
+
+        console.log('✅ [DiabetesEdu] Generated AI summary');
+
+      } catch (summaryError) {
+        console.error('❌ [DiabetesEdu] Failed to generate summary:', summaryError);
+      }
+    }
+
+    // Update database
+    const { error: updateError } = await supabase
+      .from('diabetes_education_calls')
+      .update(updates)
+      .eq('id', existingCall.id);
+
+    if (updateError) {
+      console.error('❌ [DiabetesEdu] Failed to update call with transcript:', updateError);
+      return res.status(500).json({ error: 'Failed to update call' });
+    }
+
+    console.log('✅ [DiabetesEdu] Transcript saved successfully');
+    console.log('   Call ID:', existingCall.id);
+    console.log('   Patient ID:', existingCall.patient_id);
+
+    res.json({ success: true, call_id: existingCall.id });
+
+  } catch (error) {
+    console.error('❌ [DiabetesEdu] Error handling ElevenLabs webhook:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
 module.exports = {
   default: handler,
   handleCallStatus,
-  handleCallComplete
+  handleCallComplete,
+  handleElevenLabsTranscript
 };

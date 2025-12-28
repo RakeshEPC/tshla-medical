@@ -149,9 +149,12 @@ class AzureAIService {
         userMessage += 'The Azure OpenAI API key is invalid or expired.\n\n';
         userMessage += 'Please contact support to update the API credentials.';
       } else if (azureError.message?.includes('rate limit') || azureError.message?.includes('429')) {
-        userMessage += '⏳ Rate Limit Exceeded\n\n';
-        userMessage += 'Too many requests to the AI service.\n\n';
-        userMessage += 'Please wait a moment and try again.';
+        userMessage += '⏳ Rate Limit Exceeded - High Usage Detected\n\n';
+        userMessage += 'Your Azure OpenAI quota has been temporarily exhausted.\n\n';
+        userMessage += 'This typically happens after processing many transcriptions.\n\n';
+        userMessage += '💡 Solution: Wait 1-2 minutes for quota to reset, then try again.\n\n';
+        userMessage += 'The system automatically retries with increasing delays (up to 62 seconds total).\n\n';
+        userMessage += 'If this persists, consider upgrading your Azure OpenAI quota or spreading out your processing.';
       } else if (azureError.message?.includes('network') || azureError.message?.includes('timeout')) {
         userMessage += '🌐 Network Error\n\n';
         userMessage += 'Unable to connect to the AI service.\n\n';

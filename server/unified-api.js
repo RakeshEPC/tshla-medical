@@ -171,6 +171,7 @@ try {
   app.post('/api/twilio/diabetes-education-inbound', diabetesEducationInbound.default);
   app.post('/api/twilio/diabetes-education-status', diabetesEducationInbound.handleCallStatus);
   app.post('/api/twilio/diabetes-education-complete', diabetesEducationInbound.handleCallComplete);
+  app.post('/api/elevenlabs/diabetes-education-transcript', diabetesEducationInbound.handleElevenLabsTranscript);
   console.log('✅ Diabetes Education Twilio webhooks registered');
 } catch (e) {
   console.error('❌ Failed to load Diabetes Education Twilio handlers:', e.message);

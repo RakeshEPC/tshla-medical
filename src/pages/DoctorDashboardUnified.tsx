@@ -305,6 +305,18 @@ export default function DoctorDashboardUnified() {
             <h3 className="font-medium text-tesla-dark-gray mb-4">Quick Actions</h3>
             <div className="space-y-2">
               <button
+                onClick={() => navigate('/diabetes-education')}
+                className="w-full text-left p-3 border border-blue-200 bg-blue-50 rounded hover:bg-blue-100 transition-colors"
+              >
+                <div className="font-medium text-sm flex items-center gap-2">
+                  <Phone className="w-4 h-4 text-blue-600" />
+                  Diabetes Education Admin
+                </div>
+                <div className="text-xs text-blue-700 mt-1">
+                  Manage phone-based AI diabetes education patients (832-400-3930)
+                </div>
+              </button>
+              <button
                 onClick={() => navigate('/templates/list')}
                 className="w-full text-left p-3 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
               >

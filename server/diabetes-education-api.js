@@ -353,7 +353,7 @@ router.post('/patients', validateStaffAuth, upload.single('medical_document'), a
 router.put('/patients/:id', validateStaffAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { first_name, last_name, date_of_birth, preferred_language, medical_data, is_active } = req.body;
+    const { first_name, last_name, date_of_birth, preferred_language, medical_data, clinical_notes, focus_areas, is_active } = req.body;
 
     const updates = {};
     if (first_name) updates.first_name = first_name;
@@ -361,6 +361,8 @@ router.put('/patients/:id', validateStaffAuth, async (req, res) => {
     if (date_of_birth) updates.date_of_birth = date_of_birth;
     if (preferred_language) updates.preferred_language = preferred_language;
     if (medical_data) updates.medical_data = medical_data;
+    if (clinical_notes !== undefined) updates.clinical_notes = clinical_notes;
+    if (focus_areas !== undefined) updates.focus_areas = focus_areas;
     if (typeof is_active === 'boolean') updates.is_active = is_active;
 
     const { data, error } = await supabase
@@ -371,6 +373,8 @@ router.put('/patients/:id', validateStaffAuth, async (req, res) => {
       .single();
 
     if (error) throw error;
+
+    console.log('[DiabetesEdu] Patient updated:', id);
 
     res.json({ success: true, patient: data });
 
