@@ -110,7 +110,7 @@ export default function PatientDetailModal({ patient, calls, onClose, onUpdate }
     }
   };
 
-  const renderTab Button = (tab: TabView, icon: React.ReactNode, label: string) => (
+  const renderTabButton = (tab: TabView, icon: React.ReactNode, label: string) => (
     <button
       onClick={() => setActiveTab(tab)}
       className={`flex items-center gap-2 px-4 py-3 border-b-2 font-medium transition-colors ${
