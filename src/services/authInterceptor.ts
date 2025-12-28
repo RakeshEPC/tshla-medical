@@ -145,11 +145,15 @@ export const setupFetchInterceptor = () => {
                              requestUrl.includes('localhost:8080') ||
                              requestUrl.includes('/health');
 
+      // SKIP auth interception for diabetes education API calls
+      // These are authenticated via JWT tokens, not Supabase session redirects
+      const isDiabetesEducationApi = requestUrl.includes('/api/diabetes-education');
+
       // SKIP auth interception for admin routes
       const currentPath = window.location.pathname;
       const isAdminRoute = currentPath.startsWith('/admin');
 
-      if (isAdminApi || isAdminRoute || isSupabaseApi || isDeepgramProxy) {
+      if (isAdminApi || isAdminRoute || isSupabaseApi || isDeepgramProxy || isDiabetesEducationApi) {
         console.log('🔓 [AuthInterceptor] SKIPPING interception for:', {
           url: requestUrl,
           path: currentPath,
@@ -157,6 +161,7 @@ export const setupFetchInterceptor = () => {
           reason: isAdminApi ? 'Admin API call' :
                   isAdminRoute ? 'Admin route' :
                   isSupabaseApi ? 'Supabase API call' :
+                  isDiabetesEducationApi ? 'Diabetes Education API call' :
                   'Deepgram proxy call'
         });
         // Return the response as-is, let the calling code handle errors
