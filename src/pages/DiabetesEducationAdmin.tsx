@@ -43,12 +43,40 @@ export default function DiabetesEducationAdmin() {
   async function loadData() {
     try {
       setLoading(true);
-      const [patientsData, statsData] = await Promise.all([
-        getDiabetesEducationPatients(),
-        getCallStats(),
-      ]);
-      setPatients(patientsData);
-      setStats(statsData);
+
+      // TEMPORARY: Fetch directly from Supabase to bypass API issues
+      const supabase = (await import('../lib/supabase')).supabase;
+
+      // Fetch patients
+      const { data: patientsData, error: patientsError } = await supabase
+        .from('diabetes_education_patients')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (patientsError) throw patientsError;
+
+      // Fetch call stats
+      const { data: callsData, error: callsError } = await supabase
+        .from('diabetes_education_calls')
+        .select('*');
+
+      if (callsError) throw callsError;
+
+      // Calculate stats
+      const totalCalls = callsData?.length || 0;
+      const completedCalls = callsData?.filter((c: any) => c.call_status === 'completed').length || 0;
+      const avgDuration = callsData && callsData.length > 0
+        ? callsData.reduce((sum: number, c: any) => sum + (c.duration_seconds || 0), 0) / callsData.length
+        : 0;
+
+      setPatients(patientsData || []);
+      setStats({
+        total_calls: totalCalls,
+        completed_calls: completedCalls,
+        average_duration_seconds: Math.round(avgDuration),
+        total_patients: patientsData?.length || 0,
+      });
     } catch (error) {
       console.error('Error loading data:', error);
       alert('Failed to load diabetes education data');
@@ -59,9 +87,18 @@ export default function DiabetesEducationAdmin() {
 
   async function handleViewCallHistory(patient: DiabetesEducationPatient) {
     try {
-      const calls = await getPatientCallHistory(patient.id);
+      // TEMPORARY: Fetch directly from Supabase
+      const supabase = (await import('../lib/supabase')).supabase;
+      const { data: calls, error } = await supabase
+        .from('diabetes_education_calls')
+        .select('*')
+        .eq('patient_id', patient.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
       setSelectedPatient(patient);
-      setSelectedPatientCalls(calls);
+      setSelectedPatientCalls(calls || []);
       setShowCallHistory(true);
     } catch (error) {
       console.error('Error loading call history:', error);
@@ -71,9 +108,18 @@ export default function DiabetesEducationAdmin() {
 
   async function handleViewPatientDetail(patient: DiabetesEducationPatient) {
     try {
-      const calls = await getPatientCallHistory(patient.id);
+      // TEMPORARY: Fetch directly from Supabase
+      const supabase = (await import('../lib/supabase')).supabase;
+      const { data: calls, error } = await supabase
+        .from('diabetes_education_calls')
+        .select('*')
+        .eq('patient_id', patient.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
       setSelectedPatient(patient);
-      setSelectedPatientCalls(calls);
+      setSelectedPatientCalls(calls || []);
       setShowPatientDetail(true);
     } catch (error) {
       console.error('Error loading patient details:', error);
