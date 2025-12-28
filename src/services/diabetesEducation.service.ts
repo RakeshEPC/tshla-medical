@@ -145,7 +145,11 @@ export async function getDiabetesEducationPatients(): Promise<DiabetesEducationP
     const token = await getAuthToken();
 
     const response = await fetch(`${API_BASE_URL}/api/diabetes-education/patients`, {
+      method: 'GET',
+      mode: 'cors',
+      credentials: 'include',
       headers: {
+        'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
     });
@@ -171,7 +175,11 @@ export async function getDiabetesEducationPatient(id: string): Promise<DiabetesE
     const token = await getAuthToken();
 
     const response = await fetch(`${API_BASE_URL}/api/diabetes-education/patients/${id}`, {
+      method: 'GET',
+      mode: 'cors',
+      credentials: 'include',
       headers: {
+        'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
     });
@@ -211,6 +219,8 @@ export async function createDiabetesEducationPatient(
 
     const response = await fetch(`${API_BASE_URL}/api/diabetes-education/patients`, {
       method: 'POST',
+      mode: 'cors',
+      credentials: 'include',
       headers: {
         'Authorization': `Bearer ${token}`,
       },
@@ -243,6 +253,8 @@ export async function updateDiabetesEducationPatient(
 
     const response = await fetch(`${API_BASE_URL}/api/diabetes-education/patients/${id}`, {
       method: 'PUT',
+      mode: 'cors',
+      credentials: 'include',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
@@ -289,7 +301,11 @@ export async function getPatientCallHistory(patientId: string): Promise<Diabetes
     const response = await fetch(
       `${API_BASE_URL}/api/diabetes-education/patients/${patientId}/calls`,
       {
+        method: 'GET',
+        mode: 'cors',
+        credentials: 'include',
         headers: {
+          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
       }
@@ -316,7 +332,11 @@ export async function getCallStats(): Promise<CallStats> {
     const token = await getAuthToken();
 
     const response = await fetch(`${API_BASE_URL}/api/diabetes-education/calls/stats`, {
+      method: 'GET',
+      mode: 'cors',
+      credentials: 'include',
       headers: {
+        'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
     });
