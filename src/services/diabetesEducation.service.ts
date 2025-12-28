@@ -199,41 +199,42 @@ export async function getDiabetesEducationPatient(id: string): Promise<DiabetesE
 
 /**
  * Create new diabetes education patient
+ * TEMPORARY: Using direct Supabase access to bypass API issues
+ * Note: File upload functionality not yet implemented in this workaround
  */
 export async function createDiabetesEducationPatient(
   patientData: CreatePatientData
 ): Promise<DiabetesEducationPatient> {
   try {
-    const token = await getAuthToken();
+    // Get current user for created_by_staff_id
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
 
-    const formData = new FormData();
-    formData.append('first_name', patientData.first_name);
-    formData.append('last_name', patientData.last_name);
-    formData.append('date_of_birth', patientData.date_of_birth);
-    formData.append('phone_number', patientData.phone_number);
-    formData.append('preferred_language', patientData.preferred_language);
+    // For now, create patient without document upload
+    // Document upload can be added via the update flow later
+    const { data, error } = await supabase
+      .from('diabetes_education_patients')
+      .insert({
+        first_name: patientData.first_name,
+        last_name: patientData.last_name,
+        date_of_birth: patientData.date_of_birth,
+        phone_number: patientData.phone_number,
+        preferred_language: patientData.preferred_language,
+        created_by_staff_id: user.id,
+        is_active: true,
+      })
+      .select()
+      .single();
 
+    if (error) throw error;
+    if (!data) throw new Error('Failed to create patient');
+
+    // TODO: If medical_document is provided, upload to Supabase Storage
     if (patientData.medical_document) {
-      formData.append('medical_document', patientData.medical_document);
+      console.warn('[DiabetesEdu] Document upload not yet implemented in Supabase workaround');
     }
 
-    const response = await fetch(`${API_BASE_URL}/api/diabetes-education/patients`, {
-      method: 'POST',
-      mode: 'cors',
-      credentials: 'include',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to create patient');
-    }
-
-    const data = await response.json();
-    return data.patient;
+    return data;
 
   } catch (error) {
     console.error('[DiabetesEdu] Error creating patient:', error);
@@ -243,31 +244,24 @@ export async function createDiabetesEducationPatient(
 
 /**
  * Update diabetes education patient
+ * TEMPORARY: Using direct Supabase access to bypass API issues
  */
 export async function updateDiabetesEducationPatient(
   id: string,
   updates: Partial<DiabetesEducationPatient>
 ): Promise<DiabetesEducationPatient> {
   try {
-    const token = await getAuthToken();
+    const { data, error } = await supabase
+      .from('diabetes_education_patients')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
 
-    const response = await fetch(`${API_BASE_URL}/api/diabetes-education/patients/${id}`, {
-      method: 'PUT',
-      mode: 'cors',
-      credentials: 'include',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(updates),
-    });
+    if (error) throw error;
+    if (!data) throw new Error('Patient not found');
 
-    if (!response.ok) {
-      throw new Error('Failed to update patient');
-    }
-
-    const data = await response.json();
-    return data.patient;
+    return data;
 
   } catch (error) {
     console.error('[DiabetesEdu] Error updating patient:', error);
