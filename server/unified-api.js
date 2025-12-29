@@ -17,6 +17,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
+const expressWs = require('express-ws');
 const cors = require('cors');
 const { createClient, LiveTranscriptionEvents } = require('@deepgram/sdk');
 const unifiedDatabase = require('./services/unified-supabase.service');
@@ -25,6 +26,9 @@ const patientMatchingService = require('./services/patientMatching.service');
 // Create main Express app
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Enable WebSocket support for Express (needed for OpenAI Realtime relay)
+expressWs(app);
 
 // Trust proxy (important for Azure App Service)
 app.set('trust proxy', 1);
@@ -175,6 +179,15 @@ try {
   console.log('✅ Diabetes Education Twilio webhooks registered');
 } catch (e) {
   console.error('❌ Failed to load Diabetes Education Twilio handlers:', e.message);
+}
+
+// OpenAI Realtime API WebSocket Relay (for diabetes education)
+try {
+  const { setupRealtimeRelay } = require('./openai-realtime-relay');
+  setupRealtimeRelay(app);
+  console.log('✅ OpenAI Realtime WebSocket relay registered at /media-stream');
+} catch (e) {
+  console.error('❌ Failed to load OpenAI Realtime relay:', e.message);
 }
 
 // Pre-Visit Conversations API

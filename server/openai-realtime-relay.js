@@ -1,0 +1,547 @@
+/**
+ * OpenAI Realtime API WebSocket Relay Server
+ *
+ * Purpose: Bridge between Twilio Media Streams and OpenAI Realtime API
+ * for diabetes education voice AI with dynamic patient context injection
+ *
+ * Flow:
+ * 1. Twilio calls webhook → connects to this WebSocket endpoint
+ * 2. Fetch patient data by caller phone number
+ * 3. Build patient context (clinical notes + medical data)
+ * 4. Connect to OpenAI Realtime API with context in system instructions
+ * 5. Relay audio bidirectionally: Twilio ↔ OpenAI
+ * 6. Log transcripts and events
+ *
+ * Created: 2025-12-29
+ */
+
+const WebSocket = require('ws');
+const { createClient } = require('@supabase/supabase-js');
+
+// Environment variables
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const VOICE = process.env.OPENAI_REALTIME_VOICE || 'alloy'; // Options: alloy, echo, fable, onyx, nova, shimmer
+
+// Validate required environment variables
+if (!OPENAI_API_KEY) {
+  console.error('❌ [Realtime] Missing OPENAI_API_KEY environment variable');
+}
+if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+  console.error('❌ [Realtime] Missing Supabase environment variables');
+}
+
+// Initialize Supabase client with service role key (bypasses RLS)
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+/**
+ * Fetch patient context by phone number
+ * Reuses the same logic as diabetes-education-inbound.js
+ */
+async function fetchPatientContext(phoneNumber) {
+  try {
+    console.log(`[Realtime] Fetching patient data for: ${phoneNumber}`);
+
+    // Query diabetes education patients table
+    const { data: patient, error } = await supabase
+      .from('diabetes_education_patients')
+      .select('*')
+      .eq('phone_number', phoneNumber)
+      .eq('is_active', true)
+      .single();
+
+    if (error || !patient) {
+      console.warn(`[Realtime] No patient found for ${phoneNumber}`);
+      return {
+        found: false,
+        patientId: null,
+        context: 'No patient record found for this phone number.'
+      };
+    }
+
+    console.log(`[Realtime] Found patient: ${patient.first_name} ${patient.last_name} (ID: ${patient.id})`);
+
+    // Build context string
+    const sections = [];
+
+    if (patient.clinical_notes && patient.clinical_notes.trim()) {
+      sections.push(`Clinical Notes:\n${patient.clinical_notes.trim()}`);
+    }
+
+    if (patient.focus_areas && Array.isArray(patient.focus_areas) && patient.focus_areas.length > 0) {
+      sections.push(`Focus Areas: ${patient.focus_areas.join(', ')}`);
+    }
+
+    if (patient.medical_data) {
+      const medDataSections = [];
+
+      // Labs
+      if (patient.medical_data.labs) {
+        const labStrings = [];
+        const labs = patient.medical_data.labs;
+
+        if (labs.a1c) {
+          labStrings.push(`A1C: ${labs.a1c.value}${labs.a1c.unit || '%'} (${labs.a1c.date || 'recent'})`);
+        }
+        if (labs.glucose_fasting) {
+          labStrings.push(`Fasting Glucose: ${labs.glucose_fasting.value}${labs.glucose_fasting.unit || 'mg/dL'} (${labs.glucose_fasting.date || 'recent'})`);
+        }
+        if (labs.creatinine) {
+          labStrings.push(`Creatinine: ${labs.creatinine.value}${labs.creatinine.unit || 'mg/dL'} (${labs.creatinine.date || 'recent'})`);
+        }
+
+        if (labStrings.length > 0) {
+          medDataSections.push('Lab Results:\n- ' + labStrings.join('\n- '));
+        }
+      }
+
+      // Medications
+      if (patient.medical_data.medications && patient.medical_data.medications.length > 0) {
+        const medStrings = patient.medical_data.medications.map(med =>
+          `${med.name} ${med.dose || ''} ${med.frequency || ''}`.trim()
+        );
+        medDataSections.push('Current Medications:\n- ' + medStrings.join('\n- '));
+      }
+
+      // Diagnoses
+      if (patient.medical_data.diagnoses && patient.medical_data.diagnoses.length > 0) {
+        medDataSections.push('Diagnoses:\n- ' + patient.medical_data.diagnoses.join('\n- '));
+      }
+
+      // Allergies
+      if (patient.medical_data.allergies && patient.medical_data.allergies.length > 0) {
+        medDataSections.push('Allergies:\n- ' + patient.medical_data.allergies.join('\n- '));
+      }
+
+      if (medDataSections.length > 0) {
+        sections.push('Medical Data:\n' + medDataSections.join('\n\n'));
+      }
+    }
+
+    const contextString = sections.length > 0
+      ? sections.join('\n\n')
+      : 'No detailed patient information available in records.';
+
+    console.log(`[Realtime] Patient context prepared (${contextString.length} chars)`);
+
+    return {
+      found: true,
+      patientId: patient.id,
+      patientName: `${patient.first_name} ${patient.last_name}`,
+      context: contextString
+    };
+
+  } catch (error) {
+    console.error('[Realtime] Error fetching patient context:', error);
+    return {
+      found: false,
+      patientId: null,
+      context: 'Error retrieving patient information.'
+    };
+  }
+}
+
+/**
+ * Connect to OpenAI Realtime API with patient context
+ */
+async function connectToOpenAI(patientContext) {
+  const url = 'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17';
+
+  console.log('[Realtime] Connecting to OpenAI Realtime API...');
+
+  const ws = new WebSocket(url, {
+    headers: {
+      'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      'OpenAI-Beta': 'realtime=v1'
+    }
+  });
+
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error('OpenAI connection timeout'));
+    }, 10000); // 10 second timeout
+
+    ws.on('open', () => {
+      clearTimeout(timeout);
+      console.log('[Realtime] ✅ Connected to OpenAI');
+
+      // Build system instructions with patient context
+      const systemInstructions = `You are a certified diabetes educator (CDE) providing personalized phone-based support to a patient calling the TSHLA Medical diabetes education hotline.
+
+PATIENT INFORMATION:
+${patientContext}
+
+YOUR ROLE AND GUIDELINES:
+- You are a warm, empathetic certified diabetes educator
+- Speak naturally and conversationally, as if talking to a friend
+- Reference specific values from the patient's record (A1C, medications, weight changes, etc.)
+- Focus on the patient's stated focus areas from their record
+- Keep responses concise and clear (this is a phone conversation)
+- Ask open-ended questions about their daily routines, challenges, and goals
+- Provide actionable, evidence-based advice
+- Use motivational interviewing techniques
+- Celebrate small victories and progress
+- If asked about values you don't have in the record, acknowledge you don't see that information
+
+IMPORTANT RULES:
+- ALWAYS use the actual patient data provided above
+- NEVER make up medical values or information
+- If the patient's record shows concerning values (e.g., high A1C), address them with empathy
+- Encourage the patient to follow up with their primary care provider for medical decisions
+- You provide education and support, not medical diagnosis or prescriptions
+
+CONVERSATION STYLE:
+- Start by warmly greeting the patient and asking how they're doing
+- Listen actively and respond to their specific concerns
+- Use simple language, avoid medical jargon when possible
+- Show empathy: "I understand that can be challenging..."
+- Be encouraging: "That's a great question..." or "I'm glad you're thinking about this..."
+
+Remember: You're here to support, educate, and empower the patient in managing their diabetes.`;
+
+      // Configure the session
+      const sessionConfig = {
+        type: 'session.update',
+        session: {
+          modalities: ['text', 'audio'],
+          instructions: systemInstructions,
+          voice: VOICE,
+          input_audio_format: 'g711_ulaw', // Match Twilio format (no conversion needed)
+          output_audio_format: 'g711_ulaw',
+          input_audio_transcription: {
+            model: 'whisper-1'
+          },
+          turn_detection: {
+            type: 'server_vad', // Server-side voice activity detection
+            threshold: 0.5,
+            prefix_padding_ms: 300,
+            silence_duration_ms: 500
+          },
+          temperature: 0.8, // Slightly more natural/varied responses
+          max_response_output_tokens: 4096
+        }
+      };
+
+      console.log('[Realtime] Sending session configuration...');
+      ws.send(JSON.stringify(sessionConfig));
+
+      resolve(ws);
+    });
+
+    ws.on('error', (error) => {
+      clearTimeout(timeout);
+      console.error('[Realtime] ❌ OpenAI connection error:', error);
+      reject(error);
+    });
+
+    ws.on('close', () => {
+      console.log('[Realtime] OpenAI connection closed');
+    });
+  });
+}
+
+/**
+ * Handle messages from OpenAI Realtime API
+ */
+function handleOpenAIMessage(message, twilioWs, streamSid, callLog) {
+  try {
+    const data = JSON.parse(message);
+
+    // Log all events for debugging (can be filtered later)
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[Realtime] OpenAI event: ${data.type}`);
+    }
+
+    switch (data.type) {
+      case 'session.created':
+        console.log('[Realtime] ✅ Session created:', data.session.id);
+        callLog.sessionId = data.session.id;
+        break;
+
+      case 'session.updated':
+        console.log('[Realtime] ✅ Session configured');
+        break;
+
+      case 'response.audio.delta':
+        // Forward audio chunks to Twilio in real-time
+        if (twilioWs.readyState === WebSocket.OPEN) {
+          twilioWs.send(JSON.stringify({
+            event: 'media',
+            streamSid: streamSid,
+            media: {
+              payload: data.delta // base64 μ-law audio
+            }
+          }));
+        }
+        break;
+
+      case 'response.audio.done':
+        console.log('[Realtime] Audio response complete');
+        break;
+
+      case 'conversation.item.input_audio_transcription.completed':
+        // User's speech transcribed
+        const userText = data.transcript;
+        console.log('[Realtime] 👤 User said:', userText);
+        callLog.userMessages.push({
+          timestamp: new Date().toISOString(),
+          text: userText
+        });
+        break;
+
+      case 'response.audio_transcript.delta':
+        // AI's speech being generated (partial)
+        callLog.currentAIResponse = (callLog.currentAIResponse || '') + data.delta;
+        break;
+
+      case 'response.audio_transcript.done':
+        // AI's complete response
+        const aiText = data.transcript;
+        console.log('[Realtime] 🤖 AI said:', aiText);
+        callLog.aiMessages.push({
+          timestamp: new Date().toISOString(),
+          text: aiText
+        });
+        callLog.currentAIResponse = '';
+        break;
+
+      case 'response.done':
+        console.log('[Realtime] Response complete');
+        break;
+
+      case 'error':
+        console.error('[Realtime] ❌ OpenAI error:', data.error);
+        callLog.errors.push({
+          timestamp: new Date().toISOString(),
+          error: data.error
+        });
+        break;
+
+      case 'input_audio_buffer.speech_started':
+        console.log('[Realtime] 🎤 User started speaking');
+        break;
+
+      case 'input_audio_buffer.speech_stopped':
+        console.log('[Realtime] 🎤 User stopped speaking');
+        break;
+
+      default:
+        // Ignore other event types for now
+        break;
+    }
+  } catch (error) {
+    console.error('[Realtime] Error handling OpenAI message:', error);
+  }
+}
+
+/**
+ * Save call log to database
+ */
+async function saveCallLog(callLog) {
+  try {
+    if (!callLog.patientId) {
+      console.warn('[Realtime] Cannot save call log - no patient ID');
+      return;
+    }
+
+    // Combine user and AI messages into full transcript
+    const allMessages = [];
+
+    // Interleave messages by timestamp
+    const combined = [
+      ...callLog.userMessages.map(m => ({ ...m, speaker: 'User' })),
+      ...callLog.aiMessages.map(m => ({ ...m, speaker: 'AI' }))
+    ].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    const transcript = combined
+      .map(m => `[${m.timestamp}] ${m.speaker}: ${m.text}`)
+      .join('\n');
+
+    // Calculate duration
+    const duration = callLog.endTime && callLog.startTime
+      ? Math.round((new Date(callLog.endTime) - new Date(callLog.startTime)) / 1000)
+      : null;
+
+    // Insert call record
+    const { error } = await supabase
+      .from('diabetes_education_calls')
+      .insert({
+        patient_id: callLog.patientId,
+        twilio_call_sid: callLog.callSid,
+        caller_phone_number: callLog.callerNumber,
+        language: callLog.language || 'en',
+        call_started_at: callLog.startTime,
+        call_ended_at: callLog.endTime,
+        duration_seconds: duration,
+        transcript: transcript,
+        call_status: 'completed',
+        elevenlabs_conversation_id: callLog.sessionId // Reuse this field for OpenAI session ID
+      });
+
+    if (error) {
+      console.error('[Realtime] ❌ Error saving call log:', error);
+    } else {
+      console.log('[Realtime] ✅ Call log saved to database');
+    }
+
+  } catch (error) {
+    console.error('[Realtime] Error in saveCallLog:', error);
+  }
+}
+
+/**
+ * Setup WebSocket endpoint for Twilio Media Streams
+ * This function is called by the main server to set up the route
+ */
+function setupRealtimeRelay(app) {
+  console.log('[Realtime] Setting up WebSocket endpoint at /media-stream');
+
+  app.ws('/media-stream', async (ws, req) => {
+    console.log('[Realtime] 📞 New Twilio connection');
+
+    let streamSid = null;
+    let callSid = null;
+    let openAiWs = null;
+    let callerNumber = null;
+    let patientData = null;
+
+    // Call log object for database storage
+    const callLog = {
+      callSid: null,
+      streamSid: null,
+      callerNumber: null,
+      patientId: null,
+      sessionId: null,
+      startTime: new Date().toISOString(),
+      endTime: null,
+      userMessages: [],
+      aiMessages: [],
+      currentAIResponse: '',
+      errors: [],
+      language: 'en'
+    };
+
+    // Handle messages from Twilio
+    ws.on('message', async (message) => {
+      try {
+        const data = JSON.parse(message);
+
+        switch (data.event) {
+          case 'start':
+            streamSid = data.start.streamSid;
+            callSid = data.start.callSid;
+            callerNumber = data.start.customParameters?.From || req.query.From;
+
+            callLog.streamSid = streamSid;
+            callLog.callSid = callSid;
+            callLog.callerNumber = callerNumber;
+
+            console.log(`[Realtime] 📞 Call started`);
+            console.log(`   Call SID: ${callSid}`);
+            console.log(`   Stream SID: ${streamSid}`);
+            console.log(`   From: ${callerNumber}`);
+
+            // Fetch patient context
+            patientData = await fetchPatientContext(callerNumber);
+
+            if (patientData.found) {
+              callLog.patientId = patientData.patientId;
+              console.log(`[Realtime] ✅ Patient: ${patientData.patientName}`);
+            } else {
+              console.warn(`[Realtime] ⚠️  No patient record found`);
+            }
+
+            console.log('[Realtime] Patient context:');
+            console.log(patientData.context);
+
+            // Connect to OpenAI with patient context
+            try {
+              openAiWs = await connectToOpenAI(patientData.context);
+
+              // Forward OpenAI messages to Twilio
+              openAiWs.on('message', (openAiMessage) => {
+                handleOpenAIMessage(openAiMessage, ws, streamSid, callLog);
+              });
+
+              openAiWs.on('error', (error) => {
+                console.error('[Realtime] ❌ OpenAI WebSocket error:', error);
+                callLog.errors.push({
+                  timestamp: new Date().toISOString(),
+                  error: error.message
+                });
+              });
+
+              openAiWs.on('close', () => {
+                console.log('[Realtime] OpenAI WebSocket closed');
+              });
+
+            } catch (error) {
+              console.error('[Realtime] ❌ Failed to connect to OpenAI:', error);
+
+              // Send error message to caller
+              ws.send(JSON.stringify({
+                event: 'media',
+                streamSid: streamSid,
+                media: {
+                  payload: '' // Could send error audio here
+                }
+              }));
+            }
+            break;
+
+          case 'media':
+            // Forward Twilio audio to OpenAI
+            if (openAiWs && openAiWs.readyState === WebSocket.OPEN) {
+              openAiWs.send(JSON.stringify({
+                type: 'input_audio_buffer.append',
+                audio: data.media.payload // base64 μ-law 8kHz from Twilio
+              }));
+            }
+            break;
+
+          case 'stop':
+            console.log('[Realtime] 📞 Call ended');
+            callLog.endTime = new Date().toISOString();
+
+            // Save call log to database
+            await saveCallLog(callLog);
+
+            // Close OpenAI connection
+            if (openAiWs) {
+              openAiWs.close();
+            }
+            break;
+
+          default:
+            // Ignore other Twilio events
+            break;
+        }
+      } catch (error) {
+        console.error('[Realtime] Error handling Twilio message:', error);
+      }
+    });
+
+    // Handle Twilio disconnection
+    ws.on('close', async () => {
+      console.log('[Realtime] 📞 Twilio disconnected');
+
+      if (!callLog.endTime) {
+        callLog.endTime = new Date().toISOString();
+        await saveCallLog(callLog);
+      }
+
+      if (openAiWs) {
+        openAiWs.close();
+      }
+    });
+
+    ws.on('error', (error) => {
+      console.error('[Realtime] ❌ Twilio WebSocket error:', error);
+    });
+  });
+
+  console.log('[Realtime] ✅ WebSocket relay ready');
+}
+
+module.exports = { setupRealtimeRelay };

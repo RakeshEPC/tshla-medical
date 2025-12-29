@@ -147,8 +147,21 @@ async function generateStreamTwiML(agentId, patientData) {
     console.log('      ⚠️  No patient context available (no medical data or clinical notes)');
   }
 
-  // Get signed URL from ElevenLabs with patient context
-  const signedUrl = await getElevenLabsSignedUrl(agentId, patientContext);
+  // ========================================================
+  // NEW: Use OpenAI Realtime API instead of ElevenLabs
+  // ========================================================
+  // The OpenAI Realtime relay server will:
+  // 1. Fetch patient context by phone number
+  // 2. Connect to OpenAI Realtime API with context
+  // 3. Relay audio bidirectionally
+  // ========================================================
+
+  // Construct WebSocket URL for OpenAI Realtime relay
+  const realtimeRelayUrl = process.env.OPENAI_REALTIME_RELAY_URL ||
+    'wss://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io/media-stream';
+
+  console.log('   🔄 Using OpenAI Realtime API relay');
+  console.log(`      Relay URL: ${realtimeRelayUrl}`);
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -156,7 +169,7 @@ async function generateStreamTwiML(agentId, patientData) {
     Connecting you to your diabetes educator. Please wait.
   </Say>
   <Connect>
-    <Stream url="${signedUrl}" track="both_tracks"/>
+    <Stream url="${realtimeRelayUrl}" track="both_tracks"/>
   </Connect>
   <Say voice="alice">
     Thank you for calling. Goodbye.

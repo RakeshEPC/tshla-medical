@@ -166,6 +166,7 @@ jobs:
             "VITE_OPENAI_MODEL_STAGE5=gpt-4o" \
             "VITE_OPENAI_MODEL_STAGE6=gpt-4o" \
             "VITE_ELEVENLABS_DEFAULT_VOICE_ID=cgSgspJ2msm6clMCkdW9" \
+            "OPENAI_REALTIME_VOICE=alloy" \
             "VITE_AZURE_OPENAI_ENDPOINT=${{ secrets.VITE_AZURE_OPENAI_ENDPOINT }}" \
             "VITE_AZURE_OPENAI_KEY=${{ secrets.VITE_AZURE_OPENAI_KEY }}" \
             "VITE_AZURE_OPENAI_DEPLOYMENT=${{ secrets.VITE_AZURE_OPENAI_DEPLOYMENT }}" \
