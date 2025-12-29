@@ -24,16 +24,22 @@ const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const VOICE = process.env.OPENAI_REALTIME_VOICE || 'alloy'; // Options: alloy, echo, fable, onyx, nova, shimmer
 
-// Validate required environment variables
+// Validate required environment variables (warnings only, don't crash)
 if (!OPENAI_API_KEY) {
-  console.error('❌ [Realtime] Missing OPENAI_API_KEY environment variable');
+  console.warn('⚠️  [Realtime] Missing OPENAI_API_KEY environment variable');
 }
 if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-  console.error('❌ [Realtime] Missing Supabase environment variables');
+  console.warn('⚠️  [Realtime] Missing Supabase environment variables');
 }
 
-// Initialize Supabase client with service role key (bypasses RLS)
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+// Initialize Supabase client lazily (only if credentials exist)
+let supabase = null;
+function getSupabase() {
+  if (!supabase && SUPABASE_URL && SUPABASE_SERVICE_KEY) {
+    supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+  }
+  return supabase;
+}
 
 /**
  * Fetch patient context by phone number
@@ -44,6 +50,16 @@ async function fetchPatientContext(phoneNumber) {
     console.log(`[Realtime] Fetching patient data for: ${phoneNumber}`);
 
     // Query diabetes education patients table
+    const supabase = getSupabase();
+    if (!supabase) {
+      console.error('[Realtime] Supabase not initialized');
+      return {
+        found: false,
+        patientId: null,
+        context: 'Database not available.'
+      };
+    }
+
     const { data: patient, error } = await supabase
       .from('diabetes_education_patients')
       .select('*')
@@ -364,6 +380,12 @@ async function saveCallLog(callLog) {
       : null;
 
     // Insert call record
+    const supabase = getSupabase();
+    if (!supabase) {
+      console.error('[Realtime] Cannot save call log - Supabase not initialized');
+      return;
+    }
+
     const { error } = await supabase
       .from('diabetes_education_calls')
       .insert({
