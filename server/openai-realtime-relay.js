@@ -414,12 +414,19 @@ async function saveCallLog(callLog) {
 
 /**
  * Setup WebSocket endpoint for Twilio Media Streams
+ * Returns a WebSocket.Server instance (like Deepgram proxy)
  * This function is called by the main server to set up the route
  */
-function setupRealtimeRelay(app) {
+function setupRealtimeRelay(server) {
   console.log('[Realtime] Setting up WebSocket endpoint at /media-stream');
 
-  app.ws('/media-stream', async (ws, req) => {
+  // Create WebSocket server on /media-stream path (using native ws library)
+  const wss = new WebSocket.Server({
+    server,
+    path: '/media-stream'
+  });
+
+  wss.on('connection', async (ws, req) => {
     console.log('[Realtime] 📞 New Twilio connection');
 
     let streamSid = null;

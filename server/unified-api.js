@@ -1375,17 +1375,13 @@ try {
 // Create HTTP server (needed for WebSocket upgrade)
 const server = http.createServer(app);
 
-// Enable WebSocket support for Express (needed for OpenAI Realtime relay)
-// IMPORTANT: Must be called AFTER server is created
-expressWs(app, server);
-
 // ============================================
 // OPENAI REALTIME API WEBSOCKET RELAY
 // ============================================
-// IMPORTANT: Must be set up AFTER expressWs is initialized
+// Uses native WebSocket.Server (like Deepgram proxy)
 try {
   const { setupRealtimeRelay } = require('./openai-realtime-relay');
-  setupRealtimeRelay(app);
+  setupRealtimeRelay(server);
   console.log('✅ OpenAI Realtime WebSocket relay registered at /media-stream');
 } catch (e) {
   console.error('❌ Failed to load OpenAI Realtime relay:', e.message);
