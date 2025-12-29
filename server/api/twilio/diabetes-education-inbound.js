@@ -408,6 +408,154 @@ async function handleCallComplete(req, res) {
 // =====================================================
 
 /**
+ * Extract clinical insights from call transcript
+ */
+async function extractClinicalInsights(transcriptText, patientData) {
+  try {
+    const { OpenAI } = require('openai');
+    const client = new OpenAI({ apiKey: process.env.VITE_OPENAI_API_KEY });
+
+    // Build context about patient
+    const patientContext = [];
+    if (patientData.medical_data) {
+      if (patientData.medical_data.medications) {
+        patientContext.push(`Current medications: ${patientData.medical_data.medications.map(m => m.name).join(', ')}`);
+      }
+      if (patientData.medical_data.diagnoses) {
+        patientContext.push(`Diagnoses: ${patientData.medical_data.diagnoses.join(', ')}`);
+      }
+    }
+    if (patientData.clinical_notes) {
+      patientContext.push(`Previous notes: ${patientData.clinical_notes}`);
+    }
+    if (patientData.focus_areas && patientData.focus_areas.length > 0) {
+      patientContext.push(`Focus areas: ${patientData.focus_areas.join(', ')}`);
+    }
+
+    const extractionResponse = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `You are a clinical documentation assistant for diabetes education. Extract key clinical insights from patient calls.
+
+Extract:
+1. New concerns or symptoms mentioned
+2. Progress on existing focus areas (weight loss, medication adherence, etc.)
+3. Patient questions or confusion areas
+4. Important behavioral changes
+5. Suggested new focus areas
+
+${patientContext.length > 0 ? 'Patient Context:\n' + patientContext.join('\n') : ''}
+
+Return JSON only in this format:
+{
+  "clinical_note": "Brief clinical note summarizing key points from this call (2-3 sentences)",
+  "concerns": ["concern1", "concern2"],
+  "progress_updates": ["update1", "update2"],
+  "suggested_focus_areas": ["area1", "area2"],
+  "action_items": ["action1", "action2"]
+}`
+        },
+        {
+          role: 'user',
+          content: `Extract clinical insights from this diabetes education call:\n\n${transcriptText}`
+        }
+      ],
+      max_tokens: 500,
+      temperature: 0.2,
+    });
+
+    const extractedText = extractionResponse.choices[0].message.content;
+
+    // Parse JSON (handle markdown code blocks if present)
+    const jsonMatch = extractedText.match(/```json\n([\s\S]*?)\n```/) ||
+                     extractedText.match(/```\n([\s\S]*?)\n```/) ||
+                     [null, extractedText];
+
+    const jsonText = jsonMatch[1] || extractedText;
+    const insights = JSON.parse(jsonText.trim());
+
+    return insights;
+
+  } catch (error) {
+    console.error('❌ [DiabetesEdu] Failed to extract clinical insights:', error);
+    return null;
+  }
+}
+
+/**
+ * Update patient clinical notes with call insights
+ */
+async function updatePatientNotesFromCall(patientId, callId, insights, callDate) {
+  try {
+    // Get current patient data
+    const { data: patient, error: fetchError } = await supabase
+      .from('diabetes_education_patients')
+      .select('clinical_notes, focus_areas')
+      .eq('id', patientId)
+      .single();
+
+    if (fetchError || !patient) {
+      console.error('❌ [DiabetesEdu] Failed to fetch patient:', fetchError);
+      return;
+    }
+
+    // Format call date
+    const callDateStr = new Date(callDate).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+
+    // Build new clinical note entry
+    let newNoteEntry = `\n\n--- Call on ${callDateStr} ---\n${insights.clinical_note}`;
+
+    if (insights.concerns && insights.concerns.length > 0) {
+      newNoteEntry += `\nConcerns: ${insights.concerns.join('; ')}`;
+    }
+
+    if (insights.progress_updates && insights.progress_updates.length > 0) {
+      newNoteEntry += `\nProgress: ${insights.progress_updates.join('; ')}`;
+    }
+
+    if (insights.action_items && insights.action_items.length > 0) {
+      newNoteEntry += `\nAction items: ${insights.action_items.join('; ')}`;
+    }
+
+    // Append to existing notes
+    const updatedNotes = (patient.clinical_notes || '') + newNoteEntry;
+
+    // Merge suggested focus areas
+    const currentFocusAreas = Array.isArray(patient.focus_areas) ? patient.focus_areas : [];
+    const suggestedAreas = insights.suggested_focus_areas || [];
+    const newFocusAreas = [...new Set([...currentFocusAreas, ...suggestedAreas])];
+
+    // Update patient record
+    const { error: updateError } = await supabase
+      .from('diabetes_education_patients')
+      .update({
+        clinical_notes: updatedNotes,
+        focus_areas: newFocusAreas,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', patientId);
+
+    if (updateError) {
+      console.error('❌ [DiabetesEdu] Failed to update patient notes:', updateError);
+      return;
+    }
+
+    console.log('✅ [DiabetesEdu] Patient notes updated from call');
+    console.log('   Added', newNoteEntry.length, 'characters to clinical notes');
+    console.log('   Added', newFocusAreas.length - currentFocusAreas.length, 'new focus areas');
+
+  } catch (error) {
+    console.error('❌ [DiabetesEdu] Error updating patient notes:', error);
+  }
+}
+
+/**
  * Handle ElevenLabs post-call transcript webhook
  * POST /api/elevenlabs/diabetes-education-transcript
  *
@@ -447,7 +595,7 @@ async function handleElevenLabsTranscript(req, res) {
     }
 
     // Find the call record by ElevenLabs conversation ID
-    const { data: existingCall, error: findError } = await supabase
+    let { data: existingCall, error: findError } = await supabase
       .from('diabetes_education_calls')
       .select('*')
       .eq('elevenlabs_conversation_id', conversationId)
@@ -458,8 +606,33 @@ async function handleElevenLabsTranscript(req, res) {
       return res.status(500).json({ error: 'Database error' });
     }
 
+    // Fallback: If not found by conversation_id, find most recent call without one
     if (!existingCall) {
-      console.log('⚠️  [DiabetesEdu] No call found for conversation_id:', conversationId);
+      console.log('   ⚠️  No call found by conversation_id, trying fallback...');
+
+      const { data: recentCall, error: fallbackError } = await supabase
+        .from('diabetes_education_calls')
+        .select('*')
+        .is('elevenlabs_conversation_id', null)
+        .in('call_status', ['in-progress', 'completed'])
+        .order('call_started_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (fallbackError) {
+        console.error('❌ [DiabetesEdu] Error in fallback search:', fallbackError);
+      }
+
+      if (recentCall) {
+        existingCall = recentCall;
+        console.log('   ✅ Found call via fallback: ID =', existingCall.id);
+      }
+    } else {
+      console.log('   ✅ Found call by conversation_id: ID =', existingCall.id);
+    }
+
+    if (!existingCall) {
+      console.log('❌ [DiabetesEdu] No call found for conversation_id:', conversationId);
       // Still return 200 to acknowledge webhook
       return res.status(200).json({ success: true, message: 'Call not found in database' });
     }
@@ -521,7 +694,7 @@ async function handleElevenLabsTranscript(req, res) {
       }
     }
 
-    // Update database
+    // Update call record in database
     const { error: updateError } = await supabase
       .from('diabetes_education_calls')
       .update(updates)
@@ -535,6 +708,40 @@ async function handleElevenLabsTranscript(req, res) {
     console.log('✅ [DiabetesEdu] Transcript saved successfully');
     console.log('   Call ID:', existingCall.id);
     console.log('   Patient ID:', existingCall.patient_id);
+
+    // ========================================
+    // NEW: Extract clinical insights and update patient notes
+    // ========================================
+    if (transcriptText && transcriptText.length > 50) {
+      console.log('   🔍 Extracting clinical insights from transcript...');
+
+      // Get patient data for context
+      const { data: patientData } = await supabase
+        .from('diabetes_education_patients')
+        .select('*')
+        .eq('id', existingCall.patient_id)
+        .single();
+
+      if (patientData) {
+        const insights = await extractClinicalInsights(transcriptText, patientData);
+
+        if (insights && insights.clinical_note) {
+          console.log('   ✅ Clinical insights extracted');
+          console.log('      Note:', insights.clinical_note.substring(0, 100) + '...');
+
+          // Update patient notes asynchronously (don't block webhook response)
+          updatePatientNotesFromCall(
+            existingCall.patient_id,
+            existingCall.id,
+            insights,
+            existingCall.call_started_at
+          ).catch(err => {
+            console.error('   ⚠️  Failed to update patient notes:', err);
+          });
+        }
+      }
+    }
+    // ========================================
 
     res.json({ success: true, call_id: existingCall.id });
 
