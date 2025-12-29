@@ -178,15 +178,6 @@ try {
   console.error('❌ Failed to load Diabetes Education Twilio handlers:', e.message);
 }
 
-// OpenAI Realtime API WebSocket Relay (for diabetes education)
-try {
-  const { setupRealtimeRelay } = require('./openai-realtime-relay');
-  setupRealtimeRelay(app);
-  console.log('✅ OpenAI Realtime WebSocket relay registered at /media-stream');
-} catch (e) {
-  console.error('❌ Failed to load OpenAI Realtime relay:', e.message);
-}
-
 // Pre-Visit Conversations API
 // Endpoints for fetching and displaying ElevenLabs conversation transcripts
 
@@ -1387,6 +1378,18 @@ const server = http.createServer(app);
 // Enable WebSocket support for Express (needed for OpenAI Realtime relay)
 // IMPORTANT: Must be called AFTER server is created
 expressWs(app, server);
+
+// ============================================
+// OPENAI REALTIME API WEBSOCKET RELAY
+// ============================================
+// IMPORTANT: Must be set up AFTER expressWs is initialized
+try {
+  const { setupRealtimeRelay } = require('./openai-realtime-relay');
+  setupRealtimeRelay(app);
+  console.log('✅ OpenAI Realtime WebSocket relay registered at /media-stream');
+} catch (e) {
+  console.error('❌ Failed to load OpenAI Realtime relay:', e.message);
+}
 
 // ============================================
 // DEEPGRAM WEBSOCKET PROXY
