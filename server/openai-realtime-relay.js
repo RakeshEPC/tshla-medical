@@ -486,29 +486,123 @@ function setupRealtimeRelay(server) {
           case 'start':
             streamSid = data.start.streamSid;
             callSid = data.start.callSid;
-            callerNumber = data.start.customParameters?.From || req.query.From;
+
+            // Get patient data from TwiML parameters (passed from inbound webhook)
+            const customParams = data.start.customParameters || {};
+            const patientId = customParams.patientId;
+            const patientName = customParams.patientName;
+            const language = customParams.language || 'en';
 
             callLog.streamSid = streamSid;
             callLog.callSid = callSid;
-            callLog.callerNumber = callerNumber;
+            callLog.patientId = patientId;
+            callLog.language = language;
 
             console.log(`[Realtime] 📞 Call started`);
             console.log(`   Call SID: ${callSid}`);
             console.log(`   Stream SID: ${streamSid}`);
-            console.log(`   From: ${callerNumber}`);
+            console.log(`   Patient ID: ${patientId}`);
+            console.log(`   Patient Name: ${patientName}`);
+            console.log(`   Language: ${language}`);
 
-            // Fetch patient context
-            patientData = await fetchPatientContext(callerNumber);
+            // Fetch full patient context from database using patient ID
+            if (patientId) {
+              const supabase = getSupabase();
+              if (supabase) {
+                const { data: patient } = await supabase
+                  .from('diabetes_education_patients')
+                  .select('*')
+                  .eq('id', patientId)
+                  .single();
 
-            if (patientData.found) {
-              callLog.patientId = patientData.patientId;
-              console.log(`[Realtime] ✅ Patient: ${patientData.patientName}`);
+                if (patient) {
+                  const sections = [];
+
+                  if (patient.clinical_notes && patient.clinical_notes.trim()) {
+                    sections.push(`Clinical Notes:\n${patient.clinical_notes.trim()}`);
+                  }
+
+                  if (patient.focus_areas && Array.isArray(patient.focus_areas) && patient.focus_areas.length > 0) {
+                    sections.push(`Focus Areas: ${patient.focus_areas.join(', ')}`);
+                  }
+
+                  if (patient.medical_data) {
+                    const medDataSections = [];
+
+                    if (patient.medical_data.labs) {
+                      const labStrings = [];
+                      const labs = patient.medical_data.labs;
+
+                      if (labs.a1c) {
+                        labStrings.push(`A1C: ${labs.a1c.value}${labs.a1c.unit || '%'} (${labs.a1c.date || 'recent'})`);
+                      }
+                      if (labs.glucose_fasting) {
+                        labStrings.push(`Fasting Glucose: ${labs.glucose_fasting.value}${labs.glucose_fasting.unit || 'mg/dL'} (${labs.glucose_fasting.date || 'recent'})`);
+                      }
+                      if (labs.creatinine) {
+                        labStrings.push(`Creatinine: ${labs.creatinine.value}${labs.creatinine.unit || 'mg/dL'} (${labs.creatinine.date || 'recent'})`);
+                      }
+
+                      if (labStrings.length > 0) {
+                        medDataSections.push('Lab Results:\n- ' + labStrings.join('\n- '));
+                      }
+                    }
+
+                    if (patient.medical_data.medications && patient.medical_data.medications.length > 0) {
+                      const medStrings = patient.medical_data.medications.map(med =>
+                        `${med.name} ${med.dose || ''} ${med.frequency || ''}`.trim()
+                      );
+                      medDataSections.push('Current Medications:\n- ' + medStrings.join('\n- '));
+                    }
+
+                    if (patient.medical_data.diagnoses && patient.medical_data.diagnoses.length > 0) {
+                      medDataSections.push('Diagnoses:\n- ' + patient.medical_data.diagnoses.join('\n- '));
+                    }
+
+                    if (patient.medical_data.allergies && patient.medical_data.allergies.length > 0) {
+                      medDataSections.push('Allergies:\n- ' + patient.medical_data.allergies.join('\n- '));
+                    }
+
+                    if (medDataSections.length > 0) {
+                      sections.push('Medical Data:\n' + medDataSections.join('\n\n'));
+                    }
+                  }
+
+                  patientData = {
+                    found: true,
+                    patientId: patient.id,
+                    patientName: `${patient.first_name} ${patient.last_name}`,
+                    context: sections.length > 0 ? sections.join('\n\n') : 'No detailed patient information available in records.'
+                  };
+
+                  console.log(`[Realtime] ✅ Patient context loaded (${patientData.context.length} chars)`);
+                } else {
+                  console.warn(`[Realtime] ⚠️  Patient not found in database`);
+                  patientData = {
+                    found: false,
+                    patientId: null,
+                    context: 'No patient information available.'
+                  };
+                }
+              } else {
+                console.warn(`[Realtime] ⚠️  Supabase not initialized`);
+                patientData = {
+                  found: false,
+                  patientId: null,
+                  context: 'No patient information available.'
+                };
+              }
             } else {
-              console.warn(`[Realtime] ⚠️  No patient record found`);
+              console.warn(`[Realtime] ⚠️  No patient ID provided in stream parameters`);
+              patientData = {
+                found: false,
+                patientId: null,
+                context: 'No patient information available.'
+              };
             }
 
-            console.log('[Realtime] Patient context:');
-            console.log(patientData.context);
+            console.log('[Realtime] Patient context preview:');
+            console.log(patientData.context.substring(0, 200) + '...');
 
             // Connect to OpenAI with patient context
             try {

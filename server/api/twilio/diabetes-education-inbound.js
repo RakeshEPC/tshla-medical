@@ -184,7 +184,11 @@ async function generateStreamTwiML(agentId, patientData) {
     Connecting you to your diabetes educator. Please wait.
   </Say>
   <Connect>
-    <Stream url="${realtimeRelayUrl}" track="both_tracks"/>
+    <Stream url="${realtimeRelayUrl}" track="both_tracks">
+      <Parameter name="patientId" value="${patientData.id}"/>
+      <Parameter name="patientName" value="${patientData.first_name} ${patientData.last_name}"/>
+      <Parameter name="language" value="${patientData.preferred_language}"/>
+    </Stream>
   </Connect>
   <Say voice="alice" language="${patientData.preferred_language === 'es' ? 'es-MX' : 'en-US'}">
     We're sorry, but we're experiencing technical difficulties with our A I educator.
