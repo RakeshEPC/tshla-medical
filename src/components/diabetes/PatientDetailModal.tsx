@@ -46,6 +46,7 @@ export default function PatientDetailModal({ patient, calls, onClose, onUpdate }
   const [activeTab, setActiveTab] = useState<TabView>('overview');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   // Editable fields
   const [clinicalNotes, setClinicalNotes] = useState(patient.clinical_notes || '');
@@ -76,6 +77,7 @@ export default function PatientDetailModal({ patient, calls, onClose, onUpdate }
     try {
       setSaving(true);
       setError('');
+      setSuccess('');
 
       await updateDiabetesEducationPatient(patient.id, {
         clinical_notes: clinicalNotes,
@@ -83,9 +85,15 @@ export default function PatientDetailModal({ patient, calls, onClose, onUpdate }
       });
 
       onUpdate();
-      alert('Notes saved successfully!');
+      setSuccess('Notes saved successfully!');
+
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccess('');
+      }, 3000);
     } catch (err: any) {
-      setError(err.message || 'Failed to save notes');
+      console.error('[PatientDetailModal] Save error:', err);
+      setError(err.message || 'Failed to save notes. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -417,6 +425,25 @@ Notes from phone calls will automatically appear below with timestamps."
           </div>
         )}
       </div>
+
+      {/* Success/Error Messages */}
+      {success && (
+        <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+          <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+          </svg>
+          <span className="text-green-800 font-medium">{success}</span>
+        </div>
+      )}
+
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
+          <svg className="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+          </svg>
+          <span className="text-red-800 font-medium">{error}</span>
+        </div>
+      )}
 
       {/* Save Button */}
       <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">

@@ -244,28 +244,38 @@ export async function createDiabetesEducationPatient(
 
 /**
  * Update diabetes education patient
- * TEMPORARY: Using direct Supabase access to bypass API issues
+ * Uses API endpoint to bypass RLS restrictions
  */
 export async function updateDiabetesEducationPatient(
   id: string,
   updates: Partial<DiabetesEducationPatient>
 ): Promise<DiabetesEducationPatient> {
   try {
-    const { data, error } = await supabase
-      .from('diabetes_education_patients')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single();
+    const token = await getAuthToken();
 
-    if (error) throw error;
-    if (!data) throw new Error('Patient not found');
+    const response = await fetch(`${API_BASE_URL}/api/diabetes-education/patients/${id}`, {
+      method: 'PUT',
+      mode: 'cors',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(updates),
+    });
 
-    return data;
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Failed to update patient' }));
+      throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+    }
 
-  } catch (error) {
+    const data = await response.json();
+    return data.patient;
+
+  } catch (error: any) {
     console.error('[DiabetesEdu] Error updating patient:', error);
-    throw error;
+    // Re-throw with more context
+    throw new Error(error.message || 'Failed to update patient. Please try again.');
   }
 }
 
