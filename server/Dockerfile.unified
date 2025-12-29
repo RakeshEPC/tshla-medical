@@ -23,6 +23,7 @@ COPY admin-account-api.js ./
 COPY patient-summary-api.js ./
 COPY diabetes-education-api.js ./
 COPY pump-recommendation-engine-ai.js ./
+COPY openai-realtime-relay.js ./
 COPY logger.js ./
 COPY api/ ./api/
 COPY services/ ./services/
