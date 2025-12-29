@@ -13,6 +13,7 @@ import { X, User, FileText, MessageSquare, Phone, Upload, Download, Trash2, Save
 import type { DiabetesEducationPatient, DiabetesEducationCall } from '../../services/diabetesEducation.service';
 import {
   updateDiabetesEducationPatient,
+  uploadDiabetesEducationDocument,
   formatPhoneDisplay,
   formatCallDateTime,
   formatDuration,
@@ -103,16 +104,44 @@ export default function PatientDetailModal({ patient, calls, onClose, onUpdate }
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Validate file type (PDF, PNG, JPG, JPEG)
+    const validTypes = ['application/pdf', 'image/png', 'image/jpeg'];
+    if (!validTypes.includes(file.type)) {
+      setError('Please upload a PDF or image file (PNG, JPG)');
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      setError('File size must be less than 10MB');
+      return;
+    }
+
     try {
       setUploadingDocument(true);
       setError('');
 
-      // TODO: Implement document upload/replacement API
-      // This will upload the file and re-extract medical data
-      alert('Document upload functionality coming in next update!');
+      console.log(`[PatientDetailModal] Uploading document for patient ${patient.id}:`, {
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: `${(file.size / 1024).toFixed(2)} KB`,
+      });
+
+      // Upload document and extract medical data using OpenAI
+      const updatedPatient = await uploadDiabetesEducationDocument(patient.id, file);
+
+      console.log('[PatientDetailModal] Document uploaded successfully. Extracted medical data:',
+        updatedPatient.medical_data);
+
+      // Reset file input
+      e.target.value = '';
+
+      // Trigger parent refresh
+      onUpdate();
 
     } catch (err: any) {
-      setError(err.message || 'Failed to upload document');
+      console.error('[PatientDetailModal] Document upload error:', err);
+      setError(err.message || 'Failed to upload document. Please try again.');
     } finally {
       setUploadingDocument(false);
     }

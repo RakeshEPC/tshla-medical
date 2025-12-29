@@ -385,6 +385,115 @@ router.put('/patients/:id', validateStaffAuth, async (req, res) => {
 });
 
 /**
+ * POST /api/diabetes-education/patients/:id/upload-document
+ * Upload/replace medical document for existing patient (staff only)
+ */
+router.post('/patients/:id/upload-document', validateStaffAuth, upload.single('medical_document'), async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Verify patient exists
+    const { data: existingPatient, error: fetchError } = await supabase
+      .from('diabetes_education_patients')
+      .select('id, first_name, last_name, clinical_notes')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !existingPatient) {
+      return res.status(404).json({ error: 'Patient not found' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    console.log('[DiabetesEdu] Processing document upload for patient:', existingPatient.first_name, existingPatient.last_name);
+    console.log('   File:', req.file.originalname, `(${Math.round(req.file.size / 1024)} KB)`);
+
+    let medical_data = null;
+    let medical_document_url = null;
+
+    try {
+      // Extract medical data using OpenAI Vision
+      console.log('[DiabetesEdu] Extracting medical data with OpenAI Vision...');
+      medical_data = await extractMedicalDataFromDocument(
+        req.file.buffer,
+        req.file.mimetype
+      );
+
+      console.log('[DiabetesEdu] Extraction successful:', {
+        medications: medical_data.medications?.length || 0,
+        labs: Object.keys(medical_data.labs || {}).length,
+        diagnoses: medical_data.diagnoses?.length || 0
+      });
+
+      // Upload document to Supabase Storage
+      const fileName = `diabetes-education/${id}-${Date.now()}-${req.file.originalname}`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('medical-documents')
+        .upload(fileName, req.file.buffer, {
+          contentType: req.file.mimetype,
+          upsert: false
+        });
+
+      if (!uploadError && uploadData) {
+        const { data: { publicUrl } } = supabase.storage
+          .from('medical-documents')
+          .getPublicUrl(fileName);
+
+        medical_document_url = publicUrl;
+        console.log('[DiabetesEdu] Document uploaded to storage');
+      } else if (uploadError) {
+        console.warn('[DiabetesEdu] Storage upload warning:', uploadError.message);
+        // Continue even if storage fails - we have the extracted data
+      }
+
+    } catch (extractError) {
+      console.error('[DiabetesEdu] Document processing error:', extractError);
+      return res.status(500).json({
+        error: 'Failed to extract medical data from document',
+        details: extractError.message
+      });
+    }
+
+    // Update patient record with new medical data
+    // IMPORTANT: Preserve clinical_notes (don't overwrite!)
+    const { data: updatedPatient, error: updateError } = await supabase
+      .from('diabetes_education_patients')
+      .update({
+        medical_data,
+        medical_document_url,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('[DiabetesEdu] Database update error:', updateError);
+      throw updateError;
+    }
+
+    console.log('[DiabetesEdu] Patient updated successfully with new medical data');
+
+    res.json({
+      success: true,
+      message: 'Document uploaded and processed successfully',
+      patient: {
+        id: updatedPatient.id,
+        medical_data: updatedPatient.medical_data,
+        medical_document_url: updatedPatient.medical_document_url,
+        clinical_notes: updatedPatient.clinical_notes // Preserved!
+      }
+    });
+
+  } catch (error) {
+    console.error('[DiabetesEdu] Error uploading document:', error);
+    res.status(500).json({ error: 'Failed to upload document' });
+  }
+});
+
+/**
  * GET /api/diabetes-education/patients/:id/calls
  * Get call history for a patient (staff only)
  */

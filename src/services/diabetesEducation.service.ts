@@ -295,6 +295,52 @@ export async function deactivateDiabetesEducationPatient(id: string): Promise<vo
   }
 }
 
+/**
+ * Upload or replace medical document (CCD file) for existing patient
+ * Uses OpenAI GPT-4o Vision to extract structured medical data
+ * Preserves existing clinical notes
+ */
+export async function uploadDiabetesEducationDocument(
+  patientId: string,
+  file: File
+): Promise<DiabetesEducationPatient> {
+  try {
+    const token = await getAuthToken();
+
+    // Create FormData to send file
+    const formData = new FormData();
+    formData.append('medical_document', file);
+
+    const response = await fetch(
+      `${API_BASE_URL}/api/diabetes-education/patients/${patientId}/upload-document`,
+      {
+        method: 'POST',
+        mode: 'cors',
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          // Don't set Content-Type - browser sets it with boundary for multipart/form-data
+        },
+        body: formData,
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({
+        error: `HTTP ${response.status}: ${response.statusText}`
+      }));
+      throw new Error(errorData.error || 'Document upload failed');
+    }
+
+    const data = await response.json();
+    return data.patient;
+
+  } catch (error: any) {
+    console.error('[DiabetesEdu] Error uploading document:', error);
+    throw new Error(error.message || 'Failed to upload document. Please try again.');
+  }
+}
+
 // =====================================================
 // API FUNCTIONS - CALLS
 // =====================================================
@@ -427,6 +473,7 @@ export default {
   createDiabetesEducationPatient,
   updateDiabetesEducationPatient,
   deactivateDiabetesEducationPatient,
+  uploadDiabetesEducationDocument,
 
   // Calls
   getPatientCallHistory,
