@@ -27,9 +27,6 @@ const patientMatchingService = require('./services/patientMatching.service');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Enable WebSocket support for Express (needed for OpenAI Realtime relay)
-expressWs(app);
-
 // Trust proxy (important for Azure App Service)
 app.set('trust proxy', 1);
 
@@ -1386,6 +1383,10 @@ try {
 
 // Create HTTP server (needed for WebSocket upgrade)
 const server = http.createServer(app);
+
+// Enable WebSocket support for Express (needed for OpenAI Realtime relay)
+// IMPORTANT: Must be called AFTER server is created
+expressWs(app, server);
 
 // ============================================
 // DEEPGRAM WEBSOCKET PROXY
