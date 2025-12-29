@@ -165,8 +165,8 @@ async function generateStreamTwiML(agentId, patientData) {
 }
 
 /**
- * Get ElevenLabs signed URL for conversational AI with patient context
- * Uses custom_llm_extra_body to inject patient data into the conversation
+ * Get ElevenLabs WebSocket URL for conversational AI with patient context
+ * Uses ElevenLabs Conversations API with variable substitution
  */
 function getElevenLabsSignedUrl(agentId, patientContext) {
   return new Promise((resolve, reject) => {
@@ -177,18 +177,25 @@ function getElevenLabsSignedUrl(agentId, patientContext) {
 
     const https = require('https');
 
-    // Build request body with patient context
+    // Build request body with patient context as a variable
+    // The agent's system prompt should use {{patient_context}} to access this
     const requestBody = JSON.stringify({
       agent_id: agentId,
-      // Inject patient context into the LLM's system prompt
-      custom_llm_extra_body: {
-        patient_context: patientContext || 'No patient information available.'
+      // Pass patient data as variables for prompt substitution
+      variables: {
+        patient_context: patientContext || 'No patient information available in records.'
       }
     });
 
+    console.log('   🔧 Creating ElevenLabs conversation with patient context');
+    console.log('      Patient context length:', (patientContext || '').length, 'characters');
+    if (patientContext) {
+      console.log('      Context preview:', patientContext.substring(0, 150) + '...');
+    }
+
     const options = {
       hostname: 'api.elevenlabs.io',
-      path: '/v1/convai/conversation/get_signed_url',
+      path: '/v1/convai/conversations',
       method: 'POST',
       headers: {
         'xi-api-key': ELEVENLABS_API_KEY,
@@ -204,15 +211,31 @@ function getElevenLabsSignedUrl(agentId, patientContext) {
         try {
           const parsed = JSON.parse(data);
 
-          if (res.statusCode !== 200) {
-            console.error('❌ [DiabetesEdu] ElevenLabs API error:', res.statusCode, data);
+          if (res.statusCode !== 200 && res.statusCode !== 201) {
+            console.error('❌ [DiabetesEdu] ElevenLabs API error:', res.statusCode);
+            console.error('   Response:', data);
             reject(new Error(`ElevenLabs API returned ${res.statusCode}`));
             return;
           }
 
-          resolve(parsed.signed_url);
+          // Extract WebSocket URL from response
+          // Response format: { conversation_id: '...', agent_output_audio_url: 'wss://...' }
+          const wsUrl = parsed.agent_output_audio_url || parsed.signed_url;
+
+          if (!wsUrl) {
+            console.error('❌ [DiabetesEdu] No WebSocket URL in response:', parsed);
+            reject(new Error('No WebSocket URL in ElevenLabs response'));
+            return;
+          }
+
+          console.log('   ✅ ElevenLabs conversation created');
+          console.log('      Conversation ID:', parsed.conversation_id);
+          console.log('      WebSocket URL obtained');
+
+          resolve(wsUrl);
         } catch (e) {
           console.error('❌ [DiabetesEdu] Error parsing ElevenLabs response:', e);
+          console.error('   Raw response:', data);
           reject(e);
         }
       });
