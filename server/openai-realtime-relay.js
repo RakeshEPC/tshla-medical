@@ -165,6 +165,11 @@ async function connectToOpenAI(patientContext) {
   const url = 'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17';
 
   console.log('[Realtime] Connecting to OpenAI Realtime API...');
+  console.log(`[Realtime] API Key configured: ${OPENAI_API_KEY ? 'YES (length: ' + OPENAI_API_KEY.length + ')' : 'NO'}`);
+
+  if (!OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY is not configured - cannot connect to OpenAI Realtime API');
+  }
 
   const ws = new WebSocket(url, {
     headers: {
@@ -175,7 +180,9 @@ async function connectToOpenAI(patientContext) {
 
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
-      reject(new Error('OpenAI connection timeout'));
+      console.error('[Realtime] ❌ Timeout waiting for OpenAI connection (10s)');
+      ws.close();
+      reject(new Error('OpenAI connection timeout after 10 seconds'));
     }, 10000); // 10 second timeout
 
     ws.on('open', () => {
@@ -248,11 +255,30 @@ Remember: You're here to support, educate, and empower the patient in managing t
     ws.on('error', (error) => {
       clearTimeout(timeout);
       console.error('[Realtime] ❌ OpenAI connection error:', error);
+      console.error('[Realtime] Error details:', {
+        message: error.message,
+        code: error.code,
+        type: error.type
+      });
+
+      // Provide helpful diagnostics
+      if (error.message && error.message.includes('401')) {
+        console.error('[Realtime] 🔑 API Key is INVALID or EXPIRED!');
+        console.error('[Realtime] 💡 Get a new key from https://platform.openai.com/api-keys');
+      } else if (error.message && error.message.includes('403')) {
+        console.error('[Realtime] 🚫 API Key does not have access to Realtime API');
+      } else if (error.message && error.message.includes('429')) {
+        console.error('[Realtime] ⏱️  Rate limit exceeded');
+      }
+
       reject(error);
     });
 
-    ws.on('close', () => {
+    ws.on('close', (code, reason) => {
       console.log('[Realtime] OpenAI connection closed');
+      if (code !== 1000) {
+        console.log(`[Realtime] Close code: ${code}, Reason: ${reason}`);
+      }
     });
   });
 }

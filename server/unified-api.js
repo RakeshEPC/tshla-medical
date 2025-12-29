@@ -81,6 +81,72 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// OpenAI Realtime API health check
+app.get('/api/health/openai-realtime', async (req, res) => {
+  try {
+    const WebSocket = require('ws');
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
+
+    if (!OPENAI_API_KEY) {
+      return res.status(503).json({
+        status: 'error',
+        service: 'openai-realtime-api',
+        error: 'OPENAI_API_KEY not configured',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const url = 'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17';
+
+    const ws = new WebSocket(url, {
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'OpenAI-Beta': 'realtime=v1'
+      }
+    });
+
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        ws.close();
+        reject(new Error('Connection timeout after 5 seconds'));
+      }, 5000);
+
+      ws.on('open', () => {
+        clearTimeout(timeout);
+        ws.close();
+        resolve();
+      });
+
+      ws.on('error', (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      });
+    });
+
+    res.json({
+      status: 'ok',
+      service: 'openai-realtime-api',
+      message: 'Successfully connected to OpenAI Realtime API',
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    const statusCode = error.message && error.message.includes('401') ? 401 :
+                      error.message && error.message.includes('403') ? 403 :
+                      error.message && error.message.includes('429') ? 429 : 503;
+
+    res.status(statusCode).json({
+      status: 'error',
+      service: 'openai-realtime-api',
+      error: error.message,
+      details: error.message && error.message.includes('401') ? 'API key is invalid or expired. Get a new key from https://platform.openai.com/api-keys' :
+               error.message && error.message.includes('403') ? 'API key does not have access to Realtime API' :
+               error.message && error.message.includes('429') ? 'Rate limit exceeded' : 'Connection failed',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({

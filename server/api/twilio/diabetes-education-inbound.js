@@ -156,6 +156,21 @@ async function generateStreamTwiML(agentId, patientData) {
   // 3. Relay audio bidirectionally
   // ========================================================
 
+  // Quick pre-flight check: Verify OpenAI API key is configured
+  const openAiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
+  if (!openAiKey) {
+    console.error('   ❌ OPENAI_API_KEY not configured!');
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="alice" language="en-US">
+    We're sorry, but our diabetes educator A I is not configured at this time.
+    Please contact your clinic directly for assistance.
+    Thank you for calling.
+  </Say>
+  <Hangup/>
+</Response>`;
+  }
+
   // Construct WebSocket URL for OpenAI Realtime relay
   const realtimeRelayUrl = process.env.OPENAI_REALTIME_RELAY_URL ||
     'wss://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io/media-stream';
@@ -171,8 +186,10 @@ async function generateStreamTwiML(agentId, patientData) {
   <Connect>
     <Stream url="${realtimeRelayUrl}" track="both_tracks"/>
   </Connect>
-  <Say voice="alice">
-    Thank you for calling. Goodbye.
+  <Say voice="alice" language="${patientData.preferred_language === 'es' ? 'es-MX' : 'en-US'}">
+    We're sorry, but we're experiencing technical difficulties with our A I educator.
+    Please try calling again in a few minutes, or contact your clinic directly.
+    Thank you for calling.
   </Say>
 </Response>`;
 }
