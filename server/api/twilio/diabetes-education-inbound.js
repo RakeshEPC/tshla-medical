@@ -58,6 +58,66 @@ function formatPhoneNumber(phone) {
 }
 
 /**
+ * Build patient context string for AI agent
+ * Combines clinical notes, focus areas, and medical data into readable format
+ */
+function buildPatientContext(patient) {
+  const sections = [];
+
+  // Add clinical notes (staff instructions and call history)
+  if (patient.clinical_notes && patient.clinical_notes.trim()) {
+    sections.push(`Clinical Notes and Instructions:\n${patient.clinical_notes.trim()}`);
+  }
+
+  // Add focus areas
+  if (patient.focus_areas && Array.isArray(patient.focus_areas) && patient.focus_areas.length > 0) {
+    sections.push(`Focus Areas: ${patient.focus_areas.join(', ')}`);
+  }
+
+  // Add medical data
+  if (patient.medical_data) {
+    const medicalSections = [];
+
+    // Medications
+    if (patient.medical_data.medications && patient.medical_data.medications.length > 0) {
+      const meds = patient.medical_data.medications
+        .map(m => `  - ${m.name} ${m.dose} ${m.frequency}`)
+        .join('\n');
+      medicalSections.push(`Medications:\n${meds}`);
+    }
+
+    // Lab values
+    if (patient.medical_data.labs && Object.keys(patient.medical_data.labs).length > 0) {
+      const labs = Object.entries(patient.medical_data.labs)
+        .map(([key, val]) => `  - ${key}: ${val.value} ${val.unit}${val.date ? ` (${val.date})` : ''}`)
+        .join('\n');
+      medicalSections.push(`Lab Results:\n${labs}`);
+    }
+
+    // Diagnoses
+    if (patient.medical_data.diagnoses && patient.medical_data.diagnoses.length > 0) {
+      medicalSections.push(`Diagnoses: ${patient.medical_data.diagnoses.join(', ')}`);
+    }
+
+    // Allergies
+    if (patient.medical_data.allergies && patient.medical_data.allergies.length > 0) {
+      medicalSections.push(`ALLERGIES: ${patient.medical_data.allergies.join(', ')}`);
+    }
+
+    // Additional notes from medical document
+    if (patient.medical_data.notes && patient.medical_data.notes.trim()) {
+      medicalSections.push(`Additional Notes:\n${patient.medical_data.notes.trim()}`);
+    }
+
+    if (medicalSections.length > 0) {
+      sections.push(medicalSections.join('\n\n'));
+    }
+  }
+
+  return sections.join('\n\n');
+}
+
+/**
  * Generate TwiML for unauthenticated caller
  */
 function generateRejectionTwiML() {
@@ -76,8 +136,19 @@ function generateRejectionTwiML() {
  * Generate TwiML for authenticated caller with direct ElevenLabs connection
  */
 async function generateStreamTwiML(agentId, patientData) {
-  // Get signed URL directly from ElevenLabs
-  const signedUrl = await getElevenLabsSignedUrl(agentId);
+  // Build patient context from medical data and clinical notes
+  const patientContext = buildPatientContext(patientData);
+
+  console.log('   📋 Patient context prepared:');
+  console.log(`      Length: ${patientContext.length} characters`);
+  if (patientContext.length > 0) {
+    console.log(`      Preview: ${patientContext.substring(0, 150)}...`);
+  } else {
+    console.log('      ⚠️  No patient context available (no medical data or clinical notes)');
+  }
+
+  // Get signed URL from ElevenLabs with patient context
+  const signedUrl = await getElevenLabsSignedUrl(agentId, patientContext);
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -94,9 +165,10 @@ async function generateStreamTwiML(agentId, patientData) {
 }
 
 /**
- * Get ElevenLabs signed URL for conversational AI
+ * Get ElevenLabs signed URL for conversational AI with patient context
+ * Uses custom_llm_extra_body to inject patient data into the conversation
  */
-function getElevenLabsSignedUrl(agentId) {
+function getElevenLabsSignedUrl(agentId, patientContext) {
   return new Promise((resolve, reject) => {
     if (!ELEVENLABS_API_KEY || !agentId) {
       reject(new Error('ElevenLabs not configured'));
@@ -104,11 +176,25 @@ function getElevenLabsSignedUrl(agentId) {
     }
 
     const https = require('https');
+
+    // Build request body with patient context
+    const requestBody = JSON.stringify({
+      agent_id: agentId,
+      // Inject patient context into the LLM's system prompt
+      custom_llm_extra_body: {
+        patient_context: patientContext || 'No patient information available.'
+      }
+    });
+
     const options = {
       hostname: 'api.elevenlabs.io',
-      path: `/v1/convai/conversation/get_signed_url?agent_id=${agentId}`,
-      method: 'GET',
-      headers: { 'xi-api-key': ELEVENLABS_API_KEY }
+      path: '/v1/convai/conversation/get_signed_url',
+      method: 'POST',
+      headers: {
+        'xi-api-key': ELEVENLABS_API_KEY,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(requestBody)
+      }
     };
 
     const req = https.request(options, (res) => {
@@ -117,14 +203,27 @@ function getElevenLabsSignedUrl(agentId) {
       res.on('end', () => {
         try {
           const parsed = JSON.parse(data);
+
+          if (res.statusCode !== 200) {
+            console.error('❌ [DiabetesEdu] ElevenLabs API error:', res.statusCode, data);
+            reject(new Error(`ElevenLabs API returned ${res.statusCode}`));
+            return;
+          }
+
           resolve(parsed.signed_url);
         } catch (e) {
+          console.error('❌ [DiabetesEdu] Error parsing ElevenLabs response:', e);
           reject(e);
         }
       });
     });
 
-    req.on('error', reject);
+    req.on('error', (e) => {
+      console.error('❌ [DiabetesEdu] ElevenLabs request error:', e);
+      reject(e);
+    });
+
+    req.write(requestBody);
     req.end();
   });
 }
