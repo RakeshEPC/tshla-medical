@@ -176,7 +176,8 @@ async function generateStreamTwiML(agentId, patientData, fromNumber, toNumber) {
 
     // Use ElevenLabs register_call API to get properly configured TwiML
     // This API returns TwiML that sets up ElevenLabs' own WebSocket relay
-    const twimlResponse = await elevenLabs.conversationalAi.twilio.registerCall({
+    console.log('   🔄 Calling ElevenLabs register_call API...');
+    const response = await elevenLabs.conversationalAi.twilio.registerCall({
       agentId: agentId,
       fromNumber: fromNumber,
       toNumber: toNumber,
@@ -191,7 +192,15 @@ async function generateStreamTwiML(agentId, patientData, fromNumber, toNumber) {
       }
     });
 
-    console.log('   ✅ ElevenLabs TwiML generated successfully');
+    console.log('   ✅ ElevenLabs register_call response received');
+    console.log('   📊 Response type:', typeof response);
+    console.log('   📊 Response keys:', Object.keys(response || {}));
+
+    // The SDK might return an object with a twiml property, or the raw TwiML string
+    const twimlResponse = response.twiml || response;
+    console.log('   📄 TwiML length:', twimlResponse?.length || 'N/A');
+    console.log('   📄 TwiML preview:', typeof twimlResponse === 'string' ? twimlResponse.substring(0, 300) : 'Not a string');
+
     return twimlResponse;
 
   } catch (error) {
