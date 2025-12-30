@@ -175,7 +175,8 @@ async function generateStreamTwiML(agentId, patientData) {
     console.log('   ✅ ElevenLabs WebSocket URL obtained');
 
     // Use relay proxy to bridge Twilio (no query params) to ElevenLabs (with query params)
-    const relayUrl = process.env.ELEVENLABS_RELAY_URL || 'wss://api.tshla.ai/elevenlabs-relay';
+    // Use direct Azure URL since api.tshla.ai may not have WebSocket configured properly
+    const relayUrl = process.env.ELEVENLABS_RELAY_URL || 'wss://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io/elevenlabs-relay';
 
     console.log('   🔄 Using relay proxy:', relayUrl);
 
