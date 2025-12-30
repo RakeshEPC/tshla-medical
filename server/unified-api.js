@@ -1790,12 +1790,12 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 404 handler (but skip WebSocket upgrade requests)
-app.use('*', (req, res) => {
-  // Don't send 404 for WebSocket upgrade requests - let WebSocket.Server handle them
-  if (req.headers.upgrade === 'websocket') {
-    // Don't respond - let the request pass through to WebSocket server
-    return;
+// 404 handler (but skip WebSocket paths entirely)
+app.use('*', (req, res, next) => {
+  // Skip 404 for WebSocket paths - they're handled by WebSocket.Server at HTTP server level
+  if (req.path.startsWith('/ws/') || req.path.startsWith('/media-stream')) {
+    // Don't handle this in Express - skip to next (which is nothing, so request hangs until WS handles it)
+    return next();
   }
 
   res.status(404).json({

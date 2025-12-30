@@ -446,25 +446,13 @@ async function saveCallLog(callLog) {
 function setupRealtimeRelay(server) {
   console.log('[Realtime] Setting up WebSocket endpoint at /media-stream');
 
-  // Create WebSocket server WITHOUT automatic server attachment
-  // We'll manually handle the upgrade event to bypass Express middleware
+  // Create WebSocket server with automatic path handling
+  // Use server attachment with path - same as Deepgram/ElevenLabs
   const wss = new WebSocket.Server({
-    noServer: true, // Manual upgrade handling
+    server,
+    path: '/media-stream',
     perMessageDeflate: false, // Twilio doesn't support compression
     clientTracking: true
-  });
-
-  // Manually handle HTTP upgrade requests for /media-stream
-  server.on('upgrade', (request, socket, head) => {
-    const pathname = new URL(request.url, 'http://localhost').pathname;
-
-    if (pathname === '/media-stream') {
-      console.log('[Realtime] Handling WebSocket upgrade for /media-stream');
-      wss.handleUpgrade(request, socket, head, (ws) => {
-        wss.emit('connection', ws, request);
-      });
-    }
-    // Let other paths continue (like /ws/deepgram)
   });
 
   wss.on('connection', async (ws, req) => {
