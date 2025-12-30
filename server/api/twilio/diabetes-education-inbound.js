@@ -137,7 +137,7 @@ function generateRejectionTwiML() {
 /**
  * Generate TwiML for authenticated caller with direct ElevenLabs connection
  */
-async function generateStreamTwiML(agentId, patientData) {
+async function generateStreamTwiML(agentId, patientData, fromNumber, toNumber) {
   // Build patient context from medical data and clinical notes
   const patientContext = buildPatientContext(patientData);
 
@@ -178,15 +178,15 @@ async function generateStreamTwiML(agentId, patientData) {
     // This API returns TwiML that sets up ElevenLabs' own WebSocket relay
     const twimlResponse = await elevenLabs.conversationalAi.twilio.registerCall({
       agentId: agentId,
-      fromNumber: from,
-      toNumber: to,
+      fromNumber: fromNumber,
+      toNumber: toNumber,
       direction: 'inbound',
       conversationInitiationClientData: {
         dynamicVariables: {
           patient_name: patientData.first_name + ' ' + patientData.last_name,
           patient_language: patientData.preferred_language || 'en',
           clinical_notes: patientContext || 'No specific clinical notes available',
-          caller_number: from
+          caller_number: fromNumber
         }
       }
     });
@@ -393,7 +393,7 @@ async function handler(req, res) {
     }
 
     // Generate TwiML to connect call to ElevenLabs agent directly
-    const twiml = await generateStreamTwiML(agentId, patient);
+    const twiml = await generateStreamTwiML(agentId, patient, From, To);
 
     console.log('✅ [DiabetesEdu] Connecting call to AI agent');
     console.log(`   Max duration: ${MAX_CALL_DURATION_SECONDS} seconds (10 minutes)`);
