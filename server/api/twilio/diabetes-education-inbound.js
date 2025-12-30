@@ -9,6 +9,7 @@
  */
 
 const { createClient } = require('@supabase/supabase-js');
+const { ElevenLabsClient } = require('@elevenlabs/elevenlabs-js');
 
 // =====================================================
 // CONFIGURATION
@@ -20,6 +21,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 // ElevenLabs configuration
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || process.env.VITE_ELEVENLABS_API_KEY || '';
+const elevenLabs = new ElevenLabsClient({ apiKey: ELEVENLABS_API_KEY });
 
 // ElevenLabs Agent IDs by language
 const AGENT_IDS = {
@@ -169,26 +171,28 @@ async function generateStreamTwiML(agentId, patientData) {
 </Response>`;
     }
 
-    // Get signed WebSocket URL from ElevenLabs with patient context
-    const elevenLabsSignedUrl = await getElevenLabsSignedUrl(agentId, patientContext);
+    console.log('   📞 Using ElevenLabs register_call API');
+    console.log('   🔗 Agent ID:', agentId);
 
-    console.log('   ✅ ElevenLabs WebSocket URL obtained');
-    console.log('   🔗 Connecting Twilio directly to ElevenLabs:', elevenLabsSignedUrl.substring(0, 80) + '...');
+    // Use ElevenLabs register_call API to get properly configured TwiML
+    // This API returns TwiML that sets up ElevenLabs' own WebSocket relay
+    const twimlResponse = await elevenLabs.conversationalAi.twilio.registerCall({
+      agentId: agentId,
+      fromNumber: from,
+      toNumber: to,
+      direction: 'inbound',
+      conversationInitiationClientData: {
+        dynamicVariables: {
+          patient_name: patientData.first_name + ' ' + patientData.last_name,
+          patient_language: patientData.preferred_language || 'en',
+          clinical_notes: patientContext || 'No specific clinical notes available',
+          caller_number: from
+        }
+      }
+    });
 
-    // Connect Twilio directly to ElevenLabs WebSocket URL
-    // No relay needed - Twilio Media Streams can connect directly to ElevenLabs
-    return `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say voice="alice" language="${patientData.preferred_language === 'es' ? 'es-MX' : 'en-US'}">
-    Connecting you to your diabetes educator. Please wait.
-  </Say>
-  <Connect>
-    <Stream url="${elevenLabsSignedUrl}"/>
-  </Connect>
-  <Say voice="alice" language="${patientData.preferred_language === 'es' ? 'es-MX' : 'en-US'}">
-    Thank you for calling. If you have more questions, please call back or contact your clinic directly.
-  </Say>
-</Response>`;
+    console.log('   ✅ ElevenLabs TwiML generated successfully');
+    return twimlResponse;
 
   } catch (error) {
     console.error('   ❌ Failed to get ElevenLabs signed URL:', error.message);
