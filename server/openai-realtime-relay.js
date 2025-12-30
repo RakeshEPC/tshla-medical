@@ -451,7 +451,7 @@ function setupRealtimeRelay(server) {
   const wss = new WebSocket.Server({
     server,
     path: '/media-stream',
-    perMessageDeflate: false, // Twilio doesn't support compression
+    perMessageDeflate: true, // Enable compression for Azure Container Apps compatibility
     clientTracking: true,
     verifyClient: (info, callback) => {
       // Log all WebSocket upgrade attempts
