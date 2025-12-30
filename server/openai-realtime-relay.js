@@ -509,6 +509,12 @@ function setupRealtimeRelay(server) {
         }
 
         switch (data.event) {
+          case 'connected':
+            console.log('[Realtime] ✅ Twilio Media Stream connected event received');
+            console.log('[Realtime] Protocol:', data.protocol, 'Version:', data.version);
+            // Twilio sends this first - no action needed, just log
+            break;
+
           case 'start':
             streamSid = data.start.streamSid;
             callSid = data.start.callSid;
@@ -698,8 +704,10 @@ function setupRealtimeRelay(server) {
     });
 
     // Handle Twilio disconnection
-    ws.on('close', async () => {
+    ws.on('close', async (code, reason) => {
       console.log('[Realtime] 📞 Twilio disconnected');
+      console.log('[Realtime] Close code:', code);
+      console.log('[Realtime] Close reason:', reason.toString() || 'no reason provided');
 
       if (!callLog.endTime) {
         callLog.endTime = new Date().toISOString();
