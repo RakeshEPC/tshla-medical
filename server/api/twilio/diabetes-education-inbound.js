@@ -173,22 +173,17 @@ async function generateStreamTwiML(agentId, patientData) {
     const elevenLabsSignedUrl = await getElevenLabsSignedUrl(agentId, patientContext);
 
     console.log('   ✅ ElevenLabs WebSocket URL obtained');
+    console.log('   🔗 Connecting Twilio directly to ElevenLabs:', elevenLabsSignedUrl.substring(0, 80) + '...');
 
-    // Use relay proxy to bridge Twilio (no query params) to ElevenLabs (with query params)
-    // Use direct Azure URL since api.tshla.ai may not have WebSocket configured properly
-    const relayUrl = process.env.ELEVENLABS_RELAY_URL || 'wss://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io/elevenlabs-relay';
-
-    console.log('   🔄 Using relay proxy:', relayUrl);
-
+    // Connect Twilio directly to ElevenLabs WebSocket URL
+    // No relay needed - Twilio Media Streams can connect directly to ElevenLabs
     return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="alice" language="${patientData.preferred_language === 'es' ? 'es-MX' : 'en-US'}">
     Connecting you to your diabetes educator. Please wait.
   </Say>
   <Connect>
-    <Stream url="${relayUrl}">
-      <Parameter name="elevenlabs_url" value="${elevenLabsSignedUrl}"/>
-    </Stream>
+    <Stream url="${elevenLabsSignedUrl}"/>
   </Connect>
   <Say voice="alice" language="${patientData.preferred_language === 'es' ? 'es-MX' : 'en-US'}">
     Thank you for calling. If you have more questions, please call back or contact your clinic directly.
