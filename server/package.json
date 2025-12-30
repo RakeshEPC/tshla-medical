@@ -16,6 +16,7 @@
     "@azure/communication-common": "^2.3.0",
     "@azure/storage-blob": "^12.29.1",
     "@deepgram/sdk": "^4.11.2",
+    "@elevenlabs/elevenlabs-js": "^2.28.0",
     "@supabase/supabase-js": "^2.39.3",
     "@xmldom/xmldom": "^0.8.11",
     "bcryptjs": "^2.4.3",
