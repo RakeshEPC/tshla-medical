@@ -502,8 +502,10 @@ function setupRealtimeRelay(server) {
     // Handle messages from Twilio
     ws.on('message', async (message) => {
       try {
+        console.log('[Realtime] 📨 Raw message received, length:', message.length);
+        console.log('[Realtime] Message type:', typeof message);
         const data = JSON.parse(message);
-        console.log(`[Realtime] Received event: ${data.event}`);
+        console.log(`[Realtime] ✅ Parsed event: ${data.event}`);
         if (data.event === 'start') {
           console.log('[Realtime] Start event data:', JSON.stringify(data, null, 2));
         }
@@ -699,7 +701,9 @@ function setupRealtimeRelay(server) {
             break;
         }
       } catch (error) {
-        console.error('[Realtime] Error handling Twilio message:', error);
+        console.error('[Realtime] ❌ Error handling Twilio message:', error);
+        console.error('[Realtime] Error stack:', error.stack);
+        console.error('[Realtime] Raw message that caused error:', message.toString());
       }
     });
 
