@@ -1455,6 +1455,18 @@ try {
   console.error('❌ CCD Summary API not mounted - module failed to load:', error.message);
 }
 
+// Add HTTP GET endpoint for /media-stream (for health checks)
+// Twilio might check this before attempting WebSocket upgrade
+app.get('/media-stream', (req, res) => {
+  console.log('[HTTP] GET /media-stream - Responding with WebSocket ready status');
+  res.status(200).json({
+    status: 'WebSocket endpoint ready',
+    protocol: 'wss',
+    path: '/media-stream',
+    message: 'Use WebSocket protocol to connect'
+  });
+});
+
 // Create HTTP server (needed for WebSocket upgrade)
 const server = http.createServer(app);
 
