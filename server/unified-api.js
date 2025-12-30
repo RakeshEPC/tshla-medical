@@ -1790,8 +1790,14 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 404 handler
+// 404 handler (but skip WebSocket upgrade requests)
 app.use('*', (req, res) => {
+  // Don't send 404 for WebSocket upgrade requests - let WebSocket.Server handle them
+  if (req.headers.upgrade === 'websocket') {
+    // Don't respond - let the request pass through to WebSocket server
+    return;
+  }
+
   res.status(404).json({
     error: 'Not found',
     path: req.originalUrl
