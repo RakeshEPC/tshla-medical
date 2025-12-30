@@ -446,13 +446,30 @@ async function saveCallLog(callLog) {
 function setupRealtimeRelay(server) {
   console.log('[Realtime] Setting up WebSocket endpoint at /media-stream');
 
-  // Create WebSocket server with automatic path handling
-  // Use server attachment with path - same as Deepgram/ElevenLabs
+  // Create WebSocket server with origin validation for Twilio
+  // Twilio Media Streams requires specific handling
   const wss = new WebSocket.Server({
     server,
     path: '/media-stream',
     perMessageDeflate: false, // Twilio doesn't support compression
-    clientTracking: true
+    clientTracking: true,
+    verifyClient: (info, callback) => {
+      // Log all WebSocket upgrade attempts
+      console.log('[Realtime] 🔍 WebSocket upgrade request received');
+      console.log('[Realtime]    Origin:', info.origin || 'not provided');
+      console.log('[Realtime]    URL:', info.req.url);
+      console.log('[Realtime]    Headers:', JSON.stringify({
+        'user-agent': info.req.headers['user-agent'],
+        'sec-websocket-key': info.req.headers['sec-websocket-key'],
+        'sec-websocket-version': info.req.headers['sec-websocket-version'],
+        'x-twilio-signature': info.req.headers['x-twilio-signature'] ? 'present' : 'absent'
+      }, null, 2));
+
+      // Accept all connections for now (Twilio doesn't send standard CORS origin)
+      // In production, you should validate X-Twilio-Signature header
+      console.log('[Realtime] ✅ WebSocket upgrade accepted');
+      callback(true);
+    }
   });
 
   wss.on('connection', async (ws, req) => {

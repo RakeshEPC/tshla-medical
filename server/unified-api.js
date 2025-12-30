@@ -31,21 +31,37 @@ const PORT = process.env.PORT || 3000;
 // Trust proxy (important for Azure App Service)
 app.set('trust proxy', 1);
 
-// Enable CORS for all routes
-app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:3000',
-    'https://www.tshla.ai',
-    'https://tshla.ai',
-    /\.tshla\.ai$/,
-    /\.azurecontainerapps\.io$/
-  ],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
+// Enable CORS for HTTP routes only (skip WebSocket paths)
+// WebSocket upgrades are handled separately by the WebSocket servers
+app.use((req, res, next) => {
+  // Skip CORS for WebSocket upgrade requests
+  if (req.headers.upgrade === 'websocket') {
+    console.log('[CORS] Skipping CORS for WebSocket upgrade:', req.path);
+    return next();
+  }
+
+  // Skip CORS for WebSocket paths entirely
+  if (req.path.startsWith('/media-stream') || req.path.startsWith('/ws/')) {
+    console.log('[CORS] Skipping CORS for WebSocket path:', req.path);
+    return next();
+  }
+
+  // Apply CORS for regular HTTP requests
+  return cors({
+    origin: [
+      'http://localhost:5173',
+      'http://localhost:5174',
+      'http://localhost:3000',
+      'https://www.tshla.ai',
+      'https://tshla.ai',
+      /\.tshla\.ai$/,
+      /\.azurecontainerapps\.io$/
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  })(req, res, next);
+});
 
 // Parse JSON request bodies (increased limit for CCD XML files)
 app.use(express.json({ limit: '50mb' }));
@@ -1441,6 +1457,16 @@ try {
 
 // Create HTTP server (needed for WebSocket upgrade)
 const server = http.createServer(app);
+
+// Add logging for all HTTP upgrade requests (WebSocket connections)
+server.on('upgrade', (request, socket, head) => {
+  console.log('[HTTP Server] 🔄 WebSocket upgrade request received');
+  console.log('[HTTP Server]    Path:', request.url);
+  console.log('[HTTP Server]    Origin:', request.headers.origin || 'not provided');
+  console.log('[HTTP Server]    User-Agent:', request.headers['user-agent']);
+  console.log('[HTTP Server]    Upgrade:', request.headers.upgrade);
+  console.log('[HTTP Server]    Connection:', request.headers.connection);
+});
 
 // ============================================
 // OPENAI REALTIME API WEBSOCKET RELAY
