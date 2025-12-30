@@ -169,6 +169,7 @@ jobs:
             "VITE_ELEVENLABS_DEFAULT_VOICE_ID=cgSgspJ2msm6clMCkdW9" \
             "OPENAI_REALTIME_VOICE=alloy" \
             "OPENAI_REALTIME_RELAY_URL=wss://api.tshla.ai/media-stream" \
+            "ELEVENLABS_RELAY_URL=wss://api.tshla.ai/elevenlabs-relay" \
             "VITE_AZURE_OPENAI_ENDPOINT=${{ secrets.VITE_AZURE_OPENAI_ENDPOINT }}" \
             "VITE_AZURE_OPENAI_KEY=${{ secrets.VITE_AZURE_OPENAI_KEY }}" \
             "VITE_AZURE_OPENAI_DEPLOYMENT=${{ secrets.VITE_AZURE_OPENAI_DEPLOYMENT }}" \
