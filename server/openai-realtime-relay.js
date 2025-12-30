@@ -447,9 +447,12 @@ function setupRealtimeRelay(server) {
   console.log('[Realtime] Setting up WebSocket endpoint at /media-stream');
 
   // Create WebSocket server on /media-stream path (using native ws library)
+  // IMPORTANT: Disable compression for Twilio compatibility
   const wss = new WebSocket.Server({
     server,
-    path: '/media-stream'
+    path: '/media-stream',
+    perMessageDeflate: false, // Twilio doesn't support compression
+    clientTracking: true
   });
 
   wss.on('connection', async (ws, req) => {
