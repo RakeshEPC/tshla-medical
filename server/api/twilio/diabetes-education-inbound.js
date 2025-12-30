@@ -148,54 +148,66 @@ async function generateStreamTwiML(agentId, patientData) {
   }
 
   // ========================================================
-  // NEW: Use OpenAI Realtime API instead of ElevenLabs
+  // Use ElevenLabs Conversational AI with native Twilio integration
   // ========================================================
-  // The OpenAI Realtime relay server will:
-  // 1. Fetch patient context by phone number
-  // 2. Connect to OpenAI Realtime API with context
-  // 3. Relay audio bidirectionally
+  // ElevenLabs provides direct WebSocket connection for Twilio
+  // with patient context passed as variables
   // ========================================================
 
-  // Quick pre-flight check: Verify OpenAI API key is configured
-  const openAiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
-  if (!openAiKey) {
-    console.error('   ❌ OPENAI_API_KEY not configured!');
+  try {
+    // Verify ElevenLabs API key is configured
+    if (!ELEVENLABS_API_KEY) {
+      console.error('   ❌ ElevenLabs API key not configured');
+      return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="alice" language="en-US">
+    We're sorry, but our diabetes education service is not fully configured at this time.
+    Please contact your clinic directly for assistance.
+    Thank you for calling.
+  </Say>
+  <Hangup/>
+</Response>`;
+    }
+
+    // Get signed WebSocket URL from ElevenLabs with patient context
+    const elevenLabsSignedUrl = await getElevenLabsSignedUrl(agentId, patientContext);
+
+    console.log('   ✅ ElevenLabs WebSocket URL obtained');
+
+    // Use relay proxy to bridge Twilio (no query params) to ElevenLabs (with query params)
+    const relayUrl = process.env.ELEVENLABS_RELAY_URL || 'wss://api.tshla.ai/elevenlabs-relay';
+
+    console.log('   🔄 Using relay proxy:', relayUrl);
+
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="alice" language="${patientData.preferred_language === 'es' ? 'es-MX' : 'en-US'}">
+    Connecting you to your diabetes educator. Please wait.
+  </Say>
+  <Connect>
+    <Stream url="${relayUrl}">
+      <Parameter name="elevenlabs_url" value="${elevenLabsSignedUrl}"/>
+    </Stream>
+  </Connect>
+  <Say voice="alice" language="${patientData.preferred_language === 'es' ? 'es-MX' : 'en-US'}">
+    Thank you for calling. If you have more questions, please call back or contact your clinic directly.
+  </Say>
+</Response>`;
+
+  } catch (error) {
+    console.error('   ❌ Failed to get ElevenLabs signed URL:', error.message);
+    console.error('   ❌ Error details:', error);
+
     return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="alice" language="en-US">
-    We're sorry, but our diabetes educator A I is not configured at this time.
+    We're sorry, but our diabetes educator A I is not available at this time.
     Please contact your clinic directly for assistance.
     Thank you for calling.
   </Say>
   <Hangup/>
 </Response>`;
   }
-
-  // Construct WebSocket URL for OpenAI Realtime relay
-  const realtimeRelayUrl = process.env.OPENAI_REALTIME_RELAY_URL ||
-    'wss://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io/media-stream';
-
-  console.log('   🔄 Using OpenAI Realtime API relay');
-  console.log(`      Relay URL: ${realtimeRelayUrl}`);
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say voice="alice" language="${patientData.preferred_language === 'es' ? 'es-MX' : 'en-US'}">
-    Connecting you to your diabetes educator. Please wait.
-  </Say>
-  <Connect>
-    <Stream url="${realtimeRelayUrl}">
-      <Parameter name="patientId" value="${patientData.id}"/>
-      <Parameter name="patientName" value="${patientData.first_name} ${patientData.last_name}"/>
-      <Parameter name="language" value="${patientData.preferred_language}"/>
-    </Stream>
-  </Connect>
-  <Say voice="alice" language="${patientData.preferred_language === 'es' ? 'es-MX' : 'en-US'}">
-    We're sorry, but we're experiencing technical difficulties with our A I educator.
-    Please try calling again in a few minutes, or contact your clinic directly.
-    Thank you for calling.
-  </Say>
-</Response>`;
 }
 
 /**
@@ -211,30 +223,24 @@ function getElevenLabsSignedUrl(agentId, patientContext) {
 
     const https = require('https');
 
-    // Build request body with patient context as a variable
-    // The agent's system prompt should use {{patient_context}} to access this
-    const requestBody = JSON.stringify({
-      agent_id: agentId,
-      // Pass patient data as variables for prompt substitution
-      variables: {
-        patient_context: patientContext || 'No patient information available in records.'
-      }
-    });
-
-    console.log('   🔧 Creating ElevenLabs conversation with patient context');
+    console.log('   🔧 Getting ElevenLabs signed URL for agent:', agentId);
     console.log('      Patient context length:', (patientContext || '').length, 'characters');
     if (patientContext) {
       console.log('      Context preview:', patientContext.substring(0, 150) + '...');
     }
 
+    // Build query string with agent_id
+    // Note: Patient context will be passed as custom variables if needed
+    const queryParams = new URLSearchParams({
+      agent_id: agentId
+    });
+
     const options = {
       hostname: 'api.elevenlabs.io',
-      path: '/v1/convai/conversations',
-      method: 'POST',
+      path: `/v1/convai/conversation/get-signed-url?${queryParams.toString()}`,
+      method: 'GET',
       headers: {
-        'xi-api-key': ELEVENLABS_API_KEY,
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(requestBody)
+        'xi-api-key': ELEVENLABS_API_KEY
       }
     };
 
@@ -244,6 +250,10 @@ function getElevenLabsSignedUrl(agentId, patientContext) {
       res.on('end', () => {
         try {
           const parsed = JSON.parse(data);
+
+          console.log('   🔍 ElevenLabs API response status:', res.statusCode);
+          console.log('   🔍 Response keys:', Object.keys(parsed));
+          console.log('   🔍 Full response:', JSON.stringify(parsed, null, 2));
 
           if (res.statusCode !== 200 && res.statusCode !== 201) {
             console.error('❌ [DiabetesEdu] ElevenLabs API error:', res.statusCode);
@@ -264,7 +274,7 @@ function getElevenLabsSignedUrl(agentId, patientContext) {
 
           console.log('   ✅ ElevenLabs conversation created');
           console.log('      Conversation ID:', parsed.conversation_id);
-          console.log('      WebSocket URL obtained');
+          console.log('      WebSocket URL:', wsUrl.substring(0, 50) + '...');
 
           resolve(wsUrl);
         } catch (e) {
@@ -280,7 +290,6 @@ function getElevenLabsSignedUrl(agentId, patientContext) {
       reject(e);
     });
 
-    req.write(requestBody);
     req.end();
   });
 }
@@ -305,6 +314,7 @@ async function handler(req, res) {
       CallStatus,
     } = req.body;
 
+    console.error(`   [DiabetesEdu] Call SID: ${CallSid}, From: ${From}, To: ${To}, Status: ${CallStatus}`);
     console.log(`   Call SID: ${CallSid}`);
     console.log(`   From: ${From}`);
     console.log(`   To: ${To}`);

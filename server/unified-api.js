@@ -1819,6 +1819,111 @@ if (!ELEVENLABS_API_KEY || !hasAnyDiabetesAgent) {
   console.log('✅ WebSocket server ready on /ws/elevenlabs-diabetes');
 }
 
+// ============================================
+// ELEVENLABS RELAY FOR DIABETES EDUCATION
+// ============================================
+// This relay proxy bridges Twilio Media Streams to ElevenLabs
+// Twilio doesn't support query params in WebSocket URLs, but ElevenLabs needs them
+// So we accept Twilio connections and relay to ElevenLabs signed URLs
+
+const elevenLabsRelay = new WebSocket.Server({
+  server,
+  path: '/elevenlabs-relay'
+});
+
+elevenLabsRelay.on('connection', (twilioWs, req) => {
+  console.log('\n🔄 [ElevenLabs Relay] New Twilio connection');
+
+  let elevenLabsWs = null;
+  let elevenLabsUrl = null;
+  let isConnected = false;
+
+  twilioWs.on('message', async (message) => {
+    try {
+      const data = JSON.parse(message);
+
+      // Handle Twilio's start message
+      if (data.event === 'start') {
+        console.log('   📨 [Relay] Twilio start event received');
+
+        // Extract ElevenLabs URL from custom parameters
+        const customParams = data.start?.customParameters || {};
+        elevenLabsUrl = customParams.elevenlabs_url;
+
+        if (!elevenLabsUrl) {
+          console.error('   ❌ [Relay] No ElevenLabs URL in custom parameters');
+          console.error('   ❌ [Relay] Custom params:', JSON.stringify(customParams));
+          twilioWs.close();
+          return;
+        }
+
+        console.log('   🔗 [Relay] Connecting to ElevenLabs:', elevenLabsUrl.substring(0, 80) + '...');
+
+        // Connect to ElevenLabs
+        elevenLabsWs = new WebSocket(elevenLabsUrl);
+
+        elevenLabsWs.on('open', () => {
+          console.log('   ✅ [Relay] Connected to ElevenLabs');
+          isConnected = true;
+        });
+
+        elevenLabsWs.on('message', (elevenLabsData) => {
+          // Relay messages from ElevenLabs to Twilio
+          if (twilioWs.readyState === WebSocket.OPEN) {
+            twilioWs.send(elevenLabsData);
+          }
+        });
+
+        elevenLabsWs.on('close', (code, reason) => {
+          console.log('   📞 [Relay] ElevenLabs disconnected:', code, reason.toString());
+          if (twilioWs.readyState === WebSocket.OPEN) {
+            twilioWs.close();
+          }
+        });
+
+        elevenLabsWs.on('error', (error) => {
+          console.error('   ❌ [Relay] ElevenLabs WebSocket error:', error.message);
+          if (twilioWs.readyState === WebSocket.OPEN) {
+            twilioWs.close();
+          }
+        });
+      }
+      // Handle media messages from Twilio
+      else if (data.event === 'media' && elevenLabsWs && isConnected) {
+        // Forward audio from Twilio to ElevenLabs
+        if (elevenLabsWs.readyState === WebSocket.OPEN) {
+          elevenLabsWs.send(message);
+        }
+      }
+      // Handle stop event
+      else if (data.event === 'stop') {
+        console.log('   📞 [Relay] Twilio stop event');
+        if (elevenLabsWs && elevenLabsWs.readyState === WebSocket.OPEN) {
+          elevenLabsWs.close();
+        }
+      }
+    } catch (error) {
+      console.error('   ❌ [Relay] Error processing Twilio message:', error.message);
+    }
+  });
+
+  twilioWs.on('close', (code, reason) => {
+    console.log('   📞 [Relay] Twilio disconnected:', code);
+    if (elevenLabsWs && elevenLabsWs.readyState === WebSocket.OPEN) {
+      elevenLabsWs.close();
+    }
+  });
+
+  twilioWs.on('error', (error) => {
+    console.error('   ❌ [Relay] Twilio WebSocket error:', error.message);
+    if (elevenLabsWs && elevenLabsWs.readyState === WebSocket.OPEN) {
+      elevenLabsWs.close();
+    }
+  });
+});
+
+console.log('✅ ElevenLabs Relay WebSocket server ready on /elevenlabs-relay');
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('❌ Error:', err);
@@ -1831,7 +1936,7 @@ app.use((err, req, res, next) => {
 // 404 handler (but skip WebSocket paths entirely)
 app.use('*', (req, res, next) => {
   // Skip 404 for WebSocket paths - they're handled by WebSocket.Server at HTTP server level
-  if (req.path.startsWith('/ws/') || req.path.startsWith('/media-stream')) {
+  if (req.path.startsWith('/ws/') || req.path.startsWith('/media-stream') || req.path.startsWith('/elevenlabs-relay')) {
     // Don't handle this in Express - skip to next (which is nothing, so request hangs until WS handles it)
     return next();
   }
