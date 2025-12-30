@@ -457,6 +457,8 @@ function setupRealtimeRelay(server) {
 
   wss.on('connection', async (ws, req) => {
     console.log('[Realtime] 📞 New Twilio connection');
+    console.log('[Realtime] Connection URL:', req.url);
+    console.log('[Realtime] Connection headers:', JSON.stringify(req.headers, null, 2));
 
     let streamSid = null;
     let callSid = null;
@@ -484,6 +486,10 @@ function setupRealtimeRelay(server) {
     ws.on('message', async (message) => {
       try {
         const data = JSON.parse(message);
+        console.log(`[Realtime] Received event: ${data.event}`);
+        if (data.event === 'start') {
+          console.log('[Realtime] Start event data:', JSON.stringify(data, null, 2));
+        }
 
         switch (data.event) {
           case 'start':
