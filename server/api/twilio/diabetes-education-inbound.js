@@ -177,31 +177,52 @@ async function generateStreamTwiML(agentId, patientData, fromNumber, toNumber) {
     // Use ElevenLabs register_call API to get properly configured TwiML
     // This API returns TwiML that sets up ElevenLabs' own WebSocket relay
     console.log('   🔄 Calling ElevenLabs register_call API...');
-    const response = await elevenLabs.conversationalAi.twilio.registerCall({
-      agentId: agentId,
-      fromNumber: fromNumber,
-      toNumber: toNumber,
-      direction: 'inbound',
-      conversationInitiationClientData: {
-        dynamicVariables: {
-          patient_name: patientData.first_name + ' ' + patientData.last_name,
-          patient_language: patientData.preferred_language || 'en',
-          clinical_notes: patientContext || 'No specific clinical notes available',
-          caller_number: fromNumber
-        }
-      }
-    });
+
+    // Build the request body
+    const requestBody = {
+      agent_id: agentId,
+      from_number: fromNumber,
+      to_number: toNumber,
+      direction: 'inbound'
+    };
+
+    // Add dynamic variables if patient context exists
+    if (patientContext && patientContext.length > 0) {
+      requestBody.conversation_initiation_client_data = {
+        patient_context: patientContext,
+        patient_name: patientData.first_name + ' ' + patientData.last_name,
+        patient_language: patientData.preferred_language || 'en'
+      };
+    }
+
+    console.log('   📤 Request body:', JSON.stringify(requestBody, null, 2));
+
+    const response = await elevenLabs.conversationalAi.twilio.registerCall(requestBody);
 
     console.log('   ✅ ElevenLabs register_call response received');
     console.log('   📊 Response type:', typeof response);
-    console.log('   📊 Response keys:', Object.keys(response || {}));
+    console.log('   📊 Response:', JSON.stringify(response, null, 2));
 
-    // The SDK might return an object with a twiml property, or the raw TwiML string
-    const twimlResponse = response.twiml || response;
-    console.log('   📄 TwiML length:', twimlResponse?.length || 'N/A');
-    console.log('   📄 TwiML preview:', typeof twimlResponse === 'string' ? twimlResponse.substring(0, 300) : 'Not a string');
+    // The response should be a string containing TwiML
+    if (typeof response === 'string' && response.includes('<Response>')) {
+      console.log('   📄 TwiML length:', response.length);
+      console.log('   📄 TwiML preview:', response.substring(0, 300));
+      return response;
+    }
 
-    return twimlResponse;
+    // Handle case where response is an object with a twiml property
+    if (response && typeof response === 'object') {
+      const twiml = response.twiml || response.body || response.data;
+      if (twiml && typeof twiml === 'string') {
+        console.log('   📄 TwiML extracted from response object');
+        return twiml;
+      }
+    }
+
+    // If we got here, the response format is unexpected
+    console.error('   ❌ Unexpected response format from ElevenLabs');
+    console.error('   ❌ Response:', response);
+    throw new Error('Invalid response from ElevenLabs API');
 
   } catch (error) {
     console.error('   ❌ Failed to get ElevenLabs signed URL:', error.message);
