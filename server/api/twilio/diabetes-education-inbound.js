@@ -197,32 +197,67 @@ async function generateStreamTwiML(agentId, patientData, fromNumber, toNumber) {
 
     console.log('   📤 Request body:', JSON.stringify(requestBody, null, 2));
 
-    const response = await elevenLabs.conversationalAi.twilio.registerCall(requestBody);
+    // Make direct HTTP request to ElevenLabs API since SDK returns void
+    const https = require('https');
 
-    console.log('   ✅ ElevenLabs register_call response received');
-    console.log('   📊 Response type:', typeof response);
-    console.log('   📊 Response:', JSON.stringify(response, null, 2));
+    const twiml = await new Promise((resolve, reject) => {
+      const postData = JSON.stringify(requestBody);
 
-    // The response should be a string containing TwiML
-    if (typeof response === 'string' && response.includes('<Response>')) {
-      console.log('   📄 TwiML length:', response.length);
-      console.log('   📄 TwiML preview:', response.substring(0, 300));
-      return response;
-    }
+      const options = {
+        hostname: 'api.elevenlabs.io',
+        port: 443,
+        path: '/v1/convai/twilio/register_call',
+        method: 'POST',
+        headers: {
+          'xi-api-key': ELEVENLABS_API_KEY,
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(postData)
+        }
+      };
 
-    // Handle case where response is an object with a twiml property
-    if (response && typeof response === 'object') {
-      const twiml = response.twiml || response.body || response.data;
-      if (twiml && typeof twiml === 'string') {
-        console.log('   📄 TwiML extracted from response object');
-        return twiml;
-      }
-    }
+      const req = https.request(options, (res) => {
+        let data = '';
 
-    // If we got here, the response format is unexpected
-    console.error('   ❌ Unexpected response format from ElevenLabs');
-    console.error('   ❌ Response:', response);
-    throw new Error('Invalid response from ElevenLabs API');
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+
+        res.on('end', () => {
+          console.log('   ✅ ElevenLabs API response received');
+          console.log('   📊 Status:', res.statusCode);
+          console.log('   📊 Headers:', JSON.stringify(res.headers, null, 2));
+          console.log('   📊 Body length:', data.length);
+          console.log('   📊 Body preview:', data.substring(0, 300));
+
+          if (res.statusCode !== 200 && res.statusCode !== 201) {
+            console.error('   ❌ ElevenLabs API error:', res.statusCode);
+            console.error('   ❌ Response:', data);
+            reject(new Error(`ElevenLabs API returned ${res.statusCode}: ${data}`));
+            return;
+          }
+
+          // Response should be TwiML
+          if (data.includes('<Response>')) {
+            console.log('   ✅ TwiML received from ElevenLabs');
+            resolve(data);
+          } else {
+            console.error('   ❌ Response is not TwiML');
+            console.error('   ❌ Full response:', data);
+            reject(new Error('Invalid TwiML response from ElevenLabs'));
+          }
+        });
+      });
+
+      req.on('error', (e) => {
+        console.error('   ❌ Request error:', e);
+        reject(e);
+      });
+
+      req.write(postData);
+      req.end();
+    });
+
+    return twiml;
 
   } catch (error) {
     console.error('   ❌ Failed to get ElevenLabs signed URL:', error.message);
