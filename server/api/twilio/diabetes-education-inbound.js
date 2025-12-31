@@ -178,17 +178,17 @@ async function generateStreamTwiML(agentId, patientData, fromNumber, toNumber) {
     // This API returns TwiML that sets up ElevenLabs' own WebSocket relay
     console.log('   🔄 Calling ElevenLabs register_call API...');
 
-    // Build the request body
+    // Build the request body - SDK requires camelCase
     const requestBody = {
-      agent_id: agentId,
-      from_number: fromNumber,
-      to_number: toNumber,
+      agentId: agentId,
+      fromNumber: fromNumber,
+      toNumber: toNumber,
       direction: 'inbound'
     };
 
     // Add dynamic variables if patient context exists
     if (patientContext && patientContext.length > 0) {
-      requestBody.conversation_initiation_client_data = {
+      requestBody.conversationInitiationClientData = {
         patient_context: patientContext,
         patient_name: patientData.first_name + ' ' + patientData.last_name,
         patient_language: patientData.preferred_language || 'en'
