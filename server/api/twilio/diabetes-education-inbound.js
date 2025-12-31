@@ -206,7 +206,7 @@ async function generateStreamTwiML(agentId, patientData, fromNumber, toNumber) {
       const options = {
         hostname: 'api.elevenlabs.io',
         port: 443,
-        path: '/v1/convai/twilio/register_call',
+        path: '/v1/convai/twilio/register-call',
         method: 'POST',
         headers: {
           'xi-api-key': ELEVENLABS_API_KEY,
