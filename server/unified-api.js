@@ -249,12 +249,15 @@ app.post('/api/twilio/previsit-twiml', async (req, res) => {
 
 // Diabetes Education Twilio handlers
 let diabetesEducationInbound = null;
+let diabetesEducationCleanup = null;
 try {
   const path = require('path');
   diabetesEducationInbound = require(path.join(__dirname, 'api', 'twilio', 'diabetes-education-inbound'));
+  diabetesEducationCleanup = require(path.join(__dirname, 'api', 'twilio', 'diabetes-education-cleanup'));
   app.post('/api/twilio/diabetes-education-inbound', diabetesEducationInbound.default);
   app.post('/api/twilio/diabetes-education-status', diabetesEducationInbound.handleCallStatus);
   app.post('/api/twilio/diabetes-education-complete', diabetesEducationInbound.handleCallComplete);
+  app.post('/api/twilio/diabetes-education-cleanup', diabetesEducationCleanup);
   app.post('/api/elevenlabs/diabetes-education-transcript', diabetesEducationInbound.handleElevenLabsTranscript);
   console.log('✅ Diabetes Education Twilio webhooks registered');
 } catch (e) {

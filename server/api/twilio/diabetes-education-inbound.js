@@ -10,6 +10,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { ElevenLabsClient } = require('@elevenlabs/elevenlabs-js');
+const kbService = require('../../services/elevenLabsKnowledgeBase.service');
 
 // =====================================================
 // CONFIGURATION
@@ -437,6 +438,25 @@ async function handler(req, res) {
 
     console.log(`   Using ElevenLabs agent: ${agentId}`);
 
+    // Upload patient data to Knowledge Base
+    // This makes patient data available to the AI during the conversation
+    const patientContext = buildPatientContext(patient);
+    let kbDocumentId = null;
+
+    try {
+      console.log('[DiabetesEdu] 📤 Uploading patient data to Knowledge Base...');
+      kbDocumentId = await kbService.uploadPatientToKB(patient, patientContext, CallSid);
+
+      if (kbDocumentId) {
+        console.log(`✅ [DiabetesEdu] Patient data uploaded to KB: ${kbDocumentId}`);
+      } else {
+        console.warn('⚠️  [DiabetesEdu] KB upload skipped (not configured)');
+      }
+    } catch (kbError) {
+      // Don't block the call if KB upload fails - log and continue
+      console.error('❌ [DiabetesEdu] KB upload failed (call will proceed anyway):', kbError.message);
+    }
+
     // Log call start in database
     try {
       const { data: callLog, error: logError } = await supabase
@@ -447,6 +467,7 @@ async function handler(req, res) {
           language: patient.preferred_language,
           caller_phone_number: From,
           call_status: 'in-progress',
+          kb_document_id: kbDocumentId, // Store for cleanup later
         })
         .select()
         .single();
