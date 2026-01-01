@@ -62,21 +62,18 @@ function formatPhoneNumber(phone) {
 /**
  * Build patient context string for AI agent
  * Combines clinical notes, focus areas, and medical data into readable format
+ * NOTE: Clinical notes are placed LAST to override any conflicting information
+ * in structured medical_data (e.g., updated A1C values)
  */
 function buildPatientContext(patient) {
   const sections = [];
 
-  // Add clinical notes (staff instructions and call history)
-  if (patient.clinical_notes && patient.clinical_notes.trim()) {
-    sections.push(`Clinical Notes and Instructions:\n${patient.clinical_notes.trim()}`);
-  }
-
-  // Add focus areas
+  // Add focus areas first
   if (patient.focus_areas && Array.isArray(patient.focus_areas) && patient.focus_areas.length > 0) {
     sections.push(`Focus Areas: ${patient.focus_areas.join(', ')}`);
   }
 
-  // Add medical data
+  // Add medical data (historical/baseline information)
   if (patient.medical_data) {
     const medicalSections = [];
 
@@ -114,6 +111,12 @@ function buildPatientContext(patient) {
     if (medicalSections.length > 0) {
       sections.push(medicalSections.join('\n\n'));
     }
+  }
+
+  // Add clinical notes LAST with emphasis - this overrides any conflicting data above
+  // Staff use this field to provide the most current, updated information
+  if (patient.clinical_notes && patient.clinical_notes.trim()) {
+    sections.push(`IMPORTANT - UPDATED CLINICAL INFORMATION:\n${patient.clinical_notes.trim()}`);
   }
 
   return sections.join('\n\n');
