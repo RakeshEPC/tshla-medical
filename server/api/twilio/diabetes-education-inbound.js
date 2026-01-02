@@ -170,7 +170,7 @@ async function generateStreamTwiML(agentId, patientData, fromNumber, toNumber) {
     // 1. Creating OpenAI Realtime session with patient context
     // 2. Function calling to fetch patient data from Supabase
     // 3. Bidirectional audio streaming between Twilio and OpenAI
-    const wsUrl = `${API_BASE_URL.replace('http', 'ws')}/ws/openai-realtime`;
+    const wsUrl = `${API_BASE_URL.replace('http', 'ws')}/media-stream`;
 
     // Pass patient data as query parameters for relay to use
     const params = new URLSearchParams({
