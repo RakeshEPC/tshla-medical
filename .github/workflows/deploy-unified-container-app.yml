@@ -111,11 +111,13 @@ jobs:
 
         # First, ensure ingress is set to HTTP (required for WebSocket support)
         # Note: "auto" uses HTTP/2 which breaks WebSockets - must use "http" for HTTP/1.1
+        # CRITICAL: Must also set --allow-insecure true to force HTTP/1.1 (Azure Front Door still uses HTTP/2 otherwise)
         echo "Configuring ingress for WebSocket support..."
         az containerapp ingress update \
           --name ${{ env.CONTAINER_APP_NAME }} \
           --resource-group ${{ env.RESOURCE_GROUP }} \
-          --transport http
+          --transport http \
+          --allow-insecure true
 
         # Set all secrets BEFORE referencing them
         echo "Setting secrets in Container App..."
