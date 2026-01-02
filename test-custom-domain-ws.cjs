@@ -1,19 +1,19 @@
 const WebSocket = require('ws');
 
-console.log('Testing WebSocket Relay at /media-stream\n');
+console.log('Testing WebSocket at wss://api.tshla.ai/media-stream\n');
 
-const ws = new WebSocket('wss://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io/media-stream', {
-  perMessageDeflate: false  // Disable compression to match server
+const ws = new WebSocket('wss://api.tshla.ai/media-stream', {
+  perMessageDeflate: false
 });
 
 ws.on('open', () => {
-  console.log('✅ WebSocket opened');
-
+  console.log('✅ WebSocket opened successfully!');
+  
   const twilioStart = {
     event: 'start',
-    streamSid: 'TEST123',
+    streamSid: 'DOMAIN_TEST123',
     start: {
-      streamSid: 'TEST123',
+      streamSid: 'DOMAIN_TEST123',
       accountSid: 'TEST',
       callSid: 'TEST_CALL',
       tracks: ['inbound', 'outbound'],
@@ -22,7 +22,7 @@ ws.on('open', () => {
       }
     }
   };
-
+  
   ws.send(JSON.stringify(twilioStart));
   console.log('📤 Sent start message');
 });
@@ -40,7 +40,7 @@ ws.on('close', (code) => {
 });
 
 setTimeout(() => {
-  console.log('\n⏱️  Timeout');
+  console.log('\n⏱️  Test complete');
   ws.close();
   process.exit(0);
-}, 10000);
+}, 5000);

@@ -247,21 +247,33 @@ app.post('/api/twilio/previsit-twiml', async (req, res) => {
   }
 });
 
-// Diabetes Education Twilio handlers
-let diabetesEducationInbound = null;
-let diabetesEducationCleanup = null;
+// ==========================================================================
+// DIABETES EDUCATION - OPENAI REALTIME (V2 - Diagnostic & Safe Mode)
+// ==========================================================================
+// V2 uses OpenAI Realtime with safe modes and proper Twilio Media Streams
 try {
-  const path = require('path');
-  diabetesEducationInbound = require(path.join(__dirname, 'api', 'twilio', 'diabetes-education-inbound'));
-  diabetesEducationCleanup = require(path.join(__dirname, 'api', 'twilio', 'diabetes-education-cleanup'));
-  app.post('/api/twilio/diabetes-education-inbound', diabetesEducationInbound.default);
-  app.post('/api/twilio/diabetes-education-status', diabetesEducationInbound.handleCallStatus);
-  app.post('/api/twilio/diabetes-education-complete', diabetesEducationInbound.handleCallComplete);
-  app.post('/api/twilio/diabetes-education-cleanup', diabetesEducationCleanup);
-  app.post('/api/elevenlabs/diabetes-education-transcript', diabetesEducationInbound.handleElevenLabsTranscript);
-  console.log('✅ Diabetes Education Twilio webhooks registered');
+  const diabetesEducationV2 = require('./api/twilio/diabetes-education-inbound-v2');
+  const streamStatus = require('./api/twilio/stream-status');
+  const diagnostics = require('./api/diagnostic-endpoints');
+
+  // Main webhook (MUST respond < 500ms with text/xml)
+  app.post('/api/twilio/diabetes-education-inbound', diabetesEducationV2.default);
+
+  // Stream status callback (debug stream lifecycle)
+  app.post('/api/twilio/stream-status', streamStatus);
+
+  // Diagnostic endpoints
+  app.get('/healthz', diagnostics.healthz);
+  app.get('/ws-test', diagnostics.wsTest);
+  app.get('/twiml-test', diagnostics.twimlTest);
+  app.get('/twiml-test-json', diagnostics.twimlTestJson);
+
+  console.log('✅ Diabetes Education V2 (OpenAI Realtime) webhooks registered');
+  console.log(`   Safe Mode: ${process.env.SAFE_MODE || 'D (full)'}`);
+  console.log('   Diagnostic endpoints: /healthz, /ws-test, /twiml-test');
 } catch (e) {
-  console.error('❌ Failed to load Diabetes Education Twilio handlers:', e.message);
+  console.error('❌ Failed to load Diabetes Education V2:', e.message);
+  console.error(e.stack);
 }
 
 // Pre-Visit Conversations API

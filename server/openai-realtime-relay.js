@@ -685,21 +685,41 @@ function setupRealtimeRelay(server) {
 
             // Get patient data from TwiML parameters (passed from inbound webhook)
             const customParams = data.start.customParameters || {};
-            const patientId = customParams.patientId;
-            const patientName = customParams.patientName;
+            console.log(`[Realtime] 📞 Call started - Custom params:`, JSON.stringify(customParams, null, 2));
+
+            // NEW: Use token-based lookup (for fast TwiML response)
+            const patientToken = customParams.patientToken;
             const language = customParams.language || 'en';
 
             callLog.streamSid = streamSid;
             callLog.callSid = callSid;
-            callLog.patientId = patientId;
             callLog.language = language;
 
-            console.log(`[Realtime] 📞 Call started`);
             console.log(`   Call SID: ${callSid}`);
             console.log(`   Stream SID: ${streamSid}`);
-            console.log(`   Patient ID: ${patientId}`);
-            console.log(`   Patient Name: ${patientName}`);
+            console.log(`   Patient Token: ${patientToken ? patientToken.substring(0,8) + '...' : 'MISSING'}`);
             console.log(`   Language: ${language}`);
+
+            // Retrieve patient ID from token
+            let patientId = null;
+            let patientName = null;
+
+            if (patientToken) {
+              try {
+                const { getPatientFromToken } = require('./api/twilio/diabetes-education-inbound-v2');
+                const tokenData = getPatientFromToken(patientToken);
+                if (tokenData) {
+                  patientId = tokenData.patientId;
+                  patientName = `${tokenData.firstName} ${tokenData.lastName}`;
+                  console.log(`   ✅ Token valid - Patient: ${patientName}`);
+                  callLog.patientId = patientId;
+                } else {
+                  console.error(`   ❌ Invalid or expired token`);
+                }
+              } catch (err) {
+                console.error(`   ❌ Token lookup error:`, err.message);
+              }
+            }
 
             // Fetch full patient context from database using patient ID
             if (patientId) {
