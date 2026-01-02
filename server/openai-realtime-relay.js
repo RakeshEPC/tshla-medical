@@ -223,6 +223,50 @@ CONVERSATION STYLE:
 
 Remember: You're here to support, educate, and empower the patient in managing their diabetes.`;
 
+      // Define functions the AI can call to fetch patient data dynamically
+      const tools = [
+        {
+          type: 'function',
+          name: 'get_patient_labs',
+          description: 'Get the patient\'s lab results including A1C, glucose, and other test values',
+          parameters: {
+            type: 'object',
+            properties: {},
+            required: []
+          }
+        },
+        {
+          type: 'function',
+          name: 'get_patient_medications',
+          description: 'Get the patient\'s current medications with dosages and frequencies',
+          parameters: {
+            type: 'object',
+            properties: {},
+            required: []
+          }
+        },
+        {
+          type: 'function',
+          name: 'get_patient_diagnoses',
+          description: 'Get the patient\'s diabetes-related diagnoses',
+          parameters: {
+            type: 'object',
+            properties: {},
+            required: []
+          }
+        },
+        {
+          type: 'function',
+          name: 'get_clinical_notes',
+          description: 'Get recent clinical notes from the patient\'s care team',
+          parameters: {
+            type: 'object',
+            properties: {},
+            required: []
+          }
+        }
+      ];
+
       // Configure the session
       const sessionConfig = {
         type: 'session.update',
@@ -242,7 +286,9 @@ Remember: You're here to support, educate, and empower the patient in managing t
             silence_duration_ms: 500
           },
           temperature: 0.8, // Slightly more natural/varied responses
-          max_response_output_tokens: 4096
+          max_response_output_tokens: 4096,
+          tools: tools,  // Register functions
+          tool_choice: 'auto'  // AI decides when to call functions
         }
       };
 
@@ -284,9 +330,117 @@ Remember: You're here to support, educate, and empower the patient in managing t
 }
 
 /**
+ * Handle function calls from OpenAI
+ * Fetch patient data from database and return to AI
+ */
+async function handleFunctionCall(functionCallData, callLog, openAIWs) {
+  const { call_id, name, arguments: argsString } = functionCallData;
+
+  console.log(`[Realtime] Executing function: ${name}`);
+
+  try {
+    const supabase = getSupabase();
+    if (!supabase || !callLog.patientId) {
+      throw new Error('Cannot fetch patient data - missing database or patient ID');
+    }
+
+    // Fetch patient record
+    const { data: patient, error } = await supabase
+      .from('diabetes_education_patients')
+      .select('*')
+      .eq('id', callLog.patientId)
+      .single();
+
+    if (error || !patient) {
+      throw new Error('Patient not found');
+    }
+
+    let result;
+
+    switch (name) {
+      case 'get_patient_labs':
+        if (patient.medical_data && patient.medical_data.labs) {
+          const labs = patient.medical_data.labs;
+          const labResults = [];
+          for (const [key, val] of Object.entries(labs)) {
+            labResults.push({
+              test: key,
+              value: val.value,
+              unit: val.unit,
+              date: val.date || 'recent'
+            });
+          }
+          result = { labs: labResults };
+        } else {
+          result = { labs: [], message: 'No lab results on file' };
+        }
+        break;
+
+      case 'get_patient_medications':
+        if (patient.medical_data && patient.medical_data.medications) {
+          result = { medications: patient.medical_data.medications };
+        } else {
+          result = { medications: [], message: 'No medications on file' };
+        }
+        break;
+
+      case 'get_patient_diagnoses':
+        if (patient.medical_data && patient.medical_data.diagnoses) {
+          result = { diagnoses: patient.medical_data.diagnoses };
+        } else {
+          result = { diagnoses: [], message: 'No diagnoses on file' };
+        }
+        break;
+
+      case 'get_clinical_notes':
+        result = {
+          clinical_notes: patient.clinical_notes || 'No clinical notes available',
+          focus_areas: patient.focus_areas || []
+        };
+        break;
+
+      default:
+        result = { error: `Unknown function: ${name}` };
+    }
+
+    console.log(`[Realtime] Function result:`, JSON.stringify(result).substring(0, 200));
+
+    // Send function result back to OpenAI
+    const functionResponse = {
+      type: 'conversation.item.create',
+      item: {
+        type: 'function_call_output',
+        call_id: call_id,
+        output: JSON.stringify(result)
+      }
+    };
+
+    openAIWs.send(JSON.stringify(functionResponse));
+
+    // Tell OpenAI to generate a response using the function result
+    openAIWs.send(JSON.stringify({ type: 'response.create' }));
+
+  } catch (error) {
+    console.error(`[Realtime] Error in function ${name}:`, error);
+
+    // Send error back to OpenAI
+    const errorResponse = {
+      type: 'conversation.item.create',
+      item: {
+        type: 'function_call_output',
+        call_id: call_id,
+        output: JSON.stringify({ error: error.message })
+      }
+    };
+
+    openAIWs.send(JSON.stringify(errorResponse));
+  }
+}
+
+/**
  * Handle messages from OpenAI Realtime API
  */
-function handleOpenAIMessage(message, twilioWs, streamSid, callLog) {
+function handleOpenAIMessage(message, twilioWs, streamSid, callLog, openAIWs) {
   try {
     const data = JSON.parse(message);
 
@@ -366,6 +520,14 @@ function handleOpenAIMessage(message, twilioWs, streamSid, callLog) {
 
       case 'input_audio_buffer.speech_stopped':
         console.log('[Realtime] 🎤 User stopped speaking');
+        break;
+
+      case 'response.function_call_arguments.done':
+        // AI wants to call a function - handle it and send response
+        console.log(`[Realtime] 🔧 Function call: ${data.name}`);
+        handleFunctionCall(data, callLog, openAIWs).catch(err => {
+          console.error('[Realtime] Function call error:', err);
+        });
         break;
 
       default:
@@ -451,7 +613,7 @@ function setupRealtimeRelay(server) {
   const wss = new WebSocket.Server({
     server,
     path: '/media-stream',
-    perMessageDeflate: true, // Enable compression for Azure Container Apps compatibility
+    perMessageDeflate: false, // Twilio doesn't support compression
     clientTracking: true,
     verifyClient: (info, callback) => {
       // Log all WebSocket upgrade attempts
@@ -644,7 +806,7 @@ function setupRealtimeRelay(server) {
 
               // Forward OpenAI messages to Twilio
               openAiWs.on('message', (openAiMessage) => {
-                handleOpenAIMessage(openAiMessage, ws, streamSid, callLog);
+                handleOpenAIMessage(openAiMessage, ws, streamSid, callLog, openAiWs);
               });
 
               openAiWs.on('error', (error) => {
