@@ -163,7 +163,7 @@ async function generateStreamTwiML(agentId, patientData, fromNumber, toNumber) {
   try {
     console.log('   📞 Using OpenAI Realtime API via WebSocket relay');
     console.log(`   👤 Patient ID: ${patientData.id}`);
-    console.log(`   🌐 Language: ${language}`);
+    console.log(`   🌐 Language: ${patientData.preferred_language || 'en'}`);
 
     // Build the WebSocket URL for our OpenAI relay
     // The relay will handle:
@@ -176,7 +176,7 @@ async function generateStreamTwiML(agentId, patientData, fromNumber, toNumber) {
     const params = new URLSearchParams({
       patientId: patientData.id,
       patientName: `${patientData.first_name} ${patientData.last_name}`,
-      language: language,
+      language: patientData.preferred_language || 'en',
       callSid: '{{CallSid}}', // Twilio will replace this at runtime
       fromNumber: fromNumber
     });
@@ -192,7 +192,7 @@ async function generateStreamTwiML(agentId, patientData, fromNumber, toNumber) {
     <Stream url="${fullWsUrl}">
       <Parameter name="patientId" value="${patientData.id}"/>
       <Parameter name="patientName" value="${patientData.first_name} ${patientData.last_name}"/>
-      <Parameter name="language" value="${language}"/>
+      <Parameter name="language" value="${patientData.preferred_language || 'en'}"/>
     </Stream>
   </Connect>
 </Response>`;
