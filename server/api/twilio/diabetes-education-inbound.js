@@ -443,6 +443,9 @@ async function handler(req, res) {
     const patientContext = buildPatientContext(patient);
     let kbDocumentId = null;
 
+    console.log('[DiabetesEdu] 🔍 KB Service available:', typeof kbService);
+    console.log('[DiabetesEdu] 🔍 uploadPatientToKB available:', typeof kbService.uploadPatientToKB);
+
     try {
       console.log('[DiabetesEdu] 📤 Uploading patient data to Knowledge Base...');
       kbDocumentId = await kbService.uploadPatientToKB(patient, patientContext, CallSid);
