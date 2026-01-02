@@ -62,7 +62,6 @@ async function uploadPatientToKB(patient, patientContext, callSid = null) {
 
   const requestBody = {
     name: title,
-    type: 'text',
     text: patientContext
   };
 
@@ -72,7 +71,7 @@ async function uploadPatientToKB(patient, patientContext, callSid = null) {
     const options = {
       hostname: 'api.elevenlabs.io',
       port: 443,
-      path: '/v1/convai/knowledge-base',
+      path: '/v1/convai/knowledge-base/text',
       method: 'POST',
       headers: {
         'xi-api-key': ELEVENLABS_API_KEY,
