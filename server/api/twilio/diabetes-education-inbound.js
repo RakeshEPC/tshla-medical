@@ -449,6 +449,16 @@ async function handler(req, res) {
 
       if (kbDocumentId) {
         console.log(`✅ [DiabetesEdu] Patient data uploaded to KB: ${kbDocumentId}`);
+
+        // Link document to agent so it's searchable during the call
+        console.log('[DiabetesEdu] 🔗 Linking KB document to agent...');
+        const linked = await kbService.linkDocumentToAgent(agentId, kbDocumentId);
+
+        if (linked) {
+          console.log('✅ [DiabetesEdu] KB document linked to agent successfully');
+        } else {
+          console.warn('⚠️  [DiabetesEdu] Failed to link KB document to agent (call will proceed anyway)');
+        }
       } else {
         console.warn('⚠️  [DiabetesEdu] KB upload skipped (not configured)');
       }

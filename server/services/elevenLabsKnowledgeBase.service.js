@@ -9,14 +9,9 @@
 const https = require('https');
 
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || process.env.VITE_ELEVENLABS_API_KEY || '';
-const ELEVENLABS_KB_ID = process.env.ELEVENLABS_KB_ID || '';
 
 if (!ELEVENLABS_API_KEY) {
   console.warn('⚠️  [KB Service] ELEVENLABS_API_KEY not configured');
-}
-
-if (!ELEVENLABS_KB_ID) {
-  console.warn('⚠️  [KB Service] ELEVENLABS_KB_ID not configured - Knowledge Base features disabled');
 }
 
 /**
@@ -52,11 +47,6 @@ function formatDocumentId(phoneNumber, callSid = null) {
  * @returns {Promise<string>} - Document ID if successful
  */
 async function uploadPatientToKB(patient, patientContext, callSid = null) {
-  if (!ELEVENLABS_KB_ID) {
-    console.warn('[KB Service] ⚠️  Knowledge Base ID not configured - skipping upload');
-    return null;
-  }
-
   if (!ELEVENLABS_API_KEY) {
     console.error('[KB Service] ❌ API key not configured');
     throw new Error('ElevenLabs API key not configured');
@@ -71,15 +61,9 @@ async function uploadPatientToKB(patient, patientContext, callSid = null) {
   console.log(`   Context length: ${patientContext.length} characters`);
 
   const requestBody = {
-    document_id: docId,
-    title: title,
-    content: patientContext,
-    metadata: {
-      phone_number: patient.phone_number,
-      patient_name: `${patient.first_name} ${patient.last_name}`,
-      uploaded_at: new Date().toISOString(),
-      call_sid: callSid || 'unknown'
-    }
+    name: title,
+    type: 'text',
+    text: patientContext
   };
 
   return new Promise((resolve, reject) => {
@@ -88,7 +72,7 @@ async function uploadPatientToKB(patient, patientContext, callSid = null) {
     const options = {
       hostname: 'api.elevenlabs.io',
       port: 443,
-      path: `/v1/knowledge-bases/${ELEVENLABS_KB_ID}/documents`,
+      path: '/v1/convai/knowledge-base',
       method: 'POST',
       headers: {
         'xi-api-key': ELEVENLABS_API_KEY,
@@ -111,7 +95,17 @@ async function uploadPatientToKB(patient, patientContext, callSid = null) {
         if (res.statusCode === 200 || res.statusCode === 201) {
           console.log('[KB Service] ✅ Patient data uploaded successfully');
           console.log(`   Response: ${data.substring(0, 200)}`);
-          resolve(docId);
+
+          // Parse response to get document ID
+          try {
+            const response = JSON.parse(data);
+            const actualDocId = response.id || response.document_id || docId;
+            console.log(`   Document ID: ${actualDocId}`);
+            resolve(actualDocId);
+          } catch (e) {
+            console.warn('[KB Service] ⚠️  Could not parse document ID from response, using generated ID');
+            resolve(docId);
+          }
         } else {
           console.error(`[KB Service] ❌ Upload failed with status ${res.statusCode}`);
           console.error(`   Response: ${data}`);
@@ -144,11 +138,6 @@ async function uploadPatientToKB(patient, patientContext, callSid = null) {
  * @returns {Promise<boolean>} - True if successful
  */
 async function deletePatientFromKB(documentId) {
-  if (!ELEVENLABS_KB_ID) {
-    console.warn('[KB Service] ⚠️  Knowledge Base ID not configured - skipping delete');
-    return false;
-  }
-
   if (!ELEVENLABS_API_KEY) {
     console.error('[KB Service] ❌ API key not configured');
     return false;
@@ -161,7 +150,7 @@ async function deletePatientFromKB(documentId) {
     const options = {
       hostname: 'api.elevenlabs.io',
       port: 443,
-      path: `/v1/knowledge-bases/${ELEVENLABS_KB_ID}/documents/${documentId}`,
+      path: `/v1/convai/knowledge-base/${documentId}`,
       method: 'DELETE',
       headers: {
         'xi-api-key': ELEVENLABS_API_KEY
@@ -211,8 +200,8 @@ async function deletePatientFromKB(documentId) {
  * @returns {Promise<Array>} - Array of document objects
  */
 async function listKBDocuments() {
-  if (!ELEVENLABS_KB_ID || !ELEVENLABS_API_KEY) {
-    console.error('[KB Service] ❌ KB not configured');
+  if (!ELEVENLABS_API_KEY) {
+    console.error('[KB Service] ❌ API key not configured');
     return [];
   }
 
@@ -220,7 +209,7 @@ async function listKBDocuments() {
     const options = {
       hostname: 'api.elevenlabs.io',
       port: 443,
-      path: `/v1/knowledge-bases/${ELEVENLABS_KB_ID}/documents`,
+      path: '/v1/convai/knowledge-base',
       method: 'GET',
       headers: {
         'xi-api-key': ELEVENLABS_API_KEY
@@ -262,6 +251,267 @@ async function listKBDocuments() {
     });
 
     req.end();
+  });
+}
+
+/**
+ * Link KB document to agent
+ * This makes the document searchable by the agent during conversations
+ *
+ * @param {string} agentId - ElevenLabs agent ID
+ * @param {string} documentId - KB document ID to link
+ * @returns {Promise<boolean>} - True if successful
+ */
+async function linkDocumentToAgent(agentId, documentId) {
+  if (!ELEVENLABS_API_KEY) {
+    console.error('[KB Service] ❌ API key not configured');
+    return false;
+  }
+
+  console.log('[KB Service] 🔗 Linking KB document to agent');
+  console.log(`   Agent ID: ${agentId}`);
+  console.log(`   Document ID: ${documentId}`);
+
+  return new Promise((resolve) => {
+    // First, get current agent config to preserve existing knowledge_base docs
+    const getOptions = {
+      hostname: 'api.elevenlabs.io',
+      port: 443,
+      path: `/v1/convai/agents/${agentId}`,
+      method: 'GET',
+      headers: {
+        'xi-api-key': ELEVENLABS_API_KEY
+      },
+      timeout: 10000
+    };
+
+    const getReq = https.request(getOptions, (res) => {
+      let data = '';
+
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+
+      res.on('end', () => {
+        if (res.statusCode !== 200) {
+          console.error(`[KB Service] ❌ Failed to get agent config: ${res.statusCode}`);
+          console.error(`   Response: ${data}`);
+          resolve(false);
+          return;
+        }
+
+        try {
+          const agentConfig = JSON.parse(data);
+          const existingDocs = agentConfig.knowledge_base || [];
+
+          // Add new document to knowledge_base array
+          const updatedKB = [...existingDocs, documentId];
+
+          console.log(`   Existing KB docs: ${existingDocs.length}`);
+          console.log(`   Adding new document: ${documentId}`);
+
+          // Now update agent with new knowledge_base
+          const updateBody = {
+            knowledge_base: updatedKB
+          };
+
+          const postData = JSON.stringify(updateBody);
+
+          const patchOptions = {
+            hostname: 'api.elevenlabs.io',
+            port: 443,
+            path: `/v1/convai/agents/${agentId}`,
+            method: 'PATCH',
+            headers: {
+              'xi-api-key': ELEVENLABS_API_KEY,
+              'Content-Type': 'application/json',
+              'Content-Length': Buffer.byteLength(postData)
+            },
+            timeout: 10000
+          };
+
+          const patchReq = https.request(patchOptions, (patchRes) => {
+            let patchData = '';
+
+            patchRes.on('data', (chunk) => {
+              patchData += chunk;
+            });
+
+            patchRes.on('end', () => {
+              if (patchRes.statusCode === 200 || patchRes.statusCode === 204) {
+                console.log('[KB Service] ✅ Document linked to agent successfully');
+                resolve(true);
+              } else {
+                console.error(`[KB Service] ❌ Failed to link document: ${patchRes.statusCode}`);
+                console.error(`   Response: ${patchData}`);
+                resolve(false);
+              }
+            });
+          });
+
+          patchReq.on('error', (error) => {
+            console.error('[KB Service] ❌ PATCH request error:', error.message);
+            resolve(false);
+          });
+
+          patchReq.on('timeout', () => {
+            patchReq.destroy();
+            console.error('[KB Service] ❌ PATCH request timeout');
+            resolve(false);
+          });
+
+          patchReq.write(postData);
+          patchReq.end();
+
+        } catch (e) {
+          console.error('[KB Service] ❌ Failed to parse agent config:', e);
+          resolve(false);
+        }
+      });
+    });
+
+    getReq.on('error', (error) => {
+      console.error('[KB Service] ❌ GET request error:', error.message);
+      resolve(false);
+    });
+
+    getReq.on('timeout', () => {
+      getReq.destroy();
+      console.error('[KB Service] ❌ GET request timeout');
+      resolve(false);
+    });
+
+    getReq.end();
+  });
+}
+
+/**
+ * Unlink KB document from agent
+ * Called before deleting a document
+ *
+ * @param {string} agentId - ElevenLabs agent ID
+ * @param {string} documentId - KB document ID to unlink
+ * @returns {Promise<boolean>} - True if successful
+ */
+async function unlinkDocumentFromAgent(agentId, documentId) {
+  if (!ELEVENLABS_API_KEY) {
+    console.error('[KB Service] ❌ API key not configured');
+    return false;
+  }
+
+  console.log('[KB Service] 🔓 Unlinking KB document from agent');
+  console.log(`   Agent ID: ${agentId}`);
+  console.log(`   Document ID: ${documentId}`);
+
+  return new Promise((resolve) => {
+    // Get current agent config
+    const getOptions = {
+      hostname: 'api.elevenlabs.io',
+      port: 443,
+      path: `/v1/convai/agents/${agentId}`,
+      method: 'GET',
+      headers: {
+        'xi-api-key': ELEVENLABS_API_KEY
+      },
+      timeout: 10000
+    };
+
+    const getReq = https.request(getOptions, (res) => {
+      let data = '';
+
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+
+      res.on('end', () => {
+        if (res.statusCode !== 200) {
+          console.error(`[KB Service] ❌ Failed to get agent config: ${res.statusCode}`);
+          resolve(false);
+          return;
+        }
+
+        try {
+          const agentConfig = JSON.parse(data);
+          const existingDocs = agentConfig.knowledge_base || [];
+
+          // Remove document from knowledge_base array
+          const updatedKB = existingDocs.filter(id => id !== documentId);
+
+          console.log(`   Before: ${existingDocs.length} KB docs`);
+          console.log(`   After: ${updatedKB.length} KB docs`);
+
+          // Update agent with filtered knowledge_base
+          const updateBody = {
+            knowledge_base: updatedKB
+          };
+
+          const postData = JSON.stringify(updateBody);
+
+          const patchOptions = {
+            hostname: 'api.elevenlabs.io',
+            port: 443,
+            path: `/v1/convai/agents/${agentId}`,
+            method: 'PATCH',
+            headers: {
+              'xi-api-key': ELEVENLABS_API_KEY,
+              'Content-Type': 'application/json',
+              'Content-Length': Buffer.byteLength(postData)
+            },
+            timeout: 10000
+          };
+
+          const patchReq = https.request(patchOptions, (patchRes) => {
+            let patchData = '';
+
+            patchRes.on('data', (chunk) => {
+              patchData += chunk;
+            });
+
+            patchRes.on('end', () => {
+              if (patchRes.statusCode === 200 || patchRes.statusCode === 204) {
+                console.log('[KB Service] ✅ Document unlinked from agent successfully');
+                resolve(true);
+              } else {
+                console.error(`[KB Service] ❌ Failed to unlink document: ${patchRes.statusCode}`);
+                console.error(`   Response: ${patchData}`);
+                resolve(false);
+              }
+            });
+          });
+
+          patchReq.on('error', (error) => {
+            console.error('[KB Service] ❌ PATCH request error:', error.message);
+            resolve(false);
+          });
+
+          patchReq.on('timeout', () => {
+            patchReq.destroy();
+            console.error('[KB Service] ❌ PATCH request timeout');
+            resolve(false);
+          });
+
+          patchReq.write(postData);
+          patchReq.end();
+
+        } catch (e) {
+          console.error('[KB Service] ❌ Failed to parse agent config:', e);
+          resolve(false);
+        }
+      });
+    });
+
+    getReq.on('error', (error) => {
+      console.error('[KB Service] ❌ GET request error:', error.message);
+      resolve(false);
+    });
+
+    getReq.on('timeout', () => {
+      getReq.destroy();
+      console.error('[KB Service] ❌ GET request timeout');
+      resolve(false);
+    });
+
+    getReq.end();
   });
 }
 
@@ -318,6 +568,8 @@ async function cleanupOldDocuments() {
 module.exports = {
   uploadPatientToKB,
   deletePatientFromKB,
+  linkDocumentToAgent,
+  unlinkDocumentFromAgent,
   listKBDocuments,
   cleanupOldDocuments,
   formatDocumentId

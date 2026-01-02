@@ -28,20 +28,13 @@ async function main() {
   console.log('');
 
   try {
-    // Check if Knowledge Base is configured
-    if (!process.env.ELEVENLABS_KB_ID) {
-      console.log('⚠️  ELEVENLABS_KB_ID not configured - skipping cleanup');
-      console.log('   Set ELEVENLABS_KB_ID environment variable to enable KB cleanup');
-      process.exit(0);
-    }
-
+    // Check if ElevenLabs API is configured
     if (!process.env.ELEVENLABS_API_KEY && !process.env.VITE_ELEVENLABS_API_KEY) {
       console.log('⚠️  ELEVENLABS_API_KEY not configured - skipping cleanup');
       process.exit(0);
     }
 
-    console.log('✅ Knowledge Base configured');
-    console.log(`   KB ID: ${process.env.ELEVENLABS_KB_ID}`);
+    console.log('✅ ElevenLabs API configured');
     console.log('');
 
     // Run cleanup

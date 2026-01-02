@@ -17,6 +17,13 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+// ElevenLabs Agent IDs by language (same as inbound handler)
+const AGENT_IDS = {
+  'en': process.env.ELEVENLABS_DIABETES_AGENT_EN || '',
+  'es': process.env.ELEVENLABS_DIABETES_AGENT_ES || '',
+  'hi': process.env.ELEVENLABS_DIABETES_AGENT_HI || '',
+};
+
 /**
  * Handle call cleanup - remove patient data from Knowledge Base
  *
@@ -57,10 +64,10 @@ async function handler(req, res) {
       });
     }
 
-    // Find the call in database
+    // Find the call in database - include language to determine which agent was used
     let query = supabase
       .from('diabetes_education_calls')
-      .select('id, twilio_call_sid, kb_document_id, patient_id');
+      .select('id, twilio_call_sid, kb_document_id, patient_id, language');
 
     if (callSid) {
       query = query.eq('twilio_call_sid', callSid);
@@ -84,13 +91,32 @@ async function handler(req, res) {
 
     console.log(`✅ [DiabetesEdu Cleanup] Found call record: ${callRecord.id}`);
     console.log(`   KB Document ID: ${callRecord.kb_document_id || 'N/A'}`);
+    console.log(`   Language: ${callRecord.language}`);
 
     // Delete from Knowledge Base if document ID exists
     let kbDeleted = false;
     if (callRecord.kb_document_id) {
-      console.log('[DiabetesEdu Cleanup] 🗑️  Deleting from Knowledge Base...');
+      // Determine which agent was used based on language
+      const agentId = AGENT_IDS[callRecord.language] || AGENT_IDS['en'];
+
+      console.log('[DiabetesEdu Cleanup] 🗑️  Cleaning up Knowledge Base...');
+      console.log(`   Agent ID: ${agentId}`);
 
       try {
+        // First, unlink document from agent
+        if (agentId) {
+          console.log('[DiabetesEdu Cleanup] 🔓 Unlinking document from agent...');
+          const unlinked = await kbService.unlinkDocumentFromAgent(agentId, callRecord.kb_document_id);
+
+          if (unlinked) {
+            console.log('✅ [DiabetesEdu Cleanup] Document unlinked from agent');
+          } else {
+            console.warn('⚠️  [DiabetesEdu Cleanup] Failed to unlink (will try to delete anyway)');
+          }
+        }
+
+        // Then, delete the document
+        console.log('[DiabetesEdu Cleanup] 🗑️  Deleting KB document...');
         kbDeleted = await kbService.deletePatientFromKB(callRecord.kb_document_id);
 
         if (kbDeleted) {
@@ -99,7 +125,7 @@ async function handler(req, res) {
           console.warn('⚠️  [DiabetesEdu Cleanup] KB delete failed (non-fatal)');
         }
       } catch (kbError) {
-        console.error('❌ [DiabetesEdu Cleanup] KB delete error:', kbError.message);
+        console.error('❌ [DiabetesEdu Cleanup] KB cleanup error:', kbError.message);
         // Continue anyway - cleanup is best-effort
       }
     } else {
