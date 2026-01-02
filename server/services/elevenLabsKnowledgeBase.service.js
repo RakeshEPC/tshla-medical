@@ -317,19 +317,23 @@ async function linkDocumentToAgent(agentId, documentId) {
           console.log(`   Existing KB docs: ${existingKB.length}`);
           console.log(`   Adding new document: ${documentId}`);
 
-          // Update agent with new knowledge_base in correct nested structure
+          // Try both structures - nested and top-level
+          // ElevenLabs API might use knowledge_base_ids at top level for RAG
           const updateBody = {
+            knowledge_base_ids: [documentId],  // Top-level array of document IDs
             conversation_config: {
               ...agentConfig.conversation_config,
               agent: {
                 ...(agentConfig.conversation_config?.agent || {}),
                 prompt: {
                   ...(agentConfig.conversation_config?.agent?.prompt || {}),
-                  knowledge_base: updatedKB
+                  knowledge_base: updatedKB  // Nested structure as fallback
                 }
               }
             }
           };
+
+          console.log(`[KB Service] 🔧 Update body: ${JSON.stringify(updateBody, null, 2).substring(0, 500)}`);
 
           const postData = JSON.stringify(updateBody);
 
