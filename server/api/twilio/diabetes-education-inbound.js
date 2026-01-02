@@ -190,14 +190,55 @@ async function generateStreamTwiML(agentId, patientData, fromNumber, toNumber) {
       direction: 'inbound'
     };
 
-    // Add dynamic variables if patient context exists
-    if (patientContext && patientContext.length > 0) {
-      requestBody.conversation_initiation_client_data = {
-        patient_context: patientContext,
-        patient_name: patientData.first_name + ' ' + patientData.last_name,
-        patient_language: patientData.preferred_language || 'en'
-      };
+    // Add structured custom variables for LLM to access
+    // These match the {{variable}} placeholders in the agent's system prompt
+    const customVars = {
+      patient_name: `${patientData.first_name} ${patientData.last_name}`,
+      patient_phone: fromNumber
+    };
+
+    // Extract structured data from medical_data
+    if (patientData.medical_data) {
+      // Labs
+      if (patientData.medical_data.labs) {
+        const labLines = [];
+        for (const [key, val] of Object.entries(patientData.medical_data.labs)) {
+          labLines.push(`- ${key}: ${val.value} ${val.unit}${val.date ? ` (tested ${val.date})` : ''}`);
+        }
+        customVars.patient_labs = labLines.join('\n');
+      } else {
+        customVars.patient_labs = 'No lab results on file';
+      }
+
+      // Medications
+      if (patientData.medical_data.medications && patientData.medical_data.medications.length > 0) {
+        const medLines = patientData.medical_data.medications.map(m =>
+          `- ${m.name} ${m.dose} ${m.frequency}`
+        );
+        customVars.patient_medications = medLines.join('\n');
+      } else {
+        customVars.patient_medications = 'No medications on file';
+      }
+
+      // Diagnoses
+      if (patientData.medical_data.diagnoses && patientData.medical_data.diagnoses.length > 0) {
+        customVars.patient_diagnoses = patientData.medical_data.diagnoses.join(', ');
+      } else {
+        customVars.patient_diagnoses = 'No diagnoses on file';
+      }
     }
+
+    // Clinical notes (highest priority - most current info)
+    customVars.clinical_notes = patientData.clinical_notes || 'No clinical notes';
+
+    // Focus areas
+    if (patientData.focus_areas && patientData.focus_areas.length > 0) {
+      customVars.focus_areas = patientData.focus_areas.join(', ');
+    } else {
+      customVars.focus_areas = 'None specified';
+    }
+
+    requestBody.conversation_initiation_client_data = customVars;
 
     console.log('   📤 Request body:', JSON.stringify(requestBody, null, 2));
 
@@ -438,38 +479,6 @@ async function handler(req, res) {
 
     console.log(`   Using ElevenLabs agent: ${agentId}`);
 
-    // Upload patient data to Knowledge Base
-    // This makes patient data available to the AI during the conversation
-    const patientContext = buildPatientContext(patient);
-    let kbDocumentId = null;
-
-    console.log('[DiabetesEdu] 🔍 KB Service available:', typeof kbService);
-    console.log('[DiabetesEdu] 🔍 uploadPatientToKB available:', typeof kbService.uploadPatientToKB);
-
-    try {
-      console.log('[DiabetesEdu] 📤 Uploading patient data to Knowledge Base...');
-      kbDocumentId = await kbService.uploadPatientToKB(patient, patientContext, CallSid);
-
-      if (kbDocumentId) {
-        console.log(`✅ [DiabetesEdu] Patient data uploaded to KB: ${kbDocumentId}`);
-
-        // Link document to agent so it's searchable during the call
-        console.log('[DiabetesEdu] 🔗 Linking KB document to agent...');
-        const linked = await kbService.linkDocumentToAgent(agentId, kbDocumentId);
-
-        if (linked) {
-          console.log('✅ [DiabetesEdu] KB document linked to agent successfully');
-        } else {
-          console.warn('⚠️  [DiabetesEdu] Failed to link KB document to agent (call will proceed anyway)');
-        }
-      } else {
-        console.warn('⚠️  [DiabetesEdu] KB upload skipped (not configured)');
-      }
-    } catch (kbError) {
-      // Don't block the call if KB upload fails - log and continue
-      console.error('❌ [DiabetesEdu] KB upload failed (call will proceed anyway):', kbError.message);
-    }
-
     // Log call start in database
     try {
       const { data: callLog, error: logError } = await supabase
@@ -479,8 +488,7 @@ async function handler(req, res) {
           twilio_call_sid: CallSid,
           language: patient.preferred_language,
           caller_phone_number: From,
-          call_status: 'in-progress',
-          kb_document_id: kbDocumentId, // Store for cleanup later
+          call_status: 'in-progress'
         })
         .select()
         .single();
