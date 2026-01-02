@@ -154,158 +154,54 @@ async function generateStreamTwiML(agentId, patientData, fromNumber, toNumber) {
   }
 
   // ========================================================
-  // Use ElevenLabs Conversational AI with native Twilio integration
+  // Use OpenAI Realtime API with Twilio Media Streams
   // ========================================================
-  // ElevenLabs provides direct WebSocket connection for Twilio
-  // with patient context passed as variables
+  // Our custom WebSocket relay connects Twilio <-> OpenAI
+  // Function calling allows AI to fetch patient data dynamically
   // ========================================================
 
   try {
-    // Verify ElevenLabs API key is configured
-    if (!ELEVENLABS_API_KEY) {
-      console.error('   ❌ ElevenLabs API key not configured');
-      return `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say voice="alice" language="en-US">
-    We're sorry, but our diabetes education service is not fully configured at this time.
-    Please contact your clinic directly for assistance.
-    Thank you for calling.
-  </Say>
-  <Hangup/>
-</Response>`;
-    }
+    console.log('   📞 Using OpenAI Realtime API via WebSocket relay');
+    console.log(`   👤 Patient ID: ${patientData.id}`);
+    console.log(`   🌐 Language: ${language}`);
 
-    console.log('   📞 Using ElevenLabs register_call API');
-    console.log('   🔗 Agent ID:', agentId);
+    // Build the WebSocket URL for our OpenAI relay
+    // The relay will handle:
+    // 1. Creating OpenAI Realtime session with patient context
+    // 2. Function calling to fetch patient data from Supabase
+    // 3. Bidirectional audio streaming between Twilio and OpenAI
+    const wsUrl = `${API_BASE_URL.replace('http', 'ws')}/ws/openai-realtime`;
 
-    // Use ElevenLabs register_call API to get properly configured TwiML
-    // This API returns TwiML that sets up ElevenLabs' own WebSocket relay
-    console.log('   🔄 Calling ElevenLabs register_call API...');
-
-    // Build the request body - API documentation specifies snake_case
-    const requestBody = {
-      agent_id: agentId,
-      from_number: fromNumber,
-      to_number: toNumber,
-      direction: 'inbound'
-    };
-
-    // Add structured custom variables for LLM to access
-    // These match the {{variable}} placeholders in the agent's system prompt
-    const customVars = {
-      patient_name: `${patientData.first_name} ${patientData.last_name}`,
-      patient_phone: fromNumber
-    };
-
-    // Extract structured data from medical_data
-    if (patientData.medical_data) {
-      // Labs
-      if (patientData.medical_data.labs) {
-        const labLines = [];
-        for (const [key, val] of Object.entries(patientData.medical_data.labs)) {
-          labLines.push(`- ${key}: ${val.value} ${val.unit}${val.date ? ` (tested ${val.date})` : ''}`);
-        }
-        customVars.patient_labs = labLines.join('\n');
-      } else {
-        customVars.patient_labs = 'No lab results on file';
-      }
-
-      // Medications
-      if (patientData.medical_data.medications && patientData.medical_data.medications.length > 0) {
-        const medLines = patientData.medical_data.medications.map(m =>
-          `- ${m.name} ${m.dose} ${m.frequency}`
-        );
-        customVars.patient_medications = medLines.join('\n');
-      } else {
-        customVars.patient_medications = 'No medications on file';
-      }
-
-      // Diagnoses
-      if (patientData.medical_data.diagnoses && patientData.medical_data.diagnoses.length > 0) {
-        customVars.patient_diagnoses = patientData.medical_data.diagnoses.join(', ');
-      } else {
-        customVars.patient_diagnoses = 'No diagnoses on file';
-      }
-    }
-
-    // Clinical notes (highest priority - most current info)
-    customVars.clinical_notes = patientData.clinical_notes || 'No clinical notes';
-
-    // Focus areas
-    if (patientData.focus_areas && patientData.focus_areas.length > 0) {
-      customVars.focus_areas = patientData.focus_areas.join(', ');
-    } else {
-      customVars.focus_areas = 'None specified';
-    }
-
-    requestBody.conversation_initiation_client_data = customVars;
-
-    console.log('   📤 Request body:', JSON.stringify(requestBody, null, 2));
-
-    // Make direct HTTP request to ElevenLabs API since SDK returns void
-    const https = require('https');
-
-    const twiml = await new Promise((resolve, reject) => {
-      const postData = JSON.stringify(requestBody);
-
-      const options = {
-        hostname: 'api.elevenlabs.io',
-        port: 443,
-        path: '/v1/convai/twilio/register-call',
-        method: 'POST',
-        headers: {
-          'xi-api-key': ELEVENLABS_API_KEY,
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(postData)
-        }
-      };
-
-      const req = https.request(options, (res) => {
-        let data = '';
-
-        res.on('data', (chunk) => {
-          data += chunk;
-        });
-
-        res.on('end', () => {
-          console.log('   ✅ ElevenLabs API response received');
-          console.log('   📊 Status:', res.statusCode);
-          console.log('   📊 Headers:', JSON.stringify(res.headers, null, 2));
-          console.log('   📊 Body length:', data.length);
-          console.log('   📊 Body preview:', data.substring(0, 300));
-
-          if (res.statusCode !== 200 && res.statusCode !== 201) {
-            console.error('   ❌ ElevenLabs API error:', res.statusCode);
-            console.error('   ❌ Response:', data);
-            reject(new Error(`ElevenLabs API returned ${res.statusCode}: ${data}`));
-            return;
-          }
-
-          // Response should be TwiML
-          if (data.includes('<Response>')) {
-            console.log('   ✅ TwiML received from ElevenLabs');
-            resolve(data);
-          } else {
-            console.error('   ❌ Response is not TwiML');
-            console.error('   ❌ Full response:', data);
-            reject(new Error('Invalid TwiML response from ElevenLabs'));
-          }
-        });
-      });
-
-      req.on('error', (e) => {
-        console.error('   ❌ Request error:', e);
-        reject(e);
-      });
-
-      req.write(postData);
-      req.end();
+    // Pass patient data as query parameters for relay to use
+    const params = new URLSearchParams({
+      patientId: patientData.id,
+      patientName: `${patientData.first_name} ${patientData.last_name}`,
+      language: language,
+      callSid: '{{CallSid}}', // Twilio will replace this at runtime
+      fromNumber: fromNumber
     });
 
+    const fullWsUrl = `${wsUrl}?${params.toString()}`;
+
+    console.log('   🔗 WebSocket URL:', fullWsUrl.replace(/patientId=[^&]+/, 'patientId=***'));
+
+    // Return TwiML that connects to our OpenAI relay
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Connect>
+    <Stream url="${fullWsUrl}">
+      <Parameter name="patientId" value="${patientData.id}"/>
+      <Parameter name="patientName" value="${patientData.first_name} ${patientData.last_name}"/>
+      <Parameter name="language" value="${language}"/>
+    </Stream>
+  </Connect>
+</Response>`;
+
+    console.log('   ✅ TwiML generated for OpenAI Realtime relay');
     return twiml;
 
   } catch (error) {
-    console.error('   ❌ Failed to get ElevenLabs signed URL:', error.message);
+    console.error('   ❌ Failed to generate TwiML for OpenAI relay:', error.message);
     console.error('   ❌ Error details:', error);
 
     return `<?xml version="1.0" encoding="UTF-8"?>
