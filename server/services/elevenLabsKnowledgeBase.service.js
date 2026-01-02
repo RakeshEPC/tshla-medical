@@ -301,17 +301,34 @@ async function linkDocumentToAgent(agentId, documentId) {
 
         try {
           const agentConfig = JSON.parse(data);
-          const existingDocs = agentConfig.knowledge_base || [];
 
-          // Add new document to knowledge_base array
-          const updatedKB = [...existingDocs, documentId];
+          // KB docs need to be in conversation_config.agent.prompt.knowledge_base
+          const existingKB = agentConfig.conversation_config?.agent?.prompt?.knowledge_base || [];
 
-          console.log(`   Existing KB docs: ${existingDocs.length}`);
+          // Add new document in the correct format
+          const newDoc = {
+            type: "text",
+            id: documentId,
+            name: "Patient Medical Data"
+          };
+
+          const updatedKB = [...existingKB, newDoc];
+
+          console.log(`   Existing KB docs: ${existingKB.length}`);
           console.log(`   Adding new document: ${documentId}`);
 
-          // Now update agent with new knowledge_base
+          // Update agent with new knowledge_base in correct nested structure
           const updateBody = {
-            knowledge_base: updatedKB
+            conversation_config: {
+              ...agentConfig.conversation_config,
+              agent: {
+                ...(agentConfig.conversation_config?.agent || {}),
+                prompt: {
+                  ...(agentConfig.conversation_config?.agent?.prompt || {}),
+                  knowledge_base: updatedKB
+                }
+              }
+            }
           };
 
           const postData = JSON.stringify(updateBody);
@@ -337,8 +354,12 @@ async function linkDocumentToAgent(agentId, documentId) {
             });
 
             patchRes.on('end', () => {
+              console.log(`[KB Service] PATCH response status: ${patchRes.statusCode}`);
+              console.log(`[KB Service] PATCH response body: ${patchData.substring(0, 500)}`);
+
               if (patchRes.statusCode === 200 || patchRes.statusCode === 204) {
                 console.log('[KB Service] ✅ Document linked to agent successfully');
+                console.log(`[KB Service] Final agent KB config: ${JSON.stringify(updatedKB)}`);
                 resolve(true);
               } else {
                 console.error(`[KB Service] ❌ Failed to link document: ${patchRes.statusCode}`);
@@ -431,17 +452,28 @@ async function unlinkDocumentFromAgent(agentId, documentId) {
 
         try {
           const agentConfig = JSON.parse(data);
-          const existingDocs = agentConfig.knowledge_base || [];
+
+          // KB docs are in conversation_config.agent.prompt.knowledge_base
+          const existingKB = agentConfig.conversation_config?.agent?.prompt?.knowledge_base || [];
 
           // Remove document from knowledge_base array
-          const updatedKB = existingDocs.filter(id => id !== documentId);
+          const updatedKB = existingKB.filter(doc => doc.id !== documentId);
 
-          console.log(`   Before: ${existingDocs.length} KB docs`);
+          console.log(`   Before: ${existingKB.length} KB docs`);
           console.log(`   After: ${updatedKB.length} KB docs`);
 
-          // Update agent with filtered knowledge_base
+          // Update agent with filtered knowledge_base in correct nested structure
           const updateBody = {
-            knowledge_base: updatedKB
+            conversation_config: {
+              ...agentConfig.conversation_config,
+              agent: {
+                ...(agentConfig.conversation_config?.agent || {}),
+                prompt: {
+                  ...(agentConfig.conversation_config?.agent?.prompt || {}),
+                  knowledge_base: updatedKB
+                }
+              }
+            }
           };
 
           const postData = JSON.stringify(updateBody);
