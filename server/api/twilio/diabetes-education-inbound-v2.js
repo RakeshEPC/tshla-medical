@@ -1,5 +1,6 @@
 /**
  * Twilio Inbound Call Handler - Diabetes Education (OpenAI Realtime)
+ * VERSION: 2.0.0 - FORCE REBUILD
  *
  * CRITICAL REQUIREMENTS (Twilio Media Streams):
  * 1. TwiML must be valid XML with Content-Type: text/xml
