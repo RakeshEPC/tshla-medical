@@ -151,8 +151,10 @@ jobs:
             "JWT_SECRET=secretref:jwt-secret" \
             "DEEPGRAM_API_KEY=secretref:deepgram-api-key" \
             "VITE_DEEPGRAM_API_KEY=secretref:vite-deepgram-api-key" \
+            "OPENAI_API_KEY=secretref:openai-api-key" \
             "VITE_OPENAI_API_KEY=secretref:openai-api-key" \
             "VITE_ELEVENLABS_API_KEY=secretref:vite-elevenlabs-api-key" \
+            "ELEVENLABS_API_KEY=secretref:vite-elevenlabs-api-key" \
             "TWILIO_ACCOUNT_SID=secretref:twilio-account-sid" \
             "TWILIO_AUTH_TOKEN=secretref:twilio-auth-token" \
             "TWILIO_PHONE_NUMBER=secretref:twilio-phone-number" \
