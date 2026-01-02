@@ -171,29 +171,22 @@ async function generateStreamTwiML(agentId, patientData, fromNumber, toNumber) {
     // 2. Function calling to fetch patient data from Supabase
     // 3. Bidirectional audio streaming between Twilio and OpenAI
     // CRITICAL: Use custom domain api.tshla.ai - Twilio Media Streams may have issues with azurecontainerapps.io
+    // IMPORTANT: URL must NOT have query parameters - use <Parameter> tags only
     const wsUrl = 'wss://api.tshla.ai/media-stream';
 
-    // Pass patient data as query parameters for relay to use
-    const params = new URLSearchParams({
-      patientId: patientData.id,
-      patientName: `${patientData.first_name} ${patientData.last_name}`,
-      language: patientData.preferred_language || 'en',
-      callSid: '{{CallSid}}', // Twilio will replace this at runtime
-      fromNumber: fromNumber
-    });
-
-    const fullWsUrl = `${wsUrl}?${params.toString()}`;
-
-    console.log('   🔗 WebSocket URL:', fullWsUrl.replace(/patientId=[^&]+/, 'patientId=***'));
+    console.log('   🔗 WebSocket URL:', wsUrl);
+    console.log('   👤 Patient:', `${patientData.first_name} ${patientData.last_name} (${patientData.id})`);
 
     // Return TwiML that connects to our OpenAI relay
+    // Parameters are passed via <Parameter> tags, NOT query string
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
-    <Stream url="${fullWsUrl}">
+    <Stream url="${wsUrl}">
       <Parameter name="patientId" value="${patientData.id}"/>
       <Parameter name="patientName" value="${patientData.first_name} ${patientData.last_name}"/>
       <Parameter name="language" value="${patientData.preferred_language || 'en'}"/>
+      <Parameter name="fromNumber" value="${fromNumber}"/>
     </Stream>
   </Connect>
 </Response>`;
