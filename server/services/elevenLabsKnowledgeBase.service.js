@@ -302,14 +302,15 @@ async function linkDocumentToAgent(agentId, documentId) {
         try {
           const agentConfig = JSON.parse(data);
 
-          // KB docs need to be in conversation_config.agent.prompt.knowledge_base
-          const existingKB = agentConfig.conversation_config?.agent?.prompt?.knowledge_base || [];
+          // Get existing KB documents (top-level knowledge_base array per API docs)
+          const existingKB = agentConfig.knowledge_base || [];
 
-          // Add new document in the correct format
+          // Add new document in the CORRECT format per API docs
           const newDoc = {
             type: "text",
             id: documentId,
-            name: "Patient Medical Data"
+            name: "Patient Medical Data",
+            usage_mode: "auto"  // RAG mode - retrieves relevant portions
           };
 
           const updatedKB = [...existingKB, newDoc];
@@ -317,23 +318,12 @@ async function linkDocumentToAgent(agentId, documentId) {
           console.log(`   Existing KB docs: ${existingKB.length}`);
           console.log(`   Adding new document: ${documentId}`);
 
-          // Try both structures - nested and top-level
-          // ElevenLabs API might use knowledge_base_ids at top level for RAG
+          // Use top-level knowledge_base parameter (correct API structure)
           const updateBody = {
-            knowledge_base_ids: [documentId],  // Top-level array of document IDs
-            conversation_config: {
-              ...agentConfig.conversation_config,
-              agent: {
-                ...(agentConfig.conversation_config?.agent || {}),
-                prompt: {
-                  ...(agentConfig.conversation_config?.agent?.prompt || {}),
-                  knowledge_base: updatedKB  // Nested structure as fallback
-                }
-              }
-            }
+            knowledge_base: updatedKB
           };
 
-          console.log(`[KB Service] 🔧 Update body: ${JSON.stringify(updateBody, null, 2).substring(0, 500)}`);
+          console.log(`[KB Service] 🔧 Update body: ${JSON.stringify(updateBody, null, 2)}`);
 
           const postData = JSON.stringify(updateBody);
 
@@ -457,8 +447,8 @@ async function unlinkDocumentFromAgent(agentId, documentId) {
         try {
           const agentConfig = JSON.parse(data);
 
-          // KB docs are in conversation_config.agent.prompt.knowledge_base
-          const existingKB = agentConfig.conversation_config?.agent?.prompt?.knowledge_base || [];
+          // Get existing KB documents (top-level knowledge_base array)
+          const existingKB = agentConfig.knowledge_base || [];
 
           // Remove document from knowledge_base array
           const updatedKB = existingKB.filter(doc => doc.id !== documentId);
@@ -466,18 +456,9 @@ async function unlinkDocumentFromAgent(agentId, documentId) {
           console.log(`   Before: ${existingKB.length} KB docs`);
           console.log(`   After: ${updatedKB.length} KB docs`);
 
-          // Update agent with filtered knowledge_base in correct nested structure
+          // Update agent with filtered knowledge_base (top-level parameter)
           const updateBody = {
-            conversation_config: {
-              ...agentConfig.conversation_config,
-              agent: {
-                ...(agentConfig.conversation_config?.agent || {}),
-                prompt: {
-                  ...(agentConfig.conversation_config?.agent?.prompt || {}),
-                  knowledge_base: updatedKB
-                }
-              }
-            }
+            knowledge_base: updatedKB
           };
 
           const postData = JSON.stringify(updateBody);
