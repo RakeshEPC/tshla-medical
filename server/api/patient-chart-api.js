@@ -511,5 +511,107 @@ router.get('/:identifier', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/patient-chart/create
+ * Create new patient using patientMatching.service.js
+ * Handles TSHLA ID generation, duplicate prevention, phone normalization
+ *
+ * Body: { phone, patientData, source }
+ */
+router.post('/create', async (req, res) => {
+  try {
+    const { phone, patientData, source } = req.body;
+
+    if (!phone) {
+      return res.status(400).json({
+        success: false,
+        error: 'Phone number is required'
+      });
+    }
+
+    if (!patientData || !patientData.first_name || !patientData.last_name) {
+      return res.status(400).json({
+        success: false,
+        error: 'Patient first name and last name are required'
+      });
+    }
+
+    // Use patientMatching service to create patient
+    // This handles: TSHLA ID generation, duplicate checking, phone normalization, PIN generation
+    const patient = await patientMatchingService.findOrCreatePatient(
+      phone,
+      patientData,
+      source || 'dictation'
+    );
+
+    res.json({
+      success: true,
+      patient,
+      message: 'Patient created successfully'
+    });
+
+  } catch (error) {
+    console.error('Create patient error:', error);
+
+    // Check if it's a duplicate phone error
+    if (error.code === '23505' && error.message.includes('phone_primary')) {
+      return res.status(409).json({
+        success: false,
+        error: 'A patient with this phone number already exists'
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create patient',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/patient-chart/find-or-create
+ * Find existing patient or create new one (idempotent)
+ * Same as /create but emphasizes the find-first behavior
+ *
+ * Body: { phone, patientData, source }
+ */
+router.post('/find-or-create', async (req, res) => {
+  try {
+    const { phone, patientData, source } = req.body;
+
+    if (!phone) {
+      return res.status(400).json({
+        success: false,
+        error: 'Phone number is required'
+      });
+    }
+
+    // Use patientMatching service - will find existing or create new
+    const patient = await patientMatchingService.findOrCreatePatient(
+      phone,
+      patientData || {},
+      source || 'unknown'
+    );
+
+    const wasCreated = !patient.last_data_merge_at; // New patient won't have merge timestamp
+
+    res.json({
+      success: true,
+      patient,
+      wasCreated,
+      message: wasCreated ? 'Patient created successfully' : 'Found existing patient'
+    });
+
+  } catch (error) {
+    console.error('Find or create patient error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to find or create patient',
+      details: error.message
+    });
+  }
+});
+
 
 module.exports = router;
