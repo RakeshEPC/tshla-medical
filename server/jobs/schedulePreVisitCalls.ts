@@ -1,7 +1,8 @@
 /**
- * Pre-Visit Call Scheduler
+ * Pre-Visit Call Scheduler - DISABLED
  * Cron job that runs daily to schedule and make pre-visit calls
  * Created: January 2025
+ * DISABLED: 2026-01-03 - Twilio phone numbers cancelled
  *
  * Schedule:
  * - Day -3: Send Klara text notifications
@@ -10,10 +11,26 @@
  * - Day 0: Third call attempt (8 AM - 10 AM)
  */
 
+// DISABLED: Twilio phone numbers cancelled - 2026-01-03
+const TWILIO_DISABLED = true;
+
 import cron from 'node-cron';
 import { createClient } from '@supabase/supabase-js';
 import twilioService from '../services/twilioService';
 import klaraService from '../services/klaraService';
+
+// Early exit if Twilio is disabled
+if (TWILIO_DISABLED) {
+  console.warn('⚠️  Pre-Visit Call Scheduler DISABLED - Twilio phone numbers cancelled (2026-01-03)');
+  // Export empty functions to prevent crashes
+  export function startScheduler() {
+    console.warn('⚠️  Pre-Visit Call Scheduler is disabled');
+  }
+  export function stopScheduler() {}
+  // Stop execution of this file
+  // @ts-ignore
+  if (true) { throw new Error('SCHEDULER_DISABLED'); }
+}
 
 // Initialize Supabase client
 const supabaseUrl = process.env.VITE_SUPABASE_URL || '';

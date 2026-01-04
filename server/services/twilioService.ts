@@ -1,25 +1,28 @@
 /**
- * Twilio Service
+ * Twilio Service - DISABLED
  * Handles outbound calling for pre-visit patient interviews
  * Created: January 2025
+ * DISABLED: 2026-01-03 - Twilio phone numbers cancelled
  */
 
 import { createClient } from '@supabase/supabase-js';
 
+// DISABLED: Twilio phone numbers cancelled - 2026-01-03
 // Twilio will be installed later: npm install twilio
 // For now, we'll set up the structure
 let twilioClient: any = null;
 
-try {
-  // Only import if twilio is installed
-  const twilio = require('twilio');
-  twilioClient = twilio(
-    process.env.TWILIO_ACCOUNT_SID,
-    process.env.TWILIO_AUTH_TOKEN
-  );
-} catch (error) {
-  console.warn('⚠️ Twilio SDK not installed. Run: npm install twilio');
-}
+// DISABLED - Do not initialize Twilio client
+// try {
+//   const twilio = require('twilio');
+//   twilioClient = twilio(
+//     process.env.TWILIO_ACCOUNT_SID,
+//     process.env.TWILIO_AUTH_TOKEN
+//   );
+// } catch (error) {
+//   console.warn('⚠️ Twilio SDK not installed. Run: npm install twilio');
+// }
+console.warn('⚠️ Twilio Service DISABLED - Phone numbers cancelled (2026-01-03)');
 
 // Supabase client for logging
 const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
@@ -89,29 +92,45 @@ async function logCallAttempt(data: {
 
 /**
  * Initiate a pre-visit call to a patient
+ * DISABLED: Twilio phone numbers cancelled - 2026-01-03
  */
 export async function initiatePreVisitCall(
   options: InitiatePreVisitCallOptions
 ): Promise<CallResult> {
-  console.log('\n📞 Initiating pre-visit call...');
-  console.log(`   Patient: ${options.patientName}`);
-  console.log(`   Phone: ${options.patientPhone}`);
-  console.log(`   Appointment: ${options.appointmentDate} at ${options.appointmentTime}`);
-  console.log(`   Attempt: #${options.attemptNumber}`);
+  // DISABLED: Twilio phone numbers cancelled
+  const error = 'Twilio service disabled - phone numbers cancelled (2026-01-03)';
+  console.error('❌', error);
+  console.log(`   Patient: ${options.patientName} - Call attempt SKIPPED`);
 
-  // Validate Twilio configuration
-  if (!twilioClient) {
-    const error = 'Twilio SDK not initialized. Install with: npm install twilio';
-    console.error('❌', error);
-    await logCallAttempt({
-      patientId: options.patientId,
-      appointmentId: options.appointmentId,
-      attemptNumber: options.attemptNumber,
-      status: 'failed',
-      notes: error,
-    });
-    return { success: false, error };
-  }
+  await logCallAttempt({
+    patientId: options.patientId,
+    appointmentId: options.appointmentId,
+    attemptNumber: options.attemptNumber,
+    status: 'failed',
+    notes: error,
+  });
+
+  return { success: false, error };
+
+  // OLD CODE PRESERVED BELOW (commented out)
+  // console.log('\n📞 Initiating pre-visit call...');
+  // console.log(`   Patient: ${options.patientName}`);
+  // console.log(`   Phone: ${options.patientPhone}`);
+  // console.log(`   Appointment: ${options.appointmentDate} at ${options.appointmentTime}`);
+  // console.log(`   Attempt: #${options.attemptNumber}`);
+
+  // if (!twilioClient) {
+  //   const error = 'Twilio SDK not initialized. Install with: npm install twilio';
+  //   console.error('❌', error);
+  //   await logCallAttempt({
+  //     patientId: options.patientId,
+  //     appointmentId: options.appointmentId,
+  //     attemptNumber: options.attemptNumber,
+  //     status: 'failed',
+  //     notes: error,
+  //   });
+  //   return { success: false, error };
+  // }
 
   if (!TWILIO_PHONE_NUMBER) {
     const error = 'TWILIO_PHONE_NUMBER not set in environment';

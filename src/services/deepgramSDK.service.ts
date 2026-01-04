@@ -56,7 +56,7 @@ class DeepgramSDKService implements SpeechServiceInterface {
 
   constructor() {
     this.config = {
-      apiKey: import.meta.env.VITE_DEEPGRAM_API_KEY,
+      apiKey: '', // Not needed - using server-side proxy
       model: import.meta.env.VITE_DEEPGRAM_MODEL || 'nova-2-medical',
       language: import.meta.env.VITE_DEEPGRAM_LANGUAGE || 'en-US',
       tier: import.meta.env.VITE_DEEPGRAM_TIER || 'enhanced',
@@ -65,19 +65,15 @@ class DeepgramSDKService implements SpeechServiceInterface {
       channels: 1
     };
 
-    if (!this.config.apiKey) {
-      console.error('❌ CRITICAL: VITE_DEEPGRAM_API_KEY is undefined in deepgramSDK!');
-      throw new Error('VITE_DEEPGRAM_API_KEY environment variable is required');
-    }
+    // We're always using the proxy in browser environments, so no API key needed here
+    console.log('✅ Deepgram SDK: Using server-side proxy (API key not needed on client)');
+    console.log('   Model:', this.config.model);
+    console.log('   Language:', this.config.language);
 
-    const keyPreview = this.config.apiKey.substring(0, 8) + '...' + this.config.apiKey.substring(this.config.apiKey.length - 4);
-    console.log('✅ Deepgram SDK: API key loaded:', keyPreview);
-    console.log('   Key length:', this.config.apiKey.length, 'characters');
+    // Initialize Deepgram client with empty key (not used when proxy is enabled)
+    this.deepgram = createClient('proxy-mode');
 
-    // Initialize Deepgram client
-    this.deepgram = createClient(this.config.apiKey);
-
-    console.log('✅ Deepgram SDK client created successfully');
+    console.log('✅ Deepgram SDK client created successfully (proxy mode)');
     logInfo('deepgramSDK', `Initialized with model: ${this.config.model}`);
   }
 
@@ -86,7 +82,8 @@ class DeepgramSDKService implements SpeechServiceInterface {
    */
   isConfigured(): boolean {
     try {
-      return !!this.config.apiKey && !!this.deepgram;
+      // Using proxy mode - just check if client is initialized
+      return !!this.deepgram;
     } catch (error) {
       logError('deepgramSDK', `Configuration check failed: ${error}`);
       return false;
@@ -451,13 +448,11 @@ class DeepgramSDKService implements SpeechServiceInterface {
 
         this.isRecording = false;
 
-        // TEMPORARY: Disable auto-reconnect to stop the alert loop
-        console.warn('⚠️ AUTO-RECONNECT DISABLED FOR DEBUGGING');
-        return;
-
         // Attempt automatic reconnection if it was not a clean close
         // and we haven't exceeded max attempts
         if (!wasClean && this.reconnectAttempts < this.maxReconnectAttempts && this.lastRecordingMode) {
+          console.log('🔄 AUTO-RECONNECT ENABLED: Will attempt to reconnect...');
+
           this.reconnectAttempts++;
           const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 5000); // Exponential backoff, max 5s
 

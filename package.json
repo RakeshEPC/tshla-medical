@@ -4,6 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "validate:env": "node scripts/validate-env.cjs",
+    "predev": "npm run validate:env",
+    "prebuild": "npm run validate:env",
     "dev": "vite",
     "dev:full": "./start-dev.sh",
     "dev:stop": "./stop-dev.sh",

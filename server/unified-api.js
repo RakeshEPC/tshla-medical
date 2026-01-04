@@ -218,63 +218,232 @@ function getElevenLabsSignedUrl() {
   });
 }
 
-app.post('/api/twilio/previsit-twiml', async (req, res) => {
+// DISABLED: Twilio phone numbers cancelled - 2026-01-03
+// app.post('/api/twilio/previsit-twiml', async (req, res) => {
+//   try {
+//     console.log('📞 Pre-Visit TwiML webhook called');
+//     const signedUrl = await getElevenLabsSignedUrl();
+//     console.log('✅ Got ElevenLabs signed URL');
+//     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+// <Response>
+//   <Connect>
+//     <Stream url="${signedUrl}" track="both_tracks" />
+//   </Connect>
+// </Response>`;
+//     res.type('application/xml');
+//     res.send(twiml);
+//   } catch (error) {
+//     console.error('❌ TwiML error:', error);
+//     const fallback = `<?xml version="1.0" encoding="UTF-8"?>
+// <Response>
+//   <Say>We're sorry, our automated assistant is currently unavailable. Please call back later.</Say>
+//   <Hangup/>
+// </Response>`;
+//     res.type('application/xml');
+//     res.send(fallback);
+//   }
+// });
+console.log('⚠️  Twilio previsit-twiml endpoint DISABLED (phone numbers cancelled)');
+
+// ==========================================================================
+// API PROXY ENDPOINTS - Secure server-side API key handling
+// ==========================================================================
+// These endpoints proxy API calls to third-party services (OpenAI, Azure OpenAI, ElevenLabs)
+// to keep API keys secure on the server side and prevent client-side exposure
+
+/**
+ * Azure OpenAI Chat Proxy
+ * Proxies chat completion requests to Azure OpenAI
+ * Keeps AZURE_OPENAI_KEY secure on server-side
+ */
+app.post('/api/ai/chat', async (req, res) => {
   try {
-    console.log('📞 Pre-Visit TwiML webhook called');
+    const { messages, model, temperature, max_tokens } = req.body;
 
-    const signedUrl = await getElevenLabsSignedUrl();
-    console.log('✅ Got ElevenLabs signed URL');
+    const AZURE_ENDPOINT = process.env.VITE_AZURE_OPENAI_ENDPOINT;
+    const AZURE_KEY = process.env.AZURE_OPENAI_KEY;
+    const DEPLOYMENT = process.env.VITE_AZURE_OPENAI_DEPLOYMENT;
+    const API_VERSION = process.env.VITE_AZURE_OPENAI_API_VERSION;
 
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Connect>
-    <Stream url="${signedUrl}" track="both_tracks" />
-  </Connect>
-</Response>`;
+    if (!AZURE_KEY || !AZURE_ENDPOINT) {
+      return res.status(500).json({
+        error: 'Azure OpenAI not configured on server',
+        details: 'AZURE_OPENAI_KEY or VITE_AZURE_OPENAI_ENDPOINT missing'
+      });
+    }
 
-    res.type('application/xml');
-    res.send(twiml);
+    const url = `${AZURE_ENDPOINT}/openai/deployments/${DEPLOYMENT}/chat/completions?api-version=${API_VERSION}`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': AZURE_KEY // Server-side only!
+      },
+      body: JSON.stringify({
+        messages,
+        model: model || DEPLOYMENT,
+        temperature: temperature || 0.7,
+        max_tokens: max_tokens || 2000
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Azure OpenAI error:', response.status, errorText);
+      return res.status(response.status).json({
+        error: 'Azure OpenAI request failed',
+        status: response.status,
+        details: errorText
+      });
+    }
+
+    const data = await response.json();
+    res.json(data);
   } catch (error) {
-    console.error('❌ TwiML error:', error);
-
-    const fallback = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say>We're sorry, our automated assistant is currently unavailable. Please call back later.</Say>
-  <Hangup/>
-</Response>`;
-    res.type('application/xml');
-    res.send(fallback);
+    console.error('❌ Azure OpenAI proxy error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
+/**
+ * OpenAI Chat Proxy (Standard API)
+ * Proxies chat completion requests to OpenAI
+ * Keeps OPENAI_API_KEY secure on server-side
+ */
+app.post('/api/ai/summary', async (req, res) => {
+  try {
+    const { text, instructions, model, temperature, max_tokens } = req.body;
+
+    const OPENAI_KEY = process.env.OPENAI_API_KEY;
+
+    if (!OPENAI_KEY) {
+      return res.status(500).json({
+        error: 'OpenAI not configured on server',
+        details: 'OPENAI_API_KEY missing'
+      });
+    }
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_KEY}` // Server-side only!
+      },
+      body: JSON.stringify({
+        model: model || 'gpt-4o-mini',
+        messages: [{
+          role: 'user',
+          content: instructions ? `${instructions}\n\n${text}` : text
+        }],
+        temperature: temperature || 0.7,
+        max_tokens: max_tokens || 2000
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ OpenAI error:', response.status, errorText);
+      return res.status(response.status).json({
+        error: 'OpenAI request failed',
+        status: response.status,
+        details: errorText
+      });
+    }
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('❌ OpenAI proxy error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * ElevenLabs Text-to-Speech Proxy
+ * Proxies TTS requests to ElevenLabs
+ * Keeps ELEVENLABS_API_KEY secure on server-side
+ */
+app.post('/api/tts/elevenlabs', async (req, res) => {
+  try {
+    const { text, voice_id, model_id } = req.body;
+
+    const ELEVENLABS_KEY = process.env.ELEVENLABS_API_KEY;
+    const DEFAULT_VOICE = process.env.VITE_ELEVENLABS_DEFAULT_VOICE_ID || 'cgSgspJ2msm6clMCkdW9';
+
+    if (!ELEVENLABS_KEY) {
+      return res.status(500).json({
+        error: 'ElevenLabs not configured on server',
+        details: 'ELEVENLABS_API_KEY missing'
+      });
+    }
+
+    const voiceId = voice_id || DEFAULT_VOICE;
+    const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Accept': 'audio/mpeg',
+        'Content-Type': 'application/json',
+        'xi-api-key': ELEVENLABS_KEY // Server-side only!
+      },
+      body: JSON.stringify({
+        text,
+        model_id: model_id || 'eleven_monolingual_v1',
+        voice_settings: {
+          stability: 0.5,
+          similarity_boost: 0.75
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ ElevenLabs error:', response.status, errorText);
+      return res.status(response.status).json({
+        error: 'ElevenLabs request failed',
+        status: response.status,
+        details: errorText
+      });
+    }
+
+    // Forward the audio stream
+    res.setHeader('Content-Type', 'audio/mpeg');
+    response.body.pipe(res);
+  } catch (error) {
+    console.error('❌ ElevenLabs proxy error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+console.log('✅ API Proxy endpoints configured:');
+console.log('   - POST /api/ai/chat (Azure OpenAI)');
+console.log('   - POST /api/ai/summary (OpenAI)');
+console.log('   - POST /api/tts/elevenlabs (ElevenLabs TTS)');
+
 // ==========================================================================
-// DIABETES EDUCATION - OPENAI REALTIME (V2 - Diagnostic & Safe Mode)
+// DIABETES EDUCATION - DISABLED (Twilio phone numbers cancelled - 2026-01-03)
 // ==========================================================================
-// V2 uses OpenAI Realtime with safe modes and proper Twilio Media Streams
-try {
-  const diabetesEducationV2 = require('./api/twilio/diabetes-education-inbound-v2');
-  const streamStatus = require('./api/twilio/stream-status');
-  const diagnostics = require('./api/diagnostic-endpoints');
-
-  // Main webhook (MUST respond < 500ms with text/xml)
-  app.post('/api/twilio/diabetes-education-inbound', diabetesEducationV2.default);
-
-  // Stream status callback (debug stream lifecycle)
-  app.post('/api/twilio/stream-status', streamStatus);
-
-  // Diagnostic endpoints
-  app.get('/healthz', diagnostics.healthz);
-  app.get('/ws-test', diagnostics.wsTest);
-  app.get('/twiml-test', diagnostics.twimlTest);
-  app.get('/twiml-test-json', diagnostics.twimlTestJson);
-
-  console.log('✅ Diabetes Education V2 (OpenAI Realtime) webhooks registered');
-  console.log(`   Safe Mode: ${process.env.SAFE_MODE || 'D (full)'}`);
-  console.log('   Diagnostic endpoints: /healthz, /ws-test, /twiml-test');
-} catch (e) {
-  console.error('❌ Failed to load Diabetes Education V2:', e.message);
-  console.error(e.stack);
-}
+// DISABLED: V2 uses OpenAI Realtime with safe modes and proper Twilio Media Streams
+// try {
+//   const diabetesEducationV2 = require('./api/twilio/diabetes-education-inbound-v2');
+//   const streamStatus = require('./api/twilio/stream-status');
+//   const diagnostics = require('./api/diagnostic-endpoints');
+//   app.post('/api/twilio/diabetes-education-inbound', diabetesEducationV2.default);
+//   app.post('/api/twilio/stream-status', streamStatus);
+//   app.get('/healthz', diagnostics.healthz);
+//   app.get('/ws-test', diagnostics.wsTest);
+//   app.get('/twiml-test', diagnostics.twimlTest);
+//   app.get('/twiml-test-json', diagnostics.twimlTestJson);
+//   console.log('✅ Diabetes Education V2 (OpenAI Realtime) webhooks registered');
+//   console.log(`   Safe Mode: ${process.env.SAFE_MODE || 'D (full)'}`);
+//   console.log('   Diagnostic endpoints: /healthz, /ws-test, /twiml-test');
+// } catch (e) {
+//   console.error('❌ Failed to load Diabetes Education V2:', e.message);
+//   console.error(e.stack);
+// }
+console.log('⚠️  Diabetes Education phone system DISABLED (Twilio cancelled)');
 
 // Pre-Visit Conversations API
 // Endpoints for fetching and displaying ElevenLabs conversation transcripts
@@ -1664,16 +1833,18 @@ const ELEVENLABS_DIABETES_AGENTS = {
 
 const hasAnyDiabetesAgent = Object.values(ELEVENLABS_DIABETES_AGENTS).some(id => id);
 
-if (!ELEVENLABS_API_KEY || !hasAnyDiabetesAgent) {
-  console.warn('⚠️  ElevenLabs API key or diabetes agents not configured - bridge will not be available');
-} else {
-  console.log('✅ ElevenLabs Diabetes Education Bridge enabled');
-
-  // Create WebSocket server for Twilio-to-ElevenLabs bridge
-  const elevenLabsBridge = new WebSocket.Server({
-    server,
-    path: '/ws/elevenlabs-diabetes'
-  });
+// DISABLED: Twilio phone numbers cancelled - 2026-01-03
+// if (!ELEVENLABS_API_KEY || !hasAnyDiabetesAgent) {
+//   console.warn('⚠️  ElevenLabs API key or diabetes agents not configured - bridge will not be available');
+// } else {
+//   console.log('✅ ElevenLabs Diabetes Education Bridge enabled');
+//   const elevenLabsBridge = new WebSocket.Server({
+//     server,
+//     path: '/ws/elevenlabs-diabetes'
+//   });
+console.warn('⚠️  ElevenLabs Diabetes Education Bridge DISABLED (Twilio cancelled)');
+if (false) {
+  const elevenLabsBridge = {};
 
   elevenLabsBridge.on('connection', async (twilioWs, req) => {
     console.log('\n🌉 [ElevenLabs Bridge] Twilio connected');
@@ -1831,20 +2002,23 @@ if (!ELEVENLABS_API_KEY || !hasAnyDiabetesAgent) {
     }
   });
 
-  console.log('✅ WebSocket server ready on /ws/elevenlabs-diabetes');
+  // console.log('✅ WebSocket server ready on /ws/elevenlabs-diabetes');
 }
 
 // ============================================
-// ELEVENLABS RELAY FOR DIABETES EDUCATION
+// ELEVENLABS RELAY - DISABLED (Twilio cancelled - 2026-01-03)
 // ============================================
-// This relay proxy bridges Twilio Media Streams to ElevenLabs
+// DISABLED: This relay proxy bridges Twilio Media Streams to ElevenLabs
 // Twilio doesn't support query params in WebSocket URLs, but ElevenLabs needs them
 // So we accept Twilio connections and relay to ElevenLabs signed URLs
 
-const elevenLabsRelay = new WebSocket.Server({
-  server,
-  path: '/elevenlabs-relay'
-});
+// const elevenLabsRelay = new WebSocket.Server({
+//   server,
+//   path: '/elevenlabs-relay'
+// });
+console.warn('⚠️  ElevenLabs Relay DISABLED (Twilio cancelled)');
+if (false) {
+const elevenLabsRelay = {};
 
 elevenLabsRelay.on('connection', (twilioWs, req) => {
   console.log('\n🔄 [ElevenLabs Relay] New Twilio connection');
@@ -1936,8 +2110,8 @@ elevenLabsRelay.on('connection', (twilioWs, req) => {
     }
   });
 });
-
-console.log('✅ ElevenLabs Relay WebSocket server ready on /elevenlabs-relay');
+}
+// console.log('✅ ElevenLabs Relay WebSocket server ready on /elevenlabs-relay');
 
 // Error handling middleware
 app.use((err, req, res, next) => {
