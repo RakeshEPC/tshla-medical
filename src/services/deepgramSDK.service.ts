@@ -70,10 +70,13 @@ class DeepgramSDKService implements SpeechServiceInterface {
     console.log('   Model:', this.config.model);
     console.log('   Language:', this.config.language);
 
-    // Initialize Deepgram client with empty key (not used when proxy is enabled)
-    this.deepgram = createClient('proxy-mode');
+    // DO NOT create Deepgram SDK client in proxy mode
+    // The SDK will attempt to connect directly to api.deepgram.com which bypasses the proxy
+    // We use manual WebSocket connections through our proxy server instead
+    // Set to a truthy placeholder object so isConfigured() returns true
+    this.deepgram = { proxyMode: true };
 
-    console.log('✅ Deepgram SDK client created successfully (proxy mode)');
+    console.log('✅ Deepgram SDK: Proxy mode enabled (using manual WebSocket connections)');
     logInfo('deepgramSDK', `Initialized with model: ${this.config.model}`);
   }
 
