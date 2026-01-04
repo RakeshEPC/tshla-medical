@@ -1678,37 +1678,24 @@ if (!DEEPGRAM_API_KEY) {
   console.log('✅ Deepgram WebSocket Proxy enabled');
   console.log(`   API Key: ${keyPreview}`);
 
-  // Create WebSocket server WITHOUT path filter (will manually filter in upgrade event)
-  // Note: Path-based routing doesn't work reliably with Azure Container Apps load balancer
-  // Instead, we'll manually handle path routing in the upgrade event
+  // Create WebSocket server with path-based routing (like OpenAI Realtime relay)
+  // Azure Container Apps DOES support path-based WebSocket routing when using the ws library's built-in path filtering
   const wss = new WebSocket.Server({
-    noServer: true  // Don't attach to server automatically - we'll handle upgrades manually
+    server,
+    path: '/ws/deepgram',
+    perMessageDeflate: false,
+    clientTracking: true,
+    verifyClient: (info, callback) => {
+      console.log('[Deepgram Proxy] 🔍 WebSocket upgrade request received');
+      console.log('[Deepgram Proxy]    Origin:', info.origin || 'not provided');
+      console.log('[Deepgram Proxy]    URL:', info.req.url);
+      console.log('[Deepgram Proxy] ✅ WebSocket upgrade accepted');
+      callback(true); // Accept all connections
+    }
   });
 
   // Create Deepgram client (reused for all connections)
   const deepgram = createClient(DEEPGRAM_API_KEY);
-
-  // Manually handle WebSocket upgrades for /ws/deepgram path
-  server.on('upgrade', (request, socket, head) => {
-    console.log('[Deepgram Proxy] WebSocket upgrade request received');
-    console.log('[Deepgram Proxy]    Path:', request.url);
-    console.log('[Deepgram Proxy]    Origin:', request.headers.origin || 'not provided');
-
-    const pathname = new URL(request.url, 'http://localhost').pathname;
-
-    // Only handle /ws/deepgram path (other paths handled by other WebSocket servers)
-    if (pathname.startsWith('/ws/deepgram')) {
-      console.log('✅ [Deepgram Proxy] Handling WebSocket upgrade for Deepgram');
-
-      wss.handleUpgrade(request, socket, head, (clientWs) => {
-        console.log('✅ [Deepgram Proxy] WebSocket upgraded successfully, emitting connection event');
-        wss.emit('connection', clientWs, request);
-      });
-    } else {
-      console.log('⏭️  [Deepgram Proxy] Path does not match /ws/deepgram, skipping');
-    }
-    // Let other WebSocket servers handle their own paths (e.g., /media-stream)
-  });
 
   wss.on('connection', (clientWs) => {
     console.log('📡 WebSocket client connected');
