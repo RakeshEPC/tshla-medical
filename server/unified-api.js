@@ -1697,12 +1697,51 @@ if (!DEEPGRAM_API_KEY) {
   // Create Deepgram client (reused for all connections)
   const deepgram = createClient(DEEPGRAM_API_KEY);
 
-  wss.on('connection', (clientWs) => {
-    console.log('📡 WebSocket client connected');
+  // Add error handler for WebSocket server
+  wss.on('error', (error) => {
+    console.error('❌ [Deepgram Proxy] WebSocket Server error:', {
+      error: error.message,
+      code: error.code,
+      stack: error.stack
+    });
+  });
+
+  // Add headers event for debugging
+  wss.on('headers', (headers, request) => {
+    console.log('[Deepgram Proxy] 📋 Response headers being sent:', headers);
+  });
+
+  wss.on('connection', (clientWs, request) => {
+    console.log('📡 [Deepgram Proxy] WebSocket client CONNECTED successfully!');
+    console.log('   URL:', request.url);
+    console.log('   Origin:', request.headers.origin);
     console.log('   Client ready state:', clientWs.readyState);
     console.log('   Deepgram SDK available:', !!deepgram);
 
     let deepgramConnection = null;
+
+    // Add close/error handlers IMMEDIATELY to track if connection closes right away
+    clientWs.on('close', (code, reason) => {
+      console.log('🔌 [Deepgram Proxy] Client disconnected:', {
+        code,
+        reason: reason?.toString() || 'no reason provided',
+        timestamp: new Date().toISOString()
+      });
+      if (deepgramConnection) {
+        deepgramConnection.finish();
+      }
+    });
+
+    clientWs.on('error', (error) => {
+      console.error('❌ [Deepgram Proxy] Client WebSocket error:', {
+        error: error?.message || error,
+        code: error?.code,
+        timestamp: new Date().toISOString()
+      });
+      if (deepgramConnection) {
+        deepgramConnection.finish();
+      }
+    });
 
     // Send immediate acknowledgment to client to keep connection alive
     try {
@@ -1772,28 +1811,6 @@ if (!DEEPGRAM_API_KEY) {
         if (deepgramConnection && deepgramConnection.getReadyState() === 1) {
           // Forward audio data to Deepgram
           deepgramConnection.send(message);
-        }
-      });
-
-      clientWs.on('close', (code, reason) => {
-        console.log('🔌 Client disconnected:', {
-          code,
-          reason: reason?.toString() || 'no reason provided',
-          timestamp: new Date().toISOString()
-        });
-        if (deepgramConnection) {
-          deepgramConnection.finish();
-        }
-      });
-
-      clientWs.on('error', (error) => {
-        console.error('❌ Client WebSocket error:', {
-          error: error?.message || error,
-          code: error?.code,
-          timestamp: new Date().toISOString()
-        });
-        if (deepgramConnection) {
-          deepgramConnection.finish();
         }
       });
 
