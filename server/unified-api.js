@@ -1654,16 +1654,6 @@ app.get('/media-stream', (req, res) => {
 // Create HTTP server (needed for WebSocket upgrade)
 const server = http.createServer(app);
 
-// Add logging for all HTTP upgrade requests (WebSocket connections)
-server.on('upgrade', (request, socket, head) => {
-  console.log('[HTTP Server] 🔄 WebSocket upgrade request received');
-  console.log('[HTTP Server]    Path:', request.url);
-  console.log('[HTTP Server]    Origin:', request.headers.origin || 'not provided');
-  console.log('[HTTP Server]    User-Agent:', request.headers['user-agent']);
-  console.log('[HTTP Server]    Upgrade:', request.headers.upgrade);
-  console.log('[HTTP Server]    Connection:', request.headers.connection);
-});
-
 // ============================================
 // OPENAI REALTIME API WEBSOCKET RELAY
 // ============================================
@@ -1688,15 +1678,37 @@ if (!DEEPGRAM_API_KEY) {
   console.log('✅ Deepgram WebSocket Proxy enabled');
   console.log(`   API Key: ${keyPreview}`);
 
-  // Create WebSocket server on /ws path
-  // Note: Health endpoint is registered earlier (before sub-APIs mount) to avoid 404 handler conflicts
+  // Create WebSocket server WITHOUT path filter (will manually filter in upgrade event)
+  // Note: Path-based routing doesn't work reliably with Azure Container Apps load balancer
+  // Instead, we'll manually handle path routing in the upgrade event
   const wss = new WebSocket.Server({
-    server,
-    path: '/ws/deepgram'
+    noServer: true  // Don't attach to server automatically - we'll handle upgrades manually
   });
 
   // Create Deepgram client (reused for all connections)
   const deepgram = createClient(DEEPGRAM_API_KEY);
+
+  // Manually handle WebSocket upgrades for /ws/deepgram path
+  server.on('upgrade', (request, socket, head) => {
+    console.log('[Deepgram Proxy] WebSocket upgrade request received');
+    console.log('[Deepgram Proxy]    Path:', request.url);
+    console.log('[Deepgram Proxy]    Origin:', request.headers.origin || 'not provided');
+
+    const pathname = new URL(request.url, 'http://localhost').pathname;
+
+    // Only handle /ws/deepgram path (other paths handled by other WebSocket servers)
+    if (pathname.startsWith('/ws/deepgram')) {
+      console.log('✅ [Deepgram Proxy] Handling WebSocket upgrade for Deepgram');
+
+      wss.handleUpgrade(request, socket, head, (clientWs) => {
+        console.log('✅ [Deepgram Proxy] WebSocket upgraded successfully, emitting connection event');
+        wss.emit('connection', clientWs, request);
+      });
+    } else {
+      console.log('⏭️  [Deepgram Proxy] Path does not match /ws/deepgram, skipping');
+    }
+    // Let other WebSocket servers handle their own paths (e.g., /media-stream)
+  });
 
   wss.on('connection', (clientWs) => {
     console.log('📡 WebSocket client connected');
