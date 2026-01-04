@@ -1,82 +1,104 @@
-# 🎉 DTSQs Deployment Complete - December 3, 2025
+# 🚀 Deployment Complete - Patient ID Flow System
 
-## ✅ STATUS: LIVE IN PRODUCTION
+## ✅ Successfully Deployed to Azure
 
-**Frontend:** https://www.tshla.ai ✅
-**Database:** Supabase schema updated ✅  
-**DTSQs Active:** /pumpdrive/dtsqs ✅
+**Frontend & API both deployed successfully!**
 
----
-
-## 📦 What Was Deployed
-
-**DTSQs (Diabetes Treatment Satisfaction Questionnaire)**
-- 8-question validated assessment
-- Licensed to Dr Rakesh Patel MD (ref CB1744)
-- Captures baseline treatment satisfaction
-- Enhances AI pump recommendations by 10-15%
+### Production URLs
+- **Frontend**: https://red-pebble-e4551b7a.eastus.azurecontainerapps.io
+- **Dictation Page**: https://red-pebble-e4551b7a.eastus.azurecontainerapps.io/dictation
+- **API**: https://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io
 
 ---
 
-## 🧪 Test Instructions
+## 🔧 REQUIRED: Run Database Migration
 
-1. **Register:** https://www.tshla.ai/patient-register
-2. **DTSQs:** Auto-redirects to questionnaire  
-3. **Complete:** Answer all 8 questions (0-6 scale)
-4. **Assessment:** Continues to pump selection
+**Before testing, run this SQL in Supabase:**
 
----
+1. Go to https://supabase.com/dashboard
+2. Click "SQL Editor"
+3. Copy and run the SQL from: `database/migrations/add-tshla-id-column.sql`
 
-## 📊 Files Changed
+Or copy this SQL directly:
 
-**New Files (7):**
-- src/types/dtsqs.types.ts
-- src/data/dtsqsQuestions.ts
-- src/services/dtsqs.service.ts
-- src/pages/PumpDriveDTSQs.tsx
-- src/lib/db/migrations/005_add_dtsqs_questionnaire.sql
-- scripts/run-migration-005.sh
-- docs/DTSQS_IMPLEMENTATION_GUIDE.md
+```sql
+-- Add tshla_id column
+ALTER TABLE unified_patients
+ADD COLUMN IF NOT EXISTS tshla_id VARCHAR(13) UNIQUE;
 
-**Modified (4):**
-- src/pages/PatientRegister.tsx
-- src/components/bundles/PumpDriveBundle.tsx
-- src/pages/PumpDriveUnified.tsx
-- src/services/pumpAssessment.service.ts
+-- Add index
+CREATE INDEX IF NOT EXISTS idx_unified_patients_tshla_id
+ON unified_patients(tshla_id);
 
-**Total:** +1,582 lines
+-- Add validation trigger
+CREATE OR REPLACE FUNCTION validate_tshla_id()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.tshla_id IS NOT NULL AND NEW.tshla_id !~ '^TSH-\d{4}-\d{4}$' THEN
+    RAISE EXCEPTION 'Invalid TSHLA ID format. Must be TSH-YYYY-NNNN';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
----
-
-## 🗄️ Database
-
-**Patients table:**
-- dtsqs_completed (BOOLEAN)
-- dtsqs_completed_at (TIMESTAMPTZ)
-- dtsqs_responses (JSONB)
-
-**Pump_assessments table:**
-- dtsqs_baseline (JSONB)
-
-**Infrastructure:**
-- Validation triggers ✅
-- Analytics functions ✅
-- Performance indexes ✅
-- RLS policies ✅
+DROP TRIGGER IF EXISTS check_tshla_id_format ON unified_patients;
+CREATE TRIGGER check_tshla_id_format
+  BEFORE INSERT OR UPDATE ON unified_patients
+  FOR EACH ROW
+  EXECUTE FUNCTION validate_tshla_id();
+```
 
 ---
 
-## 🔗 Quick Links
+## 🧪 Test the New Features
 
-- Production: https://www.tshla.ai
-- GitHub: https://github.com/RakeshEPC/tshla-medical/actions
-- Supabase: https://supabase.com/dashboard/project/minvvjdflezibmgkplqb
-- Docs: docs/DTSQS_IMPLEMENTATION_GUIDE.md
+### 1. Test Patient Selector
+Visit: https://red-pebble-e4551b7a.eastus.azurecontainerapps.io/dictation
+
+You should see a modal with 3 tabs:
+- **Search**: Search by phone, name, MRN
+- **Today's Schedule**: Quick select from appointments
+- **Create New**: Create patient on-the-fly
+
+### 2. Create a Test Patient
+1. Click "Create New Patient" tab
+2. Enter:
+   - First Name: Test
+   - Last Name: Patient  
+   - Phone: (555) 000-0001
+3. Click "Create Patient"
+4. **Expected**: TSHLA ID `TSH-2025-0001` auto-generated
+
+### 3. Test Duplicate Prevention
+1. Try creating another patient with same phone
+2. **Expected**: Yellow warning appears with "Use Existing Patient" button
 
 ---
 
-## ✨ SUCCESS!
+## 📁 What Was Deployed
 
-DTSQs is now live and capturing baseline treatment satisfaction data! 🚀
+### New Features
+✅ Patient ID Generator (TSH-YYYY-NNNN format)
+✅ PatientSelector component (search, schedule, create)
+✅ Duplicate detection by phone
+✅ API endpoints for patient search/create
+✅ Enhanced dictation page with patient selection
 
-*Deployed: December 3, 2025 at 5:36 PM*
+### Files Created/Modified
+- `src/components/PatientSelector.tsx` - New
+- `src/pages/DictationPageEnhanced.tsx` - Modified
+- `server/services/patientIdGenerator.service.js` - New
+- `server/api/patient-chart-api.js` - Modified
+- `database/migrations/add-tshla-id-column.sql` - New
+
+---
+
+## ✅ Deployment Summary
+
+- ✅ Frontend deployed (2m 29s)
+- ✅ API deployed (2m 56s)
+- ✅ Commit: 46c13c12
+- ⏳ Database migration (run manually above)
+
+Complete documentation: PATIENT_ID_FLOW_IMPLEMENTATION.md
+
