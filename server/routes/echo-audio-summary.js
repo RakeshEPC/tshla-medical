@@ -20,13 +20,13 @@ const twilioClient = twilio(
 const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER;
 
 // Azure OpenAI configuration for AI summary generation (HIPAA compliant)
-const AZURE_OPENAI_KEY = process.env.VITE_AZURE_OPENAI_KEY;
+const AZURE_OPENAI_KEY = process.env.AZURE_OPENAI_KEY;
 const AZURE_OPENAI_ENDPOINT = process.env.VITE_AZURE_OPENAI_ENDPOINT;
 const AZURE_OPENAI_DEPLOYMENT = process.env.VITE_AZURE_OPENAI_DEPLOYMENT || 'gpt-4';
 const AZURE_API_VERSION = process.env.VITE_AZURE_OPENAI_API_VERSION || '2024-02-01';
 
 // ElevenLabs configuration
-const ELEVENLABS_API_KEY = process.env.VITE_ELEVENLABS_API_KEY;
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const ELEVENLABS_VOICE_ID = process.env.VITE_ELEVENLABS_DEFAULT_VOICE_ID || 'cgSgspJ2msm6clMCkdW9'; // Jessica - friendly conversational (default)
 
 // Clinic phone number for call transfers

@@ -24,7 +24,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 // Helper: Get OpenAI API key
 const getOpenAIKey = () => {
-  return process.env.VITE_OPENAI_API_KEY;
+  return process.env.OPENAI_API_KEY;
 };
 
 /**

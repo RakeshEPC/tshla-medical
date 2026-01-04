@@ -29,7 +29,7 @@ async function main() {
 
   try {
     // Check if ElevenLabs API is configured
-    if (!process.env.ELEVENLABS_API_KEY && !process.env.VITE_ELEVENLABS_API_KEY) {
+    if (!process.env.ELEVENLABS_API_KEY && !process.env.ELEVENLABS_API_KEY) {
       console.log('⚠️  ELEVENLABS_API_KEY not configured - skipping cleanup');
       process.exit(0);
     }

@@ -32,7 +32,7 @@ function wsTest(req, res) {
   // Check environment variables (presence only, not values)
   const envCheck = {
     OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
-    VITE_OPENAI_API_KEY: !!process.env.VITE_OPENAI_API_KEY,
+    VITE_OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
     SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
     VITE_SUPABASE_URL: !!process.env.VITE_SUPABASE_URL,
     SAFE_MODE: process.env.SAFE_MODE || 'D'

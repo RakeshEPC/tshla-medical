@@ -27,13 +27,13 @@ const AZURE_STORAGE_CONNECTION_STRING = process.env.AZURE_STORAGE_CONNECTION_STR
 const AUDIO_CONTAINER_NAME = 'echo-audio';
 
 // Azure OpenAI configuration for AI summary generation (HIPAA compliant)
-const AZURE_OPENAI_KEY = process.env.VITE_AZURE_OPENAI_KEY;
+const AZURE_OPENAI_KEY = process.env.AZURE_OPENAI_KEY;
 const AZURE_OPENAI_ENDPOINT = process.env.VITE_AZURE_OPENAI_ENDPOINT;
 const AZURE_OPENAI_DEPLOYMENT = process.env.VITE_AZURE_OPENAI_DEPLOYMENT || 'gpt-4';
 const AZURE_API_VERSION = process.env.VITE_AZURE_OPENAI_API_VERSION || '2024-02-01';
 
 // ElevenLabs configuration
-const ELEVENLABS_API_KEY = process.env.VITE_ELEVENLABS_API_KEY;
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 
 // Clinic phone number for call transfers
 const CLINIC_PHONE_NUMBER = process.env.CLINIC_PHONE_NUMBER || '+18325938100';

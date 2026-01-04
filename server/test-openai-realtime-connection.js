@@ -4,7 +4,7 @@
  */
 const WebSocket = require('ws');
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY;
 
 if (!OPENAI_API_KEY) {
   console.error('❌ Missing OPENAI_API_KEY');

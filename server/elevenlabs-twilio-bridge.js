@@ -12,7 +12,7 @@ const WebSocket = require('ws');
 const https = require('https');
 
 const PORT = process.env.BRIDGE_PORT || 3100;
-const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || process.env.VITE_ELEVENLABS_API_KEY;
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || process.env.ELEVENLABS_API_KEY;
 const ELEVENLABS_AGENT_ID = process.env.ELEVENLABS_AGENT_ID;
 
 // Create WebSocket server for Twilio to connect to

@@ -8,7 +8,7 @@
 
 const https = require('https');
 
-const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || process.env.VITE_ELEVENLABS_API_KEY || '';
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || process.env.ELEVENLABS_API_KEY || '';
 
 if (!ELEVENLABS_API_KEY) {
   console.warn('⚠️  [KB Service] ELEVENLABS_API_KEY not configured');

@@ -45,7 +45,7 @@ const upload = multer({
 const getAzureOpenAIConfig = () => {
   return {
     endpoint: process.env.VITE_AZURE_OPENAI_ENDPOINT,
-    apiKey: process.env.VITE_AZURE_OPENAI_KEY,
+    apiKey: process.env.AZURE_OPENAI_KEY,
     deployment: process.env.VITE_AZURE_OPENAI_DEPLOYMENT || 'gpt-4',
     apiVersion: process.env.VITE_AZURE_OPENAI_API_VERSION || '2024-02-01'
   };

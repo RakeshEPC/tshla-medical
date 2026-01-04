@@ -36,7 +36,7 @@ const supabase = createClient(
 
 // Initialize OpenAI client
 const openai = new OpenAI({
-  apiKey: process.env.VITE_OPENAI_API_KEY
+  apiKey: process.env.OPENAI_API_KEY
 });
 
 // Model configuration
@@ -4109,7 +4109,7 @@ async function fetchPumpComparisonData() {
  */
 async function generatePumpRecommendations(userData) {
   // Check if OpenAI is configured
-  if (!process.env.VITE_OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY === 'your_openai_api_key_here') {
+  if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your_openai_api_key_here') {
     console.log('OpenAI not configured - using rule-based recommendations (V3 fallback)');
     return generateRuleBasedRecommendations(userData);
   }

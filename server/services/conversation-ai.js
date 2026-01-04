@@ -12,7 +12,7 @@ class ConversationAIService {
     this.conversationHistory = new Map(); // Store conversation state per call
     this.azureOpenAIEndpoint =
       process.env.VITE_AZURE_OPENAI_ENDPOINT || process.env.AZURE_OPENAI_ENDPOINT;
-    this.azureOpenAIKey = process.env.VITE_AZURE_OPENAI_KEY || process.env.AZURE_OPENAI_KEY;
+    this.azureOpenAIKey = process.env.AZURE_OPENAI_KEY || process.env.AZURE_OPENAI_KEY;
     this.azureOpenAIDeployment =
       process.env.VITE_AZURE_OPENAI_DEPLOYMENT || process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o';
     this.azureOpenAIVersion =

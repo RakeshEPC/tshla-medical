@@ -102,7 +102,7 @@ app.get('/api/health', (req, res) => {
 app.get('/api/health/openai-realtime', async (req, res) => {
   try {
     const WebSocket = require('ws');
-    const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY;
 
     if (!OPENAI_API_KEY) {
       return res.status(503).json({
@@ -183,7 +183,7 @@ app.get('/', (req, res) => {
 
 // Pre-Visit TwiML Endpoint for Twilio Integration
 const https = require('https');
-const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || process.env.VITE_ELEVENLABS_API_KEY;
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || process.env.ELEVENLABS_API_KEY;
 const ELEVENLABS_AGENT_ID = process.env.ELEVENLABS_AGENT_ID;
 
 function getElevenLabsSignedUrl() {

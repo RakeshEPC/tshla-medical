@@ -7,7 +7,7 @@ const axios = require('axios');
 
 class ConditionExtractorService {
   constructor() {
-    this.openaiApiKey = process.env.VITE_OPENAI_API_KEY;
+    this.openaiApiKey = process.env.OPENAI_API_KEY; // Fixed: Use server-side key
     this.openaiModel = 'gpt-4o-mini'; // Fast and cost-effective for extraction
   }
 

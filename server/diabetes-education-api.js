@@ -20,7 +20,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 const openai = new OpenAI({
-  apiKey: process.env.VITE_OPENAI_API_KEY,
+  apiKey: process.env.OPENAI_API_KEY, // Fixed: Use server-side key (no VITE_ prefix)
 });
 
 // Configure multer for file uploads (in-memory)
