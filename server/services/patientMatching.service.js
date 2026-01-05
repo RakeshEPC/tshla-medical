@@ -13,6 +13,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcryptjs');
+const patientIdGenerator = require('./patientIdGenerator.service');
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -144,6 +145,242 @@ class PatientMatchingService {
   }
 
   /**
+   * Find patient by Patient ID (8-digit)
+   *
+   * @param {string} patientId - Patient ID (e.g., "12345678")
+   * @returns {Promise<Object|null>} - Patient record or null
+   */
+  async findPatientByPatientId(patientId) {
+    if (!patientId) return null;
+
+    try {
+      const { data, error } = await supabase
+        .from('unified_patients')
+        .select('*')
+        .eq('patient_id', patientId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error finding patient by Patient ID:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Find patient by TSH ID (6-digit)
+   *
+   * @param {string} tshId - TSH ID (e.g., "TSH 123-456")
+   * @returns {Promise<Object|null>} - Patient record or null
+   */
+  async findPatientByTshId(tshId) {
+    if (!tshId) return null;
+
+    try {
+      const { data, error } = await supabase
+        .from('unified_patients')
+        .select('*')
+        .eq('tshla_id', tshId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error finding patient by TSH ID:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Find patient by email
+   *
+   * @param {string} email - Email address
+   * @returns {Promise<Object|null>} - Patient record or null
+   */
+  async findPatientByEmail(email) {
+    if (!email) return null;
+
+    try {
+      const { data, error } = await supabase
+        .from('unified_patients')
+        .select('*')
+        .eq('email', email.toLowerCase())
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error finding patient by email:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Search patients by name (first and/or last name)
+   *
+   * @param {string} firstName - First name (optional)
+   * @param {string} lastName - Last name (optional)
+   * @returns {Promise<Array>} - Array of matching patients
+   */
+  async searchPatientsByName(firstName, lastName) {
+    if (!firstName && !lastName) {
+      return [];
+    }
+
+    try {
+      let query = supabase
+        .from('unified_patients')
+        .select('*')
+        .eq('is_active', true);
+
+      if (firstName && lastName) {
+        // Both first and last name provided
+        query = query
+          .ilike('first_name', `%${firstName}%`)
+          .ilike('last_name', `%${lastName}%`);
+      } else if (firstName) {
+        // Only first name
+        query = query.ilike('first_name', `%${firstName}%`);
+      } else {
+        // Only last name
+        query = query.ilike('last_name', `%${lastName}%`);
+      }
+
+      const { data, error } = await query.limit(50);
+
+      if (error) {
+        throw error;
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error('Error searching patients by name:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Search patients by date of birth
+   *
+   * @param {string} dob - Date of birth (YYYY-MM-DD)
+   * @returns {Promise<Array>} - Array of matching patients
+   */
+  async searchPatientsByDOB(dob) {
+    if (!dob) return [];
+
+    try {
+      const { data, error } = await supabase
+        .from('unified_patients')
+        .select('*')
+        .eq('date_of_birth', dob)
+        .eq('is_active', true)
+        .limit(50);
+
+      if (error) {
+        throw error;
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error('Error searching patients by DOB:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Advanced patient search across all demographics
+   * Supports: Patient ID, TSH ID, Phone, MRN, First Name, Last Name, Email, DOB
+   *
+   * @param {Object} searchParams - Search parameters
+   * @returns {Promise<Array>} - Array of matching patients
+   */
+  async searchPatients(searchParams) {
+    const {
+      patientId,
+      tshId,
+      phone,
+      mrn,
+      firstName,
+      lastName,
+      email,
+      dob,
+      query // Generic text search
+    } = searchParams;
+
+    try {
+      // If specific ID is provided, search by ID first
+      if (patientId) {
+        const patient = await this.findPatientByPatientId(patientId);
+        return patient ? [patient] : [];
+      }
+
+      if (tshId) {
+        const patient = await this.findPatientByTshId(tshId);
+        return patient ? [patient] : [];
+      }
+
+      if (mrn) {
+        const patient = await this.findPatientByMRN(mrn);
+        return patient ? [patient] : [];
+      }
+
+      if (phone) {
+        const patient = await this.findPatientByPhone(phone);
+        return patient ? [patient] : [];
+      }
+
+      if (email) {
+        const patient = await this.findPatientByEmail(email);
+        return patient ? [patient] : [];
+      }
+
+      // If first/last name provided
+      if (firstName || lastName) {
+        return await this.searchPatientsByName(firstName, lastName);
+      }
+
+      // If DOB provided
+      if (dob) {
+        return await this.searchPatientsByDOB(dob);
+      }
+
+      // Generic text search - try to match across multiple fields
+      if (query) {
+        const searchTerm = query.trim();
+
+        // Build OR query for multiple fields
+        const { data, error } = await supabase
+          .from('unified_patients')
+          .select('*')
+          .or(`patient_id.eq.${searchTerm},tshla_id.ilike.%${searchTerm}%,phone_primary.ilike.%${searchTerm}%,mrn.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`)
+          .eq('is_active', true)
+          .limit(50);
+
+        if (error) {
+          throw error;
+        }
+
+        return data || [];
+      }
+
+      return [];
+    } catch (error) {
+      console.error('Error searching patients:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Generate random 6-digit PIN
    *
    * @returns {string} - 6-digit PIN
@@ -203,16 +440,11 @@ class PatientMatchingService {
       const pin = this.generatePIN();
       const hashedPIN = await this.hashPIN(pin);
 
-      // Generate patient ID using database function
-      const { data: patientIdData, error: idError } = await supabase
-        .rpc('get_next_unified_patient_id');
+      // Generate random 8-digit Patient ID (PERMANENT)
+      const generatedPatientId = await patientIdGenerator.generateNextPatientId();
 
-      if (idError) {
-        console.error('Error generating patient ID:', idError);
-        throw new Error('Failed to generate patient ID');
-      }
-
-      const generatedPatientId = patientIdData;
+      // Generate random 6-digit TSH ID (for portal access)
+      const generatedTshId = await patientIdGenerator.generateNextTshId();
 
       // Prepare patient record
       const newPatient = {
@@ -220,8 +452,9 @@ class PatientMatchingService {
         phone_primary: normalized,
         phone_display: this.formatPhoneDisplay(normalized),
 
-        // Auto-generated patient ID
-        patient_id: generatedPatientId,
+        // Auto-generated patient IDs
+        patient_id: generatedPatientId, // 8-digit random (PERMANENT)
+        tshla_id: generatedTshId, // TSH XXX-XXX (6-digit random, for portal)
 
         // Demographics
         first_name: firstName || null,
@@ -279,20 +512,10 @@ class PatientMatchingService {
         throw error;
       }
 
-      // Get the auto-generated patient_id
-      const { data: updatedPatient, error: updateError } = await supabase
-        .from('unified_patients')
-        .update({ patient_id: await this.getNextPatientId() })
-        .eq('id', patient.id)
-        .select()
-        .single();
-
-      if (updateError) {
-        console.error('Error updating patient ID:', updateError);
-      }
-
       console.log('✅ Created new patient:', {
         id: patient.id,
+        patient_id: generatedPatientId,
+        tsh_id: generatedTshId,
         name: `${firstName || ''} ${lastName || ''}`.trim(),
         phone: normalized,
         source: source,
@@ -300,22 +523,13 @@ class PatientMatchingService {
       });
 
       // TODO: Send SMS with portal credentials
-      // await this.sendWelcomeSMS(normalized, pin, patient.patient_id);
+      // await this.sendWelcomeSMS(normalized, pin, patient.patient_id, patient.tshla_id);
 
-      return updatedPatient || patient;
+      return patient;
     } catch (error) {
       console.error('Error creating patient:', error);
       throw error;
     }
-  }
-
-  /**
-   * Get next patient ID from database function
-   */
-  async getNextPatientId() {
-    const { data, error } = await supabase.rpc('get_next_unified_patient_id');
-    if (error) throw error;
-    return data;
   }
 
   /**

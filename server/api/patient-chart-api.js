@@ -285,42 +285,65 @@ router.post('/portal/reset-pin', async (req, res) => {
 // ===============================
 
 /**
- * GET /api/patient-chart/search/query?q=searchTerm
- * Search patients by name, phone, MRN, or patient ID
+ * GET /api/patient-chart/search/query?q=searchterm
+ * Or: /api/patient-chart/search/query?patientId=12345678&firstName=John&lastName=Smith
+ *
+ * Search patients by:
+ * - Patient ID (8-digit)
+ * - TSH ID (6-digit)
+ * - Phone number
+ * - MRN
+ * - First name
+ * - Last name
+ * - Email
+ * - Date of birth
+ * - Generic text query (q parameter)
  */
 router.get('/search/query', async (req, res) => {
   try {
-    const { q } = req.query;
+    const { q, patientId, tshId, phone, mrn, firstName, lastName, email, dob } = req.query;
 
-    if (!q || q.length < 2) {
+    // Validate that at least one search parameter is provided
+    if (!q && !patientId && !tshId && !phone && !mrn && !firstName && !lastName && !email && !dob) {
+      return res.status(400).json({
+        success: false,
+        error: 'At least one search parameter is required'
+      });
+    }
+
+    // If generic query is provided and too short, reject
+    if (q && q.length < 2) {
       return res.status(400).json({
         success: false,
         error: 'Search query must be at least 2 characters'
       });
     }
 
-    const supabase = getSupabase();
-    const searchTerm = `%${q}%`;
-
-    const { data: patients, error } = await supabase
-      .from('unified_patients')
-      .select('*')
-      .or(`full_name.ilike.${searchTerm},phone_primary.ilike.${searchTerm},patient_id.ilike.${searchTerm},mrn.ilike.${searchTerm}`)
-      .eq('is_active', true)
-      .limit(20);
-
-    if (error) throw error;
+    // Use patientMatching service for comprehensive search
+    const patients = await patientMatchingService.searchPatients({
+      patientId,
+      tshId,
+      phone,
+      mrn,
+      firstName,
+      lastName,
+      email,
+      dob,
+      query: q
+    });
 
     res.json({
       success: true,
-      patients: patients || []
+      patients: patients || [],
+      count: patients?.length || 0
     });
 
   } catch (error) {
     console.error('Search error:', error);
     res.status(500).json({
       success: false,
-      error: 'Search failed'
+      error: 'Search failed',
+      message: error.message
     });
   }
 });

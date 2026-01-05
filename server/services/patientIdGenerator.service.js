@@ -1,14 +1,16 @@
 /**
  * Patient ID Generator Service
  *
- * Generates unique TSHLA patient IDs in format: TSH-YYYY-NNNN
- * Example: TSH-2025-0001, TSH-2025-0002
+ * Generates unique random patient identifiers:
+ * - TSH ID: TSH XXX-XXX (6-digit random, format: TSH 123-456)
+ * - Patient ID: NNNNNNNN (8-digit random, format: 12345678)
  *
  * Features:
- * - Auto-increment within each year
- * - Resets to 0001 on January 1st each year
- * - Thread-safe generation using database sequence
- * - Validates ID uniqueness before returning
+ * - Random generation for privacy (no sequential numbers)
+ * - Collision detection and retry logic
+ * - TSH ID can be reset by staff (for patient portal access)
+ * - Patient ID is PERMANENT - never changes (primary identifier)
+ * - Thread-safe generation with database uniqueness constraints
  */
 
 const { createClient } = require('@supabase/supabase-js');
@@ -24,69 +26,161 @@ const supabase = createClient(
 );
 
 class PatientIdGeneratorService {
-  /**
-   * Generate next TSHLA patient ID for the current year
-   * @returns {Promise<string>} Generated ID in format TSH-YYYY-NNNN
-   */
-  async generateNextId() {
-    const currentYear = new Date().getFullYear();
-    const prefix = `TSH-${currentYear}-`;
-
-    try {
-      // Get the highest existing ID for this year
-      const { data: existingIds, error: queryError } = await supabase
-        .from('unified_patients')
-        .select('tshla_id')
-        .like('tshla_id', `${prefix}%`)
-        .order('tshla_id', { ascending: false })
-        .limit(1);
-
-      if (queryError) {
-        console.error('❌ Error querying existing IDs:', queryError);
-        throw new Error(`Failed to query existing patient IDs: ${queryError.message}`);
-      }
-
-      // Calculate next sequence number
-      let nextNumber = 1;
-      if (existingIds && existingIds.length > 0) {
-        const lastId = existingIds[0].tshla_id;
-        const lastNumber = parseInt(lastId.split('-')[2], 10);
-        nextNumber = lastNumber + 1;
-      }
-
-      // Format with leading zeros (4 digits)
-      const paddedNumber = String(nextNumber).padStart(4, '0');
-      const newId = `${prefix}${paddedNumber}`;
-
-      console.log(`✅ Generated new TSHLA ID: ${newId}`);
-      return newId;
-
-    } catch (error) {
-      console.error('❌ Error generating patient ID:', error);
-      throw error;
-    }
+  constructor() {
+    this.MAX_RETRIES = 10; // Maximum attempts to generate unique ID
   }
 
   /**
-   * Validate that a TSHLA ID is properly formatted
-   * @param {string} tshlaId - ID to validate
+   * Generate random 6-digit number for TSH ID
+   * @returns {string} 6-digit string (e.g., "123456")
+   */
+  generateRandom6Digits() {
+    // Generate number between 100000 and 999999
+    return String(Math.floor(Math.random() * 900000) + 100000);
+  }
+
+  /**
+   * Generate random 8-digit number for Patient ID
+   * @returns {string} 8-digit string (e.g., "12345678")
+   */
+  generateRandom8Digits() {
+    // Generate number between 10000000 and 99999999
+    return String(Math.floor(Math.random() * 90000000) + 10000000);
+  }
+
+  /**
+   * Format 6-digit number as TSH ID
+   * @param {string} digits - 6-digit string
+   * @returns {string} Formatted TSH ID (e.g., "TSH 123-456")
+   */
+  formatTshId(digits) {
+    if (digits.length !== 6) {
+      throw new Error('TSH ID must be 6 digits');
+    }
+    // Format: TSH XXX-XXX
+    return `TSH ${digits.substring(0, 3)}-${digits.substring(3, 6)}`;
+  }
+
+  /**
+   * Generate next TSH ID with collision detection
+   * @returns {Promise<string>} Generated ID in format "TSH XXX-XXX"
+   */
+  async generateNextTshId() {
+    let attempts = 0;
+
+    while (attempts < this.MAX_RETRIES) {
+      try {
+        const randomDigits = this.generateRandom6Digits();
+        const tshId = this.formatTshId(randomDigits);
+
+        // Check if this ID already exists
+        const { data: existing, error: queryError } = await supabase
+          .from('unified_patients')
+          .select('id')
+          .eq('tshla_id', tshId)
+          .limit(1);
+
+        if (queryError) {
+          console.error('❌ Error checking TSH ID uniqueness:', queryError);
+          throw new Error(`Failed to check TSH ID uniqueness: ${queryError.message}`);
+        }
+
+        // If no collision, return this ID
+        if (!existing || existing.length === 0) {
+          console.log(`✅ Generated new TSH ID: ${tshId}`);
+          return tshId;
+        }
+
+        // Collision detected, retry
+        attempts++;
+        console.log(`⚠️  TSH ID collision detected (${tshId}), retrying... (attempt ${attempts}/${this.MAX_RETRIES})`);
+
+      } catch (error) {
+        console.error('❌ Error generating TSH ID:', error);
+        throw error;
+      }
+    }
+
+    // If we've exhausted all retries, throw error
+    throw new Error(`Failed to generate unique TSH ID after ${this.MAX_RETRIES} attempts`);
+  }
+
+  /**
+   * Generate next Patient ID with collision detection
+   * @returns {Promise<string>} Generated ID in format "12345678" (8 digits)
+   */
+  async generateNextPatientId() {
+    let attempts = 0;
+
+    while (attempts < this.MAX_RETRIES) {
+      try {
+        const patientId = this.generateRandom8Digits();
+
+        // Check if this ID already exists
+        const { data: existing, error: queryError } = await supabase
+          .from('unified_patients')
+          .select('id')
+          .eq('patient_id', patientId)
+          .limit(1);
+
+        if (queryError) {
+          console.error('❌ Error checking Patient ID uniqueness:', queryError);
+          throw new Error(`Failed to check Patient ID uniqueness: ${queryError.message}`);
+        }
+
+        // If no collision, return this ID
+        if (!existing || existing.length === 0) {
+          console.log(`✅ Generated new Patient ID: ${patientId}`);
+          return patientId;
+        }
+
+        // Collision detected, retry
+        attempts++;
+        console.log(`⚠️  Patient ID collision detected (${patientId}), retrying... (attempt ${attempts}/${this.MAX_RETRIES})`);
+
+      } catch (error) {
+        console.error('❌ Error generating Patient ID:', error);
+        throw error;
+      }
+    }
+
+    // If we've exhausted all retries, throw error
+    throw new Error(`Failed to generate unique Patient ID after ${this.MAX_RETRIES} attempts`);
+  }
+
+  /**
+   * Validate that a TSH ID is properly formatted
+   * @param {string} tshId - ID to validate
    * @returns {boolean} True if valid format
    */
-  isValidFormat(tshlaId) {
-    if (!tshlaId) return false;
+  isValidTshFormat(tshId) {
+    if (!tshId) return false;
 
-    // Format: TSH-YYYY-NNNN
-    const pattern = /^TSH-\d{4}-\d{4}$/;
-    return pattern.test(tshlaId);
+    // Format: TSH XXX-XXX (e.g., "TSH 123-456")
+    const pattern = /^TSH [0-9]{3}-[0-9]{3}$/;
+    return pattern.test(tshId);
   }
 
   /**
-   * Check if a TSHLA ID already exists in the database
-   * @param {string} tshlaId - ID to check
+   * Validate that a Patient ID is properly formatted
+   * @param {string} patientId - ID to validate
+   * @returns {boolean} True if valid format
+   */
+  isValidPatientIdFormat(patientId) {
+    if (!patientId) return false;
+
+    // Format: 8 digits (e.g., "12345678")
+    const pattern = /^[0-9]{8}$/;
+    return pattern.test(patientId);
+  }
+
+  /**
+   * Check if a TSH ID already exists in the database
+   * @param {string} tshId - ID to check
    * @returns {Promise<boolean>} True if ID exists
    */
-  async exists(tshlaId) {
-    if (!this.isValidFormat(tshlaId)) {
+  async tshIdExists(tshId) {
+    if (!this.isValidTshFormat(tshId)) {
       return false;
     }
 
@@ -94,52 +188,123 @@ class PatientIdGeneratorService {
       const { data, error } = await supabase
         .from('unified_patients')
         .select('id')
-        .eq('tshla_id', tshlaId)
+        .eq('tshla_id', tshId)
         .limit(1);
 
       if (error) {
-        console.error('❌ Error checking ID existence:', error);
+        console.error('❌ Error checking TSH ID existence:', error);
         throw error;
       }
 
       return data && data.length > 0;
 
     } catch (error) {
-      console.error('❌ Error in exists check:', error);
+      console.error('❌ Error in tshIdExists check:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check if a Patient ID already exists in the database
+   * @param {string} patientId - ID to check
+   * @returns {Promise<boolean>} True if ID exists
+   */
+  async patientIdExists(patientId) {
+    if (!this.isValidPatientIdFormat(patientId)) {
+      return false;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('unified_patients')
+        .select('id')
+        .eq('patient_id', patientId)
+        .limit(1);
+
+      if (error) {
+        console.error('❌ Error checking Patient ID existence:', error);
+        throw error;
+      }
+
+      return data && data.length > 0;
+
+    } catch (error) {
+      console.error('❌ Error in patientIdExists check:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Reset TSH ID for a patient (staff function)
+   * Generates a new random TSH ID and updates the patient record
+   * @param {string} patientUuid - Patient's UUID
+   * @returns {Promise<string>} New TSH ID
+   */
+  async resetTshId(patientUuid) {
+    console.log(`🔄 Resetting TSH ID for patient ${patientUuid}...`);
+
+    try {
+      // Generate new TSH ID
+      const newTshId = await this.generateNextTshId();
+
+      // Update patient record
+      const { error: updateError } = await supabase
+        .from('unified_patients')
+        .update({ tshla_id: newTshId })
+        .eq('id', patientUuid);
+
+      if (updateError) {
+        console.error('❌ Failed to update TSH ID:', updateError);
+        throw new Error(`Failed to update TSH ID: ${updateError.message}`);
+      }
+
+      console.log(`✅ TSH ID reset to ${newTshId} for patient ${patientUuid}`);
+      return newTshId;
+
+    } catch (error) {
+      console.error('❌ Error resetting TSH ID:', error);
       throw error;
     }
   }
 
   /**
    * Get statistics about patient IDs
-   * @returns {Promise<Object>} Stats including total IDs, current year count, etc.
+   * @returns {Promise<Object>} Stats including total patients, ID formats, etc.
    */
   async getStats() {
-    const currentYear = new Date().getFullYear();
-    const prefix = `TSH-${currentYear}-`;
-
     try {
-      // Total TSHLA IDs
+      // Total patients
       const { count: totalCount, error: totalError } = await supabase
         .from('unified_patients')
         .select('id', { count: 'exact', head: true })
-        .not('tshla_id', 'is', null);
+        .eq('is_active', true);
 
-      // Current year IDs
-      const { count: yearCount, error: yearError } = await supabase
+      // Patients with TSH IDs
+      const { count: withTshCount, error: tshError } = await supabase
         .from('unified_patients')
         .select('id', { count: 'exact', head: true })
-        .like('tshla_id', `${prefix}%`);
+        .not('tshla_id', 'is', null)
+        .eq('is_active', true);
 
-      if (totalError || yearError) {
+      // Patients with Patient IDs
+      const { count: withPatientIdCount, error: patientIdError } = await supabase
+        .from('unified_patients')
+        .select('id', { count: 'exact', head: true })
+        .not('patient_id', 'is', null)
+        .eq('is_active', true);
+
+      if (totalError || tshError || patientIdError) {
         throw new Error('Failed to get stats');
       }
 
       return {
         totalPatients: totalCount || 0,
-        currentYearPatients: yearCount || 0,
-        currentYear: currentYear,
-        nextId: await this.generateNextId()
+        patientsWithTshId: withTshCount || 0,
+        patientsWithPatientId: withPatientIdCount || 0,
+        idFormat: {
+          tshId: 'TSH XXX-XXX (6-digit random)',
+          patientId: 'NNNNNNNN (8-digit random)'
+        }
       };
 
     } catch (error) {
@@ -148,68 +313,36 @@ class PatientIdGeneratorService {
     }
   }
 
+  // ============================================
+  // LEGACY COMPATIBILITY METHODS
+  // Maintain backward compatibility with old code
+  // ============================================
+
   /**
-   * Migrate legacy patients without TSHLA IDs
-   * Generates IDs for all patients missing tshla_id
-   * @returns {Promise<Object>} Migration results
+   * @deprecated Use generateNextTshId() instead
+   * Legacy method for backward compatibility
    */
-  async migrateLegacyPatients() {
-    console.log('🔄 Starting migration of legacy patients...');
+  async generateNextId() {
+    console.warn('⚠️  generateNextId() is deprecated. Use generateNextTshId() instead.');
+    return this.generateNextTshId();
+  }
 
-    try {
-      // Get all patients without TSHLA IDs
-      const { data: patientsWithoutIds, error: queryError } = await supabase
-        .from('unified_patients')
-        .select('id, phone_primary, first_name, last_name, mrn')
-        .is('tshla_id', null)
-        .order('created_at', { ascending: true });
+  /**
+   * @deprecated Use isValidTshFormat() instead
+   * Legacy method for backward compatibility
+   */
+  isValidFormat(tshlaId) {
+    console.warn('⚠️  isValidFormat() is deprecated. Use isValidTshFormat() instead.');
+    return this.isValidTshFormat(tshlaId);
+  }
 
-      if (queryError) {
-        throw new Error(`Query failed: ${queryError.message}`);
-      }
-
-      if (!patientsWithoutIds || patientsWithoutIds.length === 0) {
-        console.log('✅ No legacy patients to migrate');
-        return { migrated: 0, errors: 0 };
-      }
-
-      console.log(`📊 Found ${patientsWithoutIds.length} patients without TSHLA IDs`);
-
-      let migrated = 0;
-      let errors = 0;
-
-      // Process each patient
-      for (const patient of patientsWithoutIds) {
-        try {
-          const newId = await this.generateNextId();
-
-          const { error: updateError } = await supabase
-            .from('unified_patients')
-            .update({ tshla_id: newId })
-            .eq('id', patient.id);
-
-          if (updateError) {
-            console.error(`❌ Failed to update patient ${patient.id}:`, updateError);
-            errors++;
-          } else {
-            console.log(`✅ Assigned ${newId} to ${patient.first_name} ${patient.last_name} (MRN: ${patient.mrn || 'N/A'})`);
-            migrated++;
-          }
-
-        } catch (error) {
-          console.error(`❌ Error processing patient ${patient.id}:`, error);
-          errors++;
-        }
-      }
-
-      console.log(`✅ Migration complete: ${migrated} migrated, ${errors} errors`);
-
-      return { migrated, errors };
-
-    } catch (error) {
-      console.error('❌ Migration failed:', error);
-      throw error;
-    }
+  /**
+   * @deprecated Use tshIdExists() instead
+   * Legacy method for backward compatibility
+   */
+  async exists(tshlaId) {
+    console.warn('⚠️  exists() is deprecated. Use tshIdExists() instead.');
+    return this.tshIdExists(tshlaId);
   }
 }
 
