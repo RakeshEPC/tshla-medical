@@ -283,6 +283,15 @@ export default function DoctorNavBar({
 
           {/* Center - Quick Actions */}
           <div className="flex items-center space-x-4">
+            {/* View Schedule Button - Primary CTA */}
+            <button
+              onClick={() => navigate('/schedule')}
+              className="bg-purple-500 hover:bg-purple-600 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2 shadow-sm"
+            >
+              <Calendar className="w-4 h-4" />
+              <span>View Schedule</span>
+            </button>
+
             {/* Quick Note Button - Primary CTA */}
             <button
               onClick={handleQuickNote}
