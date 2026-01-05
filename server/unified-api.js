@@ -360,6 +360,13 @@ app.post('/api/ai/summary', async (req, res) => {
 });
 
 /**
+ * Pre-Visit AI Summary Routes
+ * Separate router for staff pre-visit workflow
+ */
+const previsitRoutes = require('./routes/previsit');
+app.use('/api/ai', previsitRoutes);
+
+/**
  * ElevenLabs Text-to-Speech Proxy
  * Proxies TTS requests to ElevenLabs
  * Keeps ELEVENLABS_API_KEY secure on server-side

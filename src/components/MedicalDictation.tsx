@@ -23,15 +23,35 @@ import { OrdersDisplay } from './OrdersDisplay';
 import type { OrderExtractionResult } from '../services/orderExtraction.service';
 import '../styles/modernUI.css';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
+import { dictationStorageService } from '../services/dictationStorage.service';
 
 // Speech recognition interfaces removed - using HIPAA-compliant services only
+
+interface AppointmentData {
+  id: number;
+  patient_name: string;
+  patient_phone: string;
+  scheduled_date: string;
+  start_time: string;
+  provider_name: string;
+  unified_patient_id: string;
+  patient_dob?: string;
+  patient_mrn?: string;
+}
 
 interface MedicalDictationProps {
   patientId?: string;
   preloadPatientData?: boolean;
+  appointmentId?: number | null;
+  appointmentData?: AppointmentData | null;
 }
 
-export default function MedicalDictation({ patientId, preloadPatientData = false }: MedicalDictationProps) {
+export default function MedicalDictation({
+  patientId,
+  preloadPatientData = false,
+  appointmentId,
+  appointmentData
+}: MedicalDictationProps) {
   const navigate = useNavigate();
   const { logout } = useAuth();
   const [isRecording, setIsRecording] = useState(false);
@@ -78,6 +98,10 @@ export default function MedicalDictation({ patientId, preloadPatientData = false
   // Extracted orders state
   const [extractedOrders, setExtractedOrders] = useState<OrderExtractionResult | null>(null);
 
+  // Dictation auto-save state
+  const [currentDictationId, setCurrentDictationId] = useState<string | null>(null);
+  const autoSaveManagerRef = useRef<any>(null);
+
   // Patient details for live editing
   const [patientDetails, setPatientDetails] = useState({
     name: '',
@@ -97,6 +121,43 @@ export default function MedicalDictation({ patientId, preloadPatientData = false
   // Load patient data if patientId is provided and preload is enabled
   useEffect(() => {
     const loadPatientData = async () => {
+      console.log('📋 MedicalDictation received appointmentData:', appointmentData);
+      console.log('📋 MedicalDictation received appointmentId:', appointmentId);
+
+      // HIGHEST PRIORITY: Auto-fill from appointmentData prop
+      if (appointmentData) {
+        console.log('✅ appointmentData exists, auto-filling patient fields...');
+        console.log('  - Patient Name:', appointmentData.patient_name);
+        console.log('  - Patient MRN:', appointmentData.patient_mrn);
+        console.log('  - Patient DOB:', appointmentData.patient_dob);
+        console.log('  - Patient Phone:', appointmentData.patient_phone);
+
+        const age = appointmentData.patient_dob
+          ? new Date().getFullYear() - new Date(appointmentData.patient_dob).getFullYear()
+          : null;
+
+        const filledData = {
+          name: appointmentData.patient_name || '',
+          mrn: appointmentData.patient_mrn || '',
+          dob: appointmentData.patient_dob || '',
+          age: age,
+          email: '',
+          phone: appointmentData.patient_phone || '',
+          visitDate: new Date(appointmentData.scheduled_date).toLocaleDateString()
+        };
+
+        console.log('📝 Setting patient details to:', filledData);
+        setPatientDetails(filledData);
+
+        logInfo('MedicalDictation', '✅ Patient data auto-filled from appointment', {
+          patientName: appointmentData.patient_name,
+          appointmentId
+        });
+        return; // Exit early - we have the data
+      } else {
+        console.log('⚠️ No appointmentData provided, falling back to other methods');
+      }
+
       // FIRST PRIORITY: Try sessionStorage (from schedule click)
       const storedPatient = sessionStorage.getItem('current_patient');
       if (storedPatient) {
@@ -181,7 +242,7 @@ export default function MedicalDictation({ patientId, preloadPatientData = false
     };
 
     loadPatientData();
-  }, [patientId, preloadPatientData, providerId]);
+  }, [patientId, preloadPatientData, providerId, appointmentData, appointmentId]);
 
   // Load existing notes for this patient from database
   useEffect(() => {

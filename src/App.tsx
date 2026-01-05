@@ -45,14 +45,19 @@ const StaffWorkflowDashboard = lazy(() => import('./pages/StaffWorkflowDashboard
 const StaffOrdersQueue = lazy(() => import('./pages/StaffOrdersQueue'));
 const CaseManagementDashboard = lazy(() => import('./pages/CaseManagementDashboard'));
 const MADashboard = lazy(() => import('./pages/MADashboard'));
+const StaffPreVisitPrep = lazy(() => import('./pages/StaffPreVisitPrep'));
+const StaffPreVisitWorkflow = lazy(() => import('./pages/StaffPreVisitWorkflow'));
 
 // Dictation & Notes
 const DictationPageEnhanced = lazy(() => import('./pages/DictationPageEnhanced'));
 const QuickNote = lazy(() => import('./pages/QuickNote'));
 const QuickNoteModern = lazy(() => import('./pages/QuickNoteModern'));
+const DictationHistory = lazy(() => import('./pages/DictationHistory'));
+const DictationViewer = lazy(() => import('./pages/DictationViewer'));
 
 // Schedule & Calendar
 const SchedulePage = lazy(() => import('./pages/SchedulePage'));
+const SchedulePageV2 = lazy(() => import('./pages/SchedulePageV2'));
 
 // PumpDrive System (major feature - separate bundle)
 const PumpDriveBundle = lazy(() => import('./components/bundles/PumpDriveBundle'));
@@ -286,6 +291,26 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/staff-previsit-prep"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <StaffPreVisitPrep />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/staff-previsit-workflow"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <StaffPreVisitWorkflow />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
 
               {/* ===== DICTATION & NOTES ===== */}
               <Route
@@ -328,10 +353,30 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/dictation-history"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <DictationHistory />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dictation-viewer/:dictationId"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <DictationViewer />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
 
               {/* ===== SCHEDULE & CALENDAR ===== */}
-              {/* Redirect to dashboard which has better schedule view with imported Athena data */}
-              <Route path="/schedule" element={<Navigate to="/dashboard" replace />} />
+              {/* SchedulePageV2: Provider-grouped calendar with Internal ID, TSH ID, better organization */}
+              <Route path="/schedule" element={<SchedulePageV2 />} />
 
               {/* ===== PUMPDRIVE SYSTEM (AUTHENTICATION-ENABLED BUNDLE) ===== */}
               <Route
