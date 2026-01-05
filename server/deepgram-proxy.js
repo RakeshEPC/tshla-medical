@@ -43,6 +43,96 @@ console.log('✅ Deepgram Proxy Server');
 console.log(`   API Key: ${keyPreview}`);
 console.log(`   Port: ${PORT}`);
 
+/**
+ * Enhanced health check endpoint with API key validation
+ * Tests that:
+ * 1. API key is configured
+ * 2. API key is valid
+ * 3. Deepgram API is reachable
+ */
+async function handleHealthCheck(req, res) {
+  const checks = {
+    status: 'healthy',
+    service: 'deepgram-proxy',
+    timestamp: new Date().toISOString(),
+    checks: {
+      apiKeyConfigured: false,
+      apiKeyValid: false,
+      deepgramReachable: false
+    }
+  };
+
+  // Check 1: Is API key configured?
+  if (!DEEPGRAM_API_KEY || DEEPGRAM_API_KEY === 'undefined' || DEEPGRAM_API_KEY === 'placeholder') {
+    checks.status = 'unhealthy';
+    checks.error = 'Deepgram API key not configured';
+    res.writeHead(503, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(checks));
+    return;
+  }
+  checks.checks.apiKeyConfigured = true;
+
+  // Check 2 & 3: Is API key valid and can we reach Deepgram?
+  try {
+    const https = require('https');
+    const testPromise = new Promise((resolve, reject) => {
+      const options = {
+        hostname: 'api.deepgram.com',
+        port: 443,
+        path: '/v1/projects',
+        method: 'GET',
+        headers: {
+          'Authorization': `Token ${DEEPGRAM_API_KEY}`
+        },
+        timeout: 5000
+      };
+
+      const testReq = https.request(options, (testRes) => {
+        checks.checks.deepgramReachable = true;
+
+        if (testRes.statusCode === 200) {
+          checks.checks.apiKeyValid = true;
+          resolve(true);
+        } else {
+          checks.status = 'degraded';
+          checks.warning = `API key test returned ${testRes.statusCode}`;
+          resolve(false);
+        }
+
+        // Consume response to free up socket
+        testRes.resume();
+      });
+
+      testReq.on('error', (err) => {
+        checks.status = 'degraded';
+        checks.error = `Cannot reach Deepgram: ${err.message}`;
+        resolve(false);
+      });
+
+      testReq.on('timeout', () => {
+        testReq.destroy();
+        checks.status = 'degraded';
+        checks.error = 'Deepgram API timeout (5s)';
+        resolve(false);
+      });
+
+      testReq.end();
+    });
+
+    await testPromise;
+  } catch (err) {
+    checks.status = 'degraded';
+    checks.error = `Health check error: ${err.message}`;
+  }
+
+  // Return appropriate status code
+  const statusCode = checks.status === 'healthy' ? 200 :
+                     checks.status === 'degraded' ? 200 : 503;
+
+  res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(checks, null, 2));
+}
+
 // Create HTTP server for WebSocket upgrade
 const server = http.createServer((req, res) => {
   // Add CORS headers for all requests
@@ -57,12 +147,8 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.url === '/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      status: 'healthy',
-      service: 'deepgram-proxy',
-      timestamp: new Date().toISOString()
-    }));
+    // Enhanced health check with API key validation
+    handleHealthCheck(req, res);
   } else {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('Deepgram WebSocket Proxy Server\nConnect via WebSocket to /');
