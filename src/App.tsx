@@ -376,7 +376,16 @@ function App() {
 
               {/* ===== SCHEDULE & CALENDAR ===== */}
               {/* SchedulePageV2: Provider-grouped calendar with Internal ID, TSH ID, better organization */}
-              <Route path="/schedule" element={<SchedulePageV2 />} />
+              <Route
+                path="/schedule"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <SchedulePageV2 />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
 
               {/* ===== PUMPDRIVE SYSTEM (AUTHENTICATION-ENABLED BUNDLE) ===== */}
               <Route
