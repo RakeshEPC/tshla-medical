@@ -365,7 +365,7 @@ export default function SchedulePageV2() {
       const dateStr = selectedDate.toISOString().split('T')[0];
       console.log('Loading schedule for:', dateStr);
 
-      // Query with JOIN to get patient IDs
+      // Query with JOIN to get patient IDs (exclude cancelled appointments)
       let query = supabase
         .from('provider_schedules')
         .select(`
@@ -379,6 +379,7 @@ export default function SchedulePageV2() {
           )
         `)
         .eq('scheduled_date', dateStr)
+        .neq('status', 'cancelled')
         .order('provider_id')
         .order('start_time');
 
@@ -509,6 +510,7 @@ export default function SchedulePageV2() {
             )
           `)
           .eq('scheduled_date', dateStr)
+          .neq('status', 'cancelled')
           .order('provider_id')
           .order('start_time');
 
