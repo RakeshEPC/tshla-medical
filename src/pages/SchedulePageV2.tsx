@@ -396,6 +396,13 @@ export default function SchedulePageV2() {
       }
 
       console.log('📊 Query returned:', data?.length || 0, 'appointments');
+      if (data && data.length > 0) {
+        console.log('🔍 First appointment data:', {
+          appointment: data[0],
+          patient: data[0].unified_patients,
+          mrn: data[0].unified_patients?.mrn
+        });
+      }
 
       if (!data || data.length === 0) {
         console.warn('⚠️ No appointments found for date:', dateStr);
@@ -447,7 +454,7 @@ export default function SchedulePageV2() {
         const patient = apt.unified_patients;
         const priorCount = apt.unified_patient_id ? priorDictationsMap.get(apt.unified_patient_id) || 0 : 0;
 
-        acc[providerId].appointments.push({
+        const appointmentData = {
           id: apt.id.toString(),
           time: apt.start_time,
           patient: apt.patient_name || 'Unknown',
@@ -460,7 +467,20 @@ export default function SchedulePageV2() {
           notes: apt.chief_diagnosis || apt.visit_reason,
           hasPriorDictation: priorCount > 0,
           priorDictationCount: priorCount
-        });
+        };
+
+        // Debug log for first appointment
+        if (Object.keys(acc).length === 0 || Object.values(acc)[0].appointments.length === 0) {
+          console.log('🔍 Mapped appointment data:', {
+            patientName: apt.patient_name,
+            rawPatient: patient,
+            mappedMRN: appointmentData.mrn,
+            mappedInternalId: appointmentData.internalId,
+            mappedTshId: appointmentData.tshId
+          });
+        }
+
+        acc[providerId].appointments.push(appointmentData);
 
         return acc;
       }, {} as Record<string, ProviderGroup>);
