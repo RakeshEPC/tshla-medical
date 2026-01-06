@@ -830,7 +830,18 @@ export default function SchedulePageV2() {
                 {/* Appointments Grid */}
                 <div className="p-6 bg-gray-50">
                   <div className="grid gap-4">
-                    {provider.appointments.map((apt) => (
+                    {provider.appointments.map((apt, index) => {
+                      // DEBUG: Log first appointment data at render time
+                      if (index === 0) {
+                        console.log('🎨 RENDERING first appointment:', {
+                          patient: apt.patient,
+                          mrn: apt.mrn,
+                          internalId: apt.internalId,
+                          tshId: apt.tshId,
+                          fullApt: apt
+                        });
+                      }
+                      return (
                       <div
                         key={apt.id}
                         className="bg-white rounded-lg border-2 border-gray-200 p-4 hover:border-blue-400 hover:shadow-md transition-all"
@@ -978,7 +989,8 @@ export default function SchedulePageV2() {
                           </div>
                         </div>
                       </div>
-                    ))}
+                    );
+                    })}
                   </div>
                 </div>
               </div>
