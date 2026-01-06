@@ -14,6 +14,7 @@ interface AppointmentData {
   patient: string;
   internalId?: string;
   tshId?: string;
+  mrn?: string;  // Athena Patient ID (MRN)
   phone?: string;
   dob?: string;
   status: string;
@@ -23,6 +24,8 @@ interface AppointmentData {
   dictationId?: string;
   postVisitComplete?: boolean;
   summarySent?: boolean;
+  hasPriorDictation?: boolean;  // New: indicates if patient has previous dictation notes
+  priorDictationCount?: number;  // New: count of prior dictations
 }
 
 type ViewMode = 'daily' | 'weekly';
@@ -197,8 +200,13 @@ function WeeklyView({ weeklyData, navigate, getStatusColor }: WeeklyViewProps) {
                             <div className="font-semibold text-gray-900 mb-1 text-sm">{apt.patient}</div>
 
                             {/* IDs */}
-                            {(apt.internalId || apt.tshId) && (
+                            {(apt.internalId || apt.tshId || apt.mrn) && (
                               <div className="space-y-1 mb-2">
+                                {apt.mrn && (
+                                  <div className="px-1.5 py-0.5 bg-green-50 border border-green-400 text-green-700 font-mono font-bold rounded text-[10px]">
+                                    MRN: {apt.mrn}
+                                  </div>
+                                )}
                                 {apt.internalId && (
                                   <div className="px-1.5 py-0.5 bg-blue-50 border border-blue-300 text-blue-700 font-mono font-bold rounded text-[10px]">
                                     ID: {apt.internalId}
@@ -219,12 +227,43 @@ function WeeklyView({ weeklyData, navigate, getStatusColor }: WeeklyViewProps) {
                               </div>
                             )}
 
+                            {/* Prior Dictation Indicator */}
+                            {apt.hasPriorDictation && (
+                              <div className="mb-2 px-2 py-1 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-300 rounded">
+                                <div className="flex items-center justify-between text-[10px]">
+                                  <span className="text-blue-700 font-bold">📝 {apt.priorDictationCount} Prior Note{apt.priorDictationCount! > 1 ? 's' : ''}</span>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      navigate(`/dictation-history?patientMrn=${apt.internalId}`);
+                                    }}
+                                    className="text-blue-600 hover:text-blue-800 underline font-semibold"
+                                  >
+                                    View
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
                             {/* Workflow Status Indicators */}
                             <div className="space-y-1 mb-2 text-[10px]">
                               {/* Pre-Visit */}
                               <div>
                                 {apt.preVisitComplete ? (
                                   <span className="text-green-600 font-semibold">✅ Pre-Visit Ready</span>
+                                ) : apt.hasPriorDictation ? (
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-blue-600 font-semibold">📝 Has Prior Notes</span>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigate(`/staff-previsit-prep?appointmentId=${apt.id}`);
+                                      }}
+                                      className="text-purple-600 hover:underline text-[9px]"
+                                    >
+                                      Add More
+                                    </button>
+                                  </div>
                                 ) : (
                                   <button
                                     onClick={(e) => {
@@ -304,7 +343,7 @@ function WeeklyView({ weeklyData, navigate, getStatusColor }: WeeklyViewProps) {
 
 export default function SchedulePageV2() {
   const navigate = useNavigate();
-  const [selectedDate, setSelectedDate] = useState(new Date('2025-01-07')); // Default to Jan 7 where we have data
+  const [selectedDate, setSelectedDate] = useState(new Date('2025-01-07')); // Default to Jan 7, 2025 where we have appointment data
   const [providerGroups, setProviderGroups] = useState<ProviderGroup[]>([]);
   const [allProviders, setAllProviders] = useState<string[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<string>('all');
@@ -334,6 +373,7 @@ export default function SchedulePageV2() {
           unified_patients!provider_schedules_unified_patient_id_fkey (
             patient_id,
             tshla_id,
+            mrn,
             phone_primary,
             date_of_birth
           )
@@ -349,12 +389,15 @@ export default function SchedulePageV2() {
       const { data, error } = await query;
 
       if (error) {
-        console.error('Error loading schedule:', error);
+        console.error('❌ Error loading schedule:', error);
         setProviderGroups([]);
         return;
       }
 
+      console.log('📊 Query returned:', data?.length || 0, 'appointments');
+
       if (!data || data.length === 0) {
+        console.warn('⚠️ No appointments found for date:', dateStr);
         setProviderGroups([]);
         setAllProviders([]);
         return;
@@ -365,6 +408,29 @@ export default function SchedulePageV2() {
         new Set(data.map(apt => apt.provider_id).filter(Boolean))
       ) as string[];
       setAllProviders(uniqueProviders);
+
+      // Get all patient IDs to check for prior dictations
+      const patientIds = data
+        .map(apt => apt.unified_patient_id)
+        .filter(Boolean);
+
+      // Query for prior dictations count for each patient
+      const priorDictationsMap = new Map<string, number>();
+      if (patientIds.length > 0) {
+        const { data: dictationCounts } = await supabase
+          .from('dictations')
+          .select('patient_id')
+          .in('patient_id', patientIds)
+          .not('transcription_text', 'is', null);  // Only count dictations with actual content
+
+        if (dictationCounts) {
+          // Count dictations per patient
+          dictationCounts.forEach(d => {
+            const count = priorDictationsMap.get(d.patient_id) || 0;
+            priorDictationsMap.set(d.patient_id, count + 1);
+          });
+        }
+      }
 
       // Group appointments by provider
       const grouped = data.reduce((acc, apt) => {
@@ -378,16 +444,21 @@ export default function SchedulePageV2() {
         }
 
         const patient = apt.unified_patients;
+        const priorCount = apt.unified_patient_id ? priorDictationsMap.get(apt.unified_patient_id) || 0 : 0;
+
         acc[providerId].appointments.push({
           id: apt.id.toString(),
           time: apt.start_time,
           patient: apt.patient_name || 'Unknown',
           internalId: patient?.patient_id,
           tshId: patient?.tshla_id,
+          mrn: patient?.mrn,
           phone: apt.patient_phone || patient?.phone_primary,
           dob: apt.patient_dob || patient?.date_of_birth,
           status: apt.status || 'scheduled',
-          notes: apt.chief_diagnosis || apt.visit_reason
+          notes: apt.chief_diagnosis || apt.visit_reason,
+          hasPriorDictation: priorCount > 0,
+          priorDictationCount: priorCount
         });
 
         return acc;
@@ -432,6 +503,7 @@ export default function SchedulePageV2() {
             unified_patients!provider_schedules_unified_patient_id_fkey (
               patient_id,
               tshla_id,
+              mrn,
               phone_primary,
               date_of_birth
             )
@@ -462,6 +534,29 @@ export default function SchedulePageV2() {
           if (apt.provider_id) allProvidersSet.add(apt.provider_id);
         });
 
+        // Get all patient IDs to check for prior dictations
+        const patientIds = data
+          .map(apt => apt.unified_patient_id)
+          .filter(Boolean);
+
+        // Query for prior dictations count for each patient
+        const priorDictationsMap = new Map<string, number>();
+        if (patientIds.length > 0) {
+          const { data: dictationCounts } = await supabase
+            .from('dictations')
+            .select('patient_id')
+            .in('patient_id', patientIds)
+            .not('transcription_text', 'is', null);  // Only count dictations with actual content
+
+          if (dictationCounts) {
+            // Count dictations per patient
+            dictationCounts.forEach(d => {
+              const count = priorDictationsMap.get(d.patient_id) || 0;
+              priorDictationsMap.set(d.patient_id, count + 1);
+            });
+          }
+        }
+
         // Group by provider
         const grouped = data.reduce((acc, apt) => {
           const providerId = apt.provider_id || 'Unknown';
@@ -474,16 +569,21 @@ export default function SchedulePageV2() {
           }
 
           const patient = apt.unified_patients;
+          const priorCount = apt.unified_patient_id ? priorDictationsMap.get(apt.unified_patient_id) || 0 : 0;
+
           acc[providerId].appointments.push({
             id: apt.id.toString(),
             time: apt.start_time,
             patient: apt.patient_name || 'Unknown',
             internalId: patient?.patient_id,
             tshId: patient?.tshla_id,
+            mrn: patient?.mrn,
             phone: apt.patient_phone || patient?.phone_primary,
             dob: apt.patient_dob || patient?.date_of_birth,
             status: apt.status || 'scheduled',
-            notes: apt.chief_diagnosis || apt.visit_reason
+            notes: apt.chief_diagnosis || apt.visit_reason,
+            hasPriorDictation: priorCount > 0,
+            priorDictationCount: priorCount
           });
 
           return acc;
@@ -730,8 +830,13 @@ export default function SchedulePageV2() {
                             </div>
 
                             {/* Patient IDs - PROMINENT */}
-                            {(apt.internalId || apt.tshId) && (
-                              <div className="flex items-center gap-2 mb-3">
+                            {(apt.internalId || apt.tshId || apt.mrn) && (
+                              <div className="flex flex-wrap items-center gap-2 mb-3">
+                                {apt.mrn && (
+                                  <span className="px-3 py-1.5 bg-green-50 border-2 border-green-400 text-green-700 text-sm font-mono font-bold rounded-lg">
+                                    🏥 MRN: {apt.mrn}
+                                  </span>
+                                )}
                                 {apt.internalId && (
                                   <span className="px-3 py-1.5 bg-blue-50 border-2 border-blue-300 text-blue-700 text-sm font-mono font-bold rounded-lg">
                                     🆔 Internal ID: {apt.internalId}
