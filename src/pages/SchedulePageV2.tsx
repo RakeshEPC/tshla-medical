@@ -342,6 +342,9 @@ function WeeklyView({ weeklyData, navigate, getStatusColor }: WeeklyViewProps) {
 }
 
 export default function SchedulePageV2() {
+  // VERSION CHECK - Jan 6, 2026 3:30 PM - MRN Display Fix
+  console.log('🔄 SchedulePageV2 loaded - Version: MRN-FIX-2026-01-06-15:30');
+
   const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState(new Date('2025-01-07')); // Default to Jan 7, 2025 where we have appointment data
   const [providerGroups, setProviderGroups] = useState<ProviderGroup[]>([]);

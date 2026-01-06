@@ -17,6 +17,9 @@ interface AppointmentData {
 }
 
 export default function QuickNote() {
+  // VERSION CHECK - Jan 6, 2026 3:30 PM - MRN Display Fix
+  console.log('🔄 QuickNote loaded - Version: MRN-FIX-2026-01-06-15:30');
+
   const [searchParams] = useSearchParams();
   const [appointmentData, setAppointmentData] = useState<AppointmentData | null>(null);
   const [loading, setLoading] = useState(true);
