@@ -9,11 +9,16 @@ interface Appointment {
   time: string;
   patient: string;
   mrn?: string;
+  internalId?: string;  // 8-digit random ID (PERMANENT)
+  tshId?: string;       // TSH XXX-XXX (resettable)
+  provider?: string;
   type: string;
   duration: number;
   status: 'scheduled' | 'in-progress' | 'completed' | 'cancelled';
   template?: Template;
   notes?: string;
+  phone?: string;
+  dob?: string;
 }
 
 export default function SchedulePage() {
@@ -24,6 +29,8 @@ export default function SchedulePage() {
   const [showTemplateSelector, setShowTemplateSelector] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [doctorId, setDoctorId] = useState<string>('');
+  const [providers, setProviders] = useState<string[]>([]);
+  const [selectedProvider, setSelectedProvider] = useState<string>('all');
   const currentDoctor = currentUser?.name || 'Dr. Smith';
 
   useEffect(() => {
@@ -42,8 +49,10 @@ export default function SchedulePage() {
 
   useEffect(() => {
     // Load appointments for the selected date
+    console.log('Loading appointments for date:', selectedDate.toISOString().split('T')[0]);
     loadAppointments();
-  }, [selectedDate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, selectedProvider]);
 
   const loadTemplates = async (id: string) => {
     try {
@@ -74,11 +83,29 @@ export default function SchedulePage() {
       // Format date as YYYY-MM-DD for Supabase query
       const dateStr = selectedDate.toISOString().split('T')[0];
 
-      const { data, error } = await supabase
+      // Query with JOIN to unified_patients to get Internal ID and TSH ID
+      let query = supabase
         .from('provider_schedules')
-        .select('*')
+        .select(`
+          *,
+          unified_patients!provider_schedules_unified_patient_id_fkey (
+            patient_id,
+            tshla_id,
+            first_name,
+            last_name,
+            phone_primary,
+            date_of_birth
+          )
+        `)
         .eq('scheduled_date', dateStr)
         .order('start_time', { ascending: true });
+
+      // Filter by provider if selected
+      if (selectedProvider !== 'all') {
+        query = query.eq('provider_id', selectedProvider);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Error loading appointments:', error);
@@ -88,17 +115,31 @@ export default function SchedulePage() {
       }
 
       if (data && data.length > 0) {
+        // Extract unique providers for the filter dropdown
+        const uniqueProviders = Array.from(
+          new Set(data.map((apt: any) => apt.provider_id).filter(Boolean))
+        ) as string[];
+        setProviders(uniqueProviders);
+
         // Convert Supabase appointments to component format
-        const realAppointments: Appointment[] = data.map((apt: any) => ({
-          id: apt.id.toString(),
-          time: apt.start_time,
-          patient: apt.patient_name,
-          mrn: apt.patient_mrn || `MRN${apt.id}`,
-          type: apt.appointment_type || 'Office Visit',
-          duration: apt.duration_minutes || 30,
-          status: apt.status as any || 'scheduled',
-          notes: apt.chief_diagnosis || apt.notes,
-        }));
+        const realAppointments: Appointment[] = data.map((apt: any) => {
+          const patient = apt.unified_patients;
+          return {
+            id: apt.id.toString(),
+            time: apt.start_time,
+            patient: apt.patient_name || (patient ? `${patient.first_name} ${patient.last_name}` : 'Unknown'),
+            mrn: apt.external_patient_id || apt.athena_appointment_id,
+            internalId: patient?.patient_id,  // 8-digit random (PERMANENT)
+            tshId: patient?.tshla_id,          // TSH XXX-XXX (resettable)
+            provider: apt.provider_name || apt.provider_id,
+            type: apt.appointment_type || 'Office Visit',
+            duration: apt.duration_minutes || 20,
+            status: apt.status as any || 'scheduled',
+            notes: apt.chief_diagnosis || apt.visit_reason || apt.notes,
+            phone: apt.patient_phone || patient?.phone_primary,
+            dob: apt.patient_dob || patient?.date_of_birth,
+          };
+        });
 
         setAppointments(realAppointments);
         return;
@@ -314,11 +355,40 @@ export default function SchedulePage() {
             <div className="text-center">
               <h2 className="text-2xl font-bold text-gray-900">{formatDate(selectedDate)}</h2>
               <p className="text-gray-600">{appointments.length} appointments scheduled</p>
+              {/* Date Picker */}
+              <div className="mt-2">
+                <input
+                  type="date"
+                  value={selectedDate.toISOString().split('T')[0]}
+                  onChange={(e) => setSelectedDate(new Date(e.target.value))}
+                  className="px-3 py-1 border border-gray-300 rounded text-sm"
+                />
+                <span className="ml-2 text-xs text-gray-500">(Imported data: Jan 2025)</span>
+              </div>
             </div>
             <button onClick={() => changeDate(1)} className="p-2 hover:bg-gray-100 rounded-lg">
               Next Day →
             </button>
           </div>
+
+          {/* Provider Filter */}
+          {providers.length > 0 && (
+            <div className="mt-4 flex items-center justify-center gap-2">
+              <label className="text-sm font-medium text-gray-700">Filter by Provider:</label>
+              <select
+                value={selectedProvider}
+                onChange={(e) => setSelectedProvider(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="all">All Providers ({providers.length})</option>
+                {providers.map((provider) => (
+                  <option key={provider} value={provider}>
+                    {provider}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       </div>
 
@@ -350,10 +420,31 @@ export default function SchedulePage() {
                       </div>
                       <div className="mt-2">
                         <p className="text-lg font-medium text-gray-900">{appointment.patient}</p>
+
+                        {/* Show Internal ID and TSH ID prominently */}
+                        {(appointment.internalId || appointment.tshId) && (
+                          <div className="flex items-center gap-3 mt-1 mb-2">
+                            {appointment.internalId && (
+                              <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-mono font-semibold rounded">
+                                Internal ID: {appointment.internalId}
+                              </span>
+                            )}
+                            {appointment.tshId && (
+                              <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs font-mono font-semibold rounded">
+                                {appointment.tshId}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
                         <p className="text-sm text-gray-500">
-                          {appointment.mrn && `MRN: ${appointment.mrn} • `}
+                          {appointment.provider && `${appointment.provider} • `}
                           {appointment.type} • {appointment.duration} minutes
+                          {appointment.phone && ` • 📞 ${appointment.phone}`}
                         </p>
+                        {appointment.mrn && (
+                          <p className="text-xs text-gray-400 mt-1">Athena ID: {appointment.mrn}</p>
+                        )}
                       </div>
                       {appointment.template && (
                         <div className="mt-2 text-sm text-blue-600">

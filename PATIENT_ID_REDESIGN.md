@@ -4,6 +4,16 @@
 
 The patient ID system has been redesigned to use random IDs instead of sequential year-based IDs for improved privacy and flexibility.
 
+## ID Naming Convention
+
+The system uses three types of patient identifiers:
+
+| ID Type | Database Column | Format | Can Change? | Purpose |
+|---------|-----------------|--------|-------------|---------|
+| **Internal ID** | `patient_id` | `12345678` (8-digit random) | ❌ **NEVER** | Primary permanent identifier |
+| **TSH ID** | `tshla_id` | `TSH 123-456` (6-digit random) | ✅ Yes (staff can reset) | Patient portal access |
+| **Athena ID** | `mrn` | Varies (from Athena EMR) | ✅ Yes (staff can update) | External EMR identifier |
+
 ## Changes
 
 ### ID Formats
@@ -11,6 +21,7 @@ The patient ID system has been redesigned to use random IDs instead of sequentia
 #### TSH ID (Portal Access Code)
 - **Old Format**: `TSH-2025-0001` (sequential, year-based)
 - **New Format**: `TSH 123-456` (6-digit random)
+- **Database Column**: `tshla_id`
 - **Purpose**: Patient portal access
 - **Properties**:
   - Can be reset by staff if patient loses it
@@ -18,30 +29,34 @@ The patient ID system has been redesigned to use random IDs instead of sequentia
   - Format: `TSH XXX-XXX` where X is a digit (0-9)
   - Example: `TSH 384-927`
 
-#### Patient ID (Primary Internal Identifier)
+#### Internal ID (Primary Internal Identifier)
 - **Old Format**: `PT-2025-0001` (sequential, year-based)
 - **New Format**: `12345678` (8-digit random)
+- **Database Column**: `patient_id`
 - **Purpose**: Primary internal identifier
 - **Properties**:
   - **PERMANENT** - never changes, tied to patient forever
   - Random generation (no sequential numbers)
   - Format: 8 digits, no prefix
   - Example: `42891073`
+  - **Most important ID in the system**
 
-#### MRN (Medical Record Number)
-- **Source**: External EMR systems (e.g., Athena)
-- **Format**: Usually numbers from old EMR
+#### Athena ID / MRN (External EMR Identifier)
+- **Source**: External EMR systems (Athena Health)
+- **Database Column**: `mrn`
+- **Format**: Varies (whatever format Athena uses)
 - **Properties**: Can be changed by staff, used for lookup
+- **Example**: `ATH12345`, `MRN67890`
 
 ### Search Capabilities
 
 Patients can now be searched by ALL demographics:
-- **Patient ID** (8-digit) - PRIMARY identifier
+- **Internal ID** (8-digit) - PRIMARY identifier
 - **TSH ID** (6-digit)
+- **Athena ID / MRN** - External EMR identifier
 - **First Name** (separate field)
 - **Last Name** (separate field)
 - **Phone Number**
-- **MRN**
 - **Date of Birth**
 - **Email**
 

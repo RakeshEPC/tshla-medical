@@ -379,11 +379,9 @@ function App() {
               <Route
                 path="/schedule"
                 element={
-                  <ProtectedRoute>
-                    <Suspense fallback={<LoadingSpinner />}>
-                      <SchedulePageV2 />
-                    </Suspense>
-                  </ProtectedRoute>
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <SchedulePageV2 />
+                  </Suspense>
                 }
               />
 

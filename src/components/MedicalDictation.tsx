@@ -72,9 +72,6 @@ export default function MedicalDictation({
   const [favoriteTemplates, setFavoriteTemplates] = useState<DoctorTemplate[]>([]);
   const [previousVisitNote, setPreviousVisitNote] = useState('');
   const [showPatientDetails, setShowPatientDetails] = useState(false);
-  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
-  const [lastSaveTime, setLastSaveTime] = useState<Date | null>(null);
-  const [showDataRestored, setShowDataRestored] = useState(false);
   const [isSavingToDatabase, setIsSavingToDatabase] = useState(false);
   const [lastSavedNoteId, setLastSavedNoteId] = useState<string | null>(null);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
@@ -340,36 +337,7 @@ export default function MedicalDictation({
     loadTemplates();
   }, []);
 
-  // Auto-save transcript to localStorage every 10 seconds with visual feedback
-  useEffect(() => {
-    const autoSaveInterval = setInterval(() => {
-      if (transcript || processedNote) {
-        setAutoSaveStatus('saving');
-
-        const autoSaveData = {
-          transcript,
-          processedNote,
-          patientDetails,
-          previousVisitNote,
-          selectedTemplate: selectedTemplate?.id,
-          recordingMode,
-          timestamp: new Date().toISOString()
-        };
-
-        localStorage.setItem('autosave_dictation', JSON.stringify(autoSaveData));
-        const now = new Date();
-        setLastSaveTime(now);
-        setAutoSaveStatus('saved');
-
-        logDebug('MedicalDictation', 'Debug message', {}); 
-
-        // Reset status after 2 seconds
-        setTimeout(() => setAutoSaveStatus('idle'), 2000);
-      }
-    }, 10000); // Save every 10 seconds
-
-    return () => clearInterval(autoSaveInterval);
-  }, [transcript, processedNote, patientDetails, previousVisitNote, selectedTemplate, recordingMode]);
+  // localStorage auto-save removed - all dictation saved directly to database
 
   // Auto-save to database every 30 seconds with changes detected
   useEffect(() => {
@@ -421,61 +389,7 @@ export default function MedicalDictation({
     return () => clearInterval(databaseAutoSaveInterval);
   }, [transcript, processedNote, patientDetails.name, patientDetails.mrn, recordingMode, patientId, providerId, providerName, databaseAutoSaveStatus, lastSavedNoteId]);
 
-  // Restore auto-saved data on mount with improved UX
-  useEffect(() => {
-    const savedData = localStorage.getItem('autosave_dictation');
-    if (savedData) {
-      try {
-        const data = JSON.parse(savedData);
-        const savedTime = new Date(data.timestamp);
-        const now = new Date();
-        const hoursSince = (now.getTime() - savedTime.getTime()) / (1000 * 60 * 60);
-
-        // Auto-restore if less than 1 hour old (no prompt needed)
-        if (hoursSince < 1) {
-          setTranscript(data.transcript || '');
-          setProcessedNote(data.processedNote || '');
-          setPatientDetails(data.patientDetails || patientDetails);
-          setPreviousVisitNote(data.previousVisitNote || '');
-          setRecordingMode(data.recordingMode || null);
-          if (data.selectedTemplate) {
-            const template = templates.find(t => t.id === data.selectedTemplate);
-            if (template) setSelectedTemplate(template);
-          }
-          setShowProcessed(!!data.processedNote);
-          setShowDataRestored(true);
-          setTimeout(() => setShowDataRestored(false), 5000); // Hide after 5 seconds
-          logDebug('MedicalDictation', 'Debug message', {});
-        }
-        // Prompt if 1-24 hours old
-        else if (hoursSince < 24) {
-          if (window.confirm(`Found saved work from ${savedTime.toLocaleString()}. Continue where you left off?`)) {
-            setTranscript(data.transcript || '');
-            setProcessedNote(data.processedNote || '');
-            setPatientDetails(data.patientDetails || patientDetails);
-            setPreviousVisitNote(data.previousVisitNote || '');
-            setRecordingMode(data.recordingMode || null);
-            if (data.selectedTemplate) {
-              const template = templates.find(t => t.id === data.selectedTemplate);
-              if (template) setSelectedTemplate(template);
-            }
-            setShowProcessed(!!data.processedNote);
-            setShowDataRestored(true);
-            setTimeout(() => setShowDataRestored(false), 5000);
-          } else {
-            localStorage.removeItem('autosave_dictation');
-          }
-        }
-        // Remove if older than 24 hours
-        else {
-          localStorage.removeItem('autosave_dictation');
-        }
-      } catch (error) {
-        logError('MedicalDictation', 'Error message', {});
-        localStorage.removeItem('autosave_dictation');
-      }
-    }
-  }, [templates]);
+  // Auto-restore from localStorage removed - prevents confusion with saved patient charts
 
   // Enhanced session extension for active dictation
   useEffect(() => {
@@ -1271,17 +1185,7 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
         </div>
       )}
 
-      {/* Auto-save Status & Data Restored Notifications */}
-      {showDataRestored && (
-        <div className="fixed top-4 right-4 z-50 animate-fade-in">
-          <div className="bg-green-50 border border-green-200 rounded-lg shadow-lg p-3 flex items-center gap-2">
-            <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span className="text-sm font-medium text-green-800">Work restored - continue where you left off!</span>
-          </div>
-        </div>
-      )}
+      {/* Auto-restore notifications removed */}
 
       {/* Database Save Success Notification */}
       {showSaveSuccess && (
@@ -1297,24 +1201,7 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
         </div>
       )}
 
-      <div className="fixed top-4 left-4 z-40">
-        {autoSaveStatus === 'saving' && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg shadow-sm p-2 flex items-center gap-2">
-            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
-            <span className="text-xs text-blue-800">Saving...</span>
-          </div>
-        )}
-        {autoSaveStatus === 'saved' && (
-          <div className="bg-green-50 border border-green-200 rounded-lg shadow-sm p-2 flex items-center gap-2">
-            <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            <span className="text-xs text-green-800">
-              Saved {lastSaveTime ? lastSaveTime.toLocaleTimeString() : ''}
-            </span>
-          </div>
-        )}
-      </div>
+      {/* localStorage auto-save indicators removed */}
 
       <div className="fixed top-4 right-4 z-40">
         {databaseAutoSaveStatus === 'saving' && (
