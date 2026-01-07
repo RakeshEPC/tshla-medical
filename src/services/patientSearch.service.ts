@@ -100,13 +100,7 @@ class PatientSearchService {
       }
       // Search by name
       else if (searchTerm.length >= 2) {
-        dbQuery = dbQuery.or(`
-          first_name.ilike.%${searchTerm}%,
-          last_name.ilike.%${searchTerm}%,
-          full_name.ilike.%${searchTerm}%,
-          patient_id.ilike.%${searchTerm}%,
-          mrn.ilike.%${searchTerm}%
-        `);
+        dbQuery = dbQuery.or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,full_name.ilike.%${searchTerm}%,patient_id.ilike.%${searchTerm}%,mrn.ilike.%${searchTerm}%`);
       }
 
       const { data, error } = await dbQuery;
