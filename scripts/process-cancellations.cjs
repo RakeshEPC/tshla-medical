@@ -173,11 +173,12 @@ async function processCancellation(row, rowNumber) {
           stats.appointmentsDeleted++;
         }
       } else {
-        // Mark as cancelled (just update status field)
+        // Mark as cancelled and set cancellation date
         const { error: updateError } = await supabase
           .from('provider_schedules')
           .update({
-            status: 'cancelled'
+            status: 'cancelled',
+            cancellation_date: cancelledDate
           })
           .eq('id', appointment.id);
 

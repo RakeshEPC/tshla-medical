@@ -342,11 +342,16 @@ function WeeklyView({ weeklyData, navigate, getStatusColor }: WeeklyViewProps) {
 }
 
 export default function SchedulePageV2() {
-  // VERSION CHECK - Jan 6, 2026 3:30 PM - MRN Display Fix
-  console.log('🔄 SchedulePageV2 loaded - Version: MRN-FIX-2026-01-06-15:30');
+  // VERSION CHECK - Jan 7, 2026 - Date & Cancellation Fix
+  console.log('🔄 SchedulePageV2 loaded - Version: DATE-CANCEL-FIX-2026-01-07');
 
   const navigate = useNavigate();
-  const [selectedDate, setSelectedDate] = useState(new Date('2025-01-07')); // Default to Jan 7, 2025 where we have appointment data
+  const [selectedDate, setSelectedDate] = useState(() => {
+    // Default to today, but check if we have data for today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset time to midnight for consistent comparison
+    return today;
+  });
   const [providerGroups, setProviderGroups] = useState<ProviderGroup[]>([]);
   const [allProviders, setAllProviders] = useState<string[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<string>('all');
@@ -382,9 +387,11 @@ export default function SchedulePageV2() {
           )
         `)
         .eq('scheduled_date', dateStr)
-        .neq('status', 'cancelled')
+        .neq('status', 'cancelled')  // Filter out cancelled appointments
         .order('provider_id')
         .order('start_time');
+
+      console.log('📅 Loading schedule for date:', dateStr, '(excluding cancelled appointments)');
 
       if (selectedProvider !== 'all') {
         query = query.eq('provider_id', selectedProvider);
@@ -398,13 +405,20 @@ export default function SchedulePageV2() {
         return;
       }
 
-      console.log('📊 Query returned:', data?.length || 0, 'appointments');
+      console.log('📊 Query returned:', data?.length || 0, 'appointments (after filtering cancelled)');
       if (data && data.length > 0) {
         console.log('🔍 First appointment data:', {
           appointment: data[0],
           patient: data[0].unified_patients,
-          mrn: data[0].unified_patients?.mrn
+          mrn: data[0].unified_patients?.mrn,
+          status: data[0].status
         });
+
+        // Check if any have cancelled status (should be 0)
+        const cancelledCount = data.filter(apt => apt.status === 'cancelled').length;
+        if (cancelledCount > 0) {
+          console.warn('⚠️ WARNING: Found', cancelledCount, 'cancelled appointments in results (should be 0!)');
+        }
       }
 
       if (!data || data.length === 0) {
@@ -533,7 +547,7 @@ export default function SchedulePageV2() {
             )
           `)
           .eq('scheduled_date', dateStr)
-          .neq('status', 'cancelled')
+          .neq('status', 'cancelled')  // Filter out cancelled appointments
           .order('provider_id')
           .order('start_time');
 
@@ -735,9 +749,20 @@ export default function SchedulePageV2() {
               />
               <button
                 onClick={() => setSelectedDate(new Date('2025-01-07'))}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
+                title="View sample data (imported appointments)"
+              >
+                📊 Sample Data (Jan 7, 2025)
+              </button>
+              <button
+                onClick={() => {
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  setSelectedDate(today);
+                }}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
               >
-                Jan 7, 2025
+                📅 Today
               </button>
               <button
                 onClick={() => changeDate(viewMode === 'weekly' ? 7 : 1)}
