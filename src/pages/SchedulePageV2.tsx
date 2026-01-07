@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import AppointmentFormModal from '../components/AppointmentFormModal';
+import AppointmentDeleteDialog from '../components/AppointmentDeleteDialog';
+import AppointmentCancelDialog from '../components/AppointmentCancelDialog';
 
 interface ProviderGroup {
   providerId: string;
@@ -342,8 +345,8 @@ function WeeklyView({ weeklyData, navigate, getStatusColor }: WeeklyViewProps) {
 }
 
 export default function SchedulePageV2() {
-  // VERSION CHECK - Jan 7, 2026 - Date & Cancellation Fix
-  console.log('🔄 SchedulePageV2 loaded - Version: DATE-CANCEL-FIX-2026-01-07');
+  // VERSION CHECK - Jan 7, 2026 - Date & Cancellation Fix + CRUD
+  console.log('🔄 SchedulePageV2 loaded - Version: DATE-CANCEL-FIX-CRUD-2026-01-07');
 
   const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState(() => {
@@ -358,6 +361,13 @@ export default function SchedulePageV2() {
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('daily');
   const [weeklyData, setWeeklyData] = useState<Record<string, ProviderGroup[]>>({});
+
+  // CRUD Modal States
+  const [showAppointmentModal, setShowAppointmentModal] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState<any | null>(null);
+  const [editAppointmentId, setEditAppointmentId] = useState<number | undefined>();
 
   useEffect(() => {
     if (viewMode === 'daily') {
@@ -682,6 +692,56 @@ export default function SchedulePageV2() {
     }
   };
 
+  // CRUD Handlers
+  const handleNewAppointment = () => {
+    setEditAppointmentId(undefined);
+    setSelectedAppointment(null);
+    setShowAppointmentModal(true);
+  };
+
+  const handleEditAppointment = (apt: AppointmentData) => {
+    setEditAppointmentId(Number(apt.id));
+    setSelectedAppointment(apt);
+    setShowAppointmentModal(true);
+  };
+
+  const handleDeleteClick = (apt: AppointmentData) => {
+    setSelectedAppointment({
+      id: Number(apt.id),
+      patient_name: apt.patient,
+      provider_name: providerGroups.find(pg =>
+        pg.appointments.some(a => a.id === apt.id)
+      )?.providerName || 'Unknown',
+      scheduled_date: selectedDate.toISOString().split('T')[0],
+      start_time: apt.time,
+      appointment_type: apt.notes || ''
+    });
+    setShowDeleteDialog(true);
+  };
+
+  const handleCancelClick = (apt: AppointmentData) => {
+    setSelectedAppointment({
+      id: Number(apt.id),
+      patient_name: apt.patient,
+      provider_name: providerGroups.find(pg =>
+        pg.appointments.some(a => a.id === apt.id)
+      )?.providerName || 'Unknown',
+      scheduled_date: selectedDate.toISOString().split('T')[0],
+      start_time: apt.time,
+      appointment_type: apt.notes || ''
+    });
+    setShowCancelDialog(true);
+  };
+
+  const handleAppointmentSuccess = () => {
+    // Refresh the schedule after create/update/delete/cancel
+    if (viewMode === 'daily') {
+      loadSchedule();
+    } else {
+      loadWeeklySchedule();
+    }
+  };
+
   const totalAppointments = providerGroups.reduce((sum, p) => sum + p.appointments.length, 0);
 
   return (
@@ -772,8 +832,14 @@ export default function SchedulePageV2() {
               </button>
             </div>
 
-            {/* Provider Filter */}
+            {/* Provider Filter & New Appointment Button */}
             <div className="flex items-center gap-2">
+              <button
+                onClick={handleNewAppointment}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-colors shadow-md"
+              >
+                ➕ New Appointment
+              </button>
               <label className="text-sm font-medium text-gray-700">Provider:</label>
               <select
                 value={selectedProvider}
@@ -1011,6 +1077,28 @@ export default function SchedulePageV2() {
                             >
                               📋 View Chart
                             </button>
+
+                            {/* CRUD Actions */}
+                            <div className="border-t border-gray-300 pt-2 mt-2 space-y-2">
+                              <button
+                                onClick={() => handleEditAppointment(apt)}
+                                className="w-full px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold rounded border border-blue-300 transition-colors"
+                              >
+                                ✏️ Edit
+                              </button>
+                              <button
+                                onClick={() => handleCancelClick(apt)}
+                                className="w-full px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-orange-700 text-xs font-semibold rounded border border-orange-300 transition-colors"
+                              >
+                                ❌ Cancel Appt
+                              </button>
+                              <button
+                                onClick={() => handleDeleteClick(apt)}
+                                className="w-full px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-semibold rounded border border-red-300 transition-colors"
+                              >
+                                🗑️ Delete
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1023,6 +1111,38 @@ export default function SchedulePageV2() {
           </div>
         )}
       </div>
+
+      {/* CRUD Modals */}
+      <AppointmentFormModal
+        isOpen={showAppointmentModal}
+        onClose={() => {
+          setShowAppointmentModal(false);
+          setEditAppointmentId(undefined);
+          setSelectedAppointment(null);
+        }}
+        onSuccess={handleAppointmentSuccess}
+        appointmentId={editAppointmentId}
+      />
+
+      <AppointmentDeleteDialog
+        isOpen={showDeleteDialog}
+        onClose={() => {
+          setShowDeleteDialog(false);
+          setSelectedAppointment(null);
+        }}
+        onSuccess={handleAppointmentSuccess}
+        appointment={selectedAppointment}
+      />
+
+      <AppointmentCancelDialog
+        isOpen={showCancelDialog}
+        onClose={() => {
+          setShowCancelDialog(false);
+          setSelectedAppointment(null);
+        }}
+        onSuccess={handleAppointmentSuccess}
+        appointment={selectedAppointment}
+      />
     </div>
   );
 }
