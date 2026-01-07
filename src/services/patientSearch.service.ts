@@ -57,10 +57,12 @@ class PatientSearchService {
    */
   async searchPatients(query: string, limit: number = 10): Promise<PatientSearchResult[]> {
     if (!query || query.trim().length < 2) {
+      console.log('🔍 [PatientSearch] Query too short, returning empty');
       return [];
     }
 
     try {
+      console.log('🔍 [PatientSearch] Starting search for:', query);
       logDebug('PatientSearchService', `Searching for: "${query}"`);
 
       const searchTerm = query.trim().toLowerCase();
@@ -68,6 +70,8 @@ class PatientSearchService {
       // Normalize phone for search (remove all non-digits)
       const phoneNumbers = searchTerm.match(/\d+/g);
       const normalizedPhone = phoneNumbers ? phoneNumbers.join('') : '';
+
+      console.log('🔍 [PatientSearch] searchTerm:', searchTerm, 'normalizedPhone:', normalizedPhone);
 
       // Build search query
       let dbQuery = supabase
@@ -96,24 +100,33 @@ class PatientSearchService {
 
       // Search by phone (if query contains numbers)
       if (normalizedPhone.length >= 3) {
-        dbQuery = dbQuery.or(`phone_primary.ilike.%${normalizedPhone}%,phone_display.ilike.%${searchTerm}%`);
+        const orFilter = `phone_primary.ilike.%${normalizedPhone}%,phone_display.ilike.%${searchTerm}%`;
+        console.log('🔍 [PatientSearch] Using PHONE filter:', orFilter);
+        dbQuery = dbQuery.or(orFilter);
       }
       // Search by name
       else if (searchTerm.length >= 2) {
-        dbQuery = dbQuery.or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,full_name.ilike.%${searchTerm}%,patient_id.ilike.%${searchTerm}%,mrn.ilike.%${searchTerm}%`);
+        const orFilter = `first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,full_name.ilike.%${searchTerm}%,patient_id.ilike.%${searchTerm}%,mrn.ilike.%${searchTerm}%`;
+        console.log('🔍 [PatientSearch] Using NAME filter:', orFilter);
+        dbQuery = dbQuery.or(orFilter);
       }
 
+      console.log('🔍 [PatientSearch] Executing query...');
       const { data, error } = await dbQuery;
 
       if (error) {
+        console.error('❌ [PatientSearch] Query error:', error);
         logError('PatientSearchService', 'Search error', { error, query });
         throw error;
       }
 
+      console.log('✅ [PatientSearch] Query result:', data?.length || 0, 'patients found');
+      console.log('📊 [PatientSearch] First result:', data?.[0]);
       logInfo('PatientSearchService', `Found ${data?.length || 0} patients matching "${query}"`);
 
       return data as PatientSearchResult[] || [];
     } catch (error) {
+      console.error('❌ [PatientSearch] Search failed:', error);
       logError('PatientSearchService', 'Search failed', { error, query });
       return [];
     }
