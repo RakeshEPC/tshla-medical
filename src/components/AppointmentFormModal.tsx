@@ -90,7 +90,21 @@ export default function AppointmentFormModal({
       const { data, error } = await supabase
         .from('medical_staff')
         .select('id, email, first_name, last_name, role, specialty')
-        .in('role', ['doctor', 'nurse_practitioner', 'physician_assistant'])
+        // Expanded to include all clinical roles that can have appointments
+        .in('role', [
+          'doctor',
+          'nurse_practitioner',
+          'physician_assistant',
+          'dietitian',           // RD, RDN
+          'nutritionist',
+          'therapist',           // LMFT, psychologist
+          'psychologist',
+          'psychiatrist',
+          'social_worker',
+          'counselor',
+          'pharmacist',
+          'care_coordinator'
+        ])
         .eq('is_active', true)
         .order('last_name');
 
@@ -102,6 +116,7 @@ export default function AppointmentFormModal({
       }));
 
       setProviders(providerList);
+      console.log('Loaded providers:', providerList.length, providerList);
     } catch (err) {
       console.error('Failed to load providers:', err);
     }
