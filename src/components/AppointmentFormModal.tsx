@@ -89,7 +89,7 @@ export default function AppointmentFormModal({
     try {
       const { data, error } = await supabase
         .from('medical_staff')
-        .select('id, email, first_name, last_name, role, specialty')
+        .select('id, email, first_name, last_name, role, specialty, athena_provider_id')
         // Expanded to include all clinical roles that can have appointments
         .in('role', [
           'doctor',
@@ -106,12 +106,16 @@ export default function AppointmentFormModal({
           'care_coordinator'
         ])
         .eq('is_active', true)
+        .not('athena_provider_id', 'is', null)  // Only show providers with Athena mapping
         .order('last_name');
 
       if (error) throw error;
 
       const providerList = data.map((p: any) => ({
         ...p,
+        // Use athena_provider_id as the ID for appointment creation
+        id: p.athena_provider_id,  // GC_EPC_* format
+        uuid: p.id,                 // Keep UUID for reference
         full_name: `${p.first_name} ${p.last_name}`
       }));
 
