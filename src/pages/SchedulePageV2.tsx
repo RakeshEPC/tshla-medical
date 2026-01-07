@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import AppointmentFormModal from '../components/AppointmentFormModal';
-import AppointmentDeleteDialog from '../components/AppointmentDeleteDialog';
 import AppointmentCancelDialog from '../components/AppointmentCancelDialog';
 
 interface ProviderGroup {
@@ -364,7 +363,6 @@ export default function SchedulePageV2() {
 
   // CRUD Modal States
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<any | null>(null);
   const [editAppointmentId, setEditAppointmentId] = useState<number | undefined>();
@@ -705,20 +703,6 @@ export default function SchedulePageV2() {
     setShowAppointmentModal(true);
   };
 
-  const handleDeleteClick = (apt: AppointmentData) => {
-    setSelectedAppointment({
-      id: Number(apt.id),
-      patient_name: apt.patient,
-      provider_name: providerGroups.find(pg =>
-        pg.appointments.some(a => a.id === apt.id)
-      )?.providerName || 'Unknown',
-      scheduled_date: selectedDate.toISOString().split('T')[0],
-      start_time: apt.time,
-      appointment_type: apt.notes || ''
-    });
-    setShowDeleteDialog(true);
-  };
-
   const handleCancelClick = (apt: AppointmentData) => {
     setSelectedAppointment({
       id: Number(apt.id),
@@ -734,7 +718,7 @@ export default function SchedulePageV2() {
   };
 
   const handleAppointmentSuccess = () => {
-    // Refresh the schedule after create/update/delete/cancel
+    // Refresh the schedule after create/update/cancel
     if (viewMode === 'daily') {
       loadSchedule();
     } else {
@@ -1092,12 +1076,6 @@ export default function SchedulePageV2() {
                               >
                                 ❌ Cancel Appt
                               </button>
-                              <button
-                                onClick={() => handleDeleteClick(apt)}
-                                className="w-full px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-semibold rounded border border-red-300 transition-colors"
-                              >
-                                🗑️ Delete
-                              </button>
                             </div>
                           </div>
                         </div>
@@ -1122,16 +1100,6 @@ export default function SchedulePageV2() {
         }}
         onSuccess={handleAppointmentSuccess}
         appointmentId={editAppointmentId}
-      />
-
-      <AppointmentDeleteDialog
-        isOpen={showDeleteDialog}
-        onClose={() => {
-          setShowDeleteDialog(false);
-          setSelectedAppointment(null);
-        }}
-        onSuccess={handleAppointmentSuccess}
-        appointment={selectedAppointment}
       />
 
       <AppointmentCancelDialog
