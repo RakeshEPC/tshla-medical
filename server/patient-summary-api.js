@@ -22,21 +22,25 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // Use service key for server-side
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// Helper: Get OpenAI API key
-const getOpenAIKey = () => {
-  return process.env.OPENAI_API_KEY;
+// Helper: Get Azure OpenAI configuration
+const getAzureOpenAIConfig = () => {
+  return {
+    endpoint: process.env.AZURE_OPENAI_ENDPOINT,
+    key: process.env.AZURE_OPENAI_KEY,
+    deployment: process.env.AZURE_OPENAI_MODEL_STAGE4 || process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
+    apiVersion: process.env.AZURE_OPENAI_API_VERSION || '2024-08-01-preview'
+  };
 };
 
 /**
  * Generate patient-friendly summary using AI
+ * HIPAA COMPLIANT: Uses Azure OpenAI with Microsoft BAA
  */
 async function generateAISummary(soapInput) {
-  const apiKey = getOpenAIKey();
-  if (!apiKey) {
-    throw new Error('OpenAI API key not configured');
+  const config = getAzureOpenAIConfig();
+  if (!config.endpoint || !config.key) {
+    throw new Error('Azure OpenAI credentials not configured');
   }
-
-  const model = process.env.VITE_OPENAI_MODEL_STAGE4 || 'gpt-4o-mini';
 
   const prompt = `Create a SHORT, friendly summary of this doctor's visit for the patient.
 
@@ -68,14 +72,16 @@ RULES:
 - Keep each bullet SHORT (max 10 words)
 - Be specific and encouraging`;
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+  // Azure OpenAI endpoint format
+  const azureEndpoint = `${config.endpoint}/openai/deployments/${config.deployment}/chat/completions?api-version=${config.apiVersion}`;
+
+  const response = await fetch(azureEndpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
+      'api-key': config.key
     },
     body: JSON.stringify({
-      model: model,
       messages: [
         {
           role: 'system',
@@ -93,7 +99,8 @@ RULES:
   });
 
   if (!response.ok) {
-    throw new Error(`OpenAI API error: ${response.status}`);
+    const errorText = await response.text();
+    throw new Error(`Azure OpenAI API error: ${response.status} - ${errorText}`);
   }
 
   const data = await response.json();

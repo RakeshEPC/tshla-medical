@@ -1,14 +1,17 @@
 /**
  * AI Extraction Service
- * Extracts structured data from pre-visit call transcripts using OpenAI
+ * Extracts structured data from pre-visit call transcripts using Azure OpenAI
+ * HIPAA Compliant: Uses Microsoft Azure OpenAI (covered by Microsoft BAA)
  * Created: January 2025
  */
 
-import OpenAI from 'openai';
+import { AzureOpenAI } from 'openai';
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || '',
+// Initialize Azure OpenAI client (HIPAA compliant)
+const azureOpenAI = new AzureOpenAI({
+  apiKey: process.env.AZURE_OPENAI_KEY || '',
+  endpoint: process.env.AZURE_OPENAI_ENDPOINT || '',
+  apiVersion: process.env.AZURE_OPENAI_API_VERSION || '2024-08-01-preview',
 });
 
 // =====================================================
@@ -165,8 +168,11 @@ ${transcript}
 Return only the JSON object:`;
 
   try {
-    const response = await openai.chat.completions.create({
-      model: process.env.VITE_OPENAI_MODEL_STAGE6 || 'gpt-4o', // Use GPT-4 for best accuracy
+    // Azure OpenAI deployment name
+    const deployment = process.env.AZURE_OPENAI_MODEL_STAGE6 || process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o';
+
+    const response = await azureOpenAI.chat.completions.create({
+      model: deployment, // Azure uses deployment name
       messages: [
         {
           role: 'system',
@@ -185,7 +191,7 @@ Return only the JSON object:`;
     const content = response.choices[0]?.message?.content;
 
     if (!content) {
-      throw new Error('No content returned from OpenAI');
+      throw new Error('No content returned from Azure OpenAI');
     }
 
     // Parse JSON response

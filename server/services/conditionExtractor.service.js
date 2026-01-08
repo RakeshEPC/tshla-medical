@@ -1,14 +1,18 @@
 /**
  * Condition Extractor Service
- * Uses OpenAI to extract structured patient data from unstructured progress note text
+ * Uses Azure OpenAI to extract structured patient data from unstructured progress note text
+ * HIPAA Compliant: Uses Microsoft Azure OpenAI (covered by Microsoft BAA)
  */
 
 const axios = require('axios');
 
 class ConditionExtractorService {
   constructor() {
-    this.openaiApiKey = process.env.OPENAI_API_KEY; // Fixed: Use server-side key
-    this.openaiModel = 'gpt-4o-mini'; // Fast and cost-effective for extraction
+    // Azure OpenAI Configuration (HIPAA compliant)
+    this.azureEndpoint = process.env.AZURE_OPENAI_ENDPOINT;
+    this.azureApiKey = process.env.AZURE_OPENAI_KEY;
+    this.azureDeployment = process.env.AZURE_OPENAI_MODEL_STAGE4 || process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o-mini';
+    this.azureApiVersion = process.env.AZURE_OPENAI_API_VERSION || '2024-08-01-preview';
   }
 
   /**
@@ -18,12 +22,19 @@ class ConditionExtractorService {
    */
   async extractPatientData(progressNoteText) {
     try {
+      // Validate Azure OpenAI configuration
+      if (!this.azureEndpoint || !this.azureApiKey) {
+        throw new Error('Azure OpenAI not configured. Missing AZURE_OPENAI_ENDPOINT or AZURE_OPENAI_KEY');
+      }
+
       const prompt = this.buildExtractionPrompt(progressNoteText);
 
+      // Build Azure OpenAI endpoint URL
+      const azureUrl = `${this.azureEndpoint}/openai/deployments/${this.azureDeployment}/chat/completions?api-version=${this.azureApiVersion}`;
+
       const response = await axios.post(
-        'https://api.openai.com/v1/chat/completions',
+        azureUrl,
         {
-          model: this.openaiModel,
           messages: [
             {
               role: 'system',
@@ -39,7 +50,7 @@ class ConditionExtractorService {
         },
         {
           headers: {
-            'Authorization': `Bearer ${this.openaiApiKey}`,
+            'api-key': this.azureApiKey,
             'Content-Type': 'application/json'
           }
         }
@@ -53,7 +64,7 @@ class ConditionExtractorService {
         data: this.normalizeExtractedData(extractedData)
       };
     } catch (error) {
-      console.error('❌ AI extraction error:', error.response?.data || error.message);
+      console.error('❌ Azure OpenAI extraction error:', error.response?.data || error.message);
       return {
         success: false,
         error: error.message,

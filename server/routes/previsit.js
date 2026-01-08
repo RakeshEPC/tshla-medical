@@ -2,14 +2,19 @@
  * Pre-Visit AI Summary Generation API
  *
  * Processes uploaded EMR data and generates intelligent summaries for providers
+ * HIPAA Compliant: Uses Microsoft Azure OpenAI (covered by Microsoft BAA)
  */
 
 const express = require('express');
 const router = express.Router();
-const OpenAI = require('openai');
+const { AzureOpenAI } = require('openai');
 
-const openai = new OpenAI({
-  apiKey: process.env.VITE_OPENAI_API_KEY || process.env.OPENAI_API_KEY
+// Azure OpenAI Configuration
+const azureOpenAI = new AzureOpenAI({
+  apiKey: process.env.AZURE_OPENAI_KEY,
+  endpoint: process.env.AZURE_OPENAI_ENDPOINT,
+  apiVersion: process.env.AZURE_OPENAI_API_VERSION || '2024-08-01-preview',
+  deployment: process.env.AZURE_OPENAI_MODEL_STAGE5 || process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o'
 });
 
 /**
@@ -75,9 +80,11 @@ Format your response as JSON:
   "followUpItems": ["item 1", "item 2"]
 }`;
 
-    // Call OpenAI API
-    const completion = await openai.chat.completions.create({
-      model: process.env.VITE_OPENAI_MODEL_STAGE5 || 'gpt-4o',
+    // Call Azure OpenAI API (HIPAA compliant)
+    const deployment = process.env.AZURE_OPENAI_MODEL_STAGE5 || process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o';
+
+    const completion = await azureOpenAI.chat.completions.create({
+      model: deployment, // Azure uses deployment name
       messages: [
         {
           role: 'system',

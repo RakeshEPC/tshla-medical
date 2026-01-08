@@ -2,6 +2,9 @@
  * Echo Audio Summary Service
  * Generates patient-friendly conversational summaries from SOAP notes
  * For use in automated phone calls via Twilio + ElevenLabs
+ *
+ * HIPAA Compliant: Uses Azure OpenAI via backend proxy (covered by Microsoft BAA)
+ * NOTE: Frontend calls backend API, which handles Azure OpenAI communication
  */
 
 import { logInfo, logError, logDebug } from '../logger.service';
@@ -14,18 +17,15 @@ export interface AudioSummaryResult {
 }
 
 class EchoAudioSummaryService {
-  private apiKey: string;
+  private apiUrl: string;
   private model: string;
 
   constructor() {
-    this.apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+    // Use backend API proxy for HIPAA compliance (Azure OpenAI handled server-side)
+    this.apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3005';
     this.model = import.meta.env.VITE_OPENAI_MODEL_STAGE4 || 'gpt-4o-mini';
 
-    if (!this.apiKey) {
-      logError('EchoAudioSummary', 'OpenAI API key not configured');
-    } else {
-      logInfo('EchoAudioSummary', `Initialized with model: ${this.model}`);
-    }
+    logInfo('EchoAudioSummary', `Initialized with model: ${this.model}, API: ${this.apiUrl}`);
   }
 
   /**
@@ -33,10 +33,6 @@ class EchoAudioSummaryService {
    * Target: 15-30 seconds when spoken (100-150 words)
    */
   async generatePatientSummary(soapNote: string): Promise<AudioSummaryResult> {
-    if (!this.apiKey) {
-      throw new Error('OpenAI API key not configured');
-    }
-
     if (!soapNote || soapNote.trim().length === 0) {
       throw new Error('SOAP note cannot be empty');
     }
@@ -46,40 +42,32 @@ class EchoAudioSummaryService {
     const prompt = this.buildPrompt(soapNote);
 
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      // Call backend API which handles Azure OpenAI communication (HIPAA compliant)
+      const response = await fetch(`${this.apiUrl}/api/ai/summary`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model: this.model,
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a medical communication specialist creating patient-friendly phone call scripts. Be conversational, warm, and clear. Avoid medical jargon.'
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
+          text: prompt,
+          instructions: 'You are a medical communication specialist creating patient-friendly phone call scripts. Be conversational, warm, and clear. Avoid medical jargon.',
           temperature: 0.7, // Slightly creative for natural conversational tone
-          max_tokens: 300 // Limit to keep it concise
+          max_tokens: 300, // Limit to keep it concise
+          model: this.model
         })
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        logError('EchoAudioSummary', `OpenAI API error (${response.status})`, { error: errorText });
-        throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
+        logError('EchoAudioSummary', `Backend API error (${response.status})`, { error: errorText });
+        throw new Error(`Backend API error: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
-      const script = data.choices[0]?.message?.content || '';
+      const script = data.summary || '';
 
       if (!script.trim()) {
-        throw new Error('OpenAI returned empty response');
+        throw new Error('API returned empty response');
       }
 
       // Calculate metrics
@@ -168,7 +156,7 @@ Generate ONLY the conversational phone script (no preamble, no explanations, no 
    * Check if service is configured
    */
   isConfigured(): boolean {
-    return !!this.apiKey;
+    return !!this.apiUrl;
   }
 }
 

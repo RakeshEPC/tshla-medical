@@ -8,6 +8,7 @@
  * - Action-oriented (what patient needs to do)
  * - Structured output with key actions
  *
+ * HIPAA Compliant: Uses Azure OpenAI via backend proxy (covered by Microsoft BAA)
  * BETA FEATURE - for testing and feedback
  */
 
@@ -39,43 +40,27 @@ export interface PatientSummary {
 }
 
 class PatientSummaryGeneratorService {
-  private apiKey: string;
+  private apiUrl: string;
   private model: string;
 
   constructor() {
-    this.apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+    // Use backend API proxy for HIPAA compliance (Azure OpenAI handled server-side)
+    this.apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3005';
     this.model = import.meta.env.VITE_OPENAI_MODEL_STAGE4 || 'gpt-4o-mini'; // Cheaper model for summaries
 
-    if (!this.apiKey) {
-      logError('patientSummary', 'OpenAI API key not configured for patient summaries');
-    }
+    logInfo('patientSummary', `Initialized with model: ${this.model}, API: ${this.apiUrl}`);
   }
 
   /**
    * Generate patient-friendly summary from SOAP note
    */
   async generateSummary(soapInput: SOAPInput): Promise<PatientSummary> {
-    if (!this.apiKey) {
-      throw new Error('OpenAI API key not configured');
-    }
-
     logInfo('patientSummary', 'Generating patient-friendly summary');
 
     try {
       const prompt = this.buildPrompt(soapInput);
 
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`
-        },
-        body: JSON.stringify({
-          model: this.model,
-          messages: [
-            {
-              role: 'system',
-              content: `You are a compassionate medical assistant who explains doctor visits to patients in simple, friendly terms.
+      const systemMessage = `You are a compassionate medical assistant who explains doctor visits to patients in simple, friendly terms.
 
 CRITICAL RULES:
 - Use plain English (6th grade reading level)
@@ -85,33 +70,41 @@ CRITICAL RULES:
 - Keep it SHORT (150-200 words total)
 - Focus on what the patient NEEDS TO DO
 
-Your goal is to help patients understand and remember the key takeaways from their visit.`
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          temperature: 0.7, // Slightly creative for friendly tone
-          max_tokens: 500,  // Keep it concise
-          response_format: { type: 'json_object' } // Request JSON format
+Your goal is to help patients understand and remember the key takeaways from their visit.
+
+Return ONLY valid JSON with response_format: { type: 'json_object' }.`;
+
+      // Call backend API which handles Azure OpenAI communication (HIPAA compliant)
+      const response = await fetch(`${this.apiUrl}/api/patient-summary`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          soap_input: soapInput,
+          prompt: prompt,
+          system_message: systemMessage,
+          model: this.model,
+          temperature: 0.7,
+          max_tokens: 500
         })
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`OpenAI API error (${response.status}): ${errorText}`);
+        logError('patientSummary', `Backend API error (${response.status})`, { error: errorText });
+        throw new Error(`Backend API error (${response.status}): ${errorText}`);
       }
 
       const data = await response.json();
-      const rawContent = data.choices[0]?.message?.content || '';
+      const rawContent = data.summary || data.content || '';
 
       if (!rawContent.trim()) {
-        throw new Error('OpenAI returned empty response');
+        throw new Error('API returned empty response');
       }
 
-      // Parse JSON response
-      const parsedSummary = JSON.parse(rawContent);
+      // Parse JSON response (if it's a string)
+      const parsedSummary = typeof rawContent === 'string' ? JSON.parse(rawContent) : rawContent;
 
       // Format and validate the summary
       const summary = this.formatSummary(parsedSummary);

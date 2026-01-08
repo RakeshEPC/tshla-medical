@@ -7,7 +7,7 @@
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const multer = require('multer');
-const { OpenAI } = require('openai');
+const { AzureOpenAI } = require('openai');
 
 const router = express.Router();
 
@@ -19,8 +19,11 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY, // Fixed: Use server-side key (no VITE_ prefix)
+// Azure OpenAI Configuration (HIPAA compliant)
+const azureOpenAI = new AzureOpenAI({
+  apiKey: process.env.AZURE_OPENAI_KEY,
+  endpoint: process.env.AZURE_OPENAI_ENDPOINT,
+  apiVersion: process.env.AZURE_OPENAI_API_VERSION || '2024-08-01-preview',
 });
 
 // Configure multer for file uploads (in-memory)
@@ -44,7 +47,7 @@ const upload = multer({
 // =====================================================
 
 /**
- * Extract medical data from document using OpenAI Vision
+ * Extract medical data from document using Azure OpenAI Vision (HIPAA compliant)
  */
 async function extractMedicalDataFromDocument(fileBuffer, mimeType) {
   try {
@@ -54,9 +57,12 @@ async function extractMedicalDataFromDocument(fileBuffer, mimeType) {
     const base64 = fileBuffer.toString('base64');
     const dataUrl = `data:${mimeType};base64,${base64}`;
 
-    // Use OpenAI Vision to extract structured data
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+    // Azure OpenAI deployment name
+    const deployment = process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o';
+
+    // Use Azure OpenAI Vision to extract structured data (HIPAA compliant)
+    const response = await azureOpenAI.chat.completions.create({
+      model: deployment,
       messages: [
         {
           role: 'system',

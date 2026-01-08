@@ -324,23 +324,28 @@ app.post('/api/ai/summary', async (req, res) => {
   try {
     const { text, instructions, model, temperature, max_tokens } = req.body;
 
-    const OPENAI_KEY = process.env.OPENAI_API_KEY;
+    // Migrate to Azure OpenAI for HIPAA compliance
+    const AZURE_ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT;
+    const AZURE_KEY = process.env.AZURE_OPENAI_KEY;
+    const AZURE_DEPLOYMENT = model || process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o';
+    const AZURE_API_VERSION = process.env.AZURE_OPENAI_API_VERSION || '2024-08-01-preview';
 
-    if (!OPENAI_KEY) {
+    if (!AZURE_ENDPOINT || !AZURE_KEY) {
       return res.status(500).json({
-        error: 'OpenAI not configured on server',
-        details: 'OPENAI_API_KEY missing'
+        error: 'Azure OpenAI not configured on server',
+        details: 'AZURE_OPENAI_ENDPOINT or AZURE_OPENAI_KEY missing'
       });
     }
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const azureEndpoint = `${AZURE_ENDPOINT}/openai/deployments/${AZURE_DEPLOYMENT}/chat/completions?api-version=${AZURE_API_VERSION}`;
+
+    const response = await fetch(azureEndpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_KEY}` // Server-side only!
+        'api-key': AZURE_KEY // Azure OpenAI uses api-key header
       },
       body: JSON.stringify({
-        model: model || 'gpt-4o-mini',
         messages: [{
           role: 'user',
           content: instructions ? `${instructions}\n\n${text}` : text
@@ -352,9 +357,9 @@ app.post('/api/ai/summary', async (req, res) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ OpenAI error:', response.status, errorText);
+      console.error('❌ Azure OpenAI error:', response.status, errorText);
       return res.status(response.status).json({
-        error: 'OpenAI request failed',
+        error: 'Azure OpenAI request failed',
         status: response.status,
         details: errorText
       });
@@ -364,6 +369,77 @@ app.post('/api/ai/summary', async (req, res) => {
     res.json(data);
   } catch (error) {
     console.error('❌ OpenAI proxy error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Patient Summary Generator Endpoint
+ * Generates patient-friendly summaries from SOAP notes using Azure OpenAI
+ * HIPAA Compliant: Uses Microsoft Azure OpenAI (covered by Microsoft BAA)
+ */
+app.post('/api/patient-summary', async (req, res) => {
+  try {
+    const { soap_input, prompt, system_message, model, temperature, max_tokens } = req.body;
+
+    // Azure OpenAI Configuration
+    const AZURE_ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT;
+    const AZURE_KEY = process.env.AZURE_OPENAI_KEY;
+    const AZURE_DEPLOYMENT = model || process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o-mini';
+    const AZURE_API_VERSION = process.env.AZURE_OPENAI_API_VERSION || '2024-08-01-preview';
+
+    if (!AZURE_ENDPOINT || !AZURE_KEY) {
+      return res.status(500).json({
+        error: 'Azure OpenAI not configured on server',
+        details: 'AZURE_OPENAI_ENDPOINT or AZURE_OPENAI_KEY missing'
+      });
+    }
+
+    // Build Azure OpenAI endpoint URL
+    const azureEndpoint = `${AZURE_ENDPOINT}/openai/deployments/${AZURE_DEPLOYMENT}/chat/completions?api-version=${AZURE_API_VERSION}`;
+
+    const response = await fetch(azureEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': AZURE_KEY
+      },
+      body: JSON.stringify({
+        messages: [
+          {
+            role: 'system',
+            content: system_message
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: temperature || 0.7,
+        max_tokens: max_tokens || 500,
+        response_format: { type: 'json_object' }
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Azure OpenAI error (patient-summary):', response.status, errorText);
+      return res.status(response.status).json({
+        error: 'Azure OpenAI request failed',
+        status: response.status,
+        details: errorText
+      });
+    }
+
+    const data = await response.json();
+    const content = data.choices[0]?.message?.content || '';
+
+    res.json({
+      summary: content,
+      model: AZURE_DEPLOYMENT
+    });
+  } catch (error) {
+    console.error('❌ Patient summary generation error:', error);
     res.status(500).json({ error: error.message });
   }
 });

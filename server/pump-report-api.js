@@ -14,7 +14,7 @@ const nodemailer = require('nodemailer');
 const stripe = require('stripe');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const OpenAI = require('openai');
+const { AzureOpenAI } = require('openai');
 // unifiedDatabase service removed - using Supabase directly
 const pumpEngine = require('./pump-recommendation-engine-ai');
 
@@ -34,19 +34,21 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY
 );
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+// Initialize Azure OpenAI client (HIPAA compliant)
+const azureOpenAI = new AzureOpenAI({
+  apiKey: process.env.AZURE_OPENAI_KEY,
+  endpoint: process.env.AZURE_OPENAI_ENDPOINT,
+  apiVersion: process.env.AZURE_OPENAI_API_VERSION || '2024-08-01-preview'
 });
 
-// Model configuration
-const OPENAI_MODELS = {
-  freeText: process.env.VITE_OPENAI_MODEL_STAGE4 || 'gpt-4o-mini',
-  context7: process.env.VITE_OPENAI_MODEL_STAGE5 || 'gpt-4o',
-  finalAnalysis: process.env.VITE_OPENAI_MODEL_STAGE6 || 'gpt-4o'
+// Model configuration (Azure deployment names)
+const AZURE_OPENAI_MODELS = {
+  freeText: process.env.AZURE_OPENAI_MODEL_STAGE4 || process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o-mini',
+  context7: process.env.AZURE_OPENAI_MODEL_STAGE5 || process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
+  finalAnalysis: process.env.AZURE_OPENAI_MODEL_STAGE6 || process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o'
 };
 
-console.log('OpenAI initialized with models:', OPENAI_MODELS);
+console.log('Azure OpenAI initialized with deployments:', AZURE_OPENAI_MODELS);
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -3627,8 +3629,8 @@ OUTPUT FORMAT (JSON):
 NOW ANALYZE THE PATIENT'S TEXT AND RETURN JSON.`;
 
   try {
-    const response = await openai.chat.completions.create({
-      model: process.env.VITE_OPENAI_MODEL_STAGE4 || 'gpt-4o-mini',
+    const response = await azureOpenAI.chat.completions.create({
+      model: AZURE_OPENAI_MODELS.freeText,
       messages: [
         { role: 'system', content: 'Extract patient intent, not keywords. Return valid JSON only.' },
         { role: 'user', content: prompt }
@@ -3725,8 +3727,8 @@ OUTPUT (JSON):
 }`;
 
   try {
-    const response = await openai.chat.completions.create({
-      model: process.env.VITE_OPENAI_MODEL_STAGE5 || 'gpt-4o',
+    const response = await azureOpenAI.chat.completions.create({
+      model: AZURE_OPENAI_MODELS.context7,
       messages: [
         { role: 'system', content: 'Generate smart clarifying questions. Return valid JSON only.' },
         { role: 'user', content: prompt }
@@ -3837,8 +3839,8 @@ OUTPUT (JSON):
 }`;
 
   try {
-    const response = await openai.chat.completions.create({
-      model: process.env.VITE_OPENAI_MODEL_STAGE6 || 'gpt-4o',
+    const response = await azureOpenAI.chat.completions.create({
+      model: AZURE_OPENAI_MODELS.finalAnalysis,
       messages: [
         { role: 'system', content: 'Expert diabetes educator analyzing 23 pump dimensions. Return valid JSON only.' },
         { role: 'user', content: prompt }
@@ -4105,12 +4107,12 @@ async function fetchPumpComparisonData() {
 }
 
 /**
- * Generate pump recommendations using OpenAI
+ * Generate pump recommendations using Azure OpenAI (HIPAA compliant)
  */
 async function generatePumpRecommendations(userData) {
-  // Check if OpenAI is configured
-  if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your_openai_api_key_here') {
-    console.log('OpenAI not configured - using rule-based recommendations (V3 fallback)');
+  // Check if Azure OpenAI is configured
+  if (!process.env.AZURE_OPENAI_KEY || !process.env.AZURE_OPENAI_ENDPOINT) {
+    console.log('Azure OpenAI not configured - using rule-based recommendations (V3 fallback)');
     return generateRuleBasedRecommendations(userData);
   }
 
