@@ -9,10 +9,13 @@
  * - GET /api/patient-summaries/patient/:patientId - Get all summaries for patient
  * - PATCH /api/patient-summaries/:id/approve - Provider approves summary
  * - POST /api/patient-summaries/:id/feedback - Patient submits feedback
+ *
+ * HIPAA COMPLIANT: Uses safe logger with PHI sanitization
  */
 
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
+const logger = require('./logger');
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 
 const app = express.Router();
@@ -159,7 +162,7 @@ app.post('/api/patient-summaries', async (req, res) => {
       });
     }
 
-    console.log('🔄 Generating patient summary for visit:', visitId);
+    logger.info('PatientSummary', 'Generating patient summary', { visitId });
 
     // Generate AI summary
     const summary = await generateAISummary({
@@ -188,11 +191,11 @@ app.post('/api/patient-summaries', async (req, res) => {
       .single();
 
     if (error) {
-      console.error('❌ Database error:', error);
+      logger.error('PatientSummary', 'Database error saving summary', { visitId, error: error.message });
       return res.status(500).json({ error: 'Failed to save summary' });
     }
 
-    console.log('✅ Patient summary created:', data.id);
+    logger.logOperation('PatientSummary', 'create', 'summary', true);
 
     res.json({
       success: true,
@@ -200,7 +203,9 @@ app.post('/api/patient-summaries', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Error generating patient summary:', error);
+    logger.error('PatientSummary', 'Error generating patient summary', {
+      error: logger.redactPHI(error.message)
+    });
     res.status(500).json({
       error: 'Failed to generate summary',
       message: error.message
@@ -227,7 +232,7 @@ app.get('/api/patient-summaries/:id', async (req, res) => {
     res.json(data);
 
   } catch (error) {
-    console.error('❌ Error fetching summary:', error);
+    logger.error('PatientSummary', 'Error fetching summary', { error: error.message });
     res.status(500).json({ error: 'Failed to fetch summary' });
   }
 });
@@ -251,7 +256,7 @@ app.get('/api/patient-summaries/visit/:visitId', async (req, res) => {
     res.json(data);
 
   } catch (error) {
-    console.error('❌ Error fetching visit summary:', error);
+    logger.error('PatientSummary', 'Error fetching visit summary', { error: error.message });
     res.status(500).json({ error: 'Failed to fetch summary' });
   }
 });
@@ -279,7 +284,7 @@ app.get('/api/patient-summaries/patient/:patientId', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Error fetching patient summaries:', error);
+    logger.error('PatientSummary', 'Error fetching patient summaries', { error: error.message });
     res.status(500).json({ error: 'Failed to fetch summaries' });
   }
 });
@@ -307,7 +312,7 @@ app.patch('/api/patient-summaries/:id/approve', async (req, res) => {
       return res.status(500).json({ error: 'Failed to approve summary' });
     }
 
-    console.log('✅ Summary approved:', req.params.id);
+    logger.logOperation('PatientSummary', 'approve', 'summary', true);
 
     res.json({
       success: true,
@@ -315,7 +320,7 @@ app.patch('/api/patient-summaries/:id/approve', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Error approving summary:', error);
+    logger.error('PatientSummary', 'Error approving summary', { error: error.message });
     res.status(500).json({ error: 'Failed to approve summary' });
   }
 });
@@ -345,7 +350,7 @@ app.post('/api/patient-summaries/:id/feedback', async (req, res) => {
       return res.status(500).json({ error: 'Failed to save feedback' });
     }
 
-    console.log('✅ Patient feedback received:', req.params.id);
+    logger.logOperation('PatientSummary', 'submit', 'feedback', true);
 
     res.json({
       success: true,
@@ -353,7 +358,7 @@ app.post('/api/patient-summaries/:id/feedback', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Error saving feedback:', error);
+    logger.error('PatientSummary', 'Error saving feedback', { error: error.message });
     res.status(500).json({ error: 'Failed to save feedback' });
   }
 });
@@ -376,7 +381,7 @@ app.get('/api/patient-summaries/analytics', async (req, res) => {
     res.json(data);
 
   } catch (error) {
-    console.error('❌ Error fetching analytics:', error);
+    logger.error('PatientSummary', 'Error fetching analytics', { error: error.message });
     res.status(500).json({ error: 'Failed to fetch analytics' });
   }
 });

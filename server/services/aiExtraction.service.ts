@@ -6,6 +6,7 @@
  */
 
 import { AzureOpenAI } from 'openai';
+import logger = require('../logger');
 
 // Initialize Azure OpenAI client (HIPAA compliant)
 const azureOpenAI = new AzureOpenAI({
@@ -117,7 +118,9 @@ export function detectUrgentKeywords(transcript: string): string[] {
 export async function extractStructuredData(
   transcript: string
 ): Promise<ExtractedData> {
-  console.log('\n🤖 Extracting structured data from transcript...');
+  logger.info('AIExtraction', 'Extracting structured data from transcript', {
+    transcriptLength: transcript.length
+  });
 
   if (!transcript || transcript.trim().length === 0) {
     throw new Error('Transcript is empty');
@@ -209,15 +212,18 @@ Return only the JSON object:`;
       });
     }
 
-    console.log('✅ Extraction complete');
-    console.log(`   Medications: ${extractedData.medications?.length || 0}`);
-    console.log(`   Concerns: ${extractedData.concerns?.length || 0}`);
-    console.log(`   Risk Flags: ${extractedData.riskFlags?.length || 0}`);
-    console.log(`   Urgent: ${extractedData.urgent ? '🚨 YES' : 'No'}`);
+    logger.info('AIExtraction', 'Extraction complete', {
+      medicationsCount: extractedData.medications?.length || 0,
+      concernsCount: extractedData.concerns?.length || 0,
+      riskFlagsCount: extractedData.riskFlags?.length || 0,
+      urgent: extractedData.urgent
+    });
 
     return extractedData;
   } catch (error: any) {
-    console.error('❌ Failed to extract structured data:', error);
+    logger.error('AIExtraction', 'Failed to extract structured data', {
+      error: logger.redactPHI(error.message)
+    });
 
     // Return minimal data structure if AI fails
     return {

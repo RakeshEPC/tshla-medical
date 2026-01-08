@@ -5,6 +5,7 @@
  */
 
 const axios = require('axios');
+const logger = require('../logger');
 
 class ConditionExtractorService {
   constructor() {
@@ -64,7 +65,10 @@ class ConditionExtractorService {
         data: this.normalizeExtractedData(extractedData)
       };
     } catch (error) {
-      console.error('❌ Azure OpenAI extraction error:', error.response?.data || error.message);
+      logger.error('ConditionExtractor', 'Azure OpenAI extraction error', {
+        error: logger.redactPHI(error.message),
+        details: error.response?.data?.error?.message
+      });
       return {
         success: false,
         error: error.message,
@@ -172,7 +176,7 @@ IMPORTANT RULES:
 
       return null;
     } catch (error) {
-      console.error('DOB normalization error:', error);
+      logger.error('ConditionExtractor', 'DOB normalization error', { error: error.message });
       return null;
     }
   }

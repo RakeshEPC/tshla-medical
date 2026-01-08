@@ -9,11 +9,13 @@
  * - Prevent duplicate patient records
  *
  * Created: 2025-01-16
+ * HIPAA COMPLIANT: Uses safe logger with PHI sanitization
  */
 
 const { createClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcryptjs');
 const patientIdGenerator = require('./patientIdGenerator.service');
+const logger = require('../logger');
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -112,7 +114,7 @@ class PatientMatchingService {
 
       return data;
     } catch (error) {
-      console.error('Error finding patient by phone:', error);
+      logger.error('PatientMatching', 'Error finding patient by phone', { error: error.message });
       throw error;
     }
   }
@@ -139,7 +141,7 @@ class PatientMatchingService {
 
       return data;
     } catch (error) {
-      console.error('Error finding patient by MRN:', error);
+      logger.error('PatientMatching', 'Error finding patient by MRN', { error: error.message });
       throw error;
     }
   }
@@ -166,7 +168,7 @@ class PatientMatchingService {
 
       return data;
     } catch (error) {
-      console.error('Error finding patient by Patient ID:', error);
+      logger.error('PatientMatching', 'Error finding patient by Patient ID', { error: error.message });
       throw error;
     }
   }
@@ -193,7 +195,7 @@ class PatientMatchingService {
 
       return data;
     } catch (error) {
-      console.error('Error finding patient by TSH ID:', error);
+      logger.error('PatientMatching', 'Error finding patient by TSH ID', { error: error.message });
       throw error;
     }
   }
@@ -220,7 +222,7 @@ class PatientMatchingService {
 
       return data;
     } catch (error) {
-      console.error('Error finding patient by email:', error);
+      logger.error('PatientMatching', 'Error finding patient by email', { error: error.message });
       throw error;
     }
   }
@@ -264,7 +266,7 @@ class PatientMatchingService {
 
       return data || [];
     } catch (error) {
-      console.error('Error searching patients by name:', error);
+      logger.error('PatientMatching', 'Error searching patients by name', { error: error.message });
       throw error;
     }
   }
@@ -292,7 +294,7 @@ class PatientMatchingService {
 
       return data || [];
     } catch (error) {
-      console.error('Error searching patients by DOB:', error);
+      logger.error('PatientMatching', 'Error searching patients by DOB', { error: error.message });
       throw error;
     }
   }
@@ -375,7 +377,7 @@ class PatientMatchingService {
 
       return [];
     } catch (error) {
-      console.error('Error searching patients:', error);
+      logger.error('PatientMatching', 'Error searching patients', { error: error.message });
       throw error;
     }
   }
@@ -508,18 +510,14 @@ class PatientMatchingService {
         .single();
 
       if (error) {
-        console.error('Error creating patient:', error);
+        logger.error('PatientMatching', 'Error creating patient', { error: error.message });
         throw error;
       }
 
-      console.log('✅ Created new patient:', {
-        id: patient.id,
-        patient_id: generatedPatientId,
-        tsh_id: generatedTshId,
-        name: `${firstName || ''} ${lastName || ''}`.trim(),
-        phone: normalized,
-        source: source,
-        pin: pin // LOG PIN FOR NOW (remove in production, send via SMS instead)
+      logger.info('PatientMatching', 'Created new patient', {
+        patientId: generatedPatientId,
+        tshId: generatedTshId,
+        source: source
       });
 
       // TODO: Send SMS with portal credentials
@@ -527,7 +525,7 @@ class PatientMatchingService {
 
       return patient;
     } catch (error) {
-      console.error('Error creating patient:', error);
+      logger.error('PatientMatching', 'Error creating patient', { error: error.message });
       throw error;
     }
   }
@@ -626,7 +624,7 @@ class PatientMatchingService {
 
       // Only update if there are changes
       if (Object.keys(updates).length === 0) {
-        console.log('ℹ️  No new data to merge for patient:', patientId);
+        logger.info('PatientMatching', 'No new data to merge for patient', { patientId });
         return existingPatient;
       }
 
@@ -643,15 +641,15 @@ class PatientMatchingService {
       // Log merge to history
       await this.logMergeHistory(patientId, source, fieldsUpdated, newData);
 
-      console.log('✅ Merged data for patient:', {
-        id: patientId,
-        source: source,
-        fieldsUpdated: fieldsUpdated
+      logger.info('PatientMatching', 'Merged data for patient', {
+        patientId,
+        source,
+        fieldsCount: fieldsUpdated.length
       });
 
       return updatedPatient;
     } catch (error) {
-      console.error('Error merging patient data:', error);
+      logger.error('PatientMatching', 'Error merging patient data', { error: error.message });
       throw error;
     }
   }
@@ -670,7 +668,7 @@ class PatientMatchingService {
         merged_by: source
       });
     } catch (error) {
-      console.error('Error logging merge history:', error);
+      logger.error('PatientMatching', 'Error logging merge history', { error: error.message });
       // Don't throw - this is non-critical
     }
   }
@@ -695,15 +693,15 @@ class PatientMatchingService {
 
       if (patient) {
         // Patient exists - merge new data
-        console.log('📋 Found existing patient:', patient.id);
+        logger.info('PatientMatching', 'Found existing patient', { patientId: patient.id });
         return await this.mergePatientData(patient.id, patientData, source);
       }
 
       // Patient doesn't exist - create new
-      console.log('🆕 Creating new patient from', source);
+      logger.info('PatientMatching', 'Creating new patient', { source });
       return await this.createPatient(phone, patientData, source);
     } catch (error) {
-      console.error('Error in findOrCreatePatient:', error);
+      logger.error('PatientMatching', 'Error in findOrCreatePatient', { error: error.message });
       throw error;
     }
   }
@@ -724,9 +722,9 @@ class PatientMatchingService {
 
       if (error) throw error;
 
-      console.log(`✅ Linked ${tableName} record ${recordId} to patient ${patientId}`);
+      logger.info('PatientMatching', 'Linked record to patient', { tableName, recordId, patientId });
     } catch (error) {
-      console.error(`Error linking ${tableName} to patient:`, error);
+      logger.error('PatientMatching', 'Error linking record to patient', { tableName, error: error.message });
       throw error;
     }
   }
@@ -809,7 +807,7 @@ class PatientMatchingService {
         }
       };
     } catch (error) {
-      console.error('Error getting patient chart:', error);
+      logger.error('PatientMatching', 'Error getting patient chart', { error: error.message });
       throw error;
     }
   }

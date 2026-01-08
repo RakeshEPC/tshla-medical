@@ -2,12 +2,15 @@
  * Diabetes Education API
  * Handles patient account management and call logging for phone-based AI diabetes education
  * Created: 2025-12-03
+ *
+ * HIPAA COMPLIANT: Uses safe logger with PHI sanitization
  */
 
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const multer = require('multer');
 const { AzureOpenAI } = require('openai');
+const logger = require('./logger');
 
 const router = express.Router();
 
@@ -51,7 +54,10 @@ const upload = multer({
  */
 async function extractMedicalDataFromDocument(fileBuffer, mimeType) {
   try {
-    console.log('[DiabetesEdu] Extracting medical data from document...');
+    logger.info('DiabetesEdu', 'Extracting medical data from document', {
+      mimeType,
+      fileSize: fileBuffer.length
+    });
 
     // Convert buffer to base64
     const base64 = fileBuffer.toString('base64');
@@ -101,7 +107,9 @@ Return ONLY valid JSON in this exact structure:
     });
 
     const extractedText = response.choices[0].message.content;
-    console.log('[DiabetesEdu] Raw extracted text:', extractedText);
+    logger.debug('DiabetesEdu', 'Extraction complete', {
+      responseLength: extractedText.length
+    });
 
     // Parse JSON (handle markdown code blocks if present)
     const jsonMatch = extractedText.match(/```json\n([\s\S]*?)\n```/) ||
@@ -111,11 +119,13 @@ Return ONLY valid JSON in this exact structure:
     const jsonText = jsonMatch[1] || extractedText;
     const medicalData = JSON.parse(jsonText.trim());
 
-    console.log('[DiabetesEdu] Successfully extracted medical data');
+    logger.logOperation('DiabetesEdu', 'extract', 'medical-data', true);
     return medicalData;
 
   } catch (error) {
-    console.error('[DiabetesEdu] Error extracting medical data:', error);
+    logger.error('DiabetesEdu', 'Error extracting medical data', {
+      error: logger.redactPHI(error.message)
+    });
     throw new Error('Failed to extract medical data from document');
   }
 }
@@ -177,7 +187,7 @@ async function validateStaffAuth(req, res, next) {
     next();
 
   } catch (error) {
-    console.error('[DiabetesEdu] Auth error:', error);
+    logger.error('DiabetesEdu', 'Authentication error', { error: error.message });
     return res.status(401).json({ error: 'Authentication failed' });
   }
 }
@@ -214,7 +224,7 @@ router.get('/patients', validateStaffAuth, async (req, res) => {
     res.json({ patients: data });
 
   } catch (error) {
-    console.error('[DiabetesEdu] Error fetching patients:', error);
+    logger.error('DiabetesEdu', 'Error fetching patients', { error: error.message });
     res.status(500).json({ error: 'Failed to fetch patients' });
   }
 });
@@ -242,7 +252,7 @@ router.get('/patients/:id', validateStaffAuth, async (req, res) => {
     res.json({ patient: data });
 
   } catch (error) {
-    console.error('[DiabetesEdu] Error fetching patient:', error);
+    logger.error('DiabetesEdu', 'Error fetching patient', { error: error.message });
     res.status(500).json({ error: 'Failed to fetch patient' });
   }
 });
@@ -282,7 +292,10 @@ router.post('/patients', validateStaffAuth, upload.single('medical_document'), a
 
     // Process uploaded document if present
     if (req.file) {
-      console.log('[DiabetesEdu] Processing uploaded document...');
+      logger.info('DiabetesEdu', 'Processing uploaded document', {
+        filename: req.file.originalname,
+        size: Math.round(req.file.size / 1024) + ' KB'
+      });
 
       try {
         // Extract medical data using AI
@@ -309,7 +322,9 @@ router.post('/patients', validateStaffAuth, upload.single('medical_document'), a
         }
 
       } catch (extractError) {
-        console.error('[DiabetesEdu] Document processing error:', extractError);
+        logger.error('DiabetesEdu', 'Document processing error', {
+          error: logger.redactPHI(extractError.message)
+        });
         // Continue without medical data if extraction fails
       }
     }
@@ -332,7 +347,7 @@ router.post('/patients', validateStaffAuth, upload.single('medical_document'), a
 
     if (insertError) throw insertError;
 
-    console.log('[DiabetesEdu] Patient created successfully:', patient.id);
+    logger.logOperation('DiabetesEdu', 'create', 'patient', true);
 
     res.status(201).json({
       success: true,
@@ -347,7 +362,7 @@ router.post('/patients', validateStaffAuth, upload.single('medical_document'), a
     });
 
   } catch (error) {
-    console.error('[DiabetesEdu] Error creating patient:', error);
+    logger.error('DiabetesEdu', 'Error creating patient', { error: error.message });
     res.status(500).json({ error: 'Failed to create patient' });
   }
 });
@@ -380,12 +395,12 @@ router.put('/patients/:id', validateStaffAuth, async (req, res) => {
 
     if (error) throw error;
 
-    console.log('[DiabetesEdu] Patient updated:', id);
+    logger.logOperation('DiabetesEdu', 'update', 'patient', true);
 
     res.json({ success: true, patient: data });
 
   } catch (error) {
-    console.error('[DiabetesEdu] Error updating patient:', error);
+    logger.error('DiabetesEdu', 'Error updating patient', { error: error.message });
     res.status(500).json({ error: 'Failed to update patient' });
   }
 });
@@ -413,25 +428,26 @@ router.post('/patients/:id/upload-document', validateStaffAuth, upload.single('m
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    console.log('[DiabetesEdu] Processing document upload for patient:', existingPatient.first_name, existingPatient.last_name);
-    console.log('   File:', req.file.originalname, `(${Math.round(req.file.size / 1024)} KB)`);
+    logger.info('DiabetesEdu', 'Processing document upload for patient', {
+      patientId: id,
+      filename: req.file.originalname,
+      size: Math.round(req.file.size / 1024) + ' KB'
+    });
 
     let medical_data = null;
     let medical_document_url = null;
 
     try {
       // Extract medical data using OpenAI Vision
-      console.log('[DiabetesEdu] Extracting medical data with OpenAI Vision...');
+      logger.info('DiabetesEdu', 'Extracting medical data with Azure OpenAI Vision');
       medical_data = await extractMedicalDataFromDocument(
         req.file.buffer,
         req.file.mimetype
       );
 
-      console.log('[DiabetesEdu] Extraction successful:', {
-        medications: medical_data.medications?.length || 0,
-        labs: Object.keys(medical_data.labs || {}).length,
-        diagnoses: medical_data.diagnoses?.length || 0
-      });
+      logger.logCount('DiabetesEdu', 'Extraction successful - medications', medical_data.medications?.length || 0);
+      logger.logCount('DiabetesEdu', 'Extraction successful - labs', Object.keys(medical_data.labs || {}).length);
+      logger.logCount('DiabetesEdu', 'Extraction successful - diagnoses', medical_data.diagnoses?.length || 0);
 
       // Upload document to Supabase Storage
       const fileName = `diabetes-education/${id}-${Date.now()}-${req.file.originalname}`;
@@ -448,14 +464,16 @@ router.post('/patients/:id/upload-document', validateStaffAuth, upload.single('m
           .getPublicUrl(fileName);
 
         medical_document_url = publicUrl;
-        console.log('[DiabetesEdu] Document uploaded to storage');
+        logger.logOperation('DiabetesEdu', 'upload', 'document-to-storage', true);
       } else if (uploadError) {
-        console.warn('[DiabetesEdu] Storage upload warning:', uploadError.message);
+        logger.warn('DiabetesEdu', 'Storage upload warning', { error: uploadError.message });
         // Continue even if storage fails - we have the extracted data
       }
 
     } catch (extractError) {
-      console.error('[DiabetesEdu] Document processing error:', extractError);
+      logger.error('DiabetesEdu', 'Document processing error', {
+        error: logger.redactPHI(extractError.message)
+      });
       return res.status(500).json({
         error: 'Failed to extract medical data from document',
         details: extractError.message
@@ -476,11 +494,11 @@ router.post('/patients/:id/upload-document', validateStaffAuth, upload.single('m
       .single();
 
     if (updateError) {
-      console.error('[DiabetesEdu] Database update error:', updateError);
+      logger.error('DiabetesEdu', 'Database update error', { error: updateError.message });
       throw updateError;
     }
 
-    console.log('[DiabetesEdu] Patient updated successfully with new medical data');
+    logger.logOperation('DiabetesEdu', 'update', 'patient-medical-data', true);
 
     res.json({
       success: true,
@@ -494,7 +512,7 @@ router.post('/patients/:id/upload-document', validateStaffAuth, upload.single('m
     });
 
   } catch (error) {
-    console.error('[DiabetesEdu] Error uploading document:', error);
+    logger.error('DiabetesEdu', 'Error uploading document', { error: error.message });
     res.status(500).json({ error: 'Failed to upload document' });
   }
 });
@@ -518,7 +536,7 @@ router.get('/patients/:id/calls', validateStaffAuth, async (req, res) => {
     res.json({ calls: data });
 
   } catch (error) {
-    console.error('[DiabetesEdu] Error fetching calls:', error);
+    logger.error('DiabetesEdu', 'Error fetching calls', { error: error.message });
     res.status(500).json({ error: 'Failed to fetch call history' });
   }
 });
@@ -566,7 +584,7 @@ router.get('/calls/stats', validateStaffAuth, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[DiabetesEdu] Error fetching stats:', error);
+    logger.error('DiabetesEdu', 'Error fetching stats', { error: error.message });
     res.status(500).json({ error: 'Failed to fetch statistics' });
   }
 });
@@ -600,7 +618,7 @@ router.post('/calls/log', async (req, res) => {
     res.json({ success: true, call_id: data.id });
 
   } catch (error) {
-    console.error('[DiabetesEdu] Error logging call:', error);
+    logger.error('DiabetesEdu', 'Error logging call', { error: error.message });
     res.status(500).json({ error: 'Failed to log call' });
   }
 });
@@ -635,7 +653,7 @@ router.put('/calls/:call_sid/complete', async (req, res) => {
     res.json({ success: true, call: data });
 
   } catch (error) {
-    console.error('[DiabetesEdu] Error updating call:', error);
+    logger.error('DiabetesEdu', 'Error updating call', { error: error.message });
     res.status(500).json({ error: 'Failed to update call' });
   }
 });
@@ -657,7 +675,7 @@ router.get('/health', (req, res) => {
 // =====================================================
 
 router.use((error, req, res, next) => {
-  console.error('[DiabetesEdu] Unhandled error:', error);
+  logger.error('DiabetesEdu', 'Unhandled error', { error: logger.redactPHI(error.message) });
   res.status(500).json({
     error: 'Internal server error',
     message: error.message

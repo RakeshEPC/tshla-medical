@@ -2,9 +2,11 @@
  * Patient Service
  * Handles patient record creation, matching, and management for pre-visit system
  * Created: January 2025
+ * HIPAA COMPLIANT: Uses safe logger with PHI sanitization
  */
 
 import { createClient } from '@supabase/supabase-js';
+import logger = require('../logger');
 
 // Initialize Supabase client for server-side operations
 const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
@@ -148,7 +150,7 @@ export async function updateLastAppointment(
     .eq('id', patientId);
 
   if (error) {
-    console.error('Error updating patient appointment:', error);
+    logger.error('PatientService', 'Error updating patient appointment', { error: error.message });
     throw error;
   }
 }
@@ -166,7 +168,7 @@ export async function createNewPatient(
     );
 
     if (idError) {
-      console.error('Error generating patient ID:', idError);
+      logger.error('PatientService', 'Error generating patient ID', { error: idError.message });
       throw idError;
     }
 
@@ -190,17 +192,15 @@ export async function createNewPatient(
       .single();
 
     if (insertError) {
-      console.error('Error inserting patient:', insertError);
+      logger.error('PatientService', 'Error inserting patient', { error: insertError.message });
       throw insertError;
     }
 
-    console.log(
-      `✅ Created new patient: ${patientId} - ${data.first_name} ${data.last_name}`
-    );
+    logger.info('PatientService', 'Created new patient', { patientId });
 
     return newPatient.id;
-  } catch (error) {
-    console.error('Failed to create patient:', error);
+  } catch (error: any) {
+    logger.error('PatientService', 'Failed to create patient', { error: error.message });
     throw error;
   }
 }
@@ -225,9 +225,7 @@ export async function findOrCreatePatient(
           .single();
 
         if (!phoneError && phoneMatch) {
-          console.log(
-            `✅ Found patient by phone: ${phoneMatch.patient_id} - ${phoneMatch.full_name}`
-          );
+          logger.info('PatientService', 'Found patient by phone', { patientId: phoneMatch.patient_id });
           await updateLastAppointment(
             phoneMatch.id,
             scheduleEntry.appointment_date
@@ -247,9 +245,7 @@ export async function findOrCreatePatient(
         .single();
 
       if (!nameDobError && nameDobMatch) {
-        console.log(
-          `✅ Found patient by name+DOB: ${nameDobMatch.patient_id} - ${nameDobMatch.full_name}`
-        );
+        logger.info('PatientService', 'Found patient by name and DOB', { patientId: nameDobMatch.patient_id });
 
         // Update phone if it was missing
         if (scheduleEntry.patient_phone) {
@@ -283,9 +279,10 @@ export async function findOrCreatePatient(
       );
 
       if (similarity > 0.85) {
-        console.log(
-          `✅ Found patient by fuzzy name match (${Math.round(similarity * 100)}%): ${fuzzyMatches[0].patient_id} - ${fuzzyMatches[0].full_name}`
-        );
+        logger.info('PatientService', 'Found patient by fuzzy name match', {
+          patientId: fuzzyMatches[0].patient_id,
+          similarity: Math.round(similarity * 100)
+        });
         await updateLastAppointment(
           fuzzyMatches[0].id,
           scheduleEntry.appointment_date
@@ -295,7 +292,7 @@ export async function findOrCreatePatient(
     }
 
     // STEP 4: No match found - create new patient
-    console.log(`🆕 No match found, creating new patient: ${scheduleEntry.patient_name}`);
+    logger.info('PatientService', 'No match found, creating new patient');
     const newPatientId = await createNewPatient({
       first_name: parseFirstName(scheduleEntry.patient_name),
       last_name: parseLastName(scheduleEntry.patient_name),
@@ -309,8 +306,8 @@ export async function findOrCreatePatient(
     });
 
     return newPatientId;
-  } catch (error) {
-    console.error('Error in findOrCreatePatient:', error);
+  } catch (error: any) {
+    logger.error('PatientService', 'Error in findOrCreatePatient', { error: error.message });
     throw error;
   }
 }
@@ -326,7 +323,7 @@ export async function getPatientById(patientId: string): Promise<Patient | null>
     .single();
 
   if (error) {
-    console.error('Error fetching patient:', error);
+    logger.error('PatientService', 'Error fetching patient by ID', { error: error.message });
     return null;
   }
 
@@ -346,7 +343,7 @@ export async function getPatientByPatientId(
     .single();
 
   if (error) {
-    console.error('Error fetching patient:', error);
+    logger.error('PatientService', 'Error fetching patient by patient_id', { error: error.message });
     return null;
   }
 
@@ -373,7 +370,7 @@ export async function searchPatientsByName(
   const { data, error } = await query;
 
   if (error) {
-    console.error('Error searching patients:', error);
+    logger.error('PatientService', 'Error searching patients', { error: error.message });
     return [];
   }
 
@@ -397,7 +394,7 @@ export async function updatePatientOptOutPreferences(
     .eq('id', patientId);
 
   if (error) {
-    console.error('Error updating opt-out preferences:', error);
+    logger.error('PatientService', 'Error updating opt-out preferences', { error: error.message });
     return false;
   }
 
