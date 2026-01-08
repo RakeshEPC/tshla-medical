@@ -139,20 +139,11 @@ export default function Login() {
   };
 
   const handleMFAVerified = async () => {
-    // MFA verification successful, complete login
+    // MFA verification successful, Supabase session is now at AAL2
     try {
-      // Call AuthContext's login which will now succeed since MFA is verified
-      await login(email, password);
-
-      // Get user and navigate
-      const result = await unifiedAuthService.getCurrentUser();
-      if (result.success && result.user) {
-        if (result.user.role === 'admin' || result.user.role === 'super_admin') {
-          navigate('/admin/account-manager');
-        } else {
-          navigate('/dashboard');
-        }
-      }
+      // Force page reload to let AuthContext pick up the new session
+      // Supabase has already upgraded the session to AAL2 after MFA verification
+      window.location.href = '/dashboard';
     } catch (err: any) {
       setError(err.message || 'Login failed after MFA verification');
       setShowMFAVerification(false);
