@@ -17,14 +17,15 @@ const jwt = require('jsonwebtoken');
 const { AzureOpenAI } = require('openai');
 // unifiedDatabase service removed - using Supabase directly
 const pumpEngine = require('./pump-recommendation-engine-ai');
+const logger = require('./logger');
 
 // Initialize Stripe with secret key (if available)
 let stripeInstance = null;
 if (process.env.STRIPE_SECRET_KEY && process.env.STRIPE_SECRET_KEY !== 'sk_test_example...') {
   stripeInstance = stripe(process.env.STRIPE_SECRET_KEY);
-  console.log('Stripe initialized successfully');
+  logger.info('Stripe initialized successfully');
 } else {
-  console.warn('Stripe not initialized - missing secret key');
+  logger.warn('Stripe not initialized - missing secret key');
 }
 
 // Initialize Supabase client for token verification
@@ -48,7 +49,7 @@ const AZURE_OPENAI_MODELS = {
   finalAnalysis: process.env.AZURE_OPENAI_MODEL_STAGE6 || process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o'
 };
 
-console.log('Azure OpenAI initialized with deployments:', AZURE_OPENAI_MODELS);
+logger.info('Azure OpenAI initialized with deployments:', AZURE_OPENAI_MODELS);
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -76,7 +77,7 @@ app.use(
       }
 
       // Log rejected origins for debugging
-      console.log('CORS: Rejected origin:', origin);
+      logger.info('CORS: Rejected origin:', origin);
       callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
@@ -100,7 +101,7 @@ let emailTransporter;
 
 function initializeEmailService() {
   if (!process.env.SMTP_PASSWORD) {
-    console.warn('App', 'Placeholder message');
+    logger.warn('App', 'Placeholder message');
     return;
   }
 
@@ -114,7 +115,7 @@ function initializeEmailService() {
     },
   });
 
-  console.log('App', 'Placeholder message');
+  logger.info('App', 'Placeholder message');
 }
 
 // JWT verification middleware - Supports both Supabase and legacy JWT tokens
@@ -177,7 +178,7 @@ const verifyToken = async (req, res, next) => {
 
     return res.status(403).json({ error: 'Invalid or expired token' });
   } catch (error) {
-    console.error('Token verification failed:', error.message);
+    logger.error('Token verification failed:', error.message);
     return res.status(403).json({ error: 'Invalid or expired token' });
   }
 };
@@ -195,7 +196,7 @@ const optionalAuth = (req, res, next) => {
 
   const jwtSecret = process.env.JWT_SECRET;
   if (!jwtSecret) {
-    console.error('JWT_SECRET environment variable not set');
+    logger.error('JWT_SECRET environment variable not set');
     req.user = null;
     return next();
   }
@@ -205,7 +206,7 @@ const optionalAuth = (req, res, next) => {
     req.user = decoded;
     next();
   } catch (error) {
-    console.log('Optional auth: Invalid token, continuing without auth');
+    logger.info('Optional auth: Invalid token, continuing without auth');
     req.user = null;
     next();
   }
@@ -463,7 +464,7 @@ app.post('/api/auth/register', checkDatabaseStatus, async (req, res) => {
     // Generate JWT token
     const jwtSecret = process.env.JWT_SECRET;
     if (!jwtSecret) {
-      console.error('JWT_SECRET environment variable not set');
+      logger.error('JWT_SECRET environment variable not set');
       return res.status(500).json({
         error: 'Server configuration error',
         message: 'Authentication service is not properly configured'
@@ -491,11 +492,11 @@ app.post('/api/auth/register', checkDatabaseStatus, async (req, res) => {
       });
 
     if (logError) {
-      console.error('Failed to log access:', logError);
+      logger.error('Failed to log access:', logError);
       // Don't fail registration if logging fails
     }
 
-    console.log('User registered successfully:', {
+    logger.info('User registered successfully:', {
       userId,
       email,
       username
@@ -515,7 +516,7 @@ app.post('/api/auth/register', checkDatabaseStatus, async (req, res) => {
       token
     });
   } catch (error) {
-    console.error('User registration failed:', error);
+    logger.error('User registration failed:', error);
     res.status(500).json({
       error: 'Registration failed',
       message: error.message
@@ -573,14 +574,14 @@ app.post('/api/auth/login', async (req, res) => {
       .eq('id', user.id);
 
     if (updateError) {
-      console.error('Failed to update login tracking:', updateError);
+      logger.error('Failed to update login tracking:', updateError);
       // Don't fail login if tracking update fails
     }
 
     // Generate JWT token
     const jwtSecret = process.env.JWT_SECRET;
     if (!jwtSecret) {
-      console.error('JWT_SECRET environment variable not set');
+      logger.error('JWT_SECRET environment variable not set');
       return res.status(500).json({
         error: 'Server configuration error',
         message: 'Authentication service is not properly configured'
@@ -617,7 +618,7 @@ app.post('/api/auth/login', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Login failed:', error);
+    logger.error('Login failed:', error);
     res.status(500).json({
       error: 'Login failed',
       message: error.message
@@ -640,7 +641,7 @@ app.get('/api/auth/check-access', async (req, res) => {
     const jwtSecret = process.env.JWT_SECRET;
 
     if (!jwtSecret) {
-      console.error('JWT_SECRET environment variable not set');
+      logger.error('JWT_SECRET environment variable not set');
       return res.status(500).json({
         error: 'Server configuration error',
         message: 'Authentication service is not properly configured'
@@ -662,7 +663,7 @@ app.get('/api/auth/check-access', async (req, res) => {
       return res.status(401).json({ error: 'Invalid token' });
     }
   } catch (error) {
-    console.error('Access check failed:', error);
+    logger.error('Access check failed:', error);
     res.status(500).json({
       error: 'Access check failed',
       message: error.message
@@ -709,7 +710,7 @@ app.post('/api/auth/renew-access', async (req, res) => {
       });
 
     if (logError) {
-      console.error('Failed to log renewal:', logError);
+      logger.error('Failed to log renewal:', logError);
       // Don't fail renewal if logging fails
     }
 
@@ -719,7 +720,7 @@ app.post('/api/auth/renew-access', async (req, res) => {
       accessExpiresAt: newExpiryTime.toISOString()
     });
   } catch (error) {
-    console.error('Access renewal failed:', error);
+    logger.error('Access renewal failed:', error);
     res.status(500).json({
       error: 'Access renewal failed',
       message: error.message
@@ -813,7 +814,7 @@ app.post('/api/stripe/create-pump-report-session', async (req, res) => {
       });
 
     if (paymentError) {
-      console.error('Failed to store payment record:', paymentError);
+      logger.error('Failed to store payment record:', paymentError);
       // Don't fail checkout if payment record fails
     }
 
@@ -823,7 +824,7 @@ app.post('/api/stripe/create-pump-report-session', async (req, res) => {
       assessment_id: assessmentId,
     });
   } catch (error) {
-    console.error('App', 'Placeholder message');
+    logger.error('App', 'Placeholder message');
     res.status(500).json({
       error: 'Payment setup failed',
       message: error.message,
@@ -875,7 +876,7 @@ app.get('/api/stripe/verify-payment/:sessionId', async (req, res) => {
       });
     }
   } catch (error) {
-    console.error('App', 'Placeholder message');
+    logger.error('App', 'Placeholder message');
     res.status(500).json({
       error: 'Payment verification failed',
       message: error.message,
@@ -908,7 +909,7 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
         .eq('stripe_session_id', session.id);
 
       if (paymentError) {
-        console.error('Failed to update payment record:', paymentError);
+        logger.error('Failed to update payment record:', paymentError);
       }
 
       const { error: assessmentError } = await supabase
@@ -917,15 +918,15 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
         .eq('id', session.metadata.assessment_id);
 
       if (assessmentError) {
-        console.error('Failed to update assessment payment status:', assessmentError);
+        logger.error('Failed to update assessment payment status:', assessmentError);
       }
 
-      console.log('App', 'Placeholder message');
+      logger.info('App', 'Placeholder message');
     }
 
     res.json({ received: true });
   } catch (error) {
-    console.error('App', 'Placeholder message');
+    logger.error('App', 'Placeholder message');
     res.status(400).json({ error: 'Webhook verification failed' });
   }
 });
@@ -1064,7 +1065,7 @@ app.post('/api/provider/send-report', async (req, res) => {
         .eq('id', deliveryId);
 
       if (deliveryUpdateError) {
-        console.error('Failed to update delivery status:', deliveryUpdateError);
+        logger.error('Failed to update delivery status:', deliveryUpdateError);
       }
 
       const { error: assessmentUpdateError } = await supabase
@@ -1073,10 +1074,10 @@ app.post('/api/provider/send-report', async (req, res) => {
         .eq('id', assessmentId);
 
       if (assessmentUpdateError) {
-        console.error('Failed to update assessment sent_at:', assessmentUpdateError);
+        logger.error('Failed to update assessment sent_at:', assessmentUpdateError);
       }
 
-      console.log('App', 'Placeholder message');
+      logger.info('App', 'Placeholder message');
 
       res.json({
         success: true,
@@ -1095,7 +1096,7 @@ app.post('/api/provider/send-report', async (req, res) => {
         .eq('id', deliveryId);
 
       if (failedDeliveryError) {
-        console.error('Failed to update delivery as failed:', failedDeliveryError);
+        logger.error('Failed to update delivery as failed:', failedDeliveryError);
       }
 
       res.status(500).json({
@@ -1104,7 +1105,7 @@ app.post('/api/provider/send-report', async (req, res) => {
       });
     }
   } catch (error) {
-    console.error('App', 'Placeholder message');
+    logger.error('App', 'Placeholder message');
     res.status(500).json({
       success: false,
       error: 'Failed to send report to provider',
@@ -1136,7 +1137,7 @@ app.get('/api/provider/delivery-status/:assessmentId', async (req, res) => {
       deliveries: rows,
     });
   } catch (error) {
-    console.error('App', 'Placeholder message');
+    logger.error('App', 'Placeholder message');
     res.status(500).json({
       error: 'Failed to get delivery status',
       message: error.message,
@@ -1158,7 +1159,7 @@ app.get('/api/provider/participating', async (req, res) => {
 
     if (error) {
       // Fallback to hardcoded list if table doesn't exist
-      console.warn('App', 'Placeholder message');
+      logger.warn('App', 'Placeholder message');
       return res.json([
         { id: 1, name: 'Dr. Rakesh Patel', email: 'rpatel@tshla.ai', specialty: 'Endocrinologist' },
         {
@@ -1194,7 +1195,7 @@ app.get('/api/provider/participating', async (req, res) => {
 
     res.json(rows);
   } catch (error) {
-    console.error('App', 'Placeholder message');
+    logger.error('App', 'Placeholder message');
     res.status(500).json({
       error: 'Failed to get participating providers',
       message: error.message,
@@ -1228,7 +1229,7 @@ app.get('/api/provider/track-pixel/:messageId', async (req, res) => {
         .is('viewed_at', null);
 
       if (error) {
-        console.error('Failed to update tracking pixel:', error);
+        logger.error('Failed to update tracking pixel:', error);
       }
     }
 
@@ -1242,7 +1243,7 @@ app.get('/api/provider/track-pixel/:messageId', async (req, res) => {
     res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.send(pixel);
   } catch (error) {
-    console.error('App', 'Placeholder message');
+    logger.error('App', 'Placeholder message');
     // Still return pixel even if tracking fails
     const pixel = Buffer.from(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
@@ -1311,7 +1312,7 @@ app.post('/api/pump-conversation/save-session', async (req, res) => {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('App', 'Placeholder message');
+    logger.error('App', 'Placeholder message');
     res.status(500).json({
       error: 'Failed to save conversation session',
       message: error.message,
@@ -1350,7 +1351,7 @@ app.get('/api/pump-conversation/get-session/:sessionId', async (req, res) => {
 
     res.json(parsedSession);
   } catch (error) {
-    console.error('App', 'Placeholder message');
+    logger.error('App', 'Placeholder message');
     res.status(500).json({
       error: 'Failed to get conversation session',
       message: error.message,
@@ -1390,7 +1391,7 @@ app.post('/api/pump-conversation/save-recommendation', async (req, res) => {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('App', 'Placeholder message');
+    logger.error('App', 'Placeholder message');
     res.status(500).json({
       error: 'Failed to save recommendation',
       message: error.message,
@@ -1431,7 +1432,7 @@ app.get('/api/pump-assessments/list', async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('App', 'Placeholder message');
+    logger.error('App', 'Placeholder message');
     res.status(500).json({
       error: 'Failed to list assessments',
       message: error.message,
@@ -1471,7 +1472,7 @@ app.get('/api/pump-assessments/:id', async (req, res) => {
 
     res.json(parsedAssessment);
   } catch (error) {
-    console.error('App', 'Placeholder message');
+    logger.error('App', 'Placeholder message');
     res.status(500).json({
       error: 'Failed to get assessment',
       message: error.message,
@@ -1501,7 +1502,7 @@ app.delete('/api/pump-conversation/cleanup-expired', async (req, res) => {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('App', 'Placeholder message');
+    logger.error('App', 'Placeholder message');
     res.status(500).json({
       error: 'Failed to cleanup expired sessions',
       message: error.message,
@@ -1593,7 +1594,7 @@ app.post('/api/pump-assessments/save-complete', verifyToken, async (req, res) =>
 
     const assessmentId = newAssessment.id;
 
-    console.log('App', 'Assessment saved successfully', {
+    logger.info('App', 'Assessment saved successfully', {
       assessmentId,
       patientName,
       flow: assessmentFlow
@@ -1606,7 +1607,7 @@ app.post('/api/pump-assessments/save-complete', verifyToken, async (req, res) =>
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('App', 'Failed to save complete assessment', { error });
+    logger.error('App', 'Failed to save complete assessment', { error });
     res.status(500).json({
       error: 'Failed to save assessment',
       message: error.message
@@ -1666,7 +1667,7 @@ app.get('/api/pump-assessments/:id/complete', async (req, res) => {
 
     res.json(completeData);
   } catch (error) {
-    console.error('App', 'Failed to retrieve complete assessment', { error, assessmentId: req.params.id });
+    logger.error('App', 'Failed to retrieve complete assessment', { error, assessmentId: req.params.id });
     res.status(500).json({
       error: 'Failed to retrieve assessment',
       message: error.message
@@ -1706,10 +1707,10 @@ app.post('/api/pump-assessments/:id/generate-pdf', async (req, res) => {
       .eq('id', id);
 
     if (updateError) {
-      console.error('Failed to update assessment:', updateError);
+      logger.error('Failed to update assessment:', updateError);
     }
 
-    console.log('App', 'PDF generation requested', { assessmentId: id });
+    logger.info('App', 'PDF generation requested', { assessmentId: id });
 
     res.json({
       success: true,
@@ -1718,7 +1719,7 @@ app.post('/api/pump-assessments/:id/generate-pdf', async (req, res) => {
       assessmentId: id
     });
   } catch (error) {
-    console.error('App', 'Failed to generate PDF', { error, assessmentId: req.params.id });
+    logger.error('App', 'Failed to generate PDF', { error, assessmentId: req.params.id });
     res.status(500).json({
       error: 'Failed to generate PDF',
       message: error.message
@@ -1772,7 +1773,7 @@ app.get('/api/pumpdrive/assessments/:id', verifyToken, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching assessment:', error);
+    logger.error('Error fetching assessment:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch assessment',
@@ -1816,7 +1817,7 @@ app.get('/api/pumpdrive/assessments/user/:userId', verifyToken, async (req, res)
           ? JSON.parse(row.ai_recommendation)
           : row.ai_recommendation;
       } catch (e) {
-        console.error('Failed to parse ai_recommendation:', e);
+        logger.error('Failed to parse ai_recommendation:', e);
       }
 
       return {
@@ -1834,7 +1835,7 @@ app.get('/api/pumpdrive/assessments/user/:userId', verifyToken, async (req, res)
       assessments
     });
   } catch (error) {
-    console.error('Error fetching user assessments:', error);
+    logger.error('Error fetching user assessments:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch user assessments',
@@ -1869,7 +1870,7 @@ app.get('/api/pumpdrive/assessments/current-user', verifyToken, async (req, res)
           ? JSON.parse(row.ai_recommendation)
           : row.ai_recommendation;
       } catch (e) {
-        console.error('Failed to parse ai_recommendation:', e);
+        logger.error('Failed to parse ai_recommendation:', e);
       }
 
       return {
@@ -1887,7 +1888,7 @@ app.get('/api/pumpdrive/assessments/current-user', verifyToken, async (req, res)
       assessments
     });
   } catch (error) {
-    console.error('Error fetching current user assessments:', error);
+    logger.error('Error fetching current user assessments:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch assessments',
@@ -1935,12 +1936,12 @@ app.post('/api/pumpdrive/assessments/:id/email', verifyToken, async (req, res) =
         ? JSON.parse(assessment.ai_recommendation)
         : assessment.ai_recommendation;
     } catch (e) {
-      console.error('Failed to parse ai_recommendation:', e);
+      logger.error('Failed to parse ai_recommendation:', e);
     }
 
     // Check if email service is configured
     if (!emailTransporter) {
-      console.warn('Email service not configured, logging email request');
+      logger.warn('Email service not configured, logging email request');
       return res.status(503).json({
         success: false,
         error: 'Email service not configured',
@@ -1996,10 +1997,10 @@ app.post('/api/pumpdrive/assessments/:id/email', verifyToken, async (req, res) =
       });
 
     if (deliveryError) {
-      console.error('Failed to log delivery:', deliveryError);
+      logger.error('Failed to log delivery:', deliveryError);
     }
 
-    console.log('Assessment emailed successfully:', { assessmentId: id, providerEmail });
+    logger.info('Assessment emailed successfully:', { assessmentId: id, providerEmail });
 
     res.json({
       success: true,
@@ -2007,7 +2008,7 @@ app.post('/api/pumpdrive/assessments/:id/email', verifyToken, async (req, res) =
       providerEmail
     });
   } catch (error) {
-    console.error('Error emailing assessment:', error);
+    logger.error('Error emailing assessment:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to email assessment',
@@ -2061,7 +2062,7 @@ app.get('/api/admin/pumpdrive-users', requireAdmin, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Admin API Error:', error);
+    logger.error('Admin API Error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch users',
@@ -2105,7 +2106,7 @@ app.get('/api/admin/pumpdrive-stats', requireAdmin, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Admin Stats Error:', error);
+    logger.error('Admin Stats Error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch stats',
@@ -2137,7 +2138,7 @@ app.get('/api/admin/pumpdrive-users/export', requireAdmin, async (req, res) => {
       .select('user_id, recommendations');
 
     if (reportsError) {
-      console.error('Failed to fetch pump_reports:', reportsError);
+      logger.error('Failed to fetch pump_reports:', reportsError);
     }
 
     // Map reports by user_id
@@ -2186,7 +2187,7 @@ app.get('/api/admin/pumpdrive-users/export', requireAdmin, async (req, res) => {
     res.send(csv);
 
   } catch (error) {
-    console.error('CSV Export Error:', error);
+    logger.error('CSV Export Error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to export CSV',
@@ -2336,7 +2337,7 @@ app.get('/api/admin/pumpdrive/analytics', requireAdmin, async (req, res) => {
     res.json(analyticsData);
 
   } catch (error) {
-    console.error('Analytics API Error:', error);
+    logger.error('Analytics API Error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch analytics',
@@ -2374,7 +2375,7 @@ app.get('/api/admin/pumpdrive/analytics/summary', requireAdmin, async (req, res)
     });
 
   } catch (error) {
-    console.error('Summary API Error:', error);
+    logger.error('Summary API Error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch summary',
@@ -2422,7 +2423,7 @@ app.get('/api/admin/pumpdrive/analytics/pump-distribution', requireAdmin, async 
     res.json(distribution);
 
   } catch (error) {
-    console.error('Distribution API Error:', error);
+    logger.error('Distribution API Error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch distribution',
@@ -2465,7 +2466,7 @@ app.get('/api/admin/pumpdrive/analytics/trends', requireAdmin, async (req, res) 
     res.json(trends);
 
   } catch (error) {
-    console.error('Trends API Error:', error);
+    logger.error('Trends API Error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch trends',
@@ -2512,7 +2513,7 @@ app.get('/api/admin/pumpdrive/analytics/recent', requireAdmin, async (req, res) 
     })));
 
   } catch (error) {
-    console.error('Recent Assessments API Error:', error);
+    logger.error('Recent Assessments API Error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch recent assessments',
@@ -2553,7 +2554,7 @@ app.get('/api/admin/pump-comparison-data', requireAdmin, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error fetching pump comparison data:', error);
+    logger.error('Error fetching pump comparison data:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch pump comparison data',
@@ -2592,7 +2593,7 @@ app.get('/api/admin/pump-comparison-data/:id', requireAdmin, async (req, res) =>
     });
 
   } catch (error) {
-    console.error('Error fetching pump comparison dimension:', error);
+    logger.error('Error fetching pump comparison dimension:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch dimension',
@@ -2655,7 +2656,7 @@ app.put('/api/admin/pump-comparison-data/:id', requireAdmin, async (req, res) =>
     });
 
   } catch (error) {
-    console.error('Error updating pump comparison dimension:', error);
+    logger.error('Error updating pump comparison dimension:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to update dimension',
@@ -2716,7 +2717,7 @@ app.post('/api/admin/pump-comparison-data', requireAdmin, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error creating pump comparison dimension:', error);
+    logger.error('Error creating pump comparison dimension:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to create dimension',
@@ -2763,7 +2764,7 @@ app.delete('/api/admin/pump-comparison-data/:id', requireAdmin, async (req, res)
     });
 
   } catch (error) {
-    console.error('Error deleting pump comparison dimension:', error);
+    logger.error('Error deleting pump comparison dimension:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to delete dimension',
@@ -2798,7 +2799,7 @@ app.get('/api/admin/pump-manufacturers', requireAdmin, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error fetching pump manufacturers:', error);
+    logger.error('Error fetching pump manufacturers:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch pump manufacturers',
@@ -2868,7 +2869,7 @@ app.put('/api/admin/pump-manufacturers/:id', requireAdmin, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error updating pump manufacturer:', error);
+    logger.error('Error updating pump manufacturer:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to update pump manufacturer',
@@ -2932,7 +2933,7 @@ app.post('/api/admin/pump-manufacturers', requireAdmin, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error creating pump manufacturer:', error);
+    logger.error('Error creating pump manufacturer:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to create pump manufacturer',
@@ -2997,7 +2998,7 @@ app.post('/api/pumpdrive/recommend', optionalAuth, async (req, res) => {
   let connection = null;
 
   try {
-    console.log('PumpDrive API: Received recommendation request', {
+    logger.info('PumpDrive API: Received recommendation request', {
       hasData: !!req.body,
       dataKeys: Object.keys(req.body || {}),
       userId: req.user?.userId
@@ -3008,7 +3009,7 @@ app.post('/api/pumpdrive/recommend', optionalAuth, async (req, res) => {
 
     // Authentication is optional - log warning if not authenticated
     if (!userId) {
-      console.log('PumpDrive API: ⚠️ Unauthenticated request - will not save to database');
+      logger.info('PumpDrive API: ⚠️ Unauthenticated request - will not save to database');
     }
 
     // Basic validation
@@ -3074,9 +3075,9 @@ app.post('/api/pumpdrive/recommend', optionalAuth, async (req, res) => {
         .single();
 
       if (insertError) {
-        console.error('Failed to save pump report:', insertError);
+        logger.error('Failed to save pump report:', insertError);
       } else {
-        console.log('Pump report saved:', {
+        logger.info('Pump report saved:', {
           reportId: newReport.id,
           userId,
           primaryPump,
@@ -3087,13 +3088,13 @@ app.post('/api/pumpdrive/recommend', optionalAuth, async (req, res) => {
         formattedResponse.reportId = newReport.id;
       }
     } else {
-      console.log('Pump report NOT saved (no authentication)');
+      logger.info('Pump report NOT saved (no authentication)');
     }
 
     res.json(formattedResponse);
 
   } catch (error) {
-    console.error('PumpDrive API Error:', error.message);
+    logger.error('PumpDrive API Error:', error.message);
     res.status(500).json({
       error: 'Failed to generate recommendations',
       message: error.message,
@@ -3115,7 +3116,7 @@ app.post('/api/pumpdrive/recommend', optionalAuth, async (req, res) => {
 // STAGE 1: Initialize Base Scores (30%)
 // ===================================
 function initializeScores() {
-  console.log('[V3] Stage 1: Initializing base scores at 30%');
+  logger.info('[V3] Stage 1: Initializing base scores at 30%');
   return {
     'Medtronic 780G': 30,
     'Tandem t:slim X2': 30,
@@ -3130,7 +3131,7 @@ function initializeScores() {
 // STAGE 2: Apply Slider Adjustments (±12%)
 // ===================================
 function applySliderAdjustments(scores, sliders) {
-  console.log('[V3] Stage 2: Applying slider adjustments');
+  logger.info('[V3] Stage 2: Applying slider adjustments');
   const activity = sliders.activity || 5;
   const techComfort = sliders.techComfort || 5;
   const simplicity = sliders.simplicity || 5;
@@ -3229,7 +3230,7 @@ function applySliderAdjustments(scores, sliders) {
     scores['Omnipod 5'] -= 2;
   }
 
-  console.log('[V3] Stage 2 complete:', scores);
+  logger.info('[V3] Stage 2 complete:', scores);
   return scores;
 }
 
@@ -3237,7 +3238,7 @@ function applySliderAdjustments(scores, sliders) {
 // STAGE 3: Apply Feature Adjustments (±8%)
 // ===================================
 function applyFeatureAdjustments(scores, features) {
-  console.log('[V3] Stage 3: Applying feature adjustments');
+  logger.info('[V3] Stage 3: Applying feature adjustments');
 
   const FEATURE_IMPACT = {
     'aa-battery-power': {
@@ -3331,27 +3332,27 @@ function applyFeatureAdjustments(scores, features) {
     const featureId = feature.id || feature;
     const impact = FEATURE_IMPACT[featureId];
 
-    console.log(`[V3] Processing feature: ${JSON.stringify(feature)}`);
-    console.log(`     Extracted ID: "${featureId}"`);
-    console.log(`     Found mapping: ${!!impact}`);
+    logger.info(`[V3] Processing feature: ${JSON.stringify(feature)}`);
+    logger.info(`     Extracted ID: "${featureId}"`);
+    logger.info(`     Found mapping: ${!!impact}`);
 
     if (impact) {
       // Apply boosts
       Object.entries(impact.boosts).forEach(([pump, points]) => {
         scores[pump] += points;
-        console.log(`       ${pump} +${points}%`);
+        logger.info(`       ${pump} +${points}%`);
       });
       // Apply penalties
       Object.entries(impact.penalties).forEach(([pump, points]) => {
         scores[pump] += points;
-        console.log(`       ${pump} ${points}%`);
+        logger.info(`       ${pump} ${points}%`);
       });
     } else {
-      console.warn(`     ⚠️  Feature ID "${featureId}" not found in FEATURE_IMPACT mapping!`);
+      logger.warn(`     ⚠️  Feature ID "${featureId}" not found in FEATURE_IMPACT mapping!`);
     }
   });
 
-  console.log('[V3] Stage 3 complete:', scores);
+  logger.info('[V3] Stage 3 complete:', scores);
   return scores;
 }
 
@@ -3360,11 +3361,11 @@ function applyFeatureAdjustments(scores, features) {
 // ===================================
 function applyCriticalKeywordBoosts(scores, freeText) {
   if (!freeText || freeText.trim().length === 0) {
-    console.log('[V3] Stage 3.5: No free text, skipping keyword detection');
+    logger.info('[V3] Stage 3.5: No free text, skipping keyword detection');
     return scores;
   }
 
-  console.log('[V3] Stage 3.5: Checking for critical keywords');
+  logger.info('[V3] Stage 3.5: Checking for critical keywords');
   const text = freeText.toLowerCase();
   let boostsApplied = false;
 
@@ -3373,7 +3374,7 @@ function applyCriticalKeywordBoosts(scores, freeText) {
   if (weightKeywords.test(text)) {
     scores['Twiist'] += 12;
     scores['Tandem Mobi'] += 4;
-    console.log('  ✓ WEIGHT PRIORITY detected: Twiist +12%, Mobi +4%');
+    logger.info('  ✓ WEIGHT PRIORITY detected: Twiist +12%, Mobi +4%');
     boostsApplied = true;
   }
 
@@ -3382,7 +3383,7 @@ function applyCriticalKeywordBoosts(scores, freeText) {
   if (targetKeywords.test(text)) {
     scores['Twiist'] += 6;
     scores['Medtronic 780G'] += 5;
-    console.log('  ✓ LOWEST TARGET detected: Twiist +6%, 780G +5%');
+    logger.info('  ✓ LOWEST TARGET detected: Twiist +6%, 780G +5%');
     boostsApplied = true;
   }
 
@@ -3392,7 +3393,7 @@ function applyCriticalKeywordBoosts(scores, freeText) {
     scores['Twiist'] += 4;
     scores['Omnipod 5'] += 3;
     scores['Tandem Mobi'] += 3;
-    console.log('  ✓ RUNNING detected: Twiist +4%, Omnipod +3%, Mobi +3%');
+    logger.info('  ✓ RUNNING detected: Twiist +4%, Omnipod +3%, Mobi +3%');
     boostsApplied = true;
   }
 
@@ -3400,7 +3401,7 @@ function applyCriticalKeywordBoosts(scores, freeText) {
   const appleWatchKeywords = /\b(apple.*watch|watch.*bolus|dose.*watch)\b/i;
   if (appleWatchKeywords.test(text)) {
     scores['Twiist'] += 15;
-    console.log('  ✓ APPLE WATCH detected: Twiist +15%');
+    logger.info('  ✓ APPLE WATCH detected: Twiist +15%');
     boostsApplied = true;
   }
 
@@ -3408,7 +3409,7 @@ function applyCriticalKeywordBoosts(scores, freeText) {
   const noCarbKeywords = /\b(no.*carb|don't.*count|without.*counting|carb.*free)\b/i;
   if (noCarbKeywords.test(text)) {
     scores['Beta Bionics iLet'] += 15;
-    console.log('  ✓ NO CARB detected: iLet +15%');
+    logger.info('  ✓ NO CARB detected: iLet +15%');
     boostsApplied = true;
   }
 
@@ -3416,7 +3417,7 @@ function applyCriticalKeywordBoosts(scores, freeText) {
   const tubelessKeywords = /\b(tubeless|no.*tub|hate.*tub|without.*tub)\b/i;
   if (tubelessKeywords.test(text)) {
     scores['Omnipod 5'] += 15;
-    console.log('  ✓ TUBELESS detected: Omnipod +15%');
+    logger.info('  ✓ TUBELESS detected: Omnipod +15%');
     boostsApplied = true;
   }
 
@@ -3426,15 +3427,15 @@ function applyCriticalKeywordBoosts(scores, freeText) {
     scores['Twiist'] += 3;
     scores['Tandem t:slim X2'] += 2;
     scores['Medtronic 780G'] += 2;
-    console.log('  ✓ OK WITH TUBES detected: Twiist +3%, t:slim +2%, 780G +2%');
+    logger.info('  ✓ OK WITH TUBES detected: Twiist +3%, t:slim +2%, 780G +2%');
     boostsApplied = true;
   }
 
   if (!boostsApplied) {
-    console.log('  (No critical keywords detected)');
+    logger.info('  (No critical keywords detected)');
   }
 
-  console.log('[V3] Stage 3.5 complete:', scores);
+  logger.info('[V3] Stage 3.5 complete:', scores);
   return scores;
 }
 
@@ -3443,7 +3444,7 @@ function applyCriticalKeywordBoosts(scores, freeText) {
 // ===================================
 async function analyzeFreeTextWithAI(freeText) {
   if (!freeText || freeText.trim().length === 0) {
-    console.log('[V3] Stage 4: No free text provided, skipping');
+    logger.info('[V3] Stage 4: No free text provided, skipping');
     return {
       extractedIntents: [],
       pumpScores: {
@@ -3459,7 +3460,7 @@ async function analyzeFreeTextWithAI(freeText) {
     };
   }
 
-  console.log('[V3] Stage 4: Analyzing free text with AI semantic understanding');
+  logger.info('[V3] Stage 4: Analyzing free text with AI semantic understanding');
 
   const prompt = `You are an expert at understanding patient needs for insulin pumps.
 Extract TRUE INTENTIONS from patient free text, not just keywords.
@@ -3643,17 +3644,17 @@ NOW ANALYZE THE PATIENT'S TEXT AND RETURN JSON.`;
     const analysis = JSON.parse(response.choices[0].message.content);
 
     // DEBUG: Log detailed AI analysis results
-    console.log('[V3] Stage 4 AI Analysis Results:');
-    console.log('  Intents extracted:', analysis.extractedIntents?.map(i => i.intent) || []);
-    console.log('  Dimensions covered:', analysis.dimensionsCovered || []);
-    console.log('  Pump scores from AI:');
+    logger.info('[V3] Stage 4 AI Analysis Results:');
+    logger.info('  Intents extracted:', analysis.extractedIntents?.map(i => i.intent) || []);
+    logger.info('  Dimensions covered:', analysis.dimensionsCovered || []);
+    logger.info('  Pump scores from AI:');
     Object.entries(analysis.pumpScores || {}).forEach(([pump, data]) => {
-      console.log(`    ${pump}: +${data.points}% - ${data.reasoning?.substring(0, 60) || 'No reasoning'}...`);
+      logger.info(`    ${pump}: +${data.points}% - ${data.reasoning?.substring(0, 60) || 'No reasoning'}...`);
     });
 
     return analysis;
   } catch (error) {
-    console.error('[V3] Stage 4 error:', error);
+    logger.error('[V3] Stage 4 error:', error);
     // Return zero scores on error
     return {
       extractedIntents: [{ intent: 'Error analyzing text', dimensions: [], confidence: 'low', keywords_detected: [] }],
@@ -3675,7 +3676,7 @@ NOW ANALYZE THE PATIENT'S TEXT AND RETURN JSON.`;
 // STAGE 5: Context 7 Follow-up Question (±5%)
 // ===================================
 async function generateContext7Question(scores, freeTextAnalysis, userData) {
-  console.log('[V3] Stage 5: Checking if Context 7 question needed');
+  logger.info('[V3] Stage 5: Checking if Context 7 question needed');
 
   // Check for close competitors (within 10%)
   const sortedScores = Object.entries(scores).sort((a, b) => b[1] - a[1]);
@@ -3683,11 +3684,11 @@ async function generateContext7Question(scores, freeTextAnalysis, userData) {
   const closeCompetitors = sortedScores.filter(([_, s]) => topScore - s <= 10);
 
   if (closeCompetitors.length <= 1) {
-    console.log('[V3] Stage 5: Clear winner, no question needed');
+    logger.info('[V3] Stage 5: Clear winner, no question needed');
     return null; // Clear winner
   }
 
-  console.log('[V3] Stage 5: Close scores detected, generating clarifying question');
+  logger.info('[V3] Stage 5: Close scores detected, generating clarifying question');
 
   const prompt = `Generate ONE clarifying question to differentiate these pumps.
 
@@ -3739,10 +3740,10 @@ OUTPUT (JSON):
     });
 
     const question = JSON.parse(response.choices[0].message.content);
-    console.log('[V3] Stage 5 complete:', question);
+    logger.info('[V3] Stage 5 complete:', question);
     return question;
   } catch (error) {
-    console.error('[V3] Stage 5 error:', error);
+    logger.error('[V3] Stage 5 error:', error);
     return null;
   }
 }
@@ -3750,7 +3751,7 @@ OUTPUT (JSON):
 function applyContext7Boosts(scores, context7Answer, context7Question) {
   if (!context7Answer || !context7Question) return scores;
 
-  console.log('[V3] Stage 5: Applying Context 7 boosts');
+  logger.info('[V3] Stage 5: Applying Context 7 boosts');
 
   const selectedOption = context7Question.options[context7Answer];
   if (selectedOption && selectedOption.boosts) {
@@ -3759,7 +3760,7 @@ function applyContext7Boosts(scores, context7Answer, context7Question) {
     });
   }
 
-  console.log('[V3] Stage 5 boosts applied:', scores);
+  logger.info('[V3] Stage 5 boosts applied:', scores);
   return scores;
 }
 
@@ -3767,7 +3768,7 @@ function applyContext7Boosts(scores, context7Answer, context7Question) {
 // STAGE 6: Final AI Analysis with 23 Dimensions (0-20%)
 // ===================================
 async function performFinalAIAnalysis(currentScores, userData, freeTextAnalysis, dimensions) {
-  console.log('[V3] Stage 6: Final AI analysis with 23 dimensions');
+  logger.info('[V3] Stage 6: Final AI analysis with 23 dimensions');
 
   // Format dimensions for prompt
   const formatDimensions = (dims) => {
@@ -3851,10 +3852,10 @@ OUTPUT (JSON):
     });
 
     const analysis = JSON.parse(response.choices[0].message.content);
-    console.log('[V3] Stage 6 complete:', analysis);
+    logger.info('[V3] Stage 6 complete:', analysis);
     return analysis;
   } catch (error) {
-    console.error('[V3] Stage 6 error:', error);
+    logger.error('[V3] Stage 6 error:', error);
     // Return current scores without bonus
     return {
       finalScores: Object.fromEntries(
@@ -3877,7 +3878,7 @@ OUTPUT (JSON):
 // MAIN: V3 Orchestrator Function (All 6 Stages)
 // ===================================
 async function generatePumpRecommendationsV3(userData) {
-  console.log('[V3] ====== Starting PumpDrive V3.0 Recommendation Engine ======');
+  logger.info('[V3] ====== Starting PumpDrive V3.0 Recommendation Engine ======');
 
   try {
     // Stage 1: Initialize base scores (30%)
@@ -3899,7 +3900,7 @@ async function generatePumpRecommendationsV3(userData) {
     Object.entries(freeTextAnalysis.pumpScores).forEach(([pump, data]) => {
       scores[pump] += data.points;
     });
-    console.log('[V3] After Stage 4 (free text):', scores);
+    logger.info('[V3] After Stage 4 (free text):', scores);
 
     // Stage 5: Context 7 question (±5%)
     let context7Question = null;
@@ -3937,15 +3938,15 @@ async function generatePumpRecommendationsV3(userData) {
     const sorted = Object.entries(cappedScores).sort((a, b) => b[1].score - a[1].score);
 
     // Final summary with visual ranking
-    console.log('\n[V3] ====== FINAL SCORING SUMMARY ======');
+    logger.info('\n[V3] ====== FINAL SCORING SUMMARY ======');
     sorted.forEach(([pump, data], index) => {
       const emoji = index === 0 ? '🏆' : index === 1 ? '🥈' : index === 2 ? '🥉' : '  ';
-      console.log(`${emoji} ${pump}: ${data.score}%`);
+      logger.info(`${emoji} ${pump}: ${data.score}%`);
     });
-    console.log('=======================================\n');
+    logger.info('=======================================\n');
 
-    console.log('[V3] ====== V3.0 Recommendation Complete ======');
-    console.log('[V3] Final scores:', sorted.map(([name, data]) => `${name}: ${data.score}%`).join(', '));
+    logger.info('[V3] ====== V3.0 Recommendation Complete ======');
+    logger.info('[V3] Final scores:', sorted.map(([name, data]) => `${name}: ${data.score}%`).join(', '));
 
     return {
       overallTop: [{
@@ -3976,9 +3977,9 @@ async function generatePumpRecommendationsV3(userData) {
     };
 
   } catch (error) {
-    console.error('[V3] Error in V3 recommendation engine:', error);
+    logger.error('[V3] Error in V3 recommendation engine:', error);
     // Fallback to rule-based
-    console.log('[V3] Falling back to rule-based recommendations');
+    logger.info('[V3] Falling back to rule-based recommendations');
     return generateRuleBasedRecommendations(userData);
   }
 }
@@ -3987,7 +3988,7 @@ async function generatePumpRecommendationsV3(userData) {
 // WRAPPER: Fallback function (Stages 1-3 only)
 // ===================================
 function generateRuleBasedRecommendations(userData) {
-  console.log('[V3] Running fallback mode (Stages 1-3 only)');
+  logger.info('[V3] Running fallback mode (Stages 1-3 only)');
   const sliders = userData.sliders || {};
   const features = userData.features || [];
 
@@ -4101,7 +4102,7 @@ async function fetchPumpComparisonData() {
       manufacturers: manufacturers
     };
   } catch (error) {
-    console.error('Error fetching pump comparison data:', error);
+    logger.error('Error fetching pump comparison data:', error);
     return null; // Return null if database fetch fails - AI will use fallback
   }
 }
@@ -4112,16 +4113,16 @@ async function fetchPumpComparisonData() {
 async function generatePumpRecommendations(userData) {
   // Check if Azure OpenAI is configured
   if (!process.env.AZURE_OPENAI_KEY || !process.env.AZURE_OPENAI_ENDPOINT) {
-    console.log('Azure OpenAI not configured - using rule-based recommendations (V3 fallback)');
+    logger.info('Azure OpenAI not configured - using rule-based recommendations (V3 fallback)');
     return generateRuleBasedRecommendations(userData);
   }
 
   try {
-    console.log('=== Using PumpDrive V3.0 Recommendation Engine ===');
+    logger.info('=== Using PumpDrive V3.0 Recommendation Engine ===');
     return await generatePumpRecommendationsV3(userData);
   } catch (error) {
-    console.error('Error in V3 recommendation engine:', error);
-    console.log('Falling back to rule-based recommendations');
+    logger.error('Error in V3 recommendation engine:', error);
+    logger.info('Falling back to rule-based recommendations');
     return generateRuleBasedRecommendations(userData);
   }
 }
@@ -4275,7 +4276,7 @@ app.get('/api/templates', async (req, res) => {
 
     res.json(formattedTemplates);
   } catch (error) {
-    console.error('Template API Error:', error.message);
+    logger.error('Template API Error:', error.message);
     res.status(500).json({ error: 'Failed to get templates' });
   }
 });
@@ -4304,7 +4305,7 @@ app.post('/api/doctor-profiles', async (req, res) => {
       }, { onConflict: 'id' });
 
     if (doctorError) {
-      console.error('Failed to upsert doctor:', doctorError);
+      logger.error('Failed to upsert doctor:', doctorError);
     }
 
     // Save favorites as separate records in doctor_template_favorites table
@@ -4316,7 +4317,7 @@ app.post('/api/doctor-profiles', async (req, res) => {
         .eq('doctor_id', doctorId);
 
       if (deleteError) {
-        console.error('Failed to clear favorites:', deleteError);
+        logger.error('Failed to clear favorites:', deleteError);
       }
 
       // Insert new favorites
@@ -4330,7 +4331,7 @@ app.post('/api/doctor-profiles', async (req, res) => {
         .insert(favoritesToInsert);
 
       if (insertError) {
-        console.error('Failed to insert favorites:', insertError);
+        logger.error('Failed to insert favorites:', insertError);
       }
     }
 
@@ -4351,14 +4352,14 @@ app.post('/api/doctor-profiles', async (req, res) => {
           }, { onConflict: 'id' });
 
         if (templateError) {
-          console.error('Failed to upsert template:', templateError);
+          logger.error('Failed to upsert template:', templateError);
         }
       }
     }
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Template API Error:', error.message);
+    logger.error('Template API Error:', error.message);
     res.status(500).json({ error: 'Failed to save profile' });
   }
 });
@@ -4388,7 +4389,7 @@ app.get('/api/doctor-profiles/:doctorId', async (req, res) => {
       .order('name', { ascending: true });
 
     if (templatesError) {
-      console.error('Failed to fetch templates:', templatesError);
+      logger.error('Failed to fetch templates:', templatesError);
     }
 
     // Get favorite templates
@@ -4398,7 +4399,7 @@ app.get('/api/doctor-profiles/:doctorId', async (req, res) => {
       .eq('doctor_id', doctorId);
 
     if (favoritesError) {
-      console.error('Failed to fetch favorites:', favoritesError);
+      logger.error('Failed to fetch favorites:', favoritesError);
     }
 
     const profile = {
@@ -4435,7 +4436,7 @@ app.get('/api/doctor-profiles/:doctorId', async (req, res) => {
 
     res.json(profile);
   } catch (error) {
-    console.error('Template API Error:', error.message);
+    logger.error('Template API Error:', error.message);
     res.status(500).json({ error: 'Failed to load profile' });
   }
 });
@@ -4480,7 +4481,7 @@ app.post('/api/templates', async (req, res) => {
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Template API Error:', error.message);
+    logger.error('Template API Error:', error.message);
     res.status(500).json({ error: 'Failed to save template' });
   }
 });
@@ -4534,7 +4535,7 @@ app.post('/api/templates/:templateId/toggle-favorite', async (req, res) => {
       res.json({ success: true, isFavorite: true });
     }
   } catch (error) {
-    console.error('Template API Error:', error.message);
+    logger.error('Template API Error:', error.message);
     res.status(500).json({ error: 'Failed to toggle favorite' });
   }
 });
@@ -4570,8 +4571,8 @@ app.get('/api/database/test', async (req, res) => {
 
 // Enhanced error handling middleware
 app.use((error, req, res, next) => {
-  console.error('Server Error:', error.message);
-  console.error('Stack:', error.stack);
+  logger.error('Server Error:', error.message);
+  logger.error('Stack:', error.stack);
 
   // Handle JSON parsing errors
   if (error.type === 'entity.parse.failed') {
@@ -4619,37 +4620,37 @@ app.use((error, req, res, next) => {
 
 // Initialize and start server
 async function startServer() {
-  console.log('Pump Report API: Starting server...');
+  logger.info('Pump Report API: Starting server...');
 
   // Validate environment configuration
-  console.log('Pump Report API: Validating environment configuration...');
+  logger.info('Pump Report API: Validating environment configuration...');
 
   const envValidation = validateEnvironmentConfig();
   if (!envValidation.isValid) {
-    console.error('Pump Report API: Environment validation failed!');
-    envValidation.errors.forEach(error => console.error(`  - ${error}`));
-    console.error('Pump Report API: Starting in degraded mode with invalid configuration');
+    logger.error('Pump Report API: Environment validation failed!');
+    envValidation.errors.forEach(error => logger.error(`  - ${error}`));
+    logger.error('Pump Report API: Starting in degraded mode with invalid configuration');
     app.locals.configValid = false;
     app.locals.configErrors = envValidation.errors;
   } else {
     app.locals.configValid = true;
   }
 
-  console.log('Pump Report API: Environment configuration valid');
+  logger.info('Pump Report API: Environment configuration valid');
 
   // Supabase client already initialized at module load
   // Test connection
   try {
     const { error } = await supabase.from('patients').select('count', { count: 'exact', head: true });
     if (error) {
-      console.error('Pump Report API: Supabase connection test failed:', error.message);
+      logger.error('Pump Report API: Supabase connection test failed:', error.message);
       app.locals.dbConnected = false;
     } else {
-      console.log('Pump Report API: Supabase connected successfully');
+      logger.info('Pump Report API: Supabase connected successfully');
       app.locals.dbConnected = true;
     }
   } catch (err) {
-    console.error('Pump Report API: Database connection failed:', err.message);
+    logger.error('Pump Report API: Database connection failed:', err.message);
     app.locals.dbConnected = false;
   }
 
@@ -4658,11 +4659,11 @@ async function startServer() {
 
   // Start server
   app.listen(PORT, () => {
-    console.log(`Pump Report API: Server running on port ${PORT}`);
-    console.log(`Pump Report API: Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log('Pump Report API: All systems operational');
-    console.log('Pump Report API: ✅ Authentication system ready');
-    console.log('Pump Report API: ✅ Database connected');
+    logger.info(`Pump Report API: Server running on port ${PORT}`);
+    logger.info(`Pump Report API: Environment: ${process.env.NODE_ENV || 'development'}`);
+    logger.info('Pump Report API: All systems operational');
+    logger.info('Pump Report API: ✅ Authentication system ready');
+    logger.info('Pump Report API: ✅ Database connected');
 
     // Start database connection monitoring
     startDatabaseMonitoring();
@@ -4672,7 +4673,7 @@ async function startServer() {
 // Database connection monitoring and recovery
 // Note: Using Supabase now - monitoring handled by Supabase client
 function startDatabaseMonitoring() {
-  console.log('Pump Report API: Using Supabase - connection monitoring handled by Supabase client');
+  logger.info('Pump Report API: Using Supabase - connection monitoring handled by Supabase client');
   // Supabase client handles connection pooling and monitoring automatically
   app.locals.dbConnected = true;
 }
@@ -4707,7 +4708,7 @@ function validateEnvironmentConfig() {
   }
 
   if (process.env.DB_PASSWORD === 'your_password_here' || process.env.DB_PASSWORD === '') {
-    console.warn('Pump Report API: Warning - Using default/empty database password');
+    logger.warn('Pump Report API: Warning - Using default/empty database password');
   }
 
   return {
@@ -4718,7 +4719,7 @@ function validateEnvironmentConfig() {
 
 // Start the server
 if (require.main === module) {
-  startServer().catch(console.error);
+  startServer().catch(logger.error);
 }
 
 module.exports = app;

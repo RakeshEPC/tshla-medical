@@ -23,6 +23,7 @@ const cors = require('cors');
 const { createClient, LiveTranscriptionEvents } = require('@deepgram/sdk');
 const unifiedDatabase = require('./services/unified-supabase.service');
 const patientMatchingService = require('./services/patientMatching.service');
+const logger = require('./logger');
 
 // Create main Express app
 const app = express();
@@ -36,13 +37,13 @@ app.set('trust proxy', 1);
 app.use((req, res, next) => {
   // Skip CORS for WebSocket upgrade requests
   if (req.headers.upgrade === 'websocket') {
-    console.log('[CORS] Skipping CORS for WebSocket upgrade:', req.path);
+    logger.debug('CORS', 'Skipping CORS for WebSocket upgrade', { path: req.path });
     return next();
   }
 
   // Skip CORS for WebSocket paths entirely
   if (req.path.startsWith('/media-stream') || req.path.startsWith('/ws/')) {
-    console.log('[CORS] Skipping CORS for WebSocket path:', req.path);
+    logger.debug('CORS', 'Skipping CORS for WebSocket path', { path: req.path });
     return next();
   }
 
@@ -67,8 +68,8 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-console.log('🚀 TSHLA Medical Unified API Server');
-console.log('========================================');
+logger.info('UnifiedAPI', 'TSHLA Medical Unified API Server starting');
+logger.info('UnifiedAPI', '========================================');
 
 // Define unified routes FIRST (before mounting other APIs)
 // This ensures our unified routes take precedence over conflicting routes in sub-APIs
@@ -230,9 +231,9 @@ function getElevenLabsSignedUrl() {
 // DISABLED: Twilio phone numbers cancelled - 2026-01-03
 // app.post('/api/twilio/previsit-twiml', async (req, res) => {
 //   try {
-//     console.log('📞 Pre-Visit TwiML webhook called');
+//     logger.info('📞 Pre-Visit TwiML webhook called');
 //     const signedUrl = await getElevenLabsSignedUrl();
-//     console.log('✅ Got ElevenLabs signed URL');
+//     logger.info('✅ Got ElevenLabs signed URL');
 //     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 // <Response>
 //   <Connect>
@@ -242,7 +243,7 @@ function getElevenLabsSignedUrl() {
 //     res.type('application/xml');
 //     res.send(twiml);
 //   } catch (error) {
-//     console.error('❌ TwiML error:', error);
+//     logger.error('❌ TwiML error:', error);
 //     const fallback = `<?xml version="1.0" encoding="UTF-8"?>
 // <Response>
 //   <Say>We're sorry, our automated assistant is currently unavailable. Please call back later.</Say>
@@ -252,7 +253,7 @@ function getElevenLabsSignedUrl() {
 //     res.send(fallback);
 //   }
 // });
-console.log('⚠️  Twilio previsit-twiml endpoint DISABLED (phone numbers cancelled)');
+logger.warn('UnifiedAPI', 'Twilio previsit-twiml endpoint DISABLED (phone numbers cancelled)');
 
 // ==========================================================================
 // API PROXY ENDPOINTS - Secure server-side API key handling
@@ -299,7 +300,10 @@ app.post('/api/ai/chat', async (req, res) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Azure OpenAI error:', response.status, errorText);
+      logger.error('UnifiedAPI', 'Azure OpenAI error', {
+        status: response.status,
+        error: errorText.substring(0, 200)
+      });
       return res.status(response.status).json({
         error: 'Azure OpenAI request failed',
         status: response.status,
@@ -310,7 +314,7 @@ app.post('/api/ai/chat', async (req, res) => {
     const data = await response.json();
     res.json(data);
   } catch (error) {
-    console.error('❌ Azure OpenAI proxy error:', error);
+    logger.error('UnifiedAPI', 'Azure OpenAI proxy error', { error: error.message });
     res.status(500).json({ error: error.message });
   }
 });
@@ -357,7 +361,10 @@ app.post('/api/ai/summary', async (req, res) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Azure OpenAI error:', response.status, errorText);
+      logger.error('UnifiedAPI', 'Azure OpenAI error (summary)', {
+        status: response.status,
+        error: errorText.substring(0, 200)
+      });
       return res.status(response.status).json({
         error: 'Azure OpenAI request failed',
         status: response.status,
@@ -368,7 +375,7 @@ app.post('/api/ai/summary', async (req, res) => {
     const data = await response.json();
     res.json(data);
   } catch (error) {
-    console.error('❌ OpenAI proxy error:', error);
+    logger.error('UnifiedAPI', 'OpenAI proxy error', { error: error.message });
     res.status(500).json({ error: error.message });
   }
 });
@@ -423,7 +430,10 @@ app.post('/api/patient-summary', async (req, res) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Azure OpenAI error (patient-summary):', response.status, errorText);
+      logger.error('UnifiedAPI', 'Azure OpenAI error (patient-summary)', {
+        status: response.status,
+        error: errorText.substring(0, 200)
+      });
       return res.status(response.status).json({
         error: 'Azure OpenAI request failed',
         status: response.status,
@@ -439,7 +449,7 @@ app.post('/api/patient-summary', async (req, res) => {
       model: AZURE_DEPLOYMENT
     });
   } catch (error) {
-    console.error('❌ Patient summary generation error:', error);
+    logger.error('UnifiedAPI', 'Patient summary generation error', { error: error.message });
     res.status(500).json({ error: error.message });
   }
 });
@@ -492,7 +502,10 @@ app.post('/api/tts/elevenlabs', async (req, res) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ ElevenLabs error:', response.status, errorText);
+      logger.error('UnifiedAPI', 'ElevenLabs error', {
+        status: response.status,
+        error: errorText.substring(0, 200)
+      });
       return res.status(response.status).json({
         error: 'ElevenLabs request failed',
         status: response.status,
@@ -504,15 +517,14 @@ app.post('/api/tts/elevenlabs', async (req, res) => {
     res.setHeader('Content-Type', 'audio/mpeg');
     response.body.pipe(res);
   } catch (error) {
-    console.error('❌ ElevenLabs proxy error:', error);
+    logger.error('UnifiedAPI', 'ElevenLabs proxy error', { error: error.message });
     res.status(500).json({ error: error.message });
   }
 });
 
-console.log('✅ API Proxy endpoints configured:');
-console.log('   - POST /api/ai/chat (Azure OpenAI)');
-console.log('   - POST /api/ai/summary (OpenAI)');
-console.log('   - POST /api/tts/elevenlabs (ElevenLabs TTS)');
+logger.info('UnifiedAPI', 'API Proxy endpoints configured', {
+  endpoints: ['POST /api/ai/chat', 'POST /api/ai/summary', 'POST /api/tts/elevenlabs']
+});
 
 // ==========================================================================
 // DIABETES EDUCATION - DISABLED (Twilio phone numbers cancelled - 2026-01-03)
@@ -528,14 +540,14 @@ console.log('   - POST /api/tts/elevenlabs (ElevenLabs TTS)');
 //   app.get('/ws-test', diagnostics.wsTest);
 //   app.get('/twiml-test', diagnostics.twimlTest);
 //   app.get('/twiml-test-json', diagnostics.twimlTestJson);
-//   console.log('✅ Diabetes Education V2 (OpenAI Realtime) webhooks registered');
-//   console.log(`   Safe Mode: ${process.env.SAFE_MODE || 'D (full)'}`);
-//   console.log('   Diagnostic endpoints: /healthz, /ws-test, /twiml-test');
+//   logger.info('✅ Diabetes Education V2 (OpenAI Realtime) webhooks registered');
+//   logger.info(`   Safe Mode: ${process.env.SAFE_MODE || 'D (full)'}`);
+//   logger.info('   Diagnostic endpoints: /healthz, /ws-test, /twiml-test');
 // } catch (e) {
-//   console.error('❌ Failed to load Diabetes Education V2:', e.message);
-//   console.error(e.stack);
+//   logger.error('❌ Failed to load Diabetes Education V2:', e.message);
+//   logger.error(e.stack);
 // }
-console.log('⚠️  Diabetes Education phone system DISABLED (Twilio cancelled)');
+logger.warn('UnifiedAPI', 'Diabetes Education phone system DISABLED (Twilio cancelled)');
 
 // Pre-Visit Conversations API
 // Endpoints for fetching and displaying ElevenLabs conversation transcripts
@@ -543,7 +555,7 @@ console.log('⚠️  Diabetes Education phone system DISABLED (Twilio cancelled)
 // List all pre-visit conversations
 app.get('/api/previsit/conversations', async (req, res) => {
   try {
-    console.log('📋 Fetching pre-visit conversations...');
+    logger.info('PreVisit', 'Fetching pre-visit conversations');
 
     if (!ELEVENLABS_API_KEY || !ELEVENLABS_AGENT_ID) {
       return res.status(500).json({ error: 'ElevenLabs not configured' });
@@ -562,23 +574,23 @@ app.get('/api/previsit/conversations', async (req, res) => {
       response.on('end', () => {
         try {
           const parsed = JSON.parse(data);
-          console.log(`✅ Retrieved ${parsed.conversations?.length || 0} conversations`);
+          logger.info('PreVisit', 'Retrieved conversations', { count: parsed.conversations?.length || 0 });
           res.json(parsed);
         } catch (e) {
-          console.error('❌ Parse error:', e);
+          logger.error('PreVisit', 'Parse error', { error: e.message });
           res.status(500).json({ error: 'Failed to parse response' });
         }
       });
     });
 
     request.on('error', (error) => {
-      console.error('❌ Request error:', error);
+      logger.error('PreVisit', 'Request error', { error: error.message });
       res.status(500).json({ error: error.message });
     });
 
     request.end();
   } catch (error) {
-    console.error('❌ Error fetching conversations:', error);
+    logger.error('PreVisit', 'Error fetching conversations', { error: error.message });
     res.status(500).json({ error: error.message });
   }
 });
@@ -587,7 +599,7 @@ app.get('/api/previsit/conversations', async (req, res) => {
 app.get('/api/previsit/conversations/:conversationId', async (req, res) => {
   try {
     const { conversationId } = req.params;
-    console.log(`📄 Fetching conversation details: ${conversationId}`);
+    logger.info('PreVisit', 'Fetching conversation details', { conversationId });
 
     if (!ELEVENLABS_API_KEY) {
       return res.status(500).json({ error: 'ElevenLabs not configured' });
@@ -606,23 +618,23 @@ app.get('/api/previsit/conversations/:conversationId', async (req, res) => {
       response.on('end', () => {
         try {
           const parsed = JSON.parse(data);
-          console.log(`✅ Retrieved conversation with ${parsed.transcript?.length || 0} messages`);
+          logger.info('PreVisit', 'Retrieved conversation', { messageCount: parsed.transcript?.length || 0 });
           res.json(parsed);
         } catch (e) {
-          console.error('❌ Parse error:', e);
+          logger.error('PreVisit', 'Parse error', { error: e.message });
           res.status(500).json({ error: 'Failed to parse response' });
         }
       });
     });
 
     request.on('error', (error) => {
-      console.error('❌ Request error:', error);
+      logger.error('PreVisit', 'Request error', { error: error.message });
       res.status(500).json({ error: error.message });
     });
 
     request.end();
   } catch (error) {
-    console.error('❌ Error fetching conversation:', error);
+    logger.error('PreVisit', 'Error fetching conversation', { error: error.message });
     res.status(500).json({ error: error.message });
   }
 });
@@ -631,7 +643,7 @@ app.get('/api/previsit/conversations/:conversationId', async (req, res) => {
 app.post('/api/previsit/call', async (req, res) => {
   try {
     const { phoneNumber } = req.body;
-    console.log(`📞 Initiating pre-visit call to: ${phoneNumber}`);
+    logger.info('PreVisit', 'Initiating pre-visit call');
 
     if (!ELEVENLABS_API_KEY || !ELEVENLABS_AGENT_ID) {
       return res.status(500).json({ error: 'ElevenLabs not configured' });
@@ -685,17 +697,17 @@ app.post('/api/previsit/call', async (req, res) => {
             callResponse.on('end', () => {
               try {
                 const result = JSON.parse(callResponseData);
-                console.log(`✅ Call initiated: ${result.callSid || 'unknown'}`);
+                logger.info('PreVisit', 'Call initiated', { callSid: result.callSid || 'unknown' });
                 res.json(result);
               } catch (e) {
-                console.error('❌ Parse error:', e);
+                logger.error('PreVisit', 'Parse error', { error: e.message });
                 res.status(500).json({ error: 'Failed to parse call response' });
               }
             });
           });
 
           callRequest.on('error', (error) => {
-            console.error('❌ Call request error:', error);
+            logger.error('PreVisit', 'Call request error', { error: error.message });
             res.status(500).json({ error: error.message });
           });
 
@@ -703,21 +715,21 @@ app.post('/api/previsit/call', async (req, res) => {
           callRequest.end();
 
         } catch (e) {
-          console.error('❌ Error processing phone numbers:', e);
+          logger.error('PreVisit', 'Error processing phone numbers', { error: e.message });
           res.status(500).json({ error: 'Failed to get phone number' });
         }
       });
     });
 
     listRequest.on('error', (error) => {
-      console.error('❌ List request error:', error);
+      logger.error('PreVisit', 'List request error', { error: error.message });
       res.status(500).json({ error: error.message });
     });
 
     listRequest.end();
 
   } catch (error) {
-    console.error('❌ Error initiating call:', error);
+    logger.error('PreVisit', 'Error initiating call', { error: error.message });
     res.status(500).json({ error: error.message });
   }
 });
@@ -727,7 +739,7 @@ app.post('/api/previsit/call', async (req, res) => {
 // and extracts structured clinical information
 app.post('/api/previsit/webhook/post-call', async (req, res) => {
   try {
-    console.log('📞 Post-call webhook received');
+    logger.info('PreVisit', 'Post-call webhook received');
 
     const { conversation_id, agent_id, status } = req.body;
 
@@ -737,11 +749,11 @@ app.post('/api/previsit/webhook/post-call', async (req, res) => {
     // Process asynchronously (don't block the webhook response)
     if (status === 'done' && conversation_id) {
       processConversationData(conversation_id).catch(err => {
-        console.error('❌ Error processing conversation:', err);
+        logger.error('PreVisit', 'Error processing conversation', { error: err.message });
       });
     }
   } catch (error) {
-    console.error('❌ Post-call webhook error:', error);
+    logger.error('PreVisit', 'Post-call webhook error', { error: error.message });
     res.status(500).json({ error: error.message });
   }
 });
@@ -749,7 +761,7 @@ app.post('/api/previsit/webhook/post-call', async (req, res) => {
 // Process conversation data asynchronously
 async function processConversationData(conversationId) {
   try {
-    console.log(`🔄 Processing conversation: ${conversationId}`);
+    logger.info('PreVisit', 'Processing conversation', { conversationId });
 
     // Fetch full conversation details from ElevenLabs
     const options = {
@@ -780,15 +792,15 @@ async function processConversationData(conversationId) {
 
     // Store in database (Supabase)
     // TODO: Implement database storage
-    console.log('✅ Structured data extracted:', {
-      conversation_id: conversationId,
-      medications_count: structuredData.medications?.length || 0,
-      concerns_count: structuredData.concerns?.length || 0,
-      questions_count: structuredData.questions?.length || 0
+    logger.info('PreVisit', 'Structured data extracted', {
+      conversationId,
+      medicationsCount: structuredData.medications?.length || 0,
+      concernsCount: structuredData.concerns?.length || 0,
+      questionsCount: structuredData.questions?.length || 0
     });
 
   } catch (error) {
-    console.error('❌ Error processing conversation data:', error);
+    logger.error('PreVisit', 'Error processing conversation data', { error: error.message });
     throw error;
   }
 }
@@ -864,7 +876,10 @@ app.post('/api/patient-profile/upload', upload.single('pdf'), async (req, res) =
       });
     }
 
-    console.log(`📄 Processing PDF upload: ${req.file.originalname} (${req.file.size} bytes)`);
+    logger.info('PatientProfile', 'Processing PDF upload', {
+      filename: req.file.originalname,
+      size: req.file.size
+    });
 
     // Step 1: Parse PDF to extract text
     const parseResult = await pdfParser.parsePDF(req.file.buffer);
@@ -877,7 +892,10 @@ app.post('/api/patient-profile/upload', upload.single('pdf'), async (req, res) =
       });
     }
 
-    console.log(`✅ PDF parsed: ${parseResult.numPages} pages, ${parseResult.text.length} characters`);
+    logger.info('PatientProfile', 'PDF parsed', {
+      pages: parseResult.numPages,
+      charCount: parseResult.text.length
+    });
 
     // Step 2: Clean and extract text
     const cleanedText = pdfParser.cleanText(parseResult.text);
@@ -894,7 +912,7 @@ app.post('/api/patient-profile/upload', upload.single('pdf'), async (req, res) =
     }
 
     const patientData = extractResult.data;
-    console.log(`🧠 AI extracted patient data for: ${patientData.patient_name}`);
+    logger.info('PatientProfile', 'AI extracted patient data');
 
     // Step 4: Save to Supabase patient_profiles table
     const supabase = await unifiedDatabase.getClient();
@@ -922,7 +940,7 @@ app.post('/api/patient-profile/upload', upload.single('pdf'), async (req, res) =
       .single();
 
     if (saveError) {
-      console.error('❌ Supabase save error:', saveError);
+      logger.error('PatientProfile', 'Supabase save error', { error: saveError.message });
       return res.status(500).json({
         success: false,
         error: 'Failed to save patient profile',
@@ -930,7 +948,7 @@ app.post('/api/patient-profile/upload', upload.single('pdf'), async (req, res) =
       });
     }
 
-    console.log(`✅ Patient profile saved: ${savedProfile.id}`);
+    logger.info('PatientProfile', 'Patient profile saved', { profileId: savedProfile.id });
 
     // ========================================
     // NEW: Auto-create/link unified patient
@@ -938,7 +956,7 @@ app.post('/api/patient-profile/upload', upload.single('pdf'), async (req, res) =
     let unifiedPatient = null;
     if (patientData.patient_phone) {
       try {
-        console.log('🔍 Finding or creating unified patient from PDF...');
+        logger.info('PatientProfile', 'Finding or creating unified patient from PDF');
 
         unifiedPatient = await patientMatchingService.findOrCreatePatient(
           patientData.patient_phone,
@@ -955,9 +973,13 @@ app.post('/api/patient-profile/upload', upload.single('pdf'), async (req, res) =
           'pdf'
         );
 
-        console.log(`✅ Created/updated unified patient: ${unifiedPatient.patient_id}`);
+        logger.info('PatientProfile', 'Created/updated unified patient', {
+          patientId: unifiedPatient.patient_id
+        });
       } catch (patientError) {
-        console.warn('⚠️  Failed to create/link unified patient (non-critical):', patientError.message);
+        logger.warn('PatientProfile', 'Failed to create/link unified patient (non-critical)', {
+          error: patientError.message
+        });
       }
     }
     // ========================================
@@ -965,16 +987,18 @@ app.post('/api/patient-profile/upload', upload.single('pdf'), async (req, res) =
     // Step 5: Auto-link to appointments
     let linkingResult = null;
     try {
-      console.log(`🔗 Attempting to auto-link profile to appointments...`);
+      logger.info('PatientProfile', 'Attempting to auto-link profile to appointments');
       linkingResult = await profileLinking.linkProfileToAppointments(savedProfile.id, 30);
 
       if (linkingResult.success && linkingResult.linkedAppointments > 0) {
-        console.log(`✅ Auto-linked to ${linkingResult.linkedAppointments} appointment(s)`);
+        logger.info('PatientProfile', 'Auto-linked to appointments', {
+          linkedCount: linkingResult.linkedAppointments
+        });
       } else {
-        console.log(`ℹ️  No matching appointments found (this is normal if no appointments exist yet)`);
+        logger.info('PatientProfile', 'No matching appointments found (this is normal if no appointments exist yet)');
       }
     } catch (linkError) {
-      console.warn('⚠️  Auto-linking failed (non-critical):', linkError.message);
+      logger.warn('PatientProfile', 'Auto-linking failed (non-critical)', { error: linkError.message });
       // Don't fail the whole upload if linking fails
     }
 
@@ -990,7 +1014,7 @@ app.post('/api/patient-profile/upload', upload.single('pdf'), async (req, res) =
     });
 
   } catch (error) {
-    console.error('❌ PDF upload error:', error);
+    logger.error('PatientProfile', 'PDF upload error', { error: error.message });
     res.status(500).json({
       success: false,
       error: error.message
@@ -1017,7 +1041,7 @@ app.get('/api/patient-profiles', async (req, res) => {
       profiles: data
     });
   } catch (error) {
-    console.error('❌ Error fetching patient profiles:', error);
+    logger.error('PatientProfile', 'Error fetching patient profiles', { error: error.message });
     res.status(500).json({
       success: false,
       error: error.message
@@ -1055,7 +1079,7 @@ app.get('/api/patient-profile/by-phone/:phone', async (req, res) => {
       profile: data
     });
   } catch (error) {
-    console.error('❌ Error fetching patient profile:', error);
+    logger.error('PatientProfile', 'Error fetching patient profile', { error: error.message });
     res.status(500).json({
       success: false,
       error: error.message
@@ -1071,7 +1095,7 @@ const questionGenerator = require('./services/questionGenerator.service');
 app.get('/api/previsit/match-caller/:phone', async (req, res) => {
   try {
     const { phone } = req.params;
-    console.log(`📞 Matching caller: ${phone}`);
+    logger.info('PreVisit', 'Matching caller');
 
     // Normalize phone number (remove formatting)
     const normalizedPhone = phone.replace(/\D/g, '');
@@ -1100,7 +1124,7 @@ app.get('/api/previsit/match-caller/:phone', async (req, res) => {
     }
 
     if (!profile) {
-      console.log(`❌ No profile found for phone: ${phone}`);
+      logger.info('PreVisit', 'No profile found for phone');
       return res.json({
         success: true,
         matched: false,
@@ -1108,7 +1132,7 @@ app.get('/api/previsit/match-caller/:phone', async (req, res) => {
       });
     }
 
-    console.log(`✅ Matched patient: ${profile.patient_name}`);
+    logger.info('PreVisit', 'Matched patient');
 
     // TODO: In the future, also fetch upcoming appointment
     // For now, just return profile data
@@ -1137,7 +1161,7 @@ app.get('/api/previsit/match-caller/:phone', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Error matching caller:', error);
+    logger.error('PreVisit', 'Error matching caller', { error: error.message });
     res.status(500).json({
       success: false,
       error: error.message
@@ -1177,7 +1201,7 @@ app.get('/api/previsit/preview-questions/:patient_id', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Error previewing questions:', error);
+    logger.error('PreVisit', 'Error previewing questions', { error: error.message });
     res.status(500).json({
       success: false,
       error: error.message
@@ -1195,7 +1219,7 @@ app.post('/api/linking/auto-link/:profile_id', async (req, res) => {
     const { profile_id } = req.params;
     const { search_days_ahead = 30 } = req.body;
 
-    console.log(`🔗 Auto-linking profile ${profile_id}...`);
+    logger.info('Linking', 'Auto-linking profile', { profileId: profile_id });
 
     const result = await profileLinking.linkProfileToAppointments(
       profile_id,
@@ -1204,7 +1228,7 @@ app.post('/api/linking/auto-link/:profile_id', async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    console.error('❌ Error in auto-link:', error);
+    logger.error('Linking', 'Error in auto-link', { error: error.message });
     res.status(500).json({
       success: false,
       error: error.message
@@ -1217,13 +1241,13 @@ app.post('/api/linking/link-all', async (req, res) => {
   try {
     const { search_days_ahead = 30 } = req.body;
 
-    console.log(`🔗 Bulk linking all profiles...`);
+    logger.info('Linking', 'Bulk linking all profiles');
 
     const result = await profileLinking.linkAllProfiles(search_days_ahead);
 
     res.json(result);
   } catch (error) {
-    console.error('❌ Error in bulk link:', error);
+    logger.error('Linking', 'Error in bulk link', { error: error.message });
     res.status(500).json({
       success: false,
       error: error.message
@@ -1243,7 +1267,10 @@ app.post('/api/linking/manual-link', async (req, res) => {
       });
     }
 
-    console.log(`🔗 Manual linking profile ${profile_id} to appointment ${appointment_id}...`);
+    logger.info('Linking', 'Manual linking profile to appointment', {
+      profileId: profile_id,
+      appointmentId: appointment_id
+    });
 
     const result = await profileLinking.manualLink(
       profile_id,
@@ -1253,7 +1280,7 @@ app.post('/api/linking/manual-link', async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    console.error('❌ Error in manual link:', error);
+    logger.error('Linking', 'Error in manual link', { error: error.message });
     res.status(500).json({
       success: false,
       error: error.message
@@ -1267,7 +1294,7 @@ app.delete('/api/linking/unlink/:appointment_id', async (req, res) => {
     const { appointment_id } = req.params;
     const { user_id, reason } = req.body;
 
-    console.log(`🔓 Unlinking appointment ${appointment_id}...`);
+    logger.info('Linking', 'Unlinking appointment', { appointmentId: appointment_id });
 
     const result = await profileLinking.unlinkAppointment(
       appointment_id,
@@ -1277,7 +1304,7 @@ app.delete('/api/linking/unlink/:appointment_id', async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    console.error('❌ Error in unlink:', error);
+    logger.error('Linking', 'Error in unlink', { error: error.message });
     res.status(500).json({
       success: false,
       error: error.message
@@ -1291,7 +1318,7 @@ app.get('/api/linking/unlinked-profiles', async (req, res) => {
     const result = await profileLinking.getUnlinkedProfiles();
     res.json(result);
   } catch (error) {
-    console.error('❌ Error fetching unlinked profiles:', error);
+    logger.error('Linking', 'Error fetching unlinked profiles', { error: error.message });
     res.status(500).json({
       success: false,
       error: error.message
@@ -1307,7 +1334,7 @@ app.post('/api/linking/search-appointments', async (req, res) => {
     const result = await profileLinking.searchMatchingAppointments(searchCriteria);
     res.json(result);
   } catch (error) {
-    console.error('❌ Error searching appointments:', error);
+    logger.error('Linking', 'Error searching appointments', { error: error.message });
     res.status(500).json({
       success: false,
       error: error.message
@@ -1321,7 +1348,7 @@ app.get('/api/linking/stats', async (req, res) => {
     const result = await profileLinking.getLinkingStats();
     res.json(result);
   } catch (error) {
-    console.error('❌ Error fetching linking stats:', error);
+    logger.error('Linking', 'Error fetching linking stats', { error: error.message });
     res.status(500).json({
       success: false,
       error: error.message
@@ -1333,7 +1360,7 @@ app.get('/api/linking/stats', async (req, res) => {
 app.post('/api/previsit/session/start', async (req, res) => {
   try {
     const { conversation_id, phone_number } = req.body;
-    console.log(`📞 Starting pre-visit session: ${conversation_id}`);
+    logger.info('PreVisit', 'Starting pre-visit session', { conversationId: conversation_id });
 
     activeConversations.set(conversation_id, {
       conversation_id,
@@ -1347,7 +1374,7 @@ app.post('/api/previsit/session/start', async (req, res) => {
 
     res.json({ success: true, message: 'Session initialized' });
   } catch (error) {
-    console.error('❌ Error starting session:', error);
+    logger.error('PreVisit', 'Error starting session', { error: error.message });
     res.status(500).json({ error: error.message });
   }
 });
@@ -1356,7 +1383,7 @@ app.post('/api/previsit/session/start', async (req, res) => {
 app.post('/api/previsit/data/medications', async (req, res) => {
   try {
     const { conversation_id, medications } = req.body;
-    console.log(`💊 Storing medications for ${conversation_id}:`, medications);
+    logger.info('PreVisit', 'Storing medications', { conversationId: conversation_id });
 
     const medsArray = Array.isArray(medications) ? medications : [medications];
 
@@ -1374,14 +1401,14 @@ app.post('/api/previsit/data/medications', async (req, res) => {
       .select();
 
     if (error) {
-      console.error('❌ Supabase error:', error);
+      logger.error('PreVisit', 'Supabase error', { error: error.message });
     } else {
-      console.log('✅ Saved to Supabase:', data);
+      logger.info('PreVisit', 'Saved to Supabase');
     }
 
     res.json({ success: true, stored: medications });
   } catch (error) {
-    console.error('❌ Error storing medications:', error);
+    logger.error('PreVisit', 'Error storing medications', { error: error.message });
     res.status(500).json({ error: error.message });
   }
 });
@@ -1390,7 +1417,7 @@ app.post('/api/previsit/data/medications', async (req, res) => {
 app.post('/api/previsit/data/concerns', async (req, res) => {
   try {
     const { conversation_id, concerns } = req.body;
-    console.log(`⚠️ Storing concerns for ${conversation_id}:`, concerns);
+    logger.info('PreVisit', 'Storing concerns', { conversationId: conversation_id });
 
     const concernsArray = Array.isArray(concerns) ? concerns : [concerns];
 
@@ -1408,14 +1435,14 @@ app.post('/api/previsit/data/concerns', async (req, res) => {
       .select();
 
     if (error) {
-      console.error('❌ Supabase error:', error);
+      logger.error('PreVisit', 'Supabase error', { error: error.message });
     } else {
-      console.log('✅ Saved to Supabase:', data);
+      logger.info('PreVisit', 'Saved to Supabase');
     }
 
     res.json({ success: true, stored: concerns });
   } catch (error) {
-    console.error('❌ Error storing concerns:', error);
+    logger.error('PreVisit', 'Error storing concerns', { error: error.message });
     res.status(500).json({ error: error.message });
   }
 });
@@ -1424,7 +1451,7 @@ app.post('/api/previsit/data/concerns', async (req, res) => {
 app.post('/api/previsit/data/questions', async (req, res) => {
   try {
     const { conversation_id, questions } = req.body;
-    console.log(`❓ Storing questions for ${conversation_id}:`, questions);
+    logger.info('PreVisit', 'Storing questions', { conversationId: conversation_id });
 
     const questionsArray = Array.isArray(questions) ? questions : [questions];
 
@@ -1442,14 +1469,14 @@ app.post('/api/previsit/data/questions', async (req, res) => {
       .select();
 
     if (error) {
-      console.error('❌ Supabase error:', error);
+      logger.error('PreVisit', 'Supabase error', { error: error.message });
     } else {
-      console.log('✅ Saved to Supabase:', data);
+      logger.info('PreVisit', 'Saved to Supabase');
     }
 
     res.json({ success: true, stored: questions });
   } catch (error) {
-    console.error('❌ Error storing questions:', error);
+    logger.error('PreVisit', 'Error storing questions', { error: error.message });
     res.status(500).json({ error: error.message });
   }
 });
@@ -1458,7 +1485,7 @@ app.post('/api/previsit/data/questions', async (req, res) => {
 app.post('/api/previsit/session/complete', async (req, res) => {
   try {
     const { conversation_id } = req.body;
-    console.log(`✅ Completing pre-visit session: ${conversation_id}`);
+    logger.info('PreVisit', 'Completing pre-visit session', { conversationId: conversation_id });
 
     const session = activeConversations.get(conversation_id);
     if (!session) {
@@ -1466,11 +1493,11 @@ app.post('/api/previsit/session/complete', async (req, res) => {
     }
 
     session.completed_at = new Date().toISOString();
-    console.log('📊 Final session data:', session);
+    logger.info('PreVisit', 'Final session data collected');
 
     res.json({ success: true, data: session });
   } catch (error) {
-    console.error('❌ Error completing session:', error);
+    logger.error('PreVisit', 'Error completing session', { error: error.message });
     res.status(500).json({ error: error.message });
   }
 });
@@ -1487,7 +1514,7 @@ app.get('/api/previsit/session/:conversation_id', async (req, res) => {
 
     res.json(session);
   } catch (error) {
-    console.error('❌ Error retrieving session:', error);
+    logger.error('PreVisit', 'Error retrieving session', { error: error.message });
     res.status(500).json({ error: error.message });
   }
 });
@@ -1502,7 +1529,7 @@ app.get('/api/previsit/sessions/all', async (req, res) => {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('❌ Supabase error:', error);
+      logger.error('PreVisit', 'Supabase error', { error: error.message });
       return res.status(500).json({ error: error.message });
     }
 
@@ -1511,7 +1538,7 @@ app.get('/api/previsit/sessions/all', async (req, res) => {
       sessions: data
     });
   } catch (error) {
-    console.error('❌ Error listing sessions:', error);
+    logger.error('PreVisit', 'Error listing sessions', { error: error.message });
     res.status(500).json({ error: error.message });
   }
 });
@@ -1536,11 +1563,11 @@ if (DEEPGRAM_API_KEY) {
     res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
     res.header('Access-Control-Allow-Credentials', 'true');
 
-    console.log('🧪 Testing Deepgram SDK WebSocket connectivity...');
+    logger.info('Deepgram', 'Testing Deepgram SDK WebSocket connectivity');
 
     try {
       const testClient = createClient(DEEPGRAM_API_KEY);
-      console.log('✅ Deepgram client created');
+      logger.info('Deepgram', 'Deepgram client created');
 
       const testConnection = testClient.listen.live({
         model: 'nova-3-medical',
@@ -1549,24 +1576,24 @@ if (DEEPGRAM_API_KEY) {
         interim_results: true
       });
 
-      console.log('✅ Deepgram connection object created');
+      logger.info('Deepgram', 'Deepgram connection object created');
 
       let connectionOpened = false;
       let connectionError = null;
       let connectionClosed = false;
 
       testConnection.on(LiveTranscriptionEvents.Open, () => {
-        console.log('✅ Test connection OPENED successfully!');
+        logger.info('Deepgram', 'Test connection OPENED successfully');
         connectionOpened = true;
       });
 
       testConnection.on(LiveTranscriptionEvents.Error, (error) => {
-        console.error('❌ Test connection ERROR:', error);
+        logger.error('Deepgram', 'Test connection ERROR', { error: error.message });
         connectionError = error;
       });
 
       testConnection.on(LiveTranscriptionEvents.Close, () => {
-        console.log('🔌 Test connection closed');
+        logger.info('Deepgram', 'Test connection closed');
         connectionClosed = true;
       });
 
@@ -1588,7 +1615,7 @@ if (DEEPGRAM_API_KEY) {
       });
 
     } catch (error) {
-      console.error('❌ Test failed with exception:', error);
+      logger.error('Deepgram', 'Test failed with exception', { error: error.message });
       res.status(500).json({
         success: false,
         error: error.message,
@@ -1604,7 +1631,7 @@ if (DEEPGRAM_API_KEY) {
     res.header('Access-Control-Allow-Credentials', 'true');
 
     try {
-      console.log('🔑 Testing Deepgram API key...');
+      logger.info('Deepgram', 'Testing Deepgram API key');
 
       // Test API key with Deepgram Projects API
       const response = await fetch('https://api.deepgram.com/v1/projects', {
@@ -1617,7 +1644,7 @@ if (DEEPGRAM_API_KEY) {
       const keyPreview = DEEPGRAM_API_KEY.substring(0, 8) + '...' + DEEPGRAM_API_KEY.substring(DEEPGRAM_API_KEY.length - 4);
 
       if (isValid) {
-        console.log('✅ Deepgram API key is valid');
+        logger.info('Deepgram', 'Deepgram API key is valid');
         const data = await response.json();
         res.json({
           status: 'valid',
@@ -1627,7 +1654,7 @@ if (DEEPGRAM_API_KEY) {
           message: 'Deepgram API key is valid and working'
         });
       } else {
-        console.error('❌ Deepgram API key is INVALID:', response.status);
+        logger.error('Deepgram', 'Deepgram API key is INVALID', { status: response.status });
         res.status(401).json({
           status: 'invalid',
           keyPreview,
@@ -1636,7 +1663,7 @@ if (DEEPGRAM_API_KEY) {
         });
       }
     } catch (error) {
-      console.error('❌ Error verifying Deepgram key:', error);
+      logger.error('Deepgram', 'Error verifying Deepgram key', { error: error.message });
       res.status(500).json({
         status: 'error',
         error: error.message,
@@ -1657,19 +1684,17 @@ let diabetesEducationApi = null;
 try {
   const path = require('path');
   diabetesEducationApi = require(path.join(__dirname, 'diabetes-education-api'));
-  console.log('✅ Diabetes Education API loaded');
+  logger.info('UnifiedAPI', 'Diabetes Education API loaded');
 } catch (e) {
-  console.error('❌ Failed to load Diabetes Education API:', e.message);
-  console.error(e.stack);
+  logger.error('UnifiedAPI', 'Failed to load Diabetes Education API', { error: e.message });
 }
 
 let patientChartApi = null;
 try {
   patientChartApi = require('./api/patient-chart-api');
-  console.log('✅ Patient Chart API loaded');
+  logger.info('UnifiedAPI', 'Patient Chart API loaded');
 } catch (e) {
-  console.error('❌ Failed to load Patient Chart API:', e.message);
-  console.error(e.stack);
+  logger.error('UnifiedAPI', 'Failed to load Patient Chart API', { error: e.message });
 }
 
 // Optional APIs - won't crash if they don't exist
@@ -1677,22 +1702,22 @@ let patientSummaryApi = null;
 let echoAudioSummaryRoutes = null;
 try {
   patientSummaryApi = require('./patient-summary-api');
-  console.log('✅ Patient summary API loaded');
+  logger.info('UnifiedAPI', 'Patient summary API loaded');
 } catch (e) {
-  console.log('⚠️  Patient summary API not available:', e.message);
+  logger.info('UnifiedAPI', 'Patient summary API not available', { error: e.message });
 }
 try {
   // Use Azure Communication Services instead of Twilio (HIPAA compliant)
   echoAudioSummaryRoutes = require('./routes/echo-audio-summary-azure');
-  console.log('✅ Echo routes loaded (Azure Communication Services)');
+  logger.info('UnifiedAPI', 'Echo routes loaded (Azure Communication Services)');
 } catch (e) {
-  console.log('⚠️  Echo routes not available:', e.message);
+  logger.info('UnifiedAPI', 'Echo routes not available', { error: e.message });
   // Fallback to old Twilio version if Azure not configured
   try {
     echoAudioSummaryRoutes = require('./routes/echo-audio-summary');
-    console.log('⚠️  Using legacy Twilio Echo routes (consider migrating to Azure)');
+    logger.warn('UnifiedAPI', 'Using legacy Twilio Echo routes (consider migrating to Azure)');
   } catch (e2) {
-    console.log('❌ No Echo routes available');
+    logger.warn('UnifiedAPI', 'No Echo routes available');
   }
 }
 
@@ -1701,7 +1726,7 @@ try {
 // IMPORTANT: Echo routes must be mounted FIRST to avoid being caught by pump-report-api's catch-all route
 if (echoAudioSummaryRoutes) {
   app.use('/api/echo', echoAudioSummaryRoutes); // Routes: /api/echo/* (Echo Audio Summary with Azure Communication Services)
-  console.log('✅ Echo routes mounted at /api/echo');
+  logger.info('UnifiedAPI', 'Echo routes mounted at /api/echo');
 }
 app.use(pumpApi);    // Routes: /api/auth/*, /api/stripe/*, /api/provider/*, /api/pump-*
 app.use(authApi);     // Routes: /api/medical/*
@@ -1709,13 +1734,13 @@ app.use(scheduleApi); // Routes: /api/providers/*, /api/appointments/*, /api/sch
 app.use(adminApi);    // Routes: /api/accounts/*
 if (diabetesEducationApi) {
   app.use('/api/diabetes-education', diabetesEducationApi); // Routes: /api/diabetes-education/* (Diabetes Education Phone System)
-  console.log('✅ Diabetes Education API mounted at /api/diabetes-education');
+  logger.info('UnifiedAPI', 'Diabetes Education API mounted at /api/diabetes-education');
 } else {
-  console.error('❌ Diabetes Education API not mounted - module failed to load');
+  logger.error('UnifiedAPI', 'Diabetes Education API not mounted - module failed to load');
 }
 if (patientChartApi) {
   app.use('/api/patient-chart', patientChartApi); // Routes: /api/patient-chart/* (Unified Patient Charts)
-  console.log('✅ Patient Chart API mounted at /api/patient-chart');
+  logger.info('UnifiedAPI', 'Patient Chart API mounted at /api/patient-chart');
 }
 if (patientSummaryApi) {
   app.use(patientSummaryApi); // Routes: /api/patient-summaries/* (BETA)
@@ -1726,15 +1751,15 @@ let ccdSummaryApi = null;
 try {
   ccdSummaryApi = require('./api/ccd-summary-api');
   app.use(ccdSummaryApi); // Routes: /api/ccd/* (CCD Summary Generator)
-  console.log('✅ CCD Summary API mounted at /api/ccd');
+  logger.info('UnifiedAPI', 'CCD Summary API mounted at /api/ccd');
 } catch (error) {
-  console.error('❌ CCD Summary API not mounted - module failed to load:', error.message);
+  logger.error('UnifiedAPI', 'CCD Summary API not mounted - module failed to load', { error: error.message });
 }
 
 // Add HTTP GET endpoint for /media-stream (for health checks)
 // Twilio might check this before attempting WebSocket upgrade
 app.get('/media-stream', (req, res) => {
-  console.log('[HTTP] GET /media-stream - Responding with WebSocket ready status');
+  logger.debug('MediaStream', 'HTTP GET /media-stream - Responding with WebSocket ready status');
   res.status(200).json({
     status: 'WebSocket endpoint ready',
     protocol: 'wss',
@@ -1753,9 +1778,9 @@ const server = http.createServer(app);
 try {
   const { setupRealtimeRelay } = require('./openai-realtime-relay');
   setupRealtimeRelay(server);
-  console.log('✅ OpenAI Realtime WebSocket relay registered at /media-stream');
+  logger.info('UnifiedAPI', 'OpenAI Realtime WebSocket relay registered at /media-stream');
 } catch (e) {
-  console.error('❌ Failed to load OpenAI Realtime relay:', e.message);
+  logger.error('UnifiedAPI', 'Failed to load OpenAI Realtime relay', { error: e.message });
 }
 
 // ============================================
@@ -1764,11 +1789,10 @@ try {
 // Note: DEEPGRAM_API_KEY is already declared above (before sub-API mounting)
 
 if (!DEEPGRAM_API_KEY) {
-  console.warn('⚠️  Deepgram API key not found - WebSocket proxy will not be available');
+  logger.warn('UnifiedAPI', 'Deepgram API key not found - WebSocket proxy will not be available');
 } else {
   const keyPreview = DEEPGRAM_API_KEY.substring(0, 8) + '...' + DEEPGRAM_API_KEY.substring(DEEPGRAM_API_KEY.length - 4);
-  console.log('✅ Deepgram WebSocket Proxy enabled');
-  console.log(`   API Key: ${keyPreview}`);
+  logger.info('UnifiedAPI', 'Deepgram WebSocket Proxy enabled', { keyPreview });
 
   // Create WebSocket server with path-based routing (like OpenAI Realtime relay)
   // Azure Container Apps DOES support path-based WebSocket routing when using the ws library's built-in path filtering
@@ -1778,10 +1802,11 @@ if (!DEEPGRAM_API_KEY) {
     perMessageDeflate: false,
     clientTracking: true,
     verifyClient: (info, callback) => {
-      console.log('[Deepgram Proxy] 🔍 WebSocket upgrade request received');
-      console.log('[Deepgram Proxy]    Origin:', info.origin || 'not provided');
-      console.log('[Deepgram Proxy]    URL:', info.req.url);
-      console.log('[Deepgram Proxy] ✅ WebSocket upgrade accepted');
+      logger.debug('DeepgramProxy', 'WebSocket upgrade request received', {
+        origin: info.origin || 'not provided',
+        url: info.req.url
+      });
+      logger.debug('DeepgramProxy', 'WebSocket upgrade accepted');
       callback(true); // Accept all connections
     }
   });
@@ -1791,33 +1816,32 @@ if (!DEEPGRAM_API_KEY) {
 
   // Add error handler for WebSocket server
   wss.on('error', (error) => {
-    console.error('❌ [Deepgram Proxy] WebSocket Server error:', {
+    logger.error('DeepgramProxy', 'WebSocket Server error', {
       error: error.message,
-      code: error.code,
-      stack: error.stack
+      code: error.code
     });
   });
 
   // Add headers event for debugging
   wss.on('headers', (headers, request) => {
-    console.log('[Deepgram Proxy] 📋 Response headers being sent:', headers);
+    logger.debug('DeepgramProxy', 'Response headers being sent');
   });
 
   wss.on('connection', (clientWs, request) => {
-    console.log('📡 [Deepgram Proxy] WebSocket client CONNECTED successfully!');
-    console.log('   URL:', request.url);
-    console.log('   Origin:', request.headers.origin);
-    console.log('   Client ready state:', clientWs.readyState);
-    console.log('   Deepgram SDK available:', !!deepgram);
+    logger.info('DeepgramProxy', 'WebSocket client CONNECTED successfully', {
+      url: request.url,
+      origin: request.headers.origin,
+      readyState: clientWs.readyState,
+      deepgramAvailable: !!deepgram
+    });
 
     let deepgramConnection = null;
 
     // Add close/error handlers IMMEDIATELY to track if connection closes right away
     clientWs.on('close', (code, reason) => {
-      console.log('🔌 [Deepgram Proxy] Client disconnected:', {
+      logger.info('DeepgramProxy', 'Client disconnected', {
         code,
-        reason: reason?.toString() || 'no reason provided',
-        timestamp: new Date().toISOString()
+        reason: reason?.toString() || 'no reason provided'
       });
       if (deepgramConnection) {
         deepgramConnection.finish();
@@ -1825,10 +1849,9 @@ if (!DEEPGRAM_API_KEY) {
     });
 
     clientWs.on('error', (error) => {
-      console.error('❌ [Deepgram Proxy] Client WebSocket error:', {
+      logger.error('DeepgramProxy', 'Client WebSocket error', {
         error: error?.message || error,
-        code: error?.code,
-        timestamp: new Date().toISOString()
+        code: error?.code
       });
       if (deepgramConnection) {
         deepgramConnection.finish();
@@ -1841,13 +1864,13 @@ if (!DEEPGRAM_API_KEY) {
         type: 'proxy_connected',
         message: 'Proxy ready, connecting to Deepgram...'
       }));
-      console.log('✅ Sent proxy_connected acknowledgment to client');
+      logger.debug('DeepgramProxy', 'Sent proxy_connected acknowledgment to client');
     } catch (ackError) {
-      console.error('❌ Failed to send acknowledgment:', ackError);
+      logger.error('DeepgramProxy', 'Failed to send acknowledgment', { error: ackError.message });
     }
 
     try {
-      console.log('🔄 Creating Deepgram connection...');
+      logger.info('DeepgramProxy', 'Creating Deepgram connection');
 
       // Create Deepgram live transcription connection with simple, proven configuration
       deepgramConnection = deepgram.listen.live({
@@ -1860,13 +1883,14 @@ if (!DEEPGRAM_API_KEY) {
         endpointing: 300,
       });
 
-      console.log('✅ Deepgram connection object created');
-      console.log('   Initial ready state:', deepgramConnection?.getReadyState?.());
-      console.log('   Client WebSocket still open?', clientWs.readyState === 1);
+      logger.info('DeepgramProxy', 'Deepgram connection object created', {
+        readyState: deepgramConnection?.getReadyState?.(),
+        clientOpen: clientWs.readyState === 1
+      });
 
       // Forward Deepgram events to client
       deepgramConnection.on(LiveTranscriptionEvents.Open, () => {
-        console.log('✅ Deepgram connection opened');
+        logger.info('DeepgramProxy', 'Deepgram connection opened');
         clientWs.send(JSON.stringify({
           type: 'open',
           message: 'Connected to Deepgram'
@@ -1887,7 +1911,7 @@ if (!DEEPGRAM_API_KEY) {
       });
 
       deepgramConnection.on(LiveTranscriptionEvents.Error, (error) => {
-        console.error('❌ Deepgram error:', error);
+        logger.error('DeepgramProxy', 'Deepgram error', { error: error.message });
         clientWs.send(JSON.stringify({
           type: 'error',
           error: error.message
@@ -1895,7 +1919,7 @@ if (!DEEPGRAM_API_KEY) {
       });
 
       deepgramConnection.on(LiveTranscriptionEvents.Close, () => {
-        console.log('🔌 Deepgram connection closed');
+        logger.info('DeepgramProxy', 'Deepgram connection closed');
       });
 
       // Forward client audio to Deepgram
@@ -1907,10 +1931,8 @@ if (!DEEPGRAM_API_KEY) {
       });
 
     } catch (error) {
-      console.error('❌ CRITICAL: Error setting up Deepgram connection:', {
-        error: error?.message || error,
-        stack: error?.stack,
-        timestamp: new Date().toISOString()
+      logger.error('DeepgramProxy', 'CRITICAL: Error setting up Deepgram connection', {
+        error: error?.message || error
       });
 
       try {
@@ -1919,14 +1941,14 @@ if (!DEEPGRAM_API_KEY) {
           error: 'Failed to connect to Deepgram'
         }));
       } catch (sendError) {
-        console.error('❌ Failed to send error message to client:', sendError);
+        logger.error('DeepgramProxy', 'Failed to send error message to client', { error: sendError.message });
       }
 
       clientWs.close();
     }
   });
 
-  console.log('✅ WebSocket server ready on /ws/deepgram');
+  logger.info('UnifiedAPI', 'WebSocket server ready on /ws/deepgram');
 }
 
 // ============================================
@@ -1943,19 +1965,19 @@ const hasAnyDiabetesAgent = Object.values(ELEVENLABS_DIABETES_AGENTS).some(id =>
 
 // DISABLED: Twilio phone numbers cancelled - 2026-01-03
 // if (!ELEVENLABS_API_KEY || !hasAnyDiabetesAgent) {
-//   console.warn('⚠️  ElevenLabs API key or diabetes agents not configured - bridge will not be available');
+//   logger.warn('⚠️  ElevenLabs API key or diabetes agents not configured - bridge will not be available');
 // } else {
-//   console.log('✅ ElevenLabs Diabetes Education Bridge enabled');
+//   logger.info('✅ ElevenLabs Diabetes Education Bridge enabled');
 //   const elevenLabsBridge = new WebSocket.Server({
 //     server,
 //     path: '/ws/elevenlabs-diabetes'
 //   });
-console.warn('⚠️  ElevenLabs Diabetes Education Bridge DISABLED (Twilio cancelled)');
+logger.warn('UnifiedAPI', 'ElevenLabs Diabetes Education Bridge DISABLED (Twilio cancelled)');
 if (false) {
   const elevenLabsBridge = {};
 
   elevenLabsBridge.on('connection', async (twilioWs, req) => {
-    console.log('\n🌉 [ElevenLabs Bridge] Twilio connected');
+    logger.info('\n🌉 [ElevenLabs Bridge] Twilio connected');
 
     // Get agent ID from query parameters
     const params = new URL(req.url, 'ws://localhost').searchParams;
@@ -1963,13 +1985,13 @@ if (false) {
     const patientName = params.get('patientName') || 'Patient';
 
     if (!agentId) {
-      console.error('❌ [ElevenLabs Bridge] No agent ID provided');
+      logger.error('❌ [ElevenLabs Bridge] No agent ID provided');
       twilioWs.close();
       return;
     }
 
-    console.log(`   Agent ID: ${agentId}`);
-    console.log(`   Patient: ${patientName}`);
+    logger.info(`   Agent ID: ${agentId}`);
+    logger.info(`   Patient: ${patientName}`);
 
     let elevenLabsWs = null;
     let streamSid = null;
@@ -2006,21 +2028,21 @@ if (false) {
         req.end();
       });
 
-      console.log('✅ [ElevenLabs Bridge] Got signed URL from ElevenLabs');
+      logger.info('✅ [ElevenLabs Bridge] Got signed URL from ElevenLabs');
 
       // Connect to ElevenLabs
       elevenLabsWs = new WebSocket(signedUrl);
 
       elevenLabsWs.on('open', () => {
-        console.log('🤖 [ElevenLabs Bridge] Connected to AI agent');
+        logger.info('🤖 [ElevenLabs Bridge] Connected to AI agent');
       });
 
       elevenLabsWs.on('error', (error) => {
-        console.error('❌ [ElevenLabs Bridge] ElevenLabs error:', error.message);
+        logger.error('❌ [ElevenLabs Bridge] ElevenLabs error:', error.message);
       });
 
       elevenLabsWs.on('close', () => {
-        console.log('🤖 [ElevenLabs Bridge] ElevenLabs disconnected');
+        logger.info('🤖 [ElevenLabs Bridge] ElevenLabs disconnected');
         if (twilioWs.readyState === WebSocket.OPEN) {
           twilioWs.close();
         }
@@ -2048,10 +2070,10 @@ if (false) {
 
           // Log other events for debugging
           if (msg.type) {
-            console.log(`🤖 [ElevenLabs] Event: ${msg.type}`);
+            logger.info(`🤖 [ElevenLabs] Event: ${msg.type}`);
           }
         } catch (e) {
-          console.error('❌ [ElevenLabs Bridge] Error parsing ElevenLabs message:', e.message);
+          logger.error('❌ [ElevenLabs Bridge] Error parsing ElevenLabs message:', e.message);
         }
       });
 
@@ -2062,8 +2084,8 @@ if (false) {
 
           if (msg.event === 'start') {
             streamSid = msg.start.streamSid;
-            console.log(`📞 [Twilio] Stream started: ${streamSid}`);
-            console.log(`📞 [Twilio] Call SID: ${msg.start.callSid}`);
+            logger.info(`📞 [Twilio] Stream started: ${streamSid}`);
+            logger.info(`📞 [Twilio] Call SID: ${msg.start.callSid}`);
 
             // Send connected event back to Twilio
             const connectedMessage = {
@@ -2083,34 +2105,34 @@ if (false) {
             }
           }
           else if (msg.event === 'stop') {
-            console.log('📞 [Twilio] Stream stopped');
+            logger.info('📞 [Twilio] Stream stopped');
             if (elevenLabsWs) {
               elevenLabsWs.close();
             }
           }
         } catch (e) {
-          console.error('❌ [ElevenLabs Bridge] Error processing Twilio message:', e.message);
+          logger.error('❌ [ElevenLabs Bridge] Error processing Twilio message:', e.message);
         }
       });
 
       twilioWs.on('close', () => {
-        console.log('📞 [Twilio] Disconnected');
+        logger.info('📞 [Twilio] Disconnected');
         if (elevenLabsWs) {
           elevenLabsWs.close();
         }
       });
 
       twilioWs.on('error', (error) => {
-        console.error('❌ [ElevenLabs Bridge] Twilio error:', error.message);
+        logger.error('❌ [ElevenLabs Bridge] Twilio error:', error.message);
       });
 
     } catch (error) {
-      console.error('❌ [ElevenLabs Bridge] Setup error:', error.message);
+      logger.error('❌ [ElevenLabs Bridge] Setup error:', error.message);
       twilioWs.close();
     }
   });
 
-  // console.log('✅ WebSocket server ready on /ws/elevenlabs-diabetes');
+  // logger.info('✅ WebSocket server ready on /ws/elevenlabs-diabetes');
 }
 
 // ============================================
@@ -2124,12 +2146,12 @@ if (false) {
 //   server,
 //   path: '/elevenlabs-relay'
 // });
-console.warn('⚠️  ElevenLabs Relay DISABLED (Twilio cancelled)');
+logger.warn('⚠️  ElevenLabs Relay DISABLED (Twilio cancelled)');
 if (false) {
 const elevenLabsRelay = {};
 
 elevenLabsRelay.on('connection', (twilioWs, req) => {
-  console.log('\n🔄 [ElevenLabs Relay] New Twilio connection');
+  logger.info('\n🔄 [ElevenLabs Relay] New Twilio connection');
 
   let elevenLabsWs = null;
   let elevenLabsUrl = null;
@@ -2141,26 +2163,26 @@ elevenLabsRelay.on('connection', (twilioWs, req) => {
 
       // Handle Twilio's start message
       if (data.event === 'start') {
-        console.log('   📨 [Relay] Twilio start event received');
+        logger.info('   📨 [Relay] Twilio start event received');
 
         // Extract ElevenLabs URL from custom parameters
         const customParams = data.start?.customParameters || {};
         elevenLabsUrl = customParams.elevenlabs_url;
 
         if (!elevenLabsUrl) {
-          console.error('   ❌ [Relay] No ElevenLabs URL in custom parameters');
-          console.error('   ❌ [Relay] Custom params:', JSON.stringify(customParams));
+          logger.error('   ❌ [Relay] No ElevenLabs URL in custom parameters');
+          logger.error('   ❌ [Relay] Custom params:', JSON.stringify(customParams));
           twilioWs.close();
           return;
         }
 
-        console.log('   🔗 [Relay] Connecting to ElevenLabs:', elevenLabsUrl.substring(0, 80) + '...');
+        logger.info('   🔗 [Relay] Connecting to ElevenLabs:', elevenLabsUrl.substring(0, 80) + '...');
 
         // Connect to ElevenLabs
         elevenLabsWs = new WebSocket(elevenLabsUrl);
 
         elevenLabsWs.on('open', () => {
-          console.log('   ✅ [Relay] Connected to ElevenLabs');
+          logger.info('   ✅ [Relay] Connected to ElevenLabs');
           isConnected = true;
         });
 
@@ -2172,14 +2194,14 @@ elevenLabsRelay.on('connection', (twilioWs, req) => {
         });
 
         elevenLabsWs.on('close', (code, reason) => {
-          console.log('   📞 [Relay] ElevenLabs disconnected:', code, reason.toString());
+          logger.info('   📞 [Relay] ElevenLabs disconnected:', code, reason.toString());
           if (twilioWs.readyState === WebSocket.OPEN) {
             twilioWs.close();
           }
         });
 
         elevenLabsWs.on('error', (error) => {
-          console.error('   ❌ [Relay] ElevenLabs WebSocket error:', error.message);
+          logger.error('   ❌ [Relay] ElevenLabs WebSocket error:', error.message);
           if (twilioWs.readyState === WebSocket.OPEN) {
             twilioWs.close();
           }
@@ -2194,36 +2216,36 @@ elevenLabsRelay.on('connection', (twilioWs, req) => {
       }
       // Handle stop event
       else if (data.event === 'stop') {
-        console.log('   📞 [Relay] Twilio stop event');
+        logger.info('   📞 [Relay] Twilio stop event');
         if (elevenLabsWs && elevenLabsWs.readyState === WebSocket.OPEN) {
           elevenLabsWs.close();
         }
       }
     } catch (error) {
-      console.error('   ❌ [Relay] Error processing Twilio message:', error.message);
+      logger.error('   ❌ [Relay] Error processing Twilio message:', error.message);
     }
   });
 
   twilioWs.on('close', (code, reason) => {
-    console.log('   📞 [Relay] Twilio disconnected:', code);
+    logger.info('   📞 [Relay] Twilio disconnected:', code);
     if (elevenLabsWs && elevenLabsWs.readyState === WebSocket.OPEN) {
       elevenLabsWs.close();
     }
   });
 
   twilioWs.on('error', (error) => {
-    console.error('   ❌ [Relay] Twilio WebSocket error:', error.message);
+    logger.error('   ❌ [Relay] Twilio WebSocket error:', error.message);
     if (elevenLabsWs && elevenLabsWs.readyState === WebSocket.OPEN) {
       elevenLabsWs.close();
     }
   });
 });
 }
-// console.log('✅ ElevenLabs Relay WebSocket server ready on /elevenlabs-relay');
+// logger.info('✅ ElevenLabs Relay WebSocket server ready on /elevenlabs-relay');
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('❌ Error:', err);
+  logger.error('❌ Error:', err);
   res.status(500).json({
     error: 'Internal server error',
     message: process.env.NODE_ENV === 'production' ? 'An error occurred' : err.message
@@ -2246,34 +2268,34 @@ app.use('*', (req, res, next) => {
 
 // Start the unified server
 server.listen(PORT, '0.0.0.0', () => {
-  console.log('========================================');
-  console.log(`✅ Unified API Server running on port ${PORT}`);
-  console.log('');
-  console.log('📋 Available Services:');
-  console.log(`   🏥 Pump API:      /api/pump-*, /api/auth/*`);
-  console.log(`   🔐 Medical Auth:  /api/medical/*`);
-  console.log(`   📅 Schedule API:  /api/schedule/*, /api/notes/*`);
-  console.log(`   👤 Admin API:     /api/accounts/*`);
-  console.log(`   🎤 WebSocket:     ws://localhost:${PORT}/ws/deepgram`);
-  console.log('');
-  console.log('🌐 Health Check:');
-  console.log(`   http://localhost:${PORT}/health`);
-  console.log('========================================');
+  logger.info('========================================');
+  logger.info(`✅ Unified API Server running on port ${PORT}`);
+  logger.info('');
+  logger.info('📋 Available Services:');
+  logger.info(`   🏥 Pump API:      /api/pump-*, /api/auth/*`);
+  logger.info(`   🔐 Medical Auth:  /api/medical/*`);
+  logger.info(`   📅 Schedule API:  /api/schedule/*, /api/notes/*`);
+  logger.info(`   👤 Admin API:     /api/accounts/*`);
+  logger.info(`   🎤 WebSocket:     ws://localhost:${PORT}/ws/deepgram`);
+  logger.info('');
+  logger.info('🌐 Health Check:');
+  logger.info(`   http://localhost:${PORT}/health`);
+  logger.info('========================================');
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('🛑 SIGTERM received, shutting down gracefully');
+  logger.info('🛑 SIGTERM received, shutting down gracefully');
   server.close(() => {
-    console.log('✅ Server closed');
+    logger.info('✅ Server closed');
     process.exit(0);
   });
 });
 
 process.on('SIGINT', () => {
-  console.log('🛑 SIGINT received, shutting down gracefully');
+  logger.info('🛑 SIGINT received, shutting down gracefully');
   server.close(() => {
-    console.log('✅ Server closed');
+    logger.info('✅ Server closed');
     process.exit(0);
   });
 });
