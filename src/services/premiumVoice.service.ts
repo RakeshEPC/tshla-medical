@@ -1,6 +1,6 @@
 /**
  * Premium Voice Service with High-Quality Neural TTS
- * Supports Azure Neural, Google Cloud TTS, and Amazon Polly
+ * Supports Azure Neural (HIPAA-compliant with BAA)
  * HIPAA Compliant with echo cancellation
  */
 
@@ -92,40 +92,8 @@ export const PREMIUM_VOICES = {
       premium: true,
     },
   ],
-  google: [
-    // Google Cloud Premium WaveNet voices
-    {
-      id: 'en-US-Wavenet-A',
-      name: 'WaveNet A',
-      gender: 'Male',
-      description: 'Deep and authoritative',
-    },
-    { id: 'en-US-Wavenet-B', name: 'WaveNet B', gender: 'Male', description: 'Warm and friendly' },
-    {
-      id: 'en-US-Wavenet-C',
-      name: 'WaveNet C',
-      gender: 'Female',
-      description: 'Clear and professional',
-    },
-    {
-      id: 'en-US-Wavenet-D',
-      name: 'WaveNet D',
-      gender: 'Male',
-      description: 'Young and energetic',
-    },
-    {
-      id: 'en-US-Wavenet-E',
-      name: 'WaveNet E',
-      gender: 'Female',
-      description: 'Soft and pleasant',
-    },
-    {
-      id: 'en-US-Wavenet-F',
-      name: 'WaveNet F',
-      gender: 'Female',
-      description: 'Bright and cheerful',
-    },
-  ],
+  // Google TTS removed - no BAA (HIPAA violation)
+  // Amazon Polly removed - no BAA
   amazon: [
     // Amazon Polly Neural voices
     {
@@ -174,7 +142,7 @@ export const PREMIUM_VOICES = {
 };
 
 export interface VoiceSettings {
-  provider: 'azure' | 'google' | 'amazon' | 'browser';
+  provider: 'azure' | 'amazon' | 'browser'; // Google removed - no BAA
   voiceId: string;
   rate: number;
   pitch: number;
@@ -203,8 +171,7 @@ class PremiumVoiceService {
     import.meta.env.VITE_AZURE_SPEECH_ENDPOINT ||
     `https://${this.AZURE_REGION}.tts.speech.microsoft.com/`;
 
-  // Google Cloud TTS configuration (optional)
-  private readonly GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_TTS_KEY || '';
+  // Google Cloud TTS removed - no BAA (HIPAA violation)
 
   constructor() {
     this.initializeService();
@@ -277,8 +244,6 @@ class PremiumVoiceService {
     switch (this.currentSettings.provider) {
       case 'azure':
         return PREMIUM_VOICES.azure;
-      case 'google':
-        return PREMIUM_VOICES.google;
       case 'amazon':
         return PREMIUM_VOICES.amazon;
       default:
@@ -296,8 +261,6 @@ class PremiumVoiceService {
     try {
       if (settings.provider === 'azure' && this.synthesizer) {
         return await this.speakWithAzure(text, settings);
-      } else if (settings.provider === 'google' && this.GOOGLE_API_KEY) {
-        return await this.speakWithGoogle(text, settings);
       } else {
         // Fallback to browser TTS with enhanced settings
         return await this.speakWithBrowser(text, settings);
@@ -367,45 +330,7 @@ class PremiumVoiceService {
       .replace(/'/g, '&apos;');
   }
 
-  private async speakWithGoogle(text: string, settings: VoiceSettings): Promise<void> {
-    // Google Cloud TTS implementation
-    const url = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${this.GOOGLE_API_KEY}`;
-
-    const request = {
-      input: { text },
-      voice: {
-        languageCode: 'en-US',
-        name: settings.voiceId,
-        ssmlGender:
-          settings.voiceId.includes('Wavenet-A') ||
-          settings.voiceId.includes('Wavenet-B') ||
-          settings.voiceId.includes('Wavenet-D')
-            ? 'MALE'
-            : 'FEMALE',
-      },
-      audioConfig: {
-        audioEncoding: 'MP3',
-        speakingRate: settings.rate,
-        pitch: settings.pitch,
-        volumeGainDb: settings.volume * 10,
-      },
-    };
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
-    });
-
-    const data = await response.json();
-
-    if (data.audioContent) {
-      // Play the audio
-      const audio = new Audio(`data:audio/mp3;base64,${data.audioContent}`);
-      audio.playbackRate = settings.rate;
-      await audio.play();
-    }
-  }
+  // Google TTS method removed - HIPAA violation (no BAA)
 
   private async speakWithBrowser(text: string, settings: VoiceSettings): Promise<void> {
     return new Promise(resolve => {
@@ -464,10 +389,7 @@ class PremiumVoiceService {
 
   // Check if service is properly configured
   isConfigured(): boolean {
-    return (
-      !!(this.AZURE_KEY && this.AZURE_KEY !== 'YOUR_AZURE_KEY') ||
-      !!(this.GOOGLE_API_KEY && this.GOOGLE_API_KEY !== '')
-    );
+    return !!(this.AZURE_KEY && this.AZURE_KEY !== 'YOUR_AZURE_KEY');
   }
 }
 

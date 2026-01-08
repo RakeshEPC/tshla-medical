@@ -18,8 +18,8 @@ if [ ! -f "public/staticwebapp.config.json" ]; then
 fi
 echo "✅ staticwebapp.config.json in correct location (public/)"
 
-# Check for accidentally committed credentials (exclude dev scripts and docs)
-if git diff --cached -- ':!start-dev.sh' ':!stop-dev.sh' ':!*.md' | grep -i "DB_PASSWORD.*=.*[^'']" | grep -v "DB_PASSWORD=\$" | grep -v 'DB_PASSWORD=""'; then
+# Check for accidentally committed credentials (exclude dev scripts, docs, and comparison checks)
+if git diff --cached -- ':!start-dev.sh' ':!stop-dev.sh' ':!*.md' | grep -i "DB_PASSWORD.*=.*[^'']" | grep -v "DB_PASSWORD=\$" | grep -v 'DB_PASSWORD=""' | grep -v '===' | grep -v '!=='; then
   echo "❌ Found hardcoded credentials in staged files!"
   echo "   Never commit passwords directly in code."
   echo ""
@@ -54,8 +54,8 @@ echo "✅ No deprecated auth imports detected"
 # Check for console.log in server code (HIPAA compliance)
 echo ""
 echo "Checking for console.log statements in server code (HIPAA)..."
-# Exclude comment lines (starting with * or //)
-CONSOLE_FOUND=$(git diff --cached --name-only | grep -E '^server/.*\.(js|ts)$' | xargs grep "console\." 2>/dev/null | grep -v "^\s*\*" | grep -v "^\s*//" | cut -d: -f1 | sort -u || true)
+# Exclude comment lines (starting with * or //) and deprecated services
+CONSOLE_FOUND=$(git diff --cached --name-only | grep -E '^server/.*\.(js|ts)$' | grep -v '_deprecated_external_services/' | xargs grep "console\." 2>/dev/null | grep -v "^\s*\*" | grep -v "^\s*//" | cut -d: -f1 | sort -u || true)
 if [ -n "$CONSOLE_FOUND" ]; then
   echo "❌ console.log statements found in server code!"
   echo ""

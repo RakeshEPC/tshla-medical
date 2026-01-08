@@ -58,3 +58,9 @@ node_modules
 # Credentials and sensitive documentation
 ADMIN_CREDENTIALS.md
 *CREDENTIALS*.md
+
+# Legal documents - NEVER commit actual BAA PDFs!
+legal-compliance/baas/*.pdf
+*.baa.pdf
+*-baa-*.pdf
+/Downloads/*BAA*.pdf

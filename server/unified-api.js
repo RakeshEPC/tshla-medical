@@ -25,6 +25,17 @@ const unifiedDatabase = require('./services/unified-supabase.service');
 const patientMatchingService = require('./services/patientMatching.service');
 const logger = require('./logger');
 
+// Phase 3 Security: Import security middleware
+const { corsOptions } = require('./middleware/corsConfig');
+const {
+  authLimiter,
+  apiLimiter,
+  phiLimiter,
+  registrationLimiter
+} = require('./middleware/rateLimiter');
+const { validatePassword } = require('./utils/passwordValidator');
+const { auditPHIAccess } = require('./middleware/auditLogger');
+
 // Create main Express app
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -47,26 +58,16 @@ app.use((req, res, next) => {
     return next();
   }
 
-  // Apply CORS for regular HTTP requests
-  return cors({
-    origin: [
-      'http://localhost:5173',
-      'http://localhost:5174',
-      'http://localhost:3000',
-      'https://www.tshla.ai',
-      'https://tshla.ai',
-      /\.tshla\.ai$/,
-      /\.azurecontainerapps\.io$/
-    ],
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-  })(req, res, next);
+  // Apply CORS for regular HTTP requests (Phase 3: Use environment-aware CORS)
+  return cors(corsOptions)(req, res, next);
 });
 
 // Parse JSON request bodies (increased limit for CCD XML files)
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Phase 3 Security: Add rate limiting to all API endpoints
+app.use('/api/', apiLimiter);
 
 logger.info('UnifiedAPI', 'TSHLA Medical Unified API Server starting');
 logger.info('UnifiedAPI', '========================================');
@@ -385,7 +386,7 @@ app.post('/api/ai/summary', async (req, res) => {
  * Generates patient-friendly summaries from SOAP notes using Azure OpenAI
  * HIPAA Compliant: Uses Microsoft Azure OpenAI (covered by Microsoft BAA)
  */
-app.post('/api/patient-summary', async (req, res) => {
+app.post('/api/patient-summary', phiLimiter, auditPHIAccess, async (req, res) => {
   try {
     const { soap_input, prompt, system_message, model, temperature, max_tokens } = req.body;
 
@@ -553,7 +554,7 @@ logger.warn('UnifiedAPI', 'Diabetes Education phone system DISABLED (Twilio canc
 // Endpoints for fetching and displaying ElevenLabs conversation transcripts
 
 // List all pre-visit conversations
-app.get('/api/previsit/conversations', async (req, res) => {
+app.get('/api/previsit/conversations', phiLimiter, auditPHIAccess, async (req, res) => {
   try {
     logger.info('PreVisit', 'Fetching pre-visit conversations');
 
@@ -596,7 +597,7 @@ app.get('/api/previsit/conversations', async (req, res) => {
 });
 
 // Get detailed conversation by ID (includes full transcript)
-app.get('/api/previsit/conversations/:conversationId', async (req, res) => {
+app.get('/api/previsit/conversations/:conversationId', phiLimiter, auditPHIAccess, async (req, res) => {
   try {
     const { conversationId } = req.params;
     logger.info('PreVisit', 'Fetching conversation details', { conversationId });
@@ -1023,7 +1024,7 @@ app.post('/api/patient-profile/upload', upload.single('pdf'), async (req, res) =
 });
 
 // Get all patient profiles
-app.get('/api/patient-profiles', async (req, res) => {
+app.get('/api/patient-profiles', phiLimiter, auditPHIAccess, async (req, res) => {
   try {
     const supabase = await unifiedDatabase.getClient();
 
@@ -1050,7 +1051,7 @@ app.get('/api/patient-profiles', async (req, res) => {
 });
 
 // Get patient profile by phone number
-app.get('/api/patient-profile/by-phone/:phone', async (req, res) => {
+app.get('/api/patient-profile/by-phone/:phone', phiLimiter, auditPHIAccess, async (req, res) => {
   try {
     const { phone } = req.params;
 
@@ -1092,7 +1093,7 @@ app.get('/api/patient-profile/by-phone/:phone', async (req, res) => {
 const questionGenerator = require('./services/questionGenerator.service');
 
 // Caller ID Matching - Identify patient when they call
-app.get('/api/previsit/match-caller/:phone', async (req, res) => {
+app.get('/api/previsit/match-caller/:phone', phiLimiter, auditPHIAccess, async (req, res) => {
   try {
     const { phone } = req.params;
     logger.info('PreVisit', 'Matching caller');
@@ -1170,7 +1171,7 @@ app.get('/api/previsit/match-caller/:phone', async (req, res) => {
 });
 
 // Preview what questions will be asked for a patient
-app.get('/api/previsit/preview-questions/:patient_id', async (req, res) => {
+app.get('/api/previsit/preview-questions/:patient_id', phiLimiter, auditPHIAccess, async (req, res) => {
   try {
     const { patient_id } = req.params;
 
@@ -1357,7 +1358,7 @@ app.get('/api/linking/stats', async (req, res) => {
 });
 
 // Initialize a new pre-visit conversation session
-app.post('/api/previsit/session/start', async (req, res) => {
+app.post('/api/previsit/session/start', phiLimiter, auditPHIAccess, async (req, res) => {
   try {
     const { conversation_id, phone_number } = req.body;
     logger.info('PreVisit', 'Starting pre-visit session', { conversationId: conversation_id });
@@ -1380,7 +1381,7 @@ app.post('/api/previsit/session/start', async (req, res) => {
 });
 
 // Store medications mentioned during the call
-app.post('/api/previsit/data/medications', async (req, res) => {
+app.post('/api/previsit/data/medications', phiLimiter, auditPHIAccess, async (req, res) => {
   try {
     const { conversation_id, medications } = req.body;
     logger.info('PreVisit', 'Storing medications', { conversationId: conversation_id });
@@ -1414,7 +1415,7 @@ app.post('/api/previsit/data/medications', async (req, res) => {
 });
 
 // Store chief concerns mentioned during the call
-app.post('/api/previsit/data/concerns', async (req, res) => {
+app.post('/api/previsit/data/concerns', phiLimiter, auditPHIAccess, async (req, res) => {
   try {
     const { conversation_id, concerns } = req.body;
     logger.info('PreVisit', 'Storing concerns', { conversationId: conversation_id });
@@ -1448,7 +1449,7 @@ app.post('/api/previsit/data/concerns', async (req, res) => {
 });
 
 // Store questions for the provider
-app.post('/api/previsit/data/questions', async (req, res) => {
+app.post('/api/previsit/data/questions', phiLimiter, auditPHIAccess, async (req, res) => {
   try {
     const { conversation_id, questions } = req.body;
     logger.info('PreVisit', 'Storing questions', { conversationId: conversation_id });
@@ -1482,7 +1483,7 @@ app.post('/api/previsit/data/questions', async (req, res) => {
 });
 
 // Finalize and retrieve all collected data for a conversation
-app.post('/api/previsit/session/complete', async (req, res) => {
+app.post('/api/previsit/session/complete', phiLimiter, auditPHIAccess, async (req, res) => {
   try {
     const { conversation_id } = req.body;
     logger.info('PreVisit', 'Completing pre-visit session', { conversationId: conversation_id });
@@ -1503,7 +1504,7 @@ app.post('/api/previsit/session/complete', async (req, res) => {
 });
 
 // Retrieve collected data for a conversation
-app.get('/api/previsit/session/:conversation_id', async (req, res) => {
+app.get('/api/previsit/session/:conversation_id', phiLimiter, auditPHIAccess, async (req, res) => {
   try {
     const { conversation_id } = req.params;
     const session = activeConversations.get(conversation_id);
@@ -1520,7 +1521,7 @@ app.get('/api/previsit/session/:conversation_id', async (req, res) => {
 });
 
 // Debug endpoint - List all captured sessions from Supabase
-app.get('/api/previsit/sessions/all', async (req, res) => {
+app.get('/api/previsit/sessions/all', phiLimiter, auditPHIAccess, async (req, res) => {
   try {
     const supabase = await unifiedDatabase.getClient();
     const { data, error } = await supabase

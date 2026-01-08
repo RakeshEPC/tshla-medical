@@ -74,6 +74,7 @@
     "buffer": "^6.0.3",
     "csv-parser": "^3.2.0",
     "dotenv": "^17.2.1",
+    "express-rate-limit": "^8.2.1",
     "html2canvas": "^1.4.1",
     "jose": "^5.2.0",
     "js-yaml": "^4.1.0",

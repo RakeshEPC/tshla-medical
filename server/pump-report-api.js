@@ -19,6 +19,17 @@ const { AzureOpenAI } = require('openai');
 const pumpEngine = require('./pump-recommendation-engine-ai');
 const logger = require('./logger');
 
+// Phase 3 Security: Import security middleware
+const { corsOptions } = require('./middleware/corsConfig');
+const {
+  authLimiter,
+  apiLimiter,
+  phiLimiter,
+  registrationLimiter
+} = require('./middleware/rateLimiter');
+const { validatePassword } = require('./utils/passwordValidator');
+const { auditPHIAccess } = require('./middleware/auditLogger');
+
 // Initialize Stripe with secret key (if available)
 let stripeInstance = null;
 if (process.env.STRIPE_SECRET_KEY && process.env.STRIPE_SECRET_KEY !== 'sk_test_example...') {
@@ -54,35 +65,8 @@ logger.info('Azure OpenAI initialized with deployments:', AZURE_OPENAI_MODELS);
 const app = express();
 const PORT = process.env.PORT || 3002;
 
-// Middleware - CORS with flexible localhost support
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl, Postman)
-      if (!origin) return callback(null, true);
-
-      // Allow all localhost origins (any port)
-      if (origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1')) {
-        return callback(null, true);
-      }
-
-      // Allow specific production domains
-      const allowedOrigins = [
-        'https://www.tshla.ai',
-        'https://mango-sky-0ba265c0f.1.azurestaticapps.net'
-      ];
-
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
-      // Log rejected origins for debugging
-      logger.info('CORS: Rejected origin:', origin);
-      callback(new Error('Not allowed by CORS'));
-    },
-    credentials: true,
-  })
-);
+// Middleware - CORS (Phase 3: Environment-aware configuration)
+app.use(cors(corsOptions));
 // JSON parsing middleware with strict: false to handle escaped characters
 app.use(express.json({
   limit: '10mb',
@@ -92,6 +76,9 @@ app.use(express.json({
     req.rawBody = buf.toString(encoding || 'utf8');
   }
 }));
+
+// Phase 3 Security: Rate limiting (must be after body parsing)
+app.use('/api/', apiLimiter); // General API rate limit: 100 req/min
 
 // Database: Using Supabase (PostgreSQL) - MySQL removed
 // Supabase client initialized above at lines 32-36
@@ -372,7 +359,7 @@ app.get('/api/health', async (req, res) => {
  * Register new user with optional research participation
  * POST /api/auth/register
  */
-app.post('/api/auth/register', checkDatabaseStatus, async (req, res) => {
+app.post('/api/auth/register', registrationLimiter, checkDatabaseStatus, async (req, res) => {
   try {
     const {
       email,
@@ -398,22 +385,13 @@ app.post('/api/auth/register', checkDatabaseStatus, async (req, res) => {
       });
     }
 
-    // Validate password strength
-    if (password.length < 8) {
+    // Phase 3 Security: Enhanced password validation
+    const passwordCheck = validatePassword(password);
+    if (!passwordCheck.valid) {
       return res.status(400).json({
-        error: 'Password must be at least 8 characters long'
-      });
-    }
-
-    if (!/[A-Z]/.test(password)) {
-      return res.status(400).json({
-        error: 'Password must contain at least 1 uppercase letter'
-      });
-    }
-
-    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
-      return res.status(400).json({
-        error: 'Password must contain at least 1 special character (!@#$%^&*)'
+        error: 'Password does not meet security requirements',
+        details: passwordCheck.errors,
+        requirements: 'Password must be at least 12 characters with uppercase, lowercase, numbers, and special characters'
       });
     }
 
@@ -528,7 +506,7 @@ app.post('/api/auth/register', checkDatabaseStatus, async (req, res) => {
  * User login
  * POST /api/auth/login
  */
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', authLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -1516,7 +1494,7 @@ app.delete('/api/pump-conversation/cleanup-expired', async (req, res) => {
  * Save complete pump assessment with all data
  * POST /api/pump-assessments/save-complete
  */
-app.post('/api/pump-assessments/save-complete', verifyToken, async (req, res) => {
+app.post('/api/pump-assessments/save-complete', phiLimiter, auditPHIAccess, verifyToken, async (req, res) => {
   try {
     const {
       patientName,
@@ -1619,7 +1597,7 @@ app.post('/api/pump-assessments/save-complete', verifyToken, async (req, res) =>
  * Get complete assessment data by ID
  * GET /api/pump-assessments/:id/complete
  */
-app.get('/api/pump-assessments/:id/complete', async (req, res) => {
+app.get('/api/pump-assessments/:id/complete', phiLimiter, auditPHIAccess, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -1679,7 +1657,7 @@ app.get('/api/pump-assessments/:id/complete', async (req, res) => {
  * Generate PDF report for assessment
  * POST /api/pump-assessments/:id/generate-pdf
  */
-app.post('/api/pump-assessments/:id/generate-pdf', async (req, res) => {
+app.post('/api/pump-assessments/:id/generate-pdf', phiLimiter, auditPHIAccess, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -1733,7 +1711,7 @@ app.post('/api/pump-assessments/:id/generate-pdf', async (req, res) => {
  * Get assessment by ID (with authentication)
  * GET /api/pumpdrive/assessments/:id
  */
-app.get('/api/pumpdrive/assessments/:id', verifyToken, async (req, res) => {
+app.get('/api/pumpdrive/assessments/:id', phiLimiter, auditPHIAccess, verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.userId;
@@ -1786,7 +1764,7 @@ app.get('/api/pumpdrive/assessments/:id', verifyToken, async (req, res) => {
  * Get all assessments for a specific user
  * GET /api/pumpdrive/assessments/user/:userId
  */
-app.get('/api/pumpdrive/assessments/user/:userId', verifyToken, async (req, res) => {
+app.get('/api/pumpdrive/assessments/user/:userId', phiLimiter, auditPHIAccess, verifyToken, async (req, res) => {
   try {
     const { userId } = req.params;
     const requestingUserId = req.user.userId;
@@ -1848,7 +1826,7 @@ app.get('/api/pumpdrive/assessments/user/:userId', verifyToken, async (req, res)
  * Get current authenticated user's assessments
  * GET /api/pumpdrive/assessments/current-user
  */
-app.get('/api/pumpdrive/assessments/current-user', verifyToken, async (req, res) => {
+app.get('/api/pumpdrive/assessments/current-user', phiLimiter, auditPHIAccess, verifyToken, async (req, res) => {
   try {
     const userId = req.user.userId;
 
@@ -1901,7 +1879,7 @@ app.get('/api/pumpdrive/assessments/current-user', verifyToken, async (req, res)
  * Email assessment to healthcare provider
  * POST /api/pumpdrive/assessments/:id/email
  */
-app.post('/api/pumpdrive/assessments/:id/email', verifyToken, async (req, res) => {
+app.post('/api/pumpdrive/assessments/:id/email', phiLimiter, auditPHIAccess, verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { providerEmail, patientMessage } = req.body;

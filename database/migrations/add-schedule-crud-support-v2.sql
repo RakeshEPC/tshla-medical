@@ -2,9 +2,57 @@
 -- TSHLA Medical - Schedule CRUD Support Enhancement
 -- =====================================================
 -- Created: 2026-01-07
+-- Updated: 2026-01-07 v2 - Added duplicate cleanup
 -- Purpose: Add full CRUD support for manual appointment
 --          management with audit logging and conflict detection
 -- =====================================================
+
+-- =====================================================
+-- 0. PRE-MIGRATION: CLEANUP DUPLICATES
+-- =====================================================
+
+-- First, let's identify and remove duplicate appointments
+-- Keep the oldest appointment, remove newer duplicates
+
+-- Create temporary table to track duplicates
+CREATE TEMP TABLE duplicate_appointments AS
+SELECT
+  id,
+  provider_id,
+  scheduled_date,
+  start_time,
+  patient_name,
+  status,
+  created_at,
+  ROW_NUMBER() OVER (
+    PARTITION BY provider_id, scheduled_date, start_time, status
+    ORDER BY created_at ASC NULLS LAST, id ASC
+  ) as row_num
+FROM provider_schedules
+WHERE status NOT IN ('cancelled', 'no-show');
+
+-- Show duplicates that will be removed (for logging)
+DO $$
+DECLARE
+  duplicate_count INTEGER;
+BEGIN
+  SELECT COUNT(*) INTO duplicate_count
+  FROM duplicate_appointments
+  WHERE row_num > 1;
+
+  RAISE NOTICE 'Found % duplicate appointments to remove', duplicate_count;
+END $$;
+
+-- Remove duplicates (keep row_num = 1, delete row_num > 1)
+DELETE FROM provider_schedules
+WHERE id IN (
+  SELECT id
+  FROM duplicate_appointments
+  WHERE row_num > 1
+);
+
+-- Drop temp table
+DROP TABLE duplicate_appointments;
 
 -- =====================================================
 -- 1. ADD AUDIT AND TRACKING FIELDS
