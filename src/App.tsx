@@ -23,6 +23,7 @@ import Login from './pages/Login';
 import PatientLogin from './pages/PatientLogin';
 import AuthRedirect from './pages/AuthRedirect';
 import ResetPassword from './pages/ResetPassword';
+import Settings from './pages/Settings';
 
 // ========================================
 // LAZY-LOADED SECTIONS
@@ -184,6 +185,16 @@ function App() {
                   <Suspense fallback={<LoadingSpinner />}>
                     <PracticeSetup />
                   </Suspense>
+                }
+              />
+
+              {/* ===== SETTINGS ===== */}
+              <Route
+                path="/settings"
+                element={
+                  <ProtectedRoute>
+                    <Settings />
+                  </ProtectedRoute>
                 }
               />
 

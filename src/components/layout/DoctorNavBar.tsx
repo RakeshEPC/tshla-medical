@@ -369,7 +369,7 @@ export default function DoctorNavBar({
 
                     <button
                       onClick={() => {
-                        // TODO: Settings page
+                        navigate('/settings');
                         setShowUserMenu(false);
                       }}
                       className="w-full flex items-center space-x-2 p-2 rounded hover:bg-gray-50 text-left"
