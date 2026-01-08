@@ -8,7 +8,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { enhancedAuditService, AuditLog, AuditStatistics } from '../../services/enhancedAuditService';
+import { enhancedAuditService, AuditLog, AuditStatistics } from '../../services/enhancedAudit.service';
 import { Download, AlertTriangle, Activity, Users, Database, Eye } from 'lucide-react';
 
 export default function AuditLogs() {
