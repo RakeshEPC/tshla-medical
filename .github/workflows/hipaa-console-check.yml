@@ -1,0 +1,65 @@
+name: HIPAA Console.log Check
+
+on:
+  pull_request:
+    paths:
+      - 'server/**/*.js'
+      - 'server/**/*.ts'
+  push:
+    branches:
+      - main
+    paths:
+      - 'server/**/*.js'
+      - 'server/**/*.ts'
+
+jobs:
+  check-console-statements:
+    runs-on: ubuntu-latest
+    name: Check for console.log in server code
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for console statements
+        run: |
+          echo "🔍 Checking for console.log statements in server code..."
+
+          # Find all console statements in server code
+          CONSOLE_FILES=$(grep -r "console\." server/ --include="*.js" --include="*.ts" -l 2>/dev/null || true)
+
+          if [ -n "$CONSOLE_FILES" ]; then
+            echo ""
+            echo "❌ HIPAA VIOLATION: console.log statements found in server code!"
+            echo ""
+            echo "Files with console statements:"
+            echo "$CONSOLE_FILES" | sed 's/^/  - /'
+            echo ""
+            echo "HIPAA Compliance Requirement:"
+            echo "  Production logs must not contain PHI (Protected Health Information)"
+            echo "  console.log() can expose patient names, DOB, phone, medical data"
+            echo ""
+            echo "Required fix:"
+            echo "  Replace all console.log with logger from ./server/logger.js"
+            echo ""
+            echo "Examples:"
+            echo "  ❌ console.log('Patient:', patient.name)"
+            echo "  ✅ logger.info('Category', 'Processing patient', { patientId })"
+            echo ""
+            echo "  ❌ console.error('Error:', error)"
+            echo "  ✅ logger.error('Category', 'Error', { error: error.message })"
+            echo ""
+            echo "See: HIPAA-SAFE-LOGGING-GUIDE.md"
+            echo ""
+            exit 1
+          fi
+
+          echo "✅ No console.log statements found - HIPAA compliant"
+
+      - name: Report success
+        if: success()
+        run: |
+          echo ""
+          echo "✅ HIPAA Console Check PASSED"
+          echo "   All server logging uses safe logger"
+          echo ""

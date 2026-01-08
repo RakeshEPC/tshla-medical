@@ -1,0 +1,15 @@
+{
+  "rules": {
+    "no-console": ["error", {
+      "allow": []
+    }]
+  },
+  "overrides": [
+    {
+      "files": ["scripts/**/*.js", "scripts/**/*.cjs"],
+      "rules": {
+        "no-console": "off"
+      }
+    }
+  ]
+}

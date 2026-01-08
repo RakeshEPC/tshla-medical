@@ -51,6 +51,32 @@ if [ -n "$DEPRECATED_IMPORTS" ]; then
 fi
 echo "✅ No deprecated auth imports detected"
 
+# Check for console.log in server code (HIPAA compliance)
+echo ""
+echo "Checking for console.log statements in server code (HIPAA)..."
+CONSOLE_FOUND=$(git diff --cached --name-only | grep -E '^server/.*\.(js|ts)$' | xargs grep -l "console\." 2>/dev/null || true)
+if [ -n "$CONSOLE_FOUND" ]; then
+  echo "❌ console.log statements found in server code!"
+  echo ""
+  echo "   Files with console statements:"
+  echo "$CONSOLE_FOUND" | sed 's/^/     - /'
+  echo ""
+  echo "   ⚠️  HIPAA Compliance: console.log exposes PHI in production logs"
+  echo "   ✅ Use logger instead:"
+  echo ""
+  echo "   Migration examples:"
+  echo "     // ❌ Old (HIPAA violation):"
+  echo "     console.log('Processing patient:', patientName);"
+  echo ""
+  echo "     // ✅ New (HIPAA compliant):"
+  echo "     logger.info('Category', 'Processing patient', { patientId });"
+  echo ""
+  echo "   See: HIPAA-SAFE-LOGGING-GUIDE.md"
+  echo ""
+  exit 1
+fi
+echo "✅ No console.log statements in server code"
+
 # Check TypeScript compiles
 echo ""
 echo "Running TypeScript check..."
