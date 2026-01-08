@@ -38,6 +38,8 @@ export interface AuthResult {
   user?: AuthUser;
   token?: string;
   error?: string;
+  mfaRequired?: boolean;
+  factorId?: string;
 }
 
 class SupabaseAuthService {
@@ -148,6 +150,31 @@ class SupabaseAuthService {
           success: false,
           error: 'No user data returned',
         };
+      }
+
+      // Step 1.5: Check MFA requirement (Authenticator Assurance Level)
+      const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+
+      if (aal) {
+        const { currentLevel, nextLevel } = aal;
+
+        // If user has MFA enrolled (nextLevel = aal2) but hasn't verified this session (currentLevel = aal1)
+        if (nextLevel === 'aal2' && currentLevel === 'aal1') {
+          logInfo('SupabaseAuth', 'MFA verification required', { email });
+
+          // Get the user's enrolled factors
+          const { data: factors } = await supabase.auth.mfa.listFactors();
+          const totpFactor = factors?.totp?.[0];
+
+          if (totpFactor) {
+            return {
+              success: false,
+              mfaRequired: true,
+              factorId: totpFactor.id,
+              error: 'MFA verification required',
+            };
+          }
+        }
       }
 
       // Step 2: Get medical_staff record (with 10s timeout)
@@ -940,6 +967,69 @@ class SupabaseAuthService {
       });
     } catch (error) {
       logError('SupabaseAuth', 'Failed to log access', { error });
+    }
+  }
+
+  /**
+   * Get MFA status for current user
+   * Returns information about enrolled MFA factors
+   */
+  async getMFAStatus(): Promise<{
+    enrolled: boolean;
+    factors: any[];
+    error?: string;
+  }> {
+    try {
+      const { data: factors, error } = await supabase.auth.mfa.listFactors();
+
+      if (error) {
+        throw error;
+      }
+
+      const totpFactors = factors?.totp || [];
+
+      return {
+        enrolled: totpFactors.length > 0,
+        factors: totpFactors,
+      };
+    } catch (error) {
+      logError('SupabaseAuth', 'Failed to get MFA status', { error });
+      return {
+        enrolled: false,
+        factors: [],
+        error: error instanceof Error ? error.message : 'Failed to get MFA status',
+      };
+    }
+  }
+
+  /**
+   * Unenroll (disable) MFA for current user
+   * Requires factor ID
+   */
+  async unenrollMFA(factorId: string): Promise<{
+    success: boolean;
+    error?: string;
+  }> {
+    try {
+      logInfo('SupabaseAuth', 'Unenrolling MFA factor', { factorId });
+
+      const { error } = await supabase.auth.mfa.unenroll({ factorId });
+
+      if (error) {
+        throw error;
+      }
+
+      logInfo('SupabaseAuth', 'MFA factor unenrolled successfully');
+
+      return {
+        success: true,
+      };
+    } catch (error) {
+      logError('SupabaseAuth', 'Failed to unenroll MFA', { error });
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to disable MFA',
+      };
     }
   }
 }

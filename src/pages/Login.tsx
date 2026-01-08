@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabaseAuthService as unifiedAuthService } from '../services/supabaseAuth.service';
 import { supabase } from '../lib/supabase';
 import { checkBrowserCompatibility, getStorageEnableInstructions } from '../utils/browserCompatibility';
+import MFAVerification from '../components/auth/MFAVerification';
 
 export default function Login() {
   const [loginMethod, setLoginMethod] = useState<'email' | 'code'>('email');
@@ -19,6 +20,8 @@ export default function Login() {
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
   const [resetEmailSent, setResetEmailSent] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [showMFAVerification, setShowMFAVerification] = useState(false);
+  const [mfaFactorId, setMfaFactorId] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuth();
@@ -51,7 +54,18 @@ export default function Login() {
     setLoading(true);
 
     try {
-      // Call AuthContext's login to update state
+      // First, try authentication through the service directly to check for MFA
+      const authResult = await unifiedAuthService.loginMedicalStaff(email, password);
+
+      // Check if MFA is required
+      if (authResult.mfaRequired && authResult.factorId) {
+        setMfaFactorId(authResult.factorId);
+        setShowMFAVerification(true);
+        setLoading(false);
+        return;
+      }
+
+      // If no MFA required, proceed with normal login
       await login(loginMethod === 'code' ? '' : email, loginMethod === 'code' ? doctorCode : password);
 
       // Get the user from unified auth service to check role
@@ -124,6 +138,34 @@ export default function Login() {
     window.location.reload(); // Force fresh start
   };
 
+  const handleMFAVerified = async () => {
+    // MFA verification successful, complete login
+    try {
+      // Call AuthContext's login which will now succeed since MFA is verified
+      await login(email, password);
+
+      // Get user and navigate
+      const result = await unifiedAuthService.getCurrentUser();
+      if (result.success && result.user) {
+        if (result.user.role === 'admin' || result.user.role === 'super_admin') {
+          navigate('/admin/account-manager');
+        } else {
+          navigate('/dashboard');
+        }
+      }
+    } catch (err: any) {
+      setError(err.message || 'Login failed after MFA verification');
+      setShowMFAVerification(false);
+    }
+  };
+
+  const handleMFACancel = () => {
+    // User cancelled MFA, return to login screen
+    setShowMFAVerification(false);
+    setMfaFactorId('');
+    setError('');
+  };
+
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -153,6 +195,17 @@ export default function Login() {
       setLoading(false);
     }
   };
+
+  // Show MFA verification screen if required
+  if (showMFAVerification && mfaFactorId) {
+    return (
+      <MFAVerification
+        factorId={mfaFactorId}
+        onVerified={handleMFAVerified}
+        onCancel={handleMFACancel}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-tesla-silver flex items-center justify-center p-4 no-animations">
