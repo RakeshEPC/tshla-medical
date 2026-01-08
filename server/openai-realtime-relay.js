@@ -20,6 +20,7 @@
 
 const WebSocket = require('ws');
 const { createClient } = require('@supabase/supabase-js');
+const logger = require('./logger');
 
 // Environment variables - Azure OpenAI Configuration
 const AZURE_OPENAI_ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT;
@@ -34,11 +35,12 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Validate required environment variables (warnings only, don't crash)
 if (!AZURE_OPENAI_ENDPOINT || !AZURE_OPENAI_KEY) {
-  console.warn('⚠️  [Realtime] Missing Azure OpenAI environment variables');
-  console.warn('⚠️  [Realtime] Required: AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_KEY');
+  logger.warn('Realtime', 'Missing Azure OpenAI environment variables', {
+    required: 'AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_KEY'
+  });
 }
 if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-  console.warn('⚠️  [Realtime] Missing Supabase environment variables');
+  logger.warn('Realtime', 'Missing Supabase environment variables');
 }
 
 // Initialize Supabase client lazily (only if credentials exist)
@@ -56,12 +58,12 @@ function getSupabase() {
  */
 async function fetchPatientContext(phoneNumber) {
   try {
-    console.log(`[Realtime] Fetching patient data for: ${phoneNumber}`);
+    logger.info('Realtime', 'Fetching patient data');
 
     // Query diabetes education patients table
     const supabase = getSupabase();
     if (!supabase) {
-      console.error('[Realtime] Supabase not initialized');
+      logger.error('Realtime', 'Supabase not initialized');
       return {
         found: false,
         patientId: null,
@@ -77,7 +79,7 @@ async function fetchPatientContext(phoneNumber) {
       .single();
 
     if (error || !patient) {
-      console.warn(`[Realtime] No patient found for ${phoneNumber}`);
+      logger.warn('Realtime', 'No patient found');
       return {
         found: false,
         patientId: null,
@@ -85,7 +87,7 @@ async function fetchPatientContext(phoneNumber) {
       };
     }
 
-    console.log(`[Realtime] Found patient: ${patient.first_name} ${patient.last_name} (ID: ${patient.id})`);
+    logger.info('Realtime', 'Found patient', { patientId: patient.id });
 
     // Build context string
     const sections = [];
@@ -148,7 +150,7 @@ async function fetchPatientContext(phoneNumber) {
       ? sections.join('\n\n')
       : 'No detailed patient information available in records.';
 
-    console.log(`[Realtime] Patient context prepared (${contextString.length} chars)`);
+    logger.info('Realtime', 'Patient context prepared', { contextLength: contextString.length });
 
     return {
       found: true,
@@ -158,7 +160,7 @@ async function fetchPatientContext(phoneNumber) {
     };
 
   } catch (error) {
-    console.error('[Realtime] Error fetching patient context:', error);
+    logger.error('Realtime', 'Error fetching patient context', { error: error.message });
     return {
       found: false,
       patientId: null,
@@ -177,11 +179,12 @@ async function connectToAzureOpenAI(patientContext) {
   const hostname = AZURE_OPENAI_ENDPOINT.replace('https://', '').replace('http://', '');
   const url = `wss://${hostname}/openai/realtime?api-version=${AZURE_OPENAI_API_VERSION}&deployment=${AZURE_OPENAI_REALTIME_DEPLOYMENT}`;
 
-  console.log('[Realtime] Connecting to Azure OpenAI Realtime API...');
-  console.log(`[Realtime] Endpoint: ${AZURE_OPENAI_ENDPOINT}`);
-  console.log(`[Realtime] Deployment: ${AZURE_OPENAI_REALTIME_DEPLOYMENT}`);
-  console.log(`[Realtime] API Version: ${AZURE_OPENAI_API_VERSION}`);
-  console.log(`[Realtime] API Key configured: ${AZURE_OPENAI_KEY ? 'YES (length: ' + AZURE_OPENAI_KEY.length + ')' : 'NO'}`);
+  logger.info('Realtime', 'Connecting to Azure OpenAI Realtime API', {
+    endpoint: AZURE_OPENAI_ENDPOINT,
+    deployment: AZURE_OPENAI_REALTIME_DEPLOYMENT,
+    apiVersion: AZURE_OPENAI_API_VERSION,
+    hasApiKey: !!AZURE_OPENAI_KEY
+  });
 
   if (!AZURE_OPENAI_KEY || !AZURE_OPENAI_ENDPOINT) {
     throw new Error('Azure OpenAI credentials not configured - cannot connect to Realtime API');
@@ -195,14 +198,14 @@ async function connectToAzureOpenAI(patientContext) {
 
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
-      console.error('[Realtime] ❌ Timeout waiting for Azure OpenAI connection (10s)');
+      logger.error('Realtime', 'Timeout waiting for Azure OpenAI connection (10s)');
       ws.close();
       reject(new Error('Azure OpenAI connection timeout after 10 seconds'));
     }, 10000); // 10 second timeout
 
     ws.on('open', () => {
       clearTimeout(timeout);
-      console.log('[Realtime] ✅ Connected to Azure OpenAI Realtime API');
+      logger.info('Realtime', 'Connected to Azure OpenAI Realtime API');
 
       // Build system instructions with patient context
       const systemInstructions = `You are a certified diabetes educator (CDE) providing personalized phone-based support to a patient calling the TSHLA Medical diabetes education hotline.
@@ -307,7 +310,7 @@ Remember: You're here to support, educate, and empower the patient in managing t
         }
       };
 
-      console.log('[Realtime] Sending session configuration...');
+      logger.info('Realtime', 'Sending session configuration');
       ws.send(JSON.stringify(sessionConfig));
 
       resolve(ws);
@@ -315,33 +318,31 @@ Remember: You're here to support, educate, and empower the patient in managing t
 
     ws.on('error', (error) => {
       clearTimeout(timeout);
-      console.error('[Realtime] ❌ Azure OpenAI connection error:', error);
-      console.error('[Realtime] Error details:', {
-        message: error.message,
+      logger.error('Realtime', 'Azure OpenAI connection error', {
+        error: error.message,
         code: error.code,
         type: error.type
       });
 
       // Provide helpful diagnostics for Azure OpenAI
       if (error.message && error.message.includes('401')) {
-        console.error('[Realtime] 🔑 Azure OpenAI API Key is INVALID or EXPIRED!');
-        console.error('[Realtime] 💡 Check your key in Azure Portal → Your OpenAI Resource → Keys and Endpoint');
+        logger.error('Realtime', 'Azure OpenAI API Key is INVALID or EXPIRED');
       } else if (error.message && error.message.includes('403')) {
-        console.error('[Realtime] 🚫 Access denied - check deployment name and permissions');
+        logger.error('Realtime', 'Access denied - check deployment name and permissions');
       } else if (error.message && error.message.includes('404')) {
-        console.error('[Realtime] 🔍 Deployment not found - verify AZURE_OPENAI_REALTIME_DEPLOYMENT');
+        logger.error('Realtime', 'Deployment not found - verify AZURE_OPENAI_REALTIME_DEPLOYMENT');
       } else if (error.message && error.message.includes('429')) {
-        console.error('[Realtime] ⏱️  Rate limit exceeded on Azure OpenAI');
+        logger.error('Realtime', 'Rate limit exceeded on Azure OpenAI');
       }
 
       reject(error);
     });
 
     ws.on('close', (code, reason) => {
-      console.log('[Realtime] Azure OpenAI connection closed');
-      if (code !== 1000) {
-        console.log(`[Realtime] Close code: ${code}, Reason: ${reason}`);
-      }
+      logger.info('Realtime', 'Azure OpenAI connection closed', {
+        code,
+        reason: reason ? reason.toString() : undefined
+      });
     });
   });
 }
@@ -353,7 +354,7 @@ Remember: You're here to support, educate, and empower the patient in managing t
 async function handleFunctionCall(functionCallData, callLog, azureOpenAIWs) {
   const { call_id, name, arguments: argsString } = functionCallData;
 
-  console.log(`[Realtime] Executing function: ${name}`);
+  logger.info('Realtime', 'Executing function', { function: name });
 
   try {
     const supabase = getSupabase();
@@ -420,7 +421,7 @@ async function handleFunctionCall(functionCallData, callLog, azureOpenAIWs) {
         result = { error: `Unknown function: ${name}` };
     }
 
-    console.log(`[Realtime] Function result:`, JSON.stringify(result).substring(0, 200));
+    logger.debug('Realtime', 'Function result', { function: name, resultLength: JSON.stringify(result).length });
 
     // Send function result back to Azure OpenAI
     const functionResponse = {
@@ -438,7 +439,7 @@ async function handleFunctionCall(functionCallData, callLog, azureOpenAIWs) {
     azureOpenAIWs.send(JSON.stringify({ type: 'response.create' }));
 
   } catch (error) {
-    console.error(`[Realtime] Error in function ${name}:`, error);
+    logger.error('Realtime', 'Error in function call', { function: name, error: error.message });
 
     // Send error back to Azure OpenAI
     const errorResponse = {
@@ -463,17 +464,17 @@ function handleAzureOpenAIMessage(message, twilioWs, streamSid, callLog, azureOp
 
     // Log all events for debugging (can be filtered later)
     if (process.env.NODE_ENV !== 'production') {
-      console.log(`[Realtime] Azure OpenAI event: ${data.type}`);
+      logger.debug('Realtime', 'Azure OpenAI event', { type: data.type });
     }
 
     switch (data.type) {
       case 'session.created':
-        console.log('[Realtime] ✅ Session created:', data.session.id);
+        logger.info('Realtime', 'Session created', { sessionId: data.session.id });
         callLog.sessionId = data.session.id;
         break;
 
       case 'session.updated':
-        console.log('[Realtime] ✅ Session configured');
+        logger.info('Realtime', 'Session configured');
         break;
 
       case 'response.audio.delta':
@@ -490,13 +491,13 @@ function handleAzureOpenAIMessage(message, twilioWs, streamSid, callLog, azureOp
         break;
 
       case 'response.audio.done':
-        console.log('[Realtime] Audio response complete');
+        logger.debug('Realtime', 'Audio response complete');
         break;
 
       case 'conversation.item.input_audio_transcription.completed':
         // User's speech transcribed
         const userText = data.transcript;
-        console.log('[Realtime] 👤 User said:', userText);
+        logger.info('Realtime', 'User speech transcribed', { length: userText.length });
         callLog.userMessages.push({
           timestamp: new Date().toISOString(),
           text: userText
@@ -511,7 +512,7 @@ function handleAzureOpenAIMessage(message, twilioWs, streamSid, callLog, azureOp
       case 'response.audio_transcript.done':
         // AI's complete response
         const aiText = data.transcript;
-        console.log('[Realtime] 🤖 AI said:', aiText);
+        logger.info('Realtime', 'AI response transcribed', { length: aiText.length });
         callLog.aiMessages.push({
           timestamp: new Date().toISOString(),
           text: aiText
@@ -520,11 +521,11 @@ function handleAzureOpenAIMessage(message, twilioWs, streamSid, callLog, azureOp
         break;
 
       case 'response.done':
-        console.log('[Realtime] Response complete');
+        logger.debug('Realtime', 'Response complete');
         break;
 
       case 'error':
-        console.error('[Realtime] ❌ Azure OpenAI error:', data.error);
+        logger.error('Realtime', 'Azure OpenAI error', { error: data.error });
         callLog.errors.push({
           timestamp: new Date().toISOString(),
           error: data.error
@@ -532,18 +533,18 @@ function handleAzureOpenAIMessage(message, twilioWs, streamSid, callLog, azureOp
         break;
 
       case 'input_audio_buffer.speech_started':
-        console.log('[Realtime] 🎤 User started speaking');
+        logger.debug('Realtime', 'User started speaking');
         break;
 
       case 'input_audio_buffer.speech_stopped':
-        console.log('[Realtime] 🎤 User stopped speaking');
+        logger.debug('Realtime', 'User stopped speaking');
         break;
 
       case 'response.function_call_arguments.done':
         // AI wants to call a function - handle it and send response
-        console.log(`[Realtime] 🔧 Function call: ${data.name}`);
+        logger.info('Realtime', 'Function call requested', { function: data.name });
         handleFunctionCall(data, callLog, azureOpenAIWs).catch(err => {
-          console.error('[Realtime] Function call error:', err);
+          logger.error('Realtime', 'Function call error', { error: err.message });
         });
         break;
 
@@ -552,7 +553,7 @@ function handleAzureOpenAIMessage(message, twilioWs, streamSid, callLog, azureOp
         break;
     }
   } catch (error) {
-    console.error('[Realtime] Error handling Azure OpenAI message:', error);
+    logger.error('Realtime', 'Error handling Azure OpenAI message', { error: error.message });
   }
 }
 
@@ -562,7 +563,7 @@ function handleAzureOpenAIMessage(message, twilioWs, streamSid, callLog, azureOp
 async function saveCallLog(callLog) {
   try {
     if (!callLog.patientId) {
-      console.warn('[Realtime] Cannot save call log - no patient ID');
+      logger.warn('Realtime', 'Cannot save call log - no patient ID');
       return;
     }
 
@@ -587,7 +588,7 @@ async function saveCallLog(callLog) {
     // Insert call record
     const supabase = getSupabase();
     if (!supabase) {
-      console.error('[Realtime] Cannot save call log - Supabase not initialized');
+      logger.error('Realtime', 'Cannot save call log - Supabase not initialized');
       return;
     }
 
@@ -607,13 +608,13 @@ async function saveCallLog(callLog) {
       });
 
     if (error) {
-      console.error('[Realtime] ❌ Error saving call log:', error);
+      logger.error('Realtime', 'Error saving call log', { error: error.message });
     } else {
-      console.log('[Realtime] ✅ Call log saved to database');
+      logger.logOperation('Realtime', 'save', 'call-log', true);
     }
 
   } catch (error) {
-    console.error('[Realtime] Error in saveCallLog:', error);
+    logger.error('Realtime', 'Error in saveCallLog', { error: error.message });
   }
 }
 
@@ -623,7 +624,7 @@ async function saveCallLog(callLog) {
  * This function is called by the main server to set up the route
  */
 function setupRealtimeRelay(server) {
-  console.log('[Realtime] Setting up WebSocket endpoint at /media-stream');
+  logger.info('Realtime', 'Setting up WebSocket endpoint at /media-stream');
 
   // Create WebSocket server with origin validation for Twilio
   // Twilio Media Streams requires specific handling
@@ -634,27 +635,24 @@ function setupRealtimeRelay(server) {
     clientTracking: true,
     verifyClient: (info, callback) => {
       // Log all WebSocket upgrade attempts
-      console.log('[Realtime] 🔍 WebSocket upgrade request received');
-      console.log('[Realtime]    Origin:', info.origin || 'not provided');
-      console.log('[Realtime]    URL:', info.req.url);
-      console.log('[Realtime]    Headers:', JSON.stringify({
-        'user-agent': info.req.headers['user-agent'],
-        'sec-websocket-key': info.req.headers['sec-websocket-key'],
-        'sec-websocket-version': info.req.headers['sec-websocket-version'],
-        'x-twilio-signature': info.req.headers['x-twilio-signature'] ? 'present' : 'absent'
-      }, null, 2));
+      logger.debug('Realtime', 'WebSocket upgrade request received', {
+        origin: info.origin || 'not provided',
+        url: info.req.url,
+        hasTwilioSignature: !!info.req.headers['x-twilio-signature']
+      });
 
       // Accept all connections for now (Twilio doesn't send standard CORS origin)
       // In production, you should validate X-Twilio-Signature header
-      console.log('[Realtime] ✅ WebSocket upgrade accepted');
+      logger.debug('Realtime', 'WebSocket upgrade accepted');
       callback(true);
     }
   });
 
   wss.on('connection', async (ws, req) => {
-    console.log('[Realtime] 📞 New Twilio connection');
-    console.log('[Realtime] Connection URL:', req.url);
-    console.log('[Realtime] Connection headers:', JSON.stringify(req.headers, null, 2));
+    logger.info('Realtime', 'New Twilio connection', {
+      url: req.url,
+      userAgent: req.headers['user-agent']
+    });
 
     let streamSid = null;
     let callSid = null;
@@ -681,18 +679,16 @@ function setupRealtimeRelay(server) {
     // Handle messages from Twilio
     ws.on('message', async (message) => {
       try {
-        console.log('[Realtime] 📨 Raw message received, length:', message.length);
-        console.log('[Realtime] Message type:', typeof message);
+        logger.debug('Realtime', 'Message received from Twilio', { length: message.length });
         const data = JSON.parse(message);
-        console.log(`[Realtime] ✅ Parsed event: ${data.event}`);
-        if (data.event === 'start') {
-          console.log('[Realtime] Start event data:', JSON.stringify(data, null, 2));
-        }
+        logger.debug('Realtime', 'Parsed Twilio event', { event: data.event });
 
         switch (data.event) {
           case 'connected':
-            console.log('[Realtime] ✅ Twilio Media Stream connected event received');
-            console.log('[Realtime] Protocol:', data.protocol, 'Version:', data.version);
+            logger.info('Realtime', 'Twilio Media Stream connected', {
+              protocol: data.protocol,
+              version: data.version
+            });
             // Twilio sends this first - no action needed, just log
             break;
 
@@ -702,7 +698,7 @@ function setupRealtimeRelay(server) {
 
             // Get patient data from TwiML parameters (passed from inbound webhook)
             const customParams = data.start.customParameters || {};
-            console.log(`[Realtime] 📞 Call started - Custom params:`, JSON.stringify(customParams, null, 2));
+            logger.info('Realtime', 'Call started', { callSid, streamSid });
 
             // NEW: Use token-based lookup (for fast TwiML response)
             const patientToken = customParams.patientToken;
@@ -711,11 +707,6 @@ function setupRealtimeRelay(server) {
             callLog.streamSid = streamSid;
             callLog.callSid = callSid;
             callLog.language = language;
-
-            console.log(`   Call SID: ${callSid}`);
-            console.log(`   Stream SID: ${streamSid}`);
-            console.log(`   Patient Token: ${patientToken ? patientToken.substring(0,8) + '...' : 'MISSING'}`);
-            console.log(`   Language: ${language}`);
 
             // Retrieve patient ID from token
             let patientId = null;
@@ -728,13 +719,13 @@ function setupRealtimeRelay(server) {
                 if (tokenData) {
                   patientId = tokenData.patientId;
                   patientName = `${tokenData.firstName} ${tokenData.lastName}`;
-                  console.log(`   ✅ Token valid - Patient: ${patientName}`);
+                  logger.info('Realtime', 'Token valid', { patientId });
                   callLog.patientId = patientId;
                 } else {
-                  console.error(`   ❌ Invalid or expired token`);
+                  logger.error('Realtime', 'Invalid or expired token');
                 }
               } catch (err) {
-                console.error(`   ❌ Token lookup error:`, err.message);
+                logger.error('Realtime', 'Token lookup error', { error: err.message });
               }
             }
 
@@ -808,9 +799,9 @@ function setupRealtimeRelay(server) {
                     context: sections.length > 0 ? sections.join('\n\n') : 'No detailed patient information available in records.'
                   };
 
-                  console.log(`[Realtime] ✅ Patient context loaded (${patientData.context.length} chars)`);
+                  logger.info('Realtime', 'Patient context loaded', { contextLength: patientData.context.length });
                 } else {
-                  console.warn(`[Realtime] ⚠️  Patient not found in database`);
+                  logger.warn('Realtime', 'Patient not found in database');
                   patientData = {
                     found: false,
                     patientId: null,
@@ -818,7 +809,7 @@ function setupRealtimeRelay(server) {
                   };
                 }
               } else {
-                console.warn(`[Realtime] ⚠️  Supabase not initialized`);
+                logger.warn('Realtime', 'Supabase not initialized');
                 patientData = {
                   found: false,
                   patientId: null,
@@ -826,7 +817,7 @@ function setupRealtimeRelay(server) {
                 };
               }
             } else {
-              console.warn(`[Realtime] ⚠️  No patient ID provided in stream parameters`);
+              logger.warn('Realtime', 'No patient ID provided');
               patientData = {
                 found: false,
                 patientId: null,
@@ -834,8 +825,7 @@ function setupRealtimeRelay(server) {
               };
             }
 
-            console.log('[Realtime] Patient context preview:');
-            console.log(patientData.context.substring(0, 200) + '...');
+            logger.debug('Realtime', 'Patient context preview', { previewLength: 200 });
 
             // Connect to Azure OpenAI with patient context
             try {
@@ -847,7 +837,7 @@ function setupRealtimeRelay(server) {
               });
 
               openAiWs.on('error', (error) => {
-                console.error('[Realtime] ❌ Azure OpenAI WebSocket error:', error);
+                logger.error('Realtime', 'Azure OpenAI WebSocket error', { error: error.message });
                 callLog.errors.push({
                   timestamp: new Date().toISOString(),
                   error: error.message
@@ -855,11 +845,11 @@ function setupRealtimeRelay(server) {
               });
 
               openAiWs.on('close', () => {
-                console.log('[Realtime] Azure OpenAI WebSocket closed');
+                logger.info('Realtime', 'Azure OpenAI WebSocket closed');
               });
 
             } catch (error) {
-              console.error('[Realtime] ❌ Failed to connect to Azure OpenAI:', error);
+              logger.error('Realtime', 'Failed to connect to Azure OpenAI', { error: error.message });
 
               // Send error message to caller
               ws.send(JSON.stringify({
@@ -883,7 +873,7 @@ function setupRealtimeRelay(server) {
             break;
 
           case 'stop':
-            console.log('[Realtime] 📞 Call ended');
+            logger.info('Realtime', 'Call ended');
             callLog.endTime = new Date().toISOString();
 
             // Save call log to database
@@ -900,17 +890,19 @@ function setupRealtimeRelay(server) {
             break;
         }
       } catch (error) {
-        console.error('[Realtime] ❌ Error handling Twilio message:', error);
-        console.error('[Realtime] Error stack:', error.stack);
-        console.error('[Realtime] Raw message that caused error:', message.toString());
+        logger.error('Realtime', 'Error handling Twilio message', {
+          error: logger.redactPHI(error.message),
+          stack: error.stack
+        });
       }
     });
 
     // Handle Twilio disconnection
     ws.on('close', async (code, reason) => {
-      console.log('[Realtime] 📞 Twilio disconnected');
-      console.log('[Realtime] Close code:', code);
-      console.log('[Realtime] Close reason:', reason.toString() || 'no reason provided');
+      logger.info('Realtime', 'Twilio disconnected', {
+        code,
+        reason: reason ? reason.toString() : 'no reason provided'
+      });
 
       if (!callLog.endTime) {
         callLog.endTime = new Date().toISOString();
@@ -923,11 +915,11 @@ function setupRealtimeRelay(server) {
     });
 
     ws.on('error', (error) => {
-      console.error('[Realtime] ❌ Twilio WebSocket error:', error);
+      logger.error('Realtime', 'Twilio WebSocket error', { error: error.message });
     });
   });
 
-  console.log('[Realtime] ✅ WebSocket relay ready');
+  logger.info('Realtime', 'WebSocket relay ready');
 }
 
 module.exports = { setupRealtimeRelay };
