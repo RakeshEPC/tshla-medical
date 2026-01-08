@@ -13,6 +13,8 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const unifiedDatabase = require('./services/unified-supabase.service');
+const MFAService = require('./services/mfa.service');
+const logger = require('./logger');
 
 const app = express();
 const PORT = process.env.PORT || process.env.MEDICAL_AUTH_PORT || 3003;
@@ -32,7 +34,7 @@ app.use(express.json({
     try {
       JSON.parse(buf);
     } catch (e) {
-      console.log('JSON Parse Error:', e.message, 'Body:', buf.toString());
+      logger.error('MedicalAuth', 'JSON parse error', { error: e.message });
       throw e;
     }
   }
@@ -53,12 +55,12 @@ async function initializeDatabase(retries = 3) {
         throw new Error(`Database health check failed: ${health.error}`);
       }
 
-      console.log('Medical Auth API: Unified database service connected successfully');
+      logger.info('MedicalAuth', 'Unified database service connected successfully');
       return true;
     } catch (error) {
-      console.error(`Medical Auth API: Database connection attempt ${i + 1} failed:`, error.message);
+      logger.error('MedicalAuth', `Database connection attempt ${i + 1} failed`, { error: error.message });
       if (i === retries - 1) {
-        console.error('Medical Auth API: All database connection attempts failed');
+        logger.error('MedicalAuth', 'All database connection attempts failed');
         return false;
       }
       // Simple 3 second delay before retry
@@ -82,7 +84,7 @@ const verifyToken = (req, res, next) => {
     req.user = decoded;
     next();
   } catch (error) {
-    console.error('Medical Auth: Token verification failed:', error);
+    logger.error('MedicalAuth', 'Token verification failed', { error: error.message });
     return res.status(403).json({ error: 'Invalid or expired token' });
   }
 };
@@ -211,9 +213,8 @@ app.post('/api/medical/register', checkDatabaseStatus, async (req, res) => {
 
     const userId = newUser.id;
 
-    console.log('Medical staff registered successfully:', {
+    logger.info('MedicalAuth', 'Medical staff registered successfully', {
       userId,
-      email: email.toLowerCase(),
       role
     });
 
@@ -232,7 +233,7 @@ app.post('/api/medical/register', checkDatabaseStatus, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Medical staff registration failed:', error);
+    logger.error('MedicalAuth', 'Medical staff registration failed', { error: error.message });
     res.status(500).json({
       error: 'Registration failed',
       message: error.message
@@ -262,7 +263,7 @@ app.post('/api/medical/login', checkDatabaseStatus, async (req, res) => {
     // Get user by email
     const { data: users, error: searchError } = await unifiedDatabase
       .from('medical_staff')
-      .select('id, email, username, password_hash, first_name, last_name, role, practice, specialty, is_active')
+      .select('id, email, username, password_hash, first_name, last_name, role, practice, specialty, is_active, mfa_enabled')
       .eq('email', email.toLowerCase());
 
     if (searchError) {
@@ -285,6 +286,17 @@ app.post('/api/medical/login', checkDatabaseStatus, async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
+    // Phase 4: Check if MFA is enabled for medical staff
+    if (user.mfa_enabled) {
+      return res.json({
+        success: true,
+        mfaRequired: true,
+        userId: user.id,
+        accessType: 'medical',
+        message: 'Please enter your 6-digit authentication code'
+      });
+    }
+
     // Update login tracking
     const { error: updateError } = await unifiedDatabase
       .from('medical_staff')
@@ -295,7 +307,7 @@ app.post('/api/medical/login', checkDatabaseStatus, async (req, res) => {
       .eq('id', user.id);
 
     if (updateError) {
-      console.error('Failed to update login tracking:', updateError);
+      logger.warn('MedicalAuth', 'Failed to update login tracking', { error: updateError.message });
       // Don't fail login if tracking update fails
     }
 
@@ -330,7 +342,7 @@ app.post('/api/medical/login', checkDatabaseStatus, async (req, res) => {
       token
     });
   } catch (error) {
-    console.error('Medical staff login failed:', error);
+    logger.error('MedicalAuth', 'Medical staff login failed', { error: error.message });
     res.status(500).json({
       error: 'Login failed',
       message: error.message
@@ -380,9 +392,283 @@ app.get('/api/medical/verify', verifyToken, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Medical staff token verification failed:', error);
+    logger.error('MedicalAuth', 'Medical staff token verification failed', { error: error.message });
     res.status(500).json({
       error: 'Token verification failed',
+      message: error.message
+    });
+  }
+});
+
+// ====== MEDICAL STAFF MFA ENDPOINTS ======
+
+/**
+ * Setup MFA for medical staff
+ * POST /api/medical/mfa/setup
+ */
+app.post('/api/medical/mfa/setup', verifyToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const userEmail = req.user.email;
+
+    // Generate MFA setup (QR code, secret, backup codes)
+    const setup = await MFAService.generateMFASetup(userId, userEmail, 'medical_staff');
+
+    res.json({
+      success: true,
+      qrCodeUrl: setup.qrCodeUrl,
+      secret: setup.secret,
+      backupCodes: setup.backupCodes,
+      message: 'Scan the QR code with Google Authenticator or Authy'
+    });
+  } catch (error) {
+    logger.error('MedicalAuth', 'MFA setup failed', { error: error.message });
+    res.status(500).json({
+      error: 'MFA setup failed',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Enable MFA for medical staff (after verification)
+ * POST /api/medical/mfa/enable
+ */
+app.post('/api/medical/mfa/enable', verifyToken, async (req, res) => {
+  try {
+    const { secret, token, backupCodes } = req.body;
+    const userId = req.user.userId;
+
+    if (!secret || !token || !backupCodes) {
+      return res.status(400).json({
+        error: 'Secret, token, and backup codes are required'
+      });
+    }
+
+    // Enable MFA (verifies token before enabling)
+    const result = await MFAService.enableMFA(userId, secret, token, backupCodes, 'medical_staff');
+
+    if (!result.success) {
+      return res.status(400).json({
+        error: result.error || 'Failed to enable MFA'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'MFA enabled successfully',
+      backupCodesRemaining: backupCodes.length
+    });
+  } catch (error) {
+    logger.error('MedicalAuth', 'MFA enable failed', { error: error.message });
+    res.status(500).json({
+      error: 'Failed to enable MFA',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Verify MFA code during login (medical staff)
+ * POST /api/medical/mfa/verify
+ */
+app.post('/api/medical/mfa/verify', async (req, res) => {
+  try {
+    const { userId, token, useBackupCode } = req.body;
+
+    if (!userId || !token) {
+      return res.status(400).json({
+        error: 'User ID and token are required'
+      });
+    }
+
+    // Verify MFA code
+    let isValid;
+    if (useBackupCode) {
+      isValid = await MFAService.verifyBackupCode(userId, token, 'medical_staff');
+    } else {
+      isValid = await MFAService.verifyTOTP(userId, token, 'medical_staff');
+    }
+
+    if (!isValid) {
+      return res.status(401).json({
+        error: 'Invalid authentication code'
+      });
+    }
+
+    // Get user details
+    await unifiedDatabase.initialize();
+    const { data: users } = await unifiedDatabase
+      .from('medical_staff')
+      .select('id, email, username, first_name, last_name, role, practice, specialty')
+      .eq('id', userId)
+      .single();
+
+    if (!users) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = users;
+
+    // Generate JWT token
+    const jwtSecret = process.env.JWT_SECRET || process.env.MEDICAL_JWT_SECRET || 'tshla-unified-jwt-secret-2025';
+    const jwtToken = jwt.sign(
+      {
+        userId: user.id,
+        email: user.email,
+        username: user.username,
+        role: user.role,
+        accessType: 'medical',
+        mfaVerified: true
+      },
+      jwtSecret,
+      { expiresIn: '8h' }
+    );
+
+    res.json({
+      success: true,
+      token: jwtToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        role: user.role,
+        practice: user.practice,
+        specialty: user.specialty,
+        accessType: 'medical'
+      }
+    });
+  } catch (error) {
+    logger.error('MedicalAuth', 'MFA verification failed', { error: error.message });
+    res.status(500).json({
+      error: 'MFA verification failed',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Disable MFA for medical staff
+ * POST /api/medical/mfa/disable
+ */
+app.post('/api/medical/mfa/disable', verifyToken, async (req, res) => {
+  try {
+    const { password } = req.body;
+    const userId = req.user.userId;
+
+    if (!password) {
+      return res.status(400).json({
+        error: 'Password is required to disable MFA'
+      });
+    }
+
+    // Verify password before disabling MFA
+    await unifiedDatabase.initialize();
+    const { data: users } = await unifiedDatabase
+      .from('medical_staff')
+      .select('password_hash')
+      .eq('id', userId)
+      .single();
+
+    if (!users) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const passwordValid = await bcrypt.compare(password, users.password_hash);
+    if (!passwordValid) {
+      return res.status(401).json({ error: 'Invalid password' });
+    }
+
+    // Disable MFA
+    const result = await MFAService.disableMFA(userId, password, 'medical_staff');
+
+    if (!result.success) {
+      return res.status(400).json({
+        error: result.error || 'Failed to disable MFA'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'MFA disabled successfully'
+    });
+  } catch (error) {
+    logger.error('MedicalAuth', 'MFA disable failed', { error: error.message });
+    res.status(500).json({
+      error: 'Failed to disable MFA',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Get MFA status for medical staff
+ * GET /api/medical/mfa/status
+ */
+app.get('/api/medical/mfa/status', verifyToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const status = await MFAService.getMFAStatus(userId, 'medical_staff');
+
+    res.json({
+      success: true,
+      mfaEnabled: status.mfaEnabled,
+      backupCodesRemaining: status.backupCodesRemaining,
+      mfaEnabledAt: status.mfaEnabledAt,
+      lastUsedAt: status.lastUsedAt
+    });
+  } catch (error) {
+    logger.error('MedicalAuth', 'Failed to get MFA status', { error: error.message });
+    res.status(500).json({
+      error: 'Failed to get MFA status',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Check if MFA is required for a medical staff email
+ * POST /api/medical/mfa/check-required
+ */
+app.post('/api/medical/mfa/check-required', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        error: 'Email is required'
+      });
+    }
+
+    await unifiedDatabase.initialize();
+    const { data: users } = await unifiedDatabase
+      .from('medical_staff')
+      .select('id, mfa_enabled')
+      .eq('email', email.toLowerCase())
+      .eq('is_active', true);
+
+    if (!users || users.length === 0) {
+      return res.json({
+        success: true,
+        mfaRequired: false,
+        message: 'User not found'
+      });
+    }
+
+    const user = users[0];
+
+    res.json({
+      success: true,
+      mfaRequired: user.mfa_enabled === true,
+      userId: user.mfa_enabled ? user.id : undefined
+    });
+  } catch (error) {
+    logger.error('MedicalAuth', 'Failed to check MFA requirement', { error: error.message });
+    res.status(500).json({
+      error: 'Failed to check MFA requirement',
       message: error.message
     });
   }
@@ -477,6 +763,14 @@ app.get('/api/medical/info', (req, res) => {
         'POST /api/medical/login',
         'GET /api/medical/verify',
       ],
+      mfa: [
+        'POST /api/medical/mfa/setup',
+        'POST /api/medical/mfa/enable',
+        'POST /api/medical/mfa/verify',
+        'POST /api/medical/mfa/disable',
+        'GET /api/medical/mfa/status',
+        'POST /api/medical/mfa/check-required',
+      ],
       system: ['GET /api/medical/health', 'GET /api/medical/info'],
     },
   });
@@ -484,7 +778,7 @@ app.get('/api/medical/info', (req, res) => {
 
 // Enhanced error handling middleware
 app.use((error, req, res, next) => {
-  console.error('Medical Auth API Error:', error.message);
+  logger.error('MedicalAuth', 'API Error', { error: error.message });
 
   // Handle JSON parsing errors
   if (error.type === 'entity.parse.failed') {
@@ -543,12 +837,12 @@ app.use((error, req, res, next) => {
 
 // Initialize and start server
 async function startServer() {
-  console.log('Medical Auth API: Starting server...');
+  logger.info('MedicalAuth', 'Starting server...');
 
   // Initialize database
   const dbConnected = await initializeDatabase();
   if (!dbConnected) {
-    console.error('Medical Auth API: Database connection failed - starting in degraded mode');
+    logger.error('MedicalAuth', 'Database connection failed - starting in degraded mode');
     app.locals.dbConnected = false;
   } else {
     app.locals.dbConnected = true;
@@ -556,10 +850,12 @@ async function startServer() {
 
   // Start server
   app.listen(PORT, () => {
-    console.log(`Medical Auth API: Server running on port ${PORT}`);
-    console.log(`Medical Auth API: Health check at http://localhost:${PORT}/api/medical/health`);
-    console.log(`Medical Auth API: Registration at http://localhost:${PORT}/api/medical/register`);
-    console.log(`Medical Auth API: Login at http://localhost:${PORT}/api/medical/login`);
+    logger.startup('Medical Auth API Server Started', {
+      port: PORT,
+      healthCheck: `http://localhost:${PORT}/api/medical/health`,
+      registration: `http://localhost:${PORT}/api/medical/register`,
+      login: `http://localhost:${PORT}/api/medical/login`
+    });
 
     // Start database connection monitoring
     startDatabaseMonitoring();
@@ -568,7 +864,7 @@ async function startServer() {
 
 // Database connection monitoring and recovery
 function startDatabaseMonitoring() {
-  console.log('Medical Auth API: Starting database connection monitoring...');
+  logger.info('MedicalAuth', 'Starting database connection monitoring...');
 
   // Check database connection every 30 seconds
   setInterval(async () => {
@@ -579,7 +875,7 @@ function startDatabaseMonitoring() {
         if (health.healthy) {
           // If we're here, database is healthy
           if (!app.locals.dbConnected) {
-            console.log('Medical Auth API: Database connection restored');
+            logger.info('MedicalAuth', 'Database connection restored');
             app.locals.dbConnected = true;
           }
         } else {
@@ -588,7 +884,7 @@ function startDatabaseMonitoring() {
       }
     } catch (error) {
       if (app.locals.dbConnected) {
-        console.error('Medical Auth API: Database connection lost:', error.message);
+        logger.error('MedicalAuth', 'Database connection lost', { error: error.message });
         app.locals.dbConnected = false;
       }
 
@@ -596,11 +892,11 @@ function startDatabaseMonitoring() {
       try {
         const reconnected = await initializeDatabase();
         if (reconnected) {
-          console.log('Medical Auth API: Database reconnection successful');
+          logger.info('MedicalAuth', 'Database reconnection successful');
           app.locals.dbConnected = true;
         }
       } catch (reconnectError) {
-        console.error('Medical Auth API: Database reconnection failed:', reconnectError.message);
+        logger.error('MedicalAuth', 'Database reconnection failed', { error: reconnectError.message });
       }
     }
   }, 30000); // Check every 30 seconds
@@ -608,7 +904,7 @@ function startDatabaseMonitoring() {
 
 // Start the server
 if (require.main === module) {
-  startServer().catch(console.error);
+  startServer().catch(err => logger.error('MedicalAuth', 'Server startup failed', { error: err.message }));
 }
 
 module.exports = app;
