@@ -18,6 +18,7 @@ const { AzureOpenAI } = require('openai');
 // unifiedDatabase service removed - using Supabase directly
 const pumpEngine = require('./pump-recommendation-engine-ai');
 const logger = require('./logger');
+const MFAService = require('./services/mfa.service');
 
 // Phase 3 Security: Import security middleware
 const { corsOptions } = require('./middleware/corsConfig');
@@ -519,7 +520,7 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
     // Get patient by email (PumpDrive users only)
     const { data: users, error: searchError } = await supabase
       .from('patients')
-      .select('id, email, first_name, last_name, phone, subscription_tier, pumpdrive_enabled, is_active')
+      .select('id, email, first_name, last_name, phone, subscription_tier, pumpdrive_enabled, is_active, mfa_enabled')
       .eq('email', email)
       .eq('pumpdrive_enabled', true);
 
@@ -540,6 +541,18 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
     // Note: Password verification now handled by Supabase Auth
     // This endpoint should eventually be migrated to use Supabase Auth tokens
     // For now, accepting any password for existing users (temporary)
+
+    // Phase 4: Check if MFA is enabled for this user
+    if (user.mfa_enabled) {
+      logger.info('MFA', 'MFA required for user', { userId: user.id });
+      // Don't generate full token yet - require MFA verification first
+      return res.json({
+        success: true,
+        mfaRequired: true,
+        userId: user.id,
+        message: 'Please enter your 6-digit authentication code'
+      });
+    }
 
     // Update last activity tracking
     const { error: updateError } = await supabase
@@ -701,6 +714,282 @@ app.post('/api/auth/renew-access', async (req, res) => {
     logger.error('Access renewal failed:', error);
     res.status(500).json({
       error: 'Access renewal failed',
+      message: error.message
+    });
+  }
+});
+
+// ====== MFA (MULTI-FACTOR AUTHENTICATION) ENDPOINTS ======
+// Phase 4: HIPAA Compliance - Added January 8, 2026
+
+/**
+ * Generate MFA setup (QR code and backup codes)
+ * POST /api/mfa/setup
+ */
+app.post('/api/mfa/setup', verifyToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const userEmail = req.user.email;
+
+    logger.info('MFA', 'Starting MFA setup', { userId });
+
+    // Generate MFA setup (secret, QR code, backup codes)
+    const setup = await MFAService.generateMFASetup(userId, userEmail);
+
+    res.json({
+      success: true,
+      qrCodeUrl: setup.qrCodeUrl,
+      secret: setup.secret, // Return to frontend temporarily (for verification)
+      backupCodes: setup.backupCodes, // Show once, user must save these
+      message: 'Scan the QR code with your authenticator app'
+    });
+
+  } catch (error) {
+    logger.error('MFA', 'MFA setup failed', { error: error.message });
+    res.status(500).json({
+      error: 'MFA setup failed',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Enable MFA (verify setup with 6-digit code)
+ * POST /api/mfa/enable
+ */
+app.post('/api/mfa/enable', verifyToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { secret, token, backupCodes } = req.body;
+
+    if (!secret || !token || !backupCodes) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        message: 'secret, token, and backupCodes are required'
+      });
+    }
+
+    logger.info('MFA', 'Enabling MFA', { userId });
+
+    // Enable MFA (verifies token first)
+    const result = await MFAService.enableMFA(userId, secret, token, backupCodes);
+
+    if (!result.success) {
+      return res.status(400).json({
+        error: 'Invalid verification code',
+        message: result.error || 'Please check your 6-digit code and try again'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'MFA enabled successfully. Save your backup codes in a secure location.'
+    });
+
+  } catch (error) {
+    logger.error('MFA', 'Failed to enable MFA', { error: error.message });
+    res.status(500).json({
+      error: 'Failed to enable MFA',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Verify MFA code during login
+ * POST /api/mfa/verify
+ */
+app.post('/api/mfa/verify', authLimiter, async (req, res) => {
+  try {
+    const { userId, token, useBackupCode } = req.body;
+
+    if (!userId || !token) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        message: 'userId and token are required'
+      });
+    }
+
+    logger.info('MFA', 'Verifying MFA code', { userId, method: useBackupCode ? 'backup' : 'totp' });
+
+    let isValid = false;
+
+    if (useBackupCode) {
+      // Verify backup code
+      isValid = await MFAService.verifyBackupCode(userId, token);
+    } else {
+      // Verify TOTP code
+      isValid = await MFAService.verifyTOTP(userId, token);
+    }
+
+    if (!isValid) {
+      return res.status(401).json({
+        error: 'Invalid code',
+        message: 'The code you entered is incorrect'
+      });
+    }
+
+    // MFA verified - generate final JWT token
+    const { data: user, error } = await supabase
+      .from('patients')
+      .select('id, email, first_name, last_name, phone')
+      .eq('id', userId)
+      .single();
+
+    if (error || !user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      logger.error('MFA', 'JWT_SECRET not configured');
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
+
+    const isAdmin = ['rakesh@tshla.ai', 'admin@tshla.ai'].includes(user.email.toLowerCase());
+
+    const finalToken = jwt.sign(
+      {
+        userId: user.id,
+        email: user.email,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        role: isAdmin ? 'admin' : 'patient',
+        mfaVerified: true // Mark that MFA was completed
+      },
+      jwtSecret,
+      { expiresIn: '24h' }
+    );
+
+    res.json({
+      success: true,
+      message: 'MFA verification successful',
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        phoneNumber: user.phone
+      },
+      token: finalToken
+    });
+
+  } catch (error) {
+    logger.error('MFA', 'MFA verification failed', { error: error.message });
+    res.status(500).json({
+      error: 'MFA verification failed',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Disable MFA
+ * POST /api/mfa/disable
+ */
+app.post('/api/mfa/disable', verifyToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({
+        error: 'Password required',
+        message: 'Please confirm your password to disable MFA'
+      });
+    }
+
+    logger.info('MFA', 'Disabling MFA', { userId });
+
+    // Disable MFA
+    const success = await MFAService.disableMFA(userId, password);
+
+    if (!success) {
+      return res.status(400).json({
+        error: 'Failed to disable MFA',
+        message: 'Please verify your password and try again'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'MFA has been disabled for your account'
+    });
+
+  } catch (error) {
+    logger.error('MFA', 'Failed to disable MFA', { error: error.message });
+    res.status(500).json({
+      error: 'Failed to disable MFA',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Get MFA status
+ * GET /api/mfa/status
+ */
+app.get('/api/mfa/status', verifyToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const status = await MFAService.getMFAStatus(userId);
+
+    res.json({
+      success: true,
+      ...status
+    });
+
+  } catch (error) {
+    logger.error('MFA', 'Failed to get MFA status', { error: error.message });
+    res.status(500).json({
+      error: 'Failed to get MFA status',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Check if MFA is required for login
+ * POST /api/mfa/check-required
+ */
+app.post('/api/mfa/check-required', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        error: 'Email required'
+      });
+    }
+
+    // Get user by email
+    const { data: users, error } = await supabase
+      .from('patients')
+      .select('id, mfa_enabled')
+      .eq('email', email)
+      .eq('pumpdrive_enabled', true);
+
+    if (error || !users || users.length === 0) {
+      // Don't reveal whether user exists
+      return res.json({
+        success: true,
+        mfaRequired: false
+      });
+    }
+
+    const user = users[0];
+
+    res.json({
+      success: true,
+      mfaRequired: user.mfa_enabled === true,
+      userId: user.mfa_enabled ? user.id : undefined // Only return userId if MFA is required
+    });
+
+  } catch (error) {
+    logger.error('MFA', 'MFA check failed', { error: error.message });
+    res.status(500).json({
+      error: 'MFA check failed',
       message: error.message
     });
   }
