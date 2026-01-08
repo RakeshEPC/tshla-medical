@@ -23,6 +23,7 @@ const AccountManager = lazy(() => import('../../pages/admin/AccountManager'));
 const PumpDriveUserDashboard = lazy(() => import('../../pages/admin/PumpDriveUserDashboard'));
 const PumpComparisonManager = lazy(() => import('../../pages/admin/PumpComparisonManager'));
 const PumpDriveAnalytics = lazy(() => import('../../pages/admin/PumpDriveAnalytics'));
+const AuditLogs = lazy(() => import('../../pages/admin/AuditLogs'));
 
 export default function AdminBundle() {
   return (
@@ -38,6 +39,7 @@ export default function AdminBundle() {
           <Route path="pumpdrive-dashboard" element={<PumpDriveUserDashboard />} />
           <Route path="pumpdrive-analytics" element={<PumpDriveAnalytics />} />
           <Route path="pump-comparison" element={<PumpComparisonManager />} />
+          <Route path="audit-logs" element={<AuditLogs />} />
           <Route path="*" element={<Navigate to="/admin/account-manager" replace />} />
         </Routes>
       </Suspense>
