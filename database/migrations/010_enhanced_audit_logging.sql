@@ -1,59 +1,75 @@
 -- =====================================================
--- HIPAA Phase 7: Enhanced Audit Logging
+-- HIPAA Phase 7: Enhanced Audit Logging (Migration)
 -- =====================================================
 -- Created: 2026-01-08
 -- Purpose: Comprehensive audit trail for all PHI access and system events
 -- HIPAA: §164.308(a)(1)(ii)(D) - Information System Activity Review
 --        §164.312(b) - Audit Controls
 
--- =====================================================
--- Create audit_logs table
--- =====================================================
-CREATE TABLE IF NOT EXISTS public.audit_logs (
+-- Step 1: Rename the old table as backup (just in case)
+ALTER TABLE IF EXISTS public.audit_logs RENAME TO audit_logs_backup_old;
+
+-- Step 2: Create new audit_logs table with full schema
+CREATE TABLE public.audit_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-
-  -- Timestamp
   timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-  -- User information
-  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  user_id UUID,
   user_email TEXT NOT NULL,
   user_role TEXT,
-
-  -- Action details
-  action TEXT NOT NULL, -- 'view', 'create', 'update', 'delete', 'export', 'login', 'logout', 'search'
-  resource_type TEXT NOT NULL, -- 'patient', 'pump_report', 'medical_record', 'appointment', 'session'
-  resource_id TEXT, -- ID of the resource accessed
-
-  -- Request details
+  action TEXT NOT NULL,
+  resource_type TEXT NOT NULL,
+  resource_id TEXT,
   ip_address INET,
   user_agent TEXT,
   request_path TEXT,
-  request_method TEXT, -- GET, POST, PUT, DELETE
-
-  -- Outcome
+  request_method TEXT,
   success BOOLEAN NOT NULL DEFAULT true,
   error_message TEXT,
   status_code INTEGER,
-
-  -- Additional context (flexible JSON field)
   metadata JSONB,
-
-  -- PHI flags (for quick filtering of PHI-related events)
   contains_phi BOOLEAN NOT NULL DEFAULT false,
-  phi_fields TEXT[], -- Array of field names that contain PHI
-
-  -- Performance tracking
+  phi_fields TEXT[],
   response_time_ms INTEGER,
-
-  -- Session tracking
-  session_id UUID REFERENCES public.user_sessions(id) ON DELETE SET NULL,
+  session_id UUID,
   device_fingerprint TEXT
 );
 
--- =====================================================
--- Create indexes for performance and querying
--- =====================================================
+-- Step 3: Migrate existing data from old table to new table
+INSERT INTO public.audit_logs (
+  id,
+  timestamp,
+  user_id,
+  user_email,
+  user_role,
+  action,
+  resource_type,
+  resource_id,
+  ip_address,
+  user_agent,
+  metadata,
+  contains_phi,
+  success
+)
+SELECT
+  id,
+  created_at,
+  user_id,
+  COALESCE(user_type, 'unknown'),  -- Map user_type to user_email temporarily
+  user_type,  -- Map user_type to user_role
+  action,
+  resource_type,
+  resource_id::TEXT,
+  ip_address,
+  user_agent,
+  details,  -- Map details to metadata
+  COALESCE(phi_accessed, false),
+  true  -- Assume old logs were successful
+FROM public.audit_logs_backup_old;
+
+-- Step 4: Drop the backup table (optional - comment this out if you want to keep it)
+-- DROP TABLE IF EXISTS public.audit_logs_backup_old;
+
+-- Step 5: Create indexes
 CREATE INDEX idx_audit_logs_timestamp ON public.audit_logs(timestamp DESC);
 CREATE INDEX idx_audit_logs_user_id ON public.audit_logs(user_id);
 CREATE INDEX idx_audit_logs_user_email ON public.audit_logs(user_email);
@@ -64,19 +80,14 @@ CREATE INDEX idx_audit_logs_contains_phi ON public.audit_logs(contains_phi) WHER
 CREATE INDEX idx_audit_logs_success ON public.audit_logs(success) WHERE success = false;
 CREATE INDEX idx_audit_logs_user_action ON public.audit_logs(user_id, action);
 CREATE INDEX idx_audit_logs_timestamp_action ON public.audit_logs(timestamp DESC, action);
-
--- GIN index for JSONB metadata queries
 CREATE INDEX idx_audit_logs_metadata ON public.audit_logs USING GIN(metadata);
 
--- =====================================================
--- Enable Row Level Security (RLS)
--- =====================================================
+-- Step 6: Enable RLS
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
--- Policy: Admins can view all audit logs
+-- Step 7: Create policies
 CREATE POLICY "Admins can view all audit logs"
-  ON public.audit_logs
-  FOR SELECT
+  ON public.audit_logs FOR SELECT
   USING (
     EXISTS (
       SELECT 1 FROM public.medical_staff
@@ -86,21 +97,15 @@ CREATE POLICY "Admins can view all audit logs"
     )
   );
 
--- Policy: Users can view their own audit logs
 CREATE POLICY "Users can view own audit logs"
-  ON public.audit_logs
-  FOR SELECT
+  ON public.audit_logs FOR SELECT
   USING (auth.uid() = user_id);
 
--- Policy: System can insert audit logs (authenticated users)
 CREATE POLICY "System can insert audit logs"
-  ON public.audit_logs
-  FOR INSERT
+  ON public.audit_logs FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
--- =====================================================
--- Create function to log audit event
--- =====================================================
+-- Step 8: Create log_audit_event function
 CREATE OR REPLACE FUNCTION public.log_audit_event(
   p_user_id UUID,
   p_user_email TEXT,
@@ -127,54 +132,22 @@ DECLARE
   audit_id UUID;
 BEGIN
   INSERT INTO public.audit_logs (
-    user_id,
-    user_email,
-    user_role,
-    action,
-    resource_type,
-    resource_id,
-    ip_address,
-    user_agent,
-    request_path,
-    request_method,
-    success,
-    error_message,
-    status_code,
-    metadata,
-    contains_phi,
-    phi_fields,
-    response_time_ms,
-    session_id,
-    device_fingerprint
+    user_id, user_email, user_role, action, resource_type, resource_id,
+    ip_address, user_agent, request_path, request_method, success,
+    error_message, status_code, metadata, contains_phi, phi_fields,
+    response_time_ms, session_id, device_fingerprint
   ) VALUES (
-    p_user_id,
-    p_user_email,
-    p_user_role,
-    p_action,
-    p_resource_type,
-    p_resource_id,
-    p_ip_address,
-    p_user_agent,
-    p_request_path,
-    p_request_method,
-    p_success,
-    p_error_message,
-    p_status_code,
-    p_metadata,
-    p_contains_phi,
-    p_phi_fields,
-    p_response_time_ms,
-    p_session_id,
-    p_device_fingerprint
+    p_user_id, p_user_email, p_user_role, p_action, p_resource_type, p_resource_id,
+    p_ip_address, p_user_agent, p_request_path, p_request_method, p_success,
+    p_error_message, p_status_code, p_metadata, p_contains_phi, p_phi_fields,
+    p_response_time_ms, p_session_id, p_device_fingerprint
   ) RETURNING id INTO audit_id;
 
   RETURN audit_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- =====================================================
--- Create function to get audit statistics
--- =====================================================
+-- Step 9: Create get_audit_statistics function
 CREATE OR REPLACE FUNCTION public.get_audit_statistics(
   p_start_date TIMESTAMPTZ DEFAULT NOW() - INTERVAL '30 days',
   p_end_date TIMESTAMPTZ DEFAULT NOW()
@@ -188,46 +161,65 @@ RETURNS TABLE (
   resources_by_type JSONB,
   top_users JSONB
 ) AS $$
+DECLARE
+  v_total_events BIGINT;
+  v_total_users BIGINT;
+  v_total_phi_access BIGINT;
+  v_total_failures BIGINT;
+  v_actions_by_type JSONB;
+  v_resources_by_type JSONB;
+  v_top_users JSONB;
 BEGIN
-  RETURN QUERY
   SELECT
-    COUNT(*)::BIGINT as total_events,
-    COUNT(DISTINCT user_id)::BIGINT as total_users,
-    COUNT(*) FILTER (WHERE contains_phi = true)::BIGINT as total_phi_access,
-    COUNT(*) FILTER (WHERE success = false)::BIGINT as total_failures,
-    jsonb_object_agg(action_count.action, action_count.count) as actions_by_type,
-    jsonb_object_agg(resource_count.resource_type, resource_count.count) as resources_by_type,
-    (
-      SELECT jsonb_agg(jsonb_build_object('email', user_email, 'count', event_count))
-      FROM (
-        SELECT user_email, COUNT(*) as event_count
-        FROM public.audit_logs
-        WHERE timestamp BETWEEN p_start_date AND p_end_date
-        GROUP BY user_email
-        ORDER BY event_count DESC
-        LIMIT 10
-      ) top_users_sub
-    ) as top_users
-  FROM public.audit_logs
-  CROSS JOIN LATERAL (
-    SELECT action, COUNT(*) as count
-    FROM public.audit_logs
-    WHERE timestamp BETWEEN p_start_date AND p_end_date
-    GROUP BY action
-  ) action_count
-  CROSS JOIN LATERAL (
-    SELECT resource_type, COUNT(*) as count
-    FROM public.audit_logs
-    WHERE timestamp BETWEEN p_start_date AND p_end_date
-    GROUP BY resource_type
-  ) resource_count
-  WHERE timestamp BETWEEN p_start_date AND p_end_date;
+    COUNT(*)::BIGINT,
+    COUNT(DISTINCT al.user_id)::BIGINT,
+    COUNT(*) FILTER (WHERE al.contains_phi = true)::BIGINT,
+    COUNT(*) FILTER (WHERE al.success = false)::BIGINT
+  INTO v_total_events, v_total_users, v_total_phi_access, v_total_failures
+  FROM public.audit_logs al
+  WHERE al.timestamp BETWEEN p_start_date AND p_end_date;
+
+  SELECT COALESCE(jsonb_object_agg(action, count), '{}'::jsonb)
+  INTO v_actions_by_type
+  FROM (
+    SELECT al.action, COUNT(*)::INTEGER as count
+    FROM public.audit_logs al
+    WHERE al.timestamp BETWEEN p_start_date AND p_end_date
+    GROUP BY al.action
+  ) action_counts;
+
+  SELECT COALESCE(jsonb_object_agg(resource_type, count), '{}'::jsonb)
+  INTO v_resources_by_type
+  FROM (
+    SELECT al.resource_type, COUNT(*)::INTEGER as count
+    FROM public.audit_logs al
+    WHERE al.timestamp BETWEEN p_start_date AND p_end_date
+    GROUP BY al.resource_type
+  ) resource_counts;
+
+  SELECT COALESCE(jsonb_agg(user_data), '[]'::jsonb)
+  INTO v_top_users
+  FROM (
+    SELECT jsonb_build_object('email', al.user_email, 'count', COUNT(*)) as user_data
+    FROM public.audit_logs al
+    WHERE al.timestamp BETWEEN p_start_date AND p_end_date
+    GROUP BY al.user_email
+    ORDER BY COUNT(*) DESC
+    LIMIT 10
+  ) top_users_sub;
+
+  RETURN QUERY SELECT
+    v_total_events,
+    v_total_users,
+    v_total_phi_access,
+    v_total_failures,
+    v_actions_by_type,
+    v_resources_by_type,
+    v_top_users;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- =====================================================
--- Create function to detect suspicious activity
--- =====================================================
+-- Step 10: Create detect_suspicious_activity function
 CREATE OR REPLACE FUNCTION public.detect_suspicious_activity(
   p_lookback_minutes INTEGER DEFAULT 60
 )
@@ -238,12 +230,11 @@ RETURNS TABLE (
   recent_events JSONB
 ) AS $$
 BEGIN
-  -- Detect users with excessive failed attempts
   RETURN QUERY
   SELECT
     al.user_email,
-    'Excessive failed attempts' as suspicious_reason,
-    COUNT(*) as event_count,
+    'Excessive failed attempts'::TEXT,
+    COUNT(*)::BIGINT,
     jsonb_agg(
       jsonb_build_object(
         'timestamp', al.timestamp,
@@ -252,19 +243,18 @@ BEGIN
         'error_message', al.error_message
       )
       ORDER BY al.timestamp DESC
-    ) as recent_events
+    )
   FROM public.audit_logs al
   WHERE al.timestamp > NOW() - (p_lookback_minutes || ' minutes')::INTERVAL
     AND al.success = false
   GROUP BY al.user_email
   HAVING COUNT(*) > 10;
 
-  -- Detect users accessing unusually high number of patient records
   RETURN QUERY
   SELECT
     al.user_email,
-    'Excessive PHI access' as suspicious_reason,
-    COUNT(*) as event_count,
+    'Excessive PHI access'::TEXT,
+    COUNT(*)::BIGINT,
     jsonb_agg(
       jsonb_build_object(
         'timestamp', al.timestamp,
@@ -273,7 +263,7 @@ BEGIN
         'resource_id', al.resource_id
       )
       ORDER BY al.timestamp DESC
-    ) as recent_events
+    )
   FROM public.audit_logs al
   WHERE al.timestamp > NOW() - (p_lookback_minutes || ' minutes')::INTERVAL
     AND al.contains_phi = true
@@ -281,61 +271,48 @@ BEGIN
   GROUP BY al.user_email
   HAVING COUNT(*) > 50;
 
-  -- Detect users with multiple IP addresses in short time
   RETURN QUERY
   SELECT
     al.user_email,
-    'Multiple IP addresses' as suspicious_reason,
-    COUNT(DISTINCT al.ip_address) as event_count,
+    'Multiple IP addresses'::TEXT,
+    COUNT(DISTINCT al.ip_address)::BIGINT,
     jsonb_agg(DISTINCT jsonb_build_object(
       'ip_address', al.ip_address::TEXT,
-      'first_seen', MIN(al.timestamp)
-    )) as recent_events
+      'user_email', al.user_email
+    ))
   FROM public.audit_logs al
   WHERE al.timestamp > NOW() - (p_lookback_minutes || ' minutes')::INTERVAL
+    AND al.ip_address IS NOT NULL
   GROUP BY al.user_email
   HAVING COUNT(DISTINCT al.ip_address) > 3;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- =====================================================
--- Create function to cleanup old audit logs
--- =====================================================
+-- Step 11: Create cleanup function
 CREATE OR REPLACE FUNCTION public.cleanup_old_audit_logs(
-  p_retention_days INTEGER DEFAULT 2555 -- 7 years for HIPAA compliance
+  p_retention_days INTEGER DEFAULT 2555
 )
 RETURNS INTEGER AS $$
 DECLARE
   deleted_count INTEGER;
 BEGIN
-  -- HIPAA requires 6 years retention, we use 7 years (2555 days) to be safe
   DELETE FROM public.audit_logs
   WHERE timestamp < NOW() - (p_retention_days || ' days')::INTERVAL;
-
   GET DIAGNOSTICS deleted_count = ROW_COUNT;
-
   RETURN deleted_count;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- =====================================================
--- Grant permissions
--- =====================================================
+-- Step 12: Grant permissions
 GRANT SELECT, INSERT ON public.audit_logs TO authenticated;
 GRANT EXECUTE ON FUNCTION public.log_audit_event TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_audit_statistics TO authenticated;
 GRANT EXECUTE ON FUNCTION public.detect_suspicious_activity TO authenticated;
 GRANT EXECUTE ON FUNCTION public.cleanup_old_audit_logs TO authenticated;
 
--- =====================================================
--- Add helpful comments
--- =====================================================
-COMMENT ON TABLE public.audit_logs IS 'Comprehensive audit trail for all system activities and PHI access - HIPAA compliant';
-COMMENT ON COLUMN public.audit_logs.contains_phi IS 'True if this action involved access to Protected Health Information';
-COMMENT ON COLUMN public.audit_logs.phi_fields IS 'Array of specific PHI field names that were accessed';
-COMMENT ON COLUMN public.audit_logs.metadata IS 'Flexible JSONB field for additional context (query params, changed fields, etc)';
-COMMENT ON COLUMN public.audit_logs.response_time_ms IS 'Response time in milliseconds for performance monitoring';
-COMMENT ON FUNCTION public.log_audit_event IS 'Centralized function to log audit events with full context';
-COMMENT ON FUNCTION public.get_audit_statistics IS 'Returns aggregate statistics for audit logs over a time period';
-COMMENT ON FUNCTION public.detect_suspicious_activity IS 'Detects potentially suspicious activity patterns (failed attempts, excessive access, IP changes)';
-COMMENT ON FUNCTION public.cleanup_old_audit_logs IS 'Removes audit logs older than retention period (default 7 years for HIPAA)';
+-- Step 13: Add comments
+COMMENT ON TABLE public.audit_logs IS 'HIPAA-compliant audit trail for all system activities and PHI access';
+COMMENT ON FUNCTION public.log_audit_event IS 'Centralized function to log audit events';
+COMMENT ON FUNCTION public.get_audit_statistics IS 'Returns aggregate statistics for audit logs';
+COMMENT ON FUNCTION public.detect_suspicious_activity IS 'Detects suspicious activity patterns';
+COMMENT ON FUNCTION public.cleanup_old_audit_logs IS 'Removes audit logs older than retention period (7 years for HIPAA)';
