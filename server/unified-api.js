@@ -24,6 +24,7 @@ const { createClient, LiveTranscriptionEvents } = require('@deepgram/sdk');
 const unifiedDatabase = require('./services/unified-supabase.service');
 const patientMatchingService = require('./services/patientMatching.service');
 const logger = require('./logger');
+const MFAService = require('./services/mfa.service');
 
 // Phase 3 Security: Import security middleware
 const { corsOptions } = require('./middleware/corsConfig');
@@ -1541,6 +1542,59 @@ app.get('/api/previsit/sessions/all', phiLimiter, auditPHIAccess, async (req, re
   } catch (error) {
     logger.error('PreVisit', 'Error listing sessions', { error: error.message });
     res.status(500).json({ error: error.message });
+  }
+});
+
+// ====== MFA (MULTI-FACTOR AUTHENTICATION) ENDPOINTS ======
+// Phase 4: HIPAA Compliance - Added January 8, 2026
+// Note: These endpoints need JWT verification middleware which is defined in pump-report-api.js
+// For now, adding minimal versions for testing - full implementation will be in next deployment
+
+/**
+ * Check if MFA is required for login
+ * POST /api/mfa/check-required
+ */
+app.post('/api/mfa/check-required', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        error: 'Email required'
+      });
+    }
+
+    const supabase = await unifiedDatabase.getClient();
+
+    // Get user by email
+    const { data: users, error } = await supabase
+      .from('patients')
+      .select('id, mfa_enabled')
+      .eq('email', email)
+      .eq('pumpdrive_enabled', true);
+
+    if (error || !users || users.length === 0) {
+      // Don't reveal whether user exists
+      return res.json({
+        success: true,
+        mfaRequired: false
+      });
+    }
+
+    const user = users[0];
+
+    res.json({
+      success: true,
+      mfaRequired: user.mfa_enabled === true,
+      userId: user.mfa_enabled ? user.id : undefined
+    });
+
+  } catch (error) {
+    logger.error('MFA', 'MFA check failed', { error: error.message });
+    res.status(500).json({
+      error: 'MFA check failed',
+      message: error.message
+    });
   }
 });
 
