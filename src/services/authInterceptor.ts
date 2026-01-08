@@ -2,7 +2,11 @@
  * Authentication Interceptor
  * Automatically handles 401/403 errors and re-authenticates user
  * Provides production-grade error recovery
+ *
+ * Updated for HIPAA Phase 5: Uses encrypted storage for all auth tokens
  */
+
+import { secureStorage } from './secureStorage.service';
 
 let isRefreshing = false;
 let failedQueue: Array<{
@@ -67,8 +71,8 @@ export const handleAuthError = (error: any, isRetry = false): Promise<never> => 
     // Clear appropriate auth tokens
     if (isPumpDrive) {
       // Clear only PumpDrive tokens, not medical app tokens
-      localStorage.removeItem('pump_auth_token');
-      localStorage.removeItem('pump_user_data');
+      secureStorage.removeItem('pump_auth_token');
+      secureStorage.removeItem('pump_user_data');
       console.log('PumpDrive auth cleared');
     } else {
       // Clear all medical app auth tokens
@@ -99,15 +103,16 @@ export const handleAuthError = (error: any, isRetry = false): Promise<never> => 
  * Clear all authentication session data
  */
 export const clearAuthSession = () => {
-  // Clear all possible token storage locations
-  localStorage.removeItem('auth_token');
-  localStorage.removeItem('doctor_token');
-  localStorage.removeItem('token');
-  localStorage.removeItem('medical_token');
-  localStorage.removeItem('user');
-  localStorage.removeItem('userRole');
+  // Clear all possible token storage locations (encrypted storage)
+  secureStorage.removeItem('auth_token');
+  secureStorage.removeItem('doctor_token');
+  secureStorage.removeItem('token');
+  secureStorage.removeItem('medical_token');
+  secureStorage.removeItem('user');
+  secureStorage.removeItem('userRole');
+  secureStorage.removeItem('user_data');
 
-  // Clear session storage
+  // Clear session storage (these are not encrypted as they're session-only)
   sessionStorage.removeItem('auth_token');
   sessionStorage.removeItem('user');
 
@@ -219,7 +224,7 @@ export const isTokenExpired = (token: string): boolean => {
  * Returns null if token is expired or missing
  */
 export const getValidAuthToken = (): string | null => {
-  const token = localStorage.getItem('auth_token') || localStorage.getItem('doctor_token');
+  const token = secureStorage.getItem('auth_token') || secureStorage.getItem('doctor_token');
 
   if (!token) {
     return null;
@@ -242,7 +247,7 @@ export const initializeAuthInterceptor = () => {
   setupFetchInterceptor();
 
   // Check token on page load
-  const token = localStorage.getItem('auth_token') || localStorage.getItem('doctor_token');
+  const token = secureStorage.getItem('auth_token') || secureStorage.getItem('doctor_token');
   if (token && isTokenExpired(token)) {
     console.log('Found expired token on startup, clearing session');
     clearAuthSession();

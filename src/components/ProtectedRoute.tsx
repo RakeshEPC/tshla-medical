@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useEffect, useState } from 'react';
 import SessionMonitor from './SessionMonitor';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
+import { secureStorage } from '../services/secureStorage.service';
 
 export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading, user } = useAuth();
@@ -10,7 +11,7 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
   const [authCheckDelay, setAuthCheckDelay] = useState(true);
 
   logDebug('ProtectedRoute', 'Debug message', {
-    userData: localStorage.getItem('user_data')
+    userData: secureStorage.getItem('user_data')
   });
   logDebug('ProtectedRoute', 'Debug message', {});
 
@@ -44,8 +45,8 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
 
   if (!isAuthenticated) {
     // Check if we have a valid token that just hasn't been validated yet
-    const token = localStorage.getItem('auth_token');
-    const userData = localStorage.getItem('user_data');
+    const token = secureStorage.getItem('auth_token');
+    const userData = secureStorage.getItem('user_data');
 
     if (token && userData) {
       // Token and user data exist, but auth context hasn't updated yet
