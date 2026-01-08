@@ -16,10 +16,12 @@
  * - SAFE_MODE=D: Enable function calls (default)
  *
  * Twilio Debugger: Check https://console.twilio.com/monitor/debugger for error 11200
+ * HIPAA COMPLIANT: Uses safe logger with PHI sanitization
  */
 
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
+const logger = require('../../logger');
 
 // =====================================================
 // CONFIGURATION
@@ -128,38 +130,34 @@ function getPatientFromToken(token) {
 async function handler(req, res) {
   const startTime = Date.now();
 
-  console.log('\n📞 [DiabetesEdu] Incoming call');
-  console.log(`   Safe Mode: ${SAFE_MODE}`);
+  logger.info('DiabetesEdu', 'Incoming call', { safeMode: SAFE_MODE });
 
   try {
     // Extract Twilio parameters
     const { CallSid, From, To, CallStatus } = req.body;
 
-    console.log(`   Call SID: ${CallSid}`);
-    console.log(`   From: ${From}`);
-    console.log(`   To: ${To}`);
-    console.log(`   Status: ${CallStatus}`);
+    logger.debug('DiabetesEdu', 'Call details', { CallSid, CallStatus });
 
     // SAFE MODE A: Return minimal TwiML immediately (no DB lookup)
     if (SAFE_MODE === 'A') {
-      console.log('   🔒 SAFE MODE A: Returning test TwiML without DB lookup');
+      logger.info('DiabetesEdu', 'SAFE MODE A - Returning test TwiML');
       const twiml = generateGoldenTwiML('test-token-safe-mode-a', 'en');
       res.type('text/xml');
       const elapsed = Date.now() - startTime;
-      console.log(`   ✅ TwiML returned in ${elapsed}ms`);
+      logger.info('DiabetesEdu', 'TwiML returned', { elapsedMs: elapsed });
       return res.send(twiml);
     }
 
     // Validate caller phone number
     if (!From) {
-      console.error('   ❌ Missing caller phone number');
+      logger.error('DiabetesEdu', 'Missing caller phone number');
       res.type('text/xml');
       return res.send(generateErrorTwiML('Sorry, your phone number could not be identified.'));
     }
 
     // Format phone for DB lookup
     const formattedPhone = From.startsWith('+') ? From : `+${From}`;
-    console.log(`   Formatted phone: ${formattedPhone}`);
+    logger.debug('DiabetesEdu', 'Phone formatted');
 
     // FAST DB lookup (with timeout to ensure we respond quickly)
     let patient = null;
@@ -181,12 +179,12 @@ async function handler(req, res) {
 
         if (!error && data) {
           patient = data;
-          console.log(`   ✅ Patient found: ${patient.first_name} ${patient.last_name}`);
+          logger.info('DiabetesEdu', 'Patient found', { patientId: patient.id });
         } else {
-          console.log(`   ⚠️  Patient not found: ${formattedPhone}`);
+          logger.warn('DiabetesEdu', 'Patient not found');
         }
       } catch (err) {
-        console.error(`   ⚠️  DB lookup error: ${err.message}`);
+        logger.error('DiabetesEdu', 'DB lookup error', { error: err.message });
       }
     }
 
@@ -194,13 +192,13 @@ async function handler(req, res) {
     if (!patient) {
       res.type('text/xml');
       const elapsed = Date.now() - startTime;
-      console.log(`   ❌ Rejected in ${elapsed}ms`);
+      logger.info('DiabetesEdu', 'Call rejected - patient not registered', { elapsedMs: elapsed });
       return res.send(generateErrorTwiML('Sorry, your phone number is not registered.'));
     }
 
     // Create opaque token (so WS handler can lookup patient later)
     const patientToken = createPatientToken(patient);
-    console.log(`   🎫 Token created: ${patientToken.substring(0, 8)}...`);
+    logger.debug('DiabetesEdu', 'Token created');
 
     // Generate golden TwiML
     const twiml = generateGoldenTwiML(patientToken, patient.preferred_language || 'en');
@@ -209,17 +207,19 @@ async function handler(req, res) {
     res.type('text/xml');
 
     const elapsed = Date.now() - startTime;
-    console.log(`   ✅ TwiML returned in ${elapsed}ms`);
+    logger.info('DiabetesEdu', 'TwiML returned', { elapsedMs: elapsed });
 
     if (elapsed > 500) {
-      console.warn(`   ⚠️  WARNING: Response took ${elapsed}ms (should be < 500ms)`);
+      logger.warn('DiabetesEdu', 'WARNING: Response slow (should be < 500ms)', { elapsedMs: elapsed });
     }
 
     return res.send(twiml);
 
   } catch (error) {
-    console.error('❌ [DiabetesEdu] Error:', error.message);
-    console.error(error.stack);
+    logger.error('DiabetesEdu', 'Handler error', {
+      error: logger.redactPHI(error.message),
+      stack: error.stack
+    });
 
     // Always return valid TwiML, even on error
     res.type('text/xml');
