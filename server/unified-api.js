@@ -98,27 +98,32 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// OpenAI Realtime API health check
+// Azure OpenAI Realtime API health check
 app.get('/api/health/openai-realtime', async (req, res) => {
   try {
     const WebSocket = require('ws');
-    const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+    const AZURE_OPENAI_ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT;
+    const AZURE_OPENAI_KEY = process.env.AZURE_OPENAI_KEY;
+    const AZURE_OPENAI_REALTIME_DEPLOYMENT = process.env.AZURE_OPENAI_REALTIME_DEPLOYMENT || 'gpt-4o-realtime-preview';
+    const AZURE_OPENAI_API_VERSION = process.env.AZURE_OPENAI_API_VERSION || '2024-10-01-preview';
 
-    if (!OPENAI_API_KEY) {
+    if (!AZURE_OPENAI_ENDPOINT || !AZURE_OPENAI_KEY) {
       return res.status(503).json({
         status: 'error',
-        service: 'openai-realtime-api',
-        error: 'OPENAI_API_KEY not configured',
+        service: 'azure-openai-realtime-api',
+        error: 'Azure OpenAI credentials not configured',
+        details: 'Required: AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_KEY',
         timestamp: new Date().toISOString()
       });
     }
 
-    const url = 'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17';
+    // Build Azure OpenAI Realtime WebSocket URL
+    const hostname = AZURE_OPENAI_ENDPOINT.replace('https://', '').replace('http://', '');
+    const url = `wss://${hostname}/openai/realtime?api-version=${AZURE_OPENAI_API_VERSION}&deployment=${AZURE_OPENAI_REALTIME_DEPLOYMENT}`;
 
     const ws = new WebSocket(url, {
       headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'OpenAI-Beta': 'realtime=v1'
+        'api-key': AZURE_OPENAI_KEY
       }
     });
 
@@ -142,21 +147,25 @@ app.get('/api/health/openai-realtime', async (req, res) => {
 
     res.json({
       status: 'ok',
-      service: 'openai-realtime-api',
-      message: 'Successfully connected to OpenAI Realtime API',
+      service: 'azure-openai-realtime-api',
+      message: 'Successfully connected to Azure OpenAI Realtime API',
+      endpoint: process.env.AZURE_OPENAI_ENDPOINT,
+      deployment: AZURE_OPENAI_REALTIME_DEPLOYMENT,
       timestamp: new Date().toISOString()
     });
 
   } catch (error) {
     const statusCode = error.message && error.message.includes('401') ? 401 :
                       error.message && error.message.includes('403') ? 403 :
+                      error.message && error.message.includes('404') ? 404 :
                       error.message && error.message.includes('429') ? 429 : 503;
 
     res.status(statusCode).json({
       status: 'error',
-      service: 'openai-realtime-api',
+      service: 'azure-openai-realtime-api',
       error: error.message,
-      details: error.message && error.message.includes('401') ? 'API key is invalid or expired. Get a new key from https://platform.openai.com/api-keys' :
+      details: error.message && error.message.includes('401') ? 'Azure OpenAI API key is invalid or expired. Check your key in Azure Portal' :
+               error.message && error.message.includes('404') ? 'Deployment not found. Verify AZURE_OPENAI_REALTIME_DEPLOYMENT' :
                error.message && error.message.includes('403') ? 'API key does not have access to Realtime API' :
                error.message && error.message.includes('429') ? 'Rate limit exceeded' : 'Connection failed',
       timestamp: new Date().toISOString()

@@ -1,32 +1,41 @@
 /**
- * OpenAI Realtime API WebSocket Relay Server
+ * Azure OpenAI Realtime API WebSocket Relay Server
  *
- * Purpose: Bridge between Twilio Media Streams and OpenAI Realtime API
+ * Purpose: Bridge between Twilio Media Streams and Azure OpenAI Realtime API
  * for diabetes education voice AI with dynamic patient context injection
+ *
+ * HIPAA COMPLIANCE: Uses Azure OpenAI with Microsoft BAA for PHI processing
  *
  * Flow:
  * 1. Twilio calls webhook → connects to this WebSocket endpoint
  * 2. Fetch patient data by caller phone number
  * 3. Build patient context (clinical notes + medical data)
- * 4. Connect to OpenAI Realtime API with context in system instructions
- * 5. Relay audio bidirectionally: Twilio ↔ OpenAI
+ * 4. Connect to Azure OpenAI Realtime API with context in system instructions
+ * 5. Relay audio bidirectionally: Twilio ↔ Azure OpenAI
  * 6. Log transcripts and events
  *
  * Created: 2025-12-29
+ * Migrated to Azure: 2026-01-08
  */
 
 const WebSocket = require('ws');
 const { createClient } = require('@supabase/supabase-js');
 
-// Environment variables
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+// Environment variables - Azure OpenAI Configuration
+const AZURE_OPENAI_ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT;
+const AZURE_OPENAI_KEY = process.env.AZURE_OPENAI_KEY;
+const AZURE_OPENAI_REALTIME_DEPLOYMENT = process.env.AZURE_OPENAI_REALTIME_DEPLOYMENT || 'gpt-4o-realtime-preview';
+const AZURE_OPENAI_API_VERSION = process.env.AZURE_OPENAI_API_VERSION || '2024-10-01-preview';
+const VOICE = process.env.AZURE_OPENAI_REALTIME_VOICE || 'alloy'; // Options: alloy, echo, fable, onyx, nova, shimmer
+
+// Supabase for patient data
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const VOICE = process.env.OPENAI_REALTIME_VOICE || 'alloy'; // Options: alloy, echo, fable, onyx, nova, shimmer
 
 // Validate required environment variables (warnings only, don't crash)
-if (!OPENAI_API_KEY) {
-  console.warn('⚠️  [Realtime] Missing OPENAI_API_KEY environment variable');
+if (!AZURE_OPENAI_ENDPOINT || !AZURE_OPENAI_KEY) {
+  console.warn('⚠️  [Realtime] Missing Azure OpenAI environment variables');
+  console.warn('⚠️  [Realtime] Required: AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_KEY');
 }
 if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
   console.warn('⚠️  [Realtime] Missing Supabase environment variables');
@@ -159,35 +168,41 @@ async function fetchPatientContext(phoneNumber) {
 }
 
 /**
- * Connect to OpenAI Realtime API with patient context
+ * Connect to Azure OpenAI Realtime API with patient context
+ * HIPAA COMPLIANT - Uses Azure OpenAI with Microsoft BAA
  */
-async function connectToOpenAI(patientContext) {
-  const url = 'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17';
+async function connectToAzureOpenAI(patientContext) {
+  // Build Azure OpenAI Realtime WebSocket URL
+  // Format: wss://{resource}.openai.azure.com/openai/realtime?api-version={version}&deployment={deployment}
+  const hostname = AZURE_OPENAI_ENDPOINT.replace('https://', '').replace('http://', '');
+  const url = `wss://${hostname}/openai/realtime?api-version=${AZURE_OPENAI_API_VERSION}&deployment=${AZURE_OPENAI_REALTIME_DEPLOYMENT}`;
 
-  console.log('[Realtime] Connecting to OpenAI Realtime API...');
-  console.log(`[Realtime] API Key configured: ${OPENAI_API_KEY ? 'YES (length: ' + OPENAI_API_KEY.length + ')' : 'NO'}`);
+  console.log('[Realtime] Connecting to Azure OpenAI Realtime API...');
+  console.log(`[Realtime] Endpoint: ${AZURE_OPENAI_ENDPOINT}`);
+  console.log(`[Realtime] Deployment: ${AZURE_OPENAI_REALTIME_DEPLOYMENT}`);
+  console.log(`[Realtime] API Version: ${AZURE_OPENAI_API_VERSION}`);
+  console.log(`[Realtime] API Key configured: ${AZURE_OPENAI_KEY ? 'YES (length: ' + AZURE_OPENAI_KEY.length + ')' : 'NO'}`);
 
-  if (!OPENAI_API_KEY) {
-    throw new Error('OPENAI_API_KEY is not configured - cannot connect to OpenAI Realtime API');
+  if (!AZURE_OPENAI_KEY || !AZURE_OPENAI_ENDPOINT) {
+    throw new Error('Azure OpenAI credentials not configured - cannot connect to Realtime API');
   }
 
   const ws = new WebSocket(url, {
     headers: {
-      'Authorization': `Bearer ${OPENAI_API_KEY}`,
-      'OpenAI-Beta': 'realtime=v1'
+      'api-key': AZURE_OPENAI_KEY
     }
   });
 
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
-      console.error('[Realtime] ❌ Timeout waiting for OpenAI connection (10s)');
+      console.error('[Realtime] ❌ Timeout waiting for Azure OpenAI connection (10s)');
       ws.close();
-      reject(new Error('OpenAI connection timeout after 10 seconds'));
+      reject(new Error('Azure OpenAI connection timeout after 10 seconds'));
     }, 10000); // 10 second timeout
 
     ws.on('open', () => {
       clearTimeout(timeout);
-      console.log('[Realtime] ✅ Connected to OpenAI');
+      console.log('[Realtime] ✅ Connected to Azure OpenAI Realtime API');
 
       // Build system instructions with patient context
       const systemInstructions = `You are a certified diabetes educator (CDE) providing personalized phone-based support to a patient calling the TSHLA Medical diabetes education hotline.
@@ -300,28 +315,30 @@ Remember: You're here to support, educate, and empower the patient in managing t
 
     ws.on('error', (error) => {
       clearTimeout(timeout);
-      console.error('[Realtime] ❌ OpenAI connection error:', error);
+      console.error('[Realtime] ❌ Azure OpenAI connection error:', error);
       console.error('[Realtime] Error details:', {
         message: error.message,
         code: error.code,
         type: error.type
       });
 
-      // Provide helpful diagnostics
+      // Provide helpful diagnostics for Azure OpenAI
       if (error.message && error.message.includes('401')) {
-        console.error('[Realtime] 🔑 API Key is INVALID or EXPIRED!');
-        console.error('[Realtime] 💡 Get a new key from https://platform.openai.com/api-keys');
+        console.error('[Realtime] 🔑 Azure OpenAI API Key is INVALID or EXPIRED!');
+        console.error('[Realtime] 💡 Check your key in Azure Portal → Your OpenAI Resource → Keys and Endpoint');
       } else if (error.message && error.message.includes('403')) {
-        console.error('[Realtime] 🚫 API Key does not have access to Realtime API');
+        console.error('[Realtime] 🚫 Access denied - check deployment name and permissions');
+      } else if (error.message && error.message.includes('404')) {
+        console.error('[Realtime] 🔍 Deployment not found - verify AZURE_OPENAI_REALTIME_DEPLOYMENT');
       } else if (error.message && error.message.includes('429')) {
-        console.error('[Realtime] ⏱️  Rate limit exceeded');
+        console.error('[Realtime] ⏱️  Rate limit exceeded on Azure OpenAI');
       }
 
       reject(error);
     });
 
     ws.on('close', (code, reason) => {
-      console.log('[Realtime] OpenAI connection closed');
+      console.log('[Realtime] Azure OpenAI connection closed');
       if (code !== 1000) {
         console.log(`[Realtime] Close code: ${code}, Reason: ${reason}`);
       }
@@ -330,10 +347,10 @@ Remember: You're here to support, educate, and empower the patient in managing t
 }
 
 /**
- * Handle function calls from OpenAI
+ * Handle function calls from Azure OpenAI
  * Fetch patient data from database and return to AI
  */
-async function handleFunctionCall(functionCallData, callLog, openAIWs) {
+async function handleFunctionCall(functionCallData, callLog, azureOpenAIWs) {
   const { call_id, name, arguments: argsString } = functionCallData;
 
   console.log(`[Realtime] Executing function: ${name}`);
@@ -405,7 +422,7 @@ async function handleFunctionCall(functionCallData, callLog, openAIWs) {
 
     console.log(`[Realtime] Function result:`, JSON.stringify(result).substring(0, 200));
 
-    // Send function result back to OpenAI
+    // Send function result back to Azure OpenAI
     const functionResponse = {
       type: 'conversation.item.create',
       item: {
@@ -415,15 +432,15 @@ async function handleFunctionCall(functionCallData, callLog, openAIWs) {
       }
     };
 
-    openAIWs.send(JSON.stringify(functionResponse));
+    azureOpenAIWs.send(JSON.stringify(functionResponse));
 
-    // Tell OpenAI to generate a response using the function result
-    openAIWs.send(JSON.stringify({ type: 'response.create' }));
+    // Tell Azure OpenAI to generate a response using the function result
+    azureOpenAIWs.send(JSON.stringify({ type: 'response.create' }));
 
   } catch (error) {
     console.error(`[Realtime] Error in function ${name}:`, error);
 
-    // Send error back to OpenAI
+    // Send error back to Azure OpenAI
     const errorResponse = {
       type: 'conversation.item.create',
       item: {
@@ -433,20 +450,20 @@ async function handleFunctionCall(functionCallData, callLog, openAIWs) {
       }
     };
 
-    openAIWs.send(JSON.stringify(errorResponse));
+    azureOpenAIWs.send(JSON.stringify(errorResponse));
   }
 }
 
 /**
- * Handle messages from OpenAI Realtime API
+ * Handle messages from Azure OpenAI Realtime API
  */
-function handleOpenAIMessage(message, twilioWs, streamSid, callLog, openAIWs) {
+function handleAzureOpenAIMessage(message, twilioWs, streamSid, callLog, azureOpenAIWs) {
   try {
     const data = JSON.parse(message);
 
     // Log all events for debugging (can be filtered later)
     if (process.env.NODE_ENV !== 'production') {
-      console.log(`[Realtime] OpenAI event: ${data.type}`);
+      console.log(`[Realtime] Azure OpenAI event: ${data.type}`);
     }
 
     switch (data.type) {
@@ -507,7 +524,7 @@ function handleOpenAIMessage(message, twilioWs, streamSid, callLog, openAIWs) {
         break;
 
       case 'error':
-        console.error('[Realtime] ❌ OpenAI error:', data.error);
+        console.error('[Realtime] ❌ Azure OpenAI error:', data.error);
         callLog.errors.push({
           timestamp: new Date().toISOString(),
           error: data.error
@@ -525,7 +542,7 @@ function handleOpenAIMessage(message, twilioWs, streamSid, callLog, openAIWs) {
       case 'response.function_call_arguments.done':
         // AI wants to call a function - handle it and send response
         console.log(`[Realtime] 🔧 Function call: ${data.name}`);
-        handleFunctionCall(data, callLog, openAIWs).catch(err => {
+        handleFunctionCall(data, callLog, azureOpenAIWs).catch(err => {
           console.error('[Realtime] Function call error:', err);
         });
         break;
@@ -535,7 +552,7 @@ function handleOpenAIMessage(message, twilioWs, streamSid, callLog, openAIWs) {
         break;
     }
   } catch (error) {
-    console.error('[Realtime] Error handling OpenAI message:', error);
+    console.error('[Realtime] Error handling Azure OpenAI message:', error);
   }
 }
 
@@ -820,17 +837,17 @@ function setupRealtimeRelay(server) {
             console.log('[Realtime] Patient context preview:');
             console.log(patientData.context.substring(0, 200) + '...');
 
-            // Connect to OpenAI with patient context
+            // Connect to Azure OpenAI with patient context
             try {
-              openAiWs = await connectToOpenAI(patientData.context);
+              openAiWs = await connectToAzureOpenAI(patientData.context);
 
-              // Forward OpenAI messages to Twilio
+              // Forward Azure OpenAI messages to Twilio
               openAiWs.on('message', (openAiMessage) => {
-                handleOpenAIMessage(openAiMessage, ws, streamSid, callLog, openAiWs);
+                handleAzureOpenAIMessage(openAiMessage, ws, streamSid, callLog, openAiWs);
               });
 
               openAiWs.on('error', (error) => {
-                console.error('[Realtime] ❌ OpenAI WebSocket error:', error);
+                console.error('[Realtime] ❌ Azure OpenAI WebSocket error:', error);
                 callLog.errors.push({
                   timestamp: new Date().toISOString(),
                   error: error.message
@@ -838,11 +855,11 @@ function setupRealtimeRelay(server) {
               });
 
               openAiWs.on('close', () => {
-                console.log('[Realtime] OpenAI WebSocket closed');
+                console.log('[Realtime] Azure OpenAI WebSocket closed');
               });
 
             } catch (error) {
-              console.error('[Realtime] ❌ Failed to connect to OpenAI:', error);
+              console.error('[Realtime] ❌ Failed to connect to Azure OpenAI:', error);
 
               // Send error message to caller
               ws.send(JSON.stringify({
@@ -856,7 +873,7 @@ function setupRealtimeRelay(server) {
             break;
 
           case 'media':
-            // Forward Twilio audio to OpenAI
+            // Forward Twilio audio to Azure OpenAI
             if (openAiWs && openAiWs.readyState === WebSocket.OPEN) {
               openAiWs.send(JSON.stringify({
                 type: 'input_audio_buffer.append',
@@ -872,7 +889,7 @@ function setupRealtimeRelay(server) {
             // Save call log to database
             await saveCallLog(callLog);
 
-            // Close OpenAI connection
+            // Close Azure OpenAI connection
             if (openAiWs) {
               openAiWs.close();
             }

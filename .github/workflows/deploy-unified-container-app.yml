@@ -125,10 +125,9 @@ jobs:
           --name ${{ env.CONTAINER_APP_NAME }} \
           --resource-group ${{ env.RESOURCE_GROUP }} \
           --secrets \
-            openai-api-key="${{ secrets.OPENAI_API_KEY }}" \
+            azure-openai-key="${{ secrets.AZURE_OPENAI_KEY }}" \
             elevenlabs-api-key="${{ secrets.ELEVENLABS_API_KEY }}" \
             deepgram-api-key="${{ secrets.DEEPGRAM_API_KEY }}" \
-            azure-openai-key="${{ secrets.AZURE_OPENAI_KEY }}" \
             supabase-service-role-key="${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
             jwt-secret="${{ secrets.JWT_SECRET }}" \
             twilio-account-sid="${{ secrets.TWILIO_ACCOUNT_SID }}" \
@@ -152,9 +151,12 @@ jobs:
             "SUPABASE_SERVICE_ROLE_KEY=secretref:supabase-service-role-key" \
             "JWT_SECRET=secretref:jwt-secret" \
             "DEEPGRAM_API_KEY=secretref:deepgram-api-key" \
-            "OPENAI_API_KEY=secretref:openai-api-key" \
-            "ELEVENLABS_API_KEY=secretref:elevenlabs-api-key" \
             "AZURE_OPENAI_KEY=secretref:azure-openai-key" \
+            "AZURE_OPENAI_ENDPOINT=${{ secrets.AZURE_OPENAI_ENDPOINT }}" \
+            "AZURE_OPENAI_DEPLOYMENT=${{ secrets.AZURE_OPENAI_DEPLOYMENT }}" \
+            "AZURE_OPENAI_REALTIME_DEPLOYMENT=${{ secrets.AZURE_OPENAI_REALTIME_DEPLOYMENT }}" \
+            "AZURE_OPENAI_API_VERSION=${{ secrets.AZURE_OPENAI_API_VERSION }}" \
+            "ELEVENLABS_API_KEY=secretref:elevenlabs-api-key" \
             "TWILIO_ACCOUNT_SID=secretref:twilio-account-sid" \
             "TWILIO_AUTH_TOKEN=secretref:twilio-auth-token" \
             "TWILIO_PHONE_NUMBER=secretref:twilio-phone-number" \
