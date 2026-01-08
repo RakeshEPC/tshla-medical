@@ -7,7 +7,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabaseAuthService } from '../services/supabaseAuth.service';
+import { sessionManagementService, UserSession } from '../services/sessionManagement.service';
 import MFAEnrollment from '../components/auth/MFAEnrollment';
+import { Monitor, Smartphone, Tablet, X } from 'lucide-react';
 
 export default function Settings() {
   const { user } = useAuth();
@@ -22,9 +24,13 @@ export default function Settings() {
   const [disabling, setDisabling] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [activeSessions, setActiveSessions] = useState<UserSession[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [revokingSession, setRevokingSession] = useState<string | null>(null);
 
   useEffect(() => {
     loadMFAStatus();
+    loadActiveSessions();
   }, []);
 
   const loadMFAStatus = async () => {
@@ -32,6 +38,62 @@ export default function Settings() {
     const status = await supabaseAuthService.getMFAStatus();
     setMfaStatus(status);
     setLoading(false);
+  };
+
+  const loadActiveSessions = async () => {
+    setSessionsLoading(true);
+    const sessions = await sessionManagementService.getActiveSessions();
+    setActiveSessions(sessions);
+    setSessionsLoading(false);
+  };
+
+  const handleRevokeSession = async (sessionId: string) => {
+    if (!window.confirm('Are you sure you want to revoke this session? The device will be logged out immediately.')) {
+      return;
+    }
+
+    setRevokingSession(sessionId);
+    const success = await sessionManagementService.revokeSession(sessionId, 'User revoked from settings');
+
+    if (success) {
+      setSuccessMessage('Session revoked successfully.');
+      loadActiveSessions();
+    } else {
+      setErrorMessage('Failed to revoke session. Please try again.');
+    }
+
+    setRevokingSession(null);
+  };
+
+  const handleRevokeAllOtherSessions = async () => {
+    if (!window.confirm('Are you sure you want to revoke all other sessions? All other devices will be logged out immediately.')) {
+      return;
+    }
+
+    const count = await sessionManagementService.revokeOtherSessions();
+
+    if (count > 0) {
+      setSuccessMessage(`Successfully revoked ${count} other session(s).`);
+      loadActiveSessions();
+    } else {
+      setErrorMessage('No other sessions to revoke.');
+    }
+  };
+
+  const getDeviceIcon = (deviceType?: string) => {
+    switch (deviceType) {
+      case 'mobile':
+        return <Smartphone className="w-5 h-5 text-gray-500" />;
+      case 'tablet':
+        return <Tablet className="w-5 h-5 text-gray-500" />;
+      default:
+        return <Monitor className="w-5 h-5 text-gray-500" />;
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleString();
   };
 
   const handleEnableMFA = () => {
@@ -248,6 +310,101 @@ export default function Settings() {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Active Sessions Card - Phase 6: Session Management */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <h2 className="text-xl font-semibold text-gray-900">Active Sessions</h2>
+              </div>
+              {activeSessions.length > 1 && (
+                <button
+                  onClick={handleRevokeAllOtherSessions}
+                  className="px-3 py-1 text-sm bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors"
+                >
+                  Revoke All Others
+                </button>
+              )}
+            </div>
+
+            <p className="text-sm text-gray-600 mb-4">
+              Manage devices that are currently logged into your account. You can revoke access for any device.
+            </p>
+
+            {sessionsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+              </div>
+            ) : activeSessions.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <p>No active sessions found.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {activeSessions.map((session) => (
+                  <div
+                    key={session.id}
+                    className="p-4 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start gap-3 flex-1">
+                        {getDeviceIcon(session.device_type)}
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-medium text-gray-900">
+                            {session.device_description || 'Unknown Device'}
+                          </h3>
+                          <div className="mt-1 space-y-1">
+                            {session.ip_address && (
+                              <p className="text-sm text-gray-600">IP: {session.ip_address}</p>
+                            )}
+                            {session.timezone && (
+                              <p className="text-sm text-gray-600">Timezone: {session.timezone}</p>
+                            )}
+                            <p className="text-sm text-gray-600">
+                              Last active: {formatDate(session.last_activity_at)}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              Logged in: {formatDate(session.created_at)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleRevokeSession(session.id)}
+                        disabled={revokingSession === session.id}
+                        className="ml-4 p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Revoke this session"
+                      >
+                        {revokingSession === session.id ? (
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-600"></div>
+                        ) : (
+                          <X className="w-5 h-5" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* HIPAA Compliance Note */}
+            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+                <div>
+                  <p className="text-sm font-semibold text-blue-900 mb-1">HIPAA Session Management</p>
+                  <p className="text-sm text-blue-800">
+                    Sessions are automatically limited to 3 concurrent devices. Inactive sessions expire after 2 hours. This complies with HIPAA §164.312(a)(2)(iii) - Automatic Logoff requirements.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

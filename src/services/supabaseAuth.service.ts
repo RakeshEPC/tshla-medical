@@ -6,6 +6,7 @@
 
 import { supabase } from '../lib/supabase';
 import { logDebug, logError, logInfo } from './logger.service';
+import { sessionManagementService } from './sessionManagement.service';
 
 /**
  * Timeout wrapper to prevent infinite hangs
@@ -265,6 +266,23 @@ class SupabaseAuthService {
 
       // Clear all PumpDrive sessionStorage to prevent stale data
       this.clearPumpDriveSessionStorage();
+
+      // Phase 6: Create session with device tracking
+      // Determine login method based on AAL level
+      const loginMethod = aal?.currentLevel === 'aal2' ? 'mfa' : 'password';
+      try {
+        await sessionManagementService.createSession(authData.user.id, loginMethod);
+        logInfo('SupabaseAuth', 'Session created with device tracking', {
+          userId: authData.user.id,
+          loginMethod
+        });
+      } catch (sessionError) {
+        // Don't fail login if session creation fails - just log it
+        logError('SupabaseAuth', 'Failed to create session tracking', {
+          error: sessionError,
+          userId: authData.user.id
+        });
+      }
 
       return {
         success: true,

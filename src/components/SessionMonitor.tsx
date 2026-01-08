@@ -2,6 +2,9 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabaseAuthService as unifiedAuthService } from '../services/supabaseAuth.service';
 import { auditLogService } from '../services/auditLog.service';
+import { sessionManagementService } from '../services/sessionManagement.service';
+import { secureStorage } from '../services/secureStorage.service';
+import { logError } from '../services/logger.service';
 import { Clock, AlertTriangle } from 'lucide-react';
 
 interface SessionMonitorProps {
@@ -29,7 +32,7 @@ export default function SessionMonitor({ children }: SessionMonitorProps) {
   // Handle automatic logout
   const handleLogout = useCallback(
     async (reason: 'manual' | 'timeout' = 'timeout') => {
-      const token = localStorage.getItem('auth_token');
+      const token = secureStorage.getItem('auth_token');
 
       // Log the logout event
       await auditLogService.logLogout(reason);
@@ -40,8 +43,8 @@ export default function SessionMonitor({ children }: SessionMonitorProps) {
       if (token) {
         unifiedAuthService.logout();
       }
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('session_expires');
+      secureStorage.removeItem('auth_token');
+      secureStorage.removeItem('session_expires');
       navigate('/login', { replace: true });
     },
     [navigate]
@@ -72,9 +75,11 @@ export default function SessionMonitor({ children }: SessionMonitorProps) {
       handleLogout();
     }, SESSION_TIMEOUT_MS);
 
-    // Update session on server
-    const token = localStorage.getItem('auth_token');
+    // Update session activity on server
+    const token = secureStorage.getItem('auth_token');
     if (token) {
+      // Update session activity in session management table
+      sessionManagementService.updateActivity(token);
       unifiedAuthService.isAuthenticated();
     }
   }, [handleLogout]);
@@ -155,8 +160,8 @@ export default function SessionMonitor({ children }: SessionMonitorProps) {
       setTimeRemaining(Math.max(0, remaining));
 
       // Check if session expired on server
-      const token = localStorage.getItem('auth_token');
-      const expires = localStorage.getItem('session_expires');
+      const token = secureStorage.getItem('auth_token');
+      const expires = secureStorage.getItem('session_expires');
 
       if (expires && new Date(expires) < new Date()) {
         handleLogout();
