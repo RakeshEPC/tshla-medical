@@ -6,6 +6,8 @@ import { supabaseAuthService } from '../../services/supabaseAuth.service';
 import { scheduleService } from '../../services/scheduleService';
 import { AthenaScheduleUploader } from '../../components/AthenaScheduleUploader';
 import type { ParsedAthenaAppointment, ImportError } from '../../types/schedule.types';
+import { validate, medicalStaffSchema, patientSchema } from '../../validation/schemas';
+import { sanitizationService } from '../../services/sanitization.service';
 
 interface NewAccount {
   accountType: 'admin' | 'staff' | 'patient' | 'pumpdrive';
@@ -65,6 +67,7 @@ export default function AccountManager() {
     avaId?: string;
     accountType: string;
   } | null>(null);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string[]>>({});
 
   // Manage Accounts State
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -138,30 +141,74 @@ export default function AccountManager() {
     setIsCreating(true);
     setCreateMessage(null);
     setCreatedCredentials(null);
+    setValidationErrors({});
 
     try {
+      // Validate input based on account type
+      if (newAccount.accountType === 'admin' || newAccount.accountType === 'staff') {
+        // Validate medical staff
+        const validationResult = validate(medicalStaffSchema, {
+          email: sanitizationService.sanitizeEmail(newAccount.email),
+          password: newAccount.password,
+          firstName: sanitizationService.sanitizeUserInput(newAccount.firstName),
+          lastName: sanitizationService.sanitizeUserInput(newAccount.lastName),
+          role: newAccount.accountType === 'admin' ? 'admin' : (newAccount.role || 'doctor'),
+          specialty: newAccount.specialty ? sanitizationService.sanitizeUserInput(newAccount.specialty) : undefined,
+          practice: newAccount.practice ? sanitizationService.sanitizeUserInput(newAccount.practice) : undefined,
+        });
+
+        if (!validationResult.success) {
+          setValidationErrors(validationResult.errors);
+          setCreateMessage({
+            type: 'error',
+            text: 'Please fix the validation errors below.'
+          });
+          setIsCreating(false);
+          return;
+        }
+      } else {
+        // Validate patient
+        const validationResult = validate(patientSchema, {
+          first_name: sanitizationService.sanitizeUserInput(newAccount.firstName),
+          last_name: sanitizationService.sanitizeUserInput(newAccount.lastName),
+          email: sanitizationService.sanitizeEmail(newAccount.email),
+          phone: newAccount.phoneNumber ? sanitizationService.sanitizePhoneNumber(newAccount.phoneNumber) : undefined,
+          date_of_birth: newAccount.dateOfBirth,
+        });
+
+        if (!validationResult.success) {
+          setValidationErrors(validationResult.errors);
+          setCreateMessage({
+            type: 'error',
+            text: 'Please fix the validation errors below.'
+          });
+          setIsCreating(false);
+          return;
+        }
+      }
+
       let result;
 
       // Create account based on type
       if (newAccount.accountType === 'admin' || newAccount.accountType === 'staff') {
         // Create medical staff account
         result = await supabaseAuthService.registerMedicalStaff({
-          email: newAccount.email,
+          email: sanitizationService.sanitizeEmail(newAccount.email),
           password: newAccount.password,
-          firstName: newAccount.firstName,
-          lastName: newAccount.lastName,
+          firstName: sanitizationService.sanitizeUserInput(newAccount.firstName),
+          lastName: sanitizationService.sanitizeUserInput(newAccount.lastName),
           role: newAccount.accountType === 'admin' ? 'admin' : (newAccount.role || 'doctor'),
-          specialty: newAccount.specialty,
-          practice: newAccount.practice,
+          specialty: newAccount.specialty ? sanitizationService.sanitizeUserInput(newAccount.specialty) : undefined,
+          practice: newAccount.practice ? sanitizationService.sanitizeUserInput(newAccount.practice) : undefined,
         });
       } else {
         // Create patient account (includes pumpdrive)
         result = await supabaseAuthService.registerPatient({
-          email: newAccount.email,
+          email: sanitizationService.sanitizeEmail(newAccount.email),
           password: newAccount.password,
-          firstName: newAccount.firstName,
-          lastName: newAccount.lastName,
-          phoneNumber: newAccount.phoneNumber,
+          firstName: sanitizationService.sanitizeUserInput(newAccount.firstName),
+          lastName: sanitizationService.sanitizeUserInput(newAccount.lastName),
+          phoneNumber: newAccount.phoneNumber ? sanitizationService.sanitizePhoneNumber(newAccount.phoneNumber) : undefined,
           dateOfBirth: newAccount.dateOfBirth,
           enablePumpDrive: newAccount.accountType === 'pumpdrive' ? true : newAccount.enablePumpDrive,
         });
