@@ -33,11 +33,27 @@ const { auditPHIAccess } = require('./middleware/auditLogger');
 
 // Initialize Stripe with secret key (if available)
 let stripeInstance = null;
-if (process.env.STRIPE_SECRET_KEY && process.env.STRIPE_SECRET_KEY !== 'sk_test_example...') {
-  stripeInstance = stripe(process.env.STRIPE_SECRET_KEY);
-  logger.info('Stripe initialized successfully');
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+const isStripeConfigured = stripeSecretKey &&
+                           stripeSecretKey !== 'sk_test_example...' &&
+                           stripeSecretKey !== 'sk_test_51example...';
+
+if (isStripeConfigured) {
+  try {
+    stripeInstance = stripe(stripeSecretKey);
+    logger.info('App', '✅ Stripe initialized successfully', {
+      mode: stripeSecretKey.startsWith('sk_live_') ? 'LIVE' : 'TEST'
+    });
+  } catch (error) {
+    logger.error('App', 'Failed to initialize Stripe', { error: error.message });
+  }
 } else {
-  logger.warn('Stripe not initialized - missing secret key');
+  logger.warn('App', '⚠️ Stripe not initialized - missing or invalid secret key', {
+    hint: 'Set STRIPE_SECRET_KEY environment variable',
+    docs: 'See docs/STRIPE_SETUP_GUIDE.md for setup instructions',
+    configured: !!stripeSecretKey,
+    isPlaceholder: stripeSecretKey === 'sk_test_example...' || stripeSecretKey === 'sk_test_51example...'
+  });
 }
 
 // Initialize Supabase client for token verification
@@ -1004,9 +1020,12 @@ app.post('/api/mfa/check-required', async (req, res) => {
 app.post('/api/stripe/create-pump-report-session', async (req, res) => {
   try {
     if (!stripeInstance) {
+      logger.error('App', 'Stripe checkout attempted but Stripe not configured');
       return res.status(503).json({
         error: 'Payment service not configured',
-        message: 'Stripe API key not available',
+        message: 'Stripe is not currently available. Please contact support.',
+        details: process.env.NODE_ENV === 'development' ? 'STRIPE_SECRET_KEY not configured' : undefined,
+        support: 'support@tshla.ai'
       });
     }
 

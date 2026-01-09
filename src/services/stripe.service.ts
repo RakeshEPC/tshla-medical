@@ -1,13 +1,15 @@
 import { loadStripe } from '@stripe/stripe-js';
 import { logError, logWarn, logInfo, logDebug } from './logger.service';
 
-// Initialize Stripe with environment variable (not hardcoded)
+// Initialize Stripe with environment variable
 const getStripePublishableKey = () => {
   const key = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
-  if (!key) {
-    logWarn('stripe', 'Warning message', {});
-    // Fallback for existing functionality
-    return 'pk_live_51S2emfCH4zbWwt3mkGhlWgUaLEIHrrJuEW9xaQQnEaLQIxi66UPmJ1SPxV98ra2BpEwj4Sl9TOaNoKN8fByZnvFU00O8iqXEsk';
+  if (!key || key === 'pk_test_51example...') {
+    logError('stripe', 'Stripe publishable key not configured', {
+      hint: 'Set VITE_STRIPE_PUBLISHABLE_KEY in .env file',
+      docs: 'See docs/STRIPE_SETUP_GUIDE.md for setup instructions'
+    });
+    throw new Error('Stripe is not configured. Please contact support.');
   }
   return key;
 };
