@@ -6,16 +6,16 @@ FROM node:18-alpine
 # Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY server/package.json ./server/
+# Copy package files (use root package.json which has ALL dependencies)
 COPY package.json ./
+COPY package-lock.json* ./
 
-# Copy server files
+# Install dependencies first (for better layer caching)
+RUN npm install --production
+
+# Copy server files AFTER installing dependencies
 COPY server/ ./server/
 COPY .env ./.env
-
-# Install all dependencies
-RUN cd server && npm install --production
 
 # Expose port 3000
 EXPOSE 3000
@@ -29,5 +29,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
 # Start unified API server
-WORKDIR /app/server
-CMD ["node", "unified-api.js"]
+CMD ["node", "server/unified-api.js"]
