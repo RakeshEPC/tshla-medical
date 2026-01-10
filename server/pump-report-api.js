@@ -1029,36 +1029,26 @@ app.post('/api/stripe/create-pump-report-session', async (req, res) => {
       });
     }
 
-    const { patientName, assessmentData, successUrl, cancelUrl, priceInCents = 999 } = req.body;
+    const { patientName, assessmentData, assessmentId, successUrl, cancelUrl, priceInCents = 999 } = req.body;
 
-    if (!patientName || !assessmentData) {
+    if (!patientName || !assessmentId) {
       return res.status(400).json({
-        error: 'Missing required fields: patientName, assessmentData',
+        error: 'Missing required fields: patientName, assessmentId',
       });
     }
 
-    // Store assessment data in database first
-    const { data: newAssessment, error: insertError } = await supabase
+    // Update existing assessment with payment pending status
+    const { error: updateError } = await supabase
       .from('pump_assessments')
-      .insert({
-        patient_name: patientName,
-        slider_values: JSON.stringify(assessmentData.sliderValues || {}),
-        selected_features: JSON.stringify(assessmentData.selectedFeatures || []),
-        lifestyle_text: assessmentData.lifestyleText || '',
-        challenges_text: assessmentData.challengesText || '',
-        priorities_text: assessmentData.prioritiesText || '',
-        clarification_responses: JSON.stringify(assessmentData.clarificationResponses || {}),
+      .update({
         payment_status: 'pending',
-        created_at: new Date().toISOString()
+        updated_at: new Date().toISOString()
       })
-      .select()
-      .single();
+      .eq('id', assessmentId);
 
-    if (insertError) {
-      throw insertError;
+    if (updateError) {
+      throw updateError;
     }
-
-    const assessmentId = newAssessment.id;
 
     // Create Stripe checkout session
     const session = await stripeInstance.checkout.sessions.create({
@@ -1089,20 +1079,21 @@ app.post('/api/stripe/create-pump-report-session', async (req, res) => {
     });
 
     // Store payment record
-    const { error: paymentError } = await supabase
-      .from('payment_records')
-      .insert({
-        assessment_id: assessmentId,
-        stripe_session_id: session.id,
-        amount_cents: priceInCents,
-        status: 'pending',
-        created_at: new Date().toISOString()
-      });
-
-    if (paymentError) {
-      logger.error('Failed to store payment record:', paymentError);
-      // Don't fail checkout if payment record fails
-    }
+    // NOTE: payment_records table doesn't exist yet - tracking payment status in pump_assessments instead
+    // const { error: paymentError } = await supabase
+    //   .from('payment_records')
+    //   .insert({
+    //     assessment_id: assessmentId,
+    //     stripe_session_id: session.id,
+    //     amount_cents: priceInCents,
+    //     status: 'pending',
+    //     created_at: new Date().toISOString()
+    //   });
+    //
+    // if (paymentError) {
+    //   logger.error('Failed to store payment record:', paymentError);
+    //   // Don't fail checkout if payment record fails
+    // }
 
     res.json({
       id: session.id,
@@ -1130,19 +1121,24 @@ app.get('/api/stripe/verify-payment/:sessionId', async (req, res) => {
     const session = await stripeInstance.checkout.sessions.retrieve(sessionId);
 
     if (session.payment_status === 'paid') {
-      // Update payment status in database
-      const { error: paymentError } = await supabase
-        .from('payment_records')
-        .update({ status: 'succeeded' })
-        .eq('stripe_session_id', sessionId);
-
-      if (paymentError) {
-        throw paymentError;
-      }
+      // Update payment status in pump_assessments table
+      // NOTE: payment_records table doesn't exist yet - only updating pump_assessments
+      // const { error: paymentError } = await supabase
+      //   .from('payment_records')
+      //   .update({ status: 'succeeded' })
+      //   .eq('stripe_session_id', sessionId);
+      //
+      // if (paymentError) {
+      //   throw paymentError;
+      // }
 
       const { error: assessmentError } = await supabase
         .from('pump_assessments')
-        .update({ payment_status: 'paid' })
+        .update({
+          payment_status: 'paid',
+          access_type: 'independent',
+          access_granted_at: new Date().toISOString()
+        })
         .eq('id', session.metadata.assessment_id);
 
       if (assessmentError) {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { pumpDriveFeatureBasedService } from '../services/pumpDriveFeatureBased.service';
 import { pumpDrivePureAI } from '../services/pumpDrivePureAI.service';
 import { pumpDriveAIService } from '../services/pumpDriveAI.service';
@@ -9,6 +9,9 @@ import { assessmentHistoryService } from '../services/assessmentHistory.service'
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
 import { importantDisclaimers } from '../data/pumpEducation';
 import { getManufacturerByPumpName } from '../data/pumpManufacturers';
+import { supabase } from '../lib/supabase';
+import { stripeService } from '../services/stripe.service';
+import { useAuth } from '../contexts/AuthContext';
 
 interface PumpRecommendation {
   topRecommendation: {
@@ -97,6 +100,8 @@ const extractPumpNameFromText = (text: string): string => {
 
 export default function PumpDriveResults() {
   const navigate = useNavigate();
+  const { logout } = useAuth();
+  const [searchParams] = useSearchParams();
   const [recommendation, setRecommendation] = useState<PumpRecommendation | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -107,6 +112,13 @@ export default function PumpDriveResults() {
   const [providerEmail, setProviderEmail] = useState('');
   const [patientMessage, setPatientMessage] = useState('');
   const [emailSending, setEmailSending] = useState(false);
+  const [accessGranted, setAccessGranted] = useState(false);
+  const [checkingAccess, setCheckingAccess] = useState(true);
+
+  const handleLogout = () => {
+    logout();
+    navigate('/patient-login');
+  };
 
   // Function to save assessment to database
   const saveAssessmentToDatabase = async (recommendationData: PumpRecommendation) => {
@@ -210,9 +222,87 @@ export default function PumpDriveResults() {
     }
   };
 
+  // Check if user has access to view results (clinic or paid)
+  const checkAccess = async () => {
+    try {
+      const userResult = await supabaseAuthService.getCurrentUser();
+      if (!userResult.success || !userResult.user) {
+        // Not logged in - redirect to login
+        navigate('/patient-login');
+        return;
+      }
+
+      // Get user's most recent assessment
+      const { data: assessment, error: assessmentError } = await supabase
+        .from('pump_assessments')
+        .select('id, access_type, payment_status')
+        .eq('patient_id', userResult.user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (assessmentError || !assessment) {
+        // No assessment found - redirect to questionnaire
+        logWarn('PumpDriveResults', 'No assessment found, redirecting to questionnaire', {});
+        navigate('/pumpdrive/assessment');
+        return;
+      }
+
+      // Check if coming back from Stripe payment
+      const paidParam = searchParams.get('paid');
+      const sessionId = searchParams.get('session_id');
+
+      if (paidParam === 'true' && sessionId) {
+        // Verify payment with backend
+        try {
+          await stripeService.verifyPayment(sessionId);
+          logInfo('PumpDriveResults', 'Payment verified successfully', { sessionId });
+        } catch (err) {
+          logError('PumpDriveResults', 'Payment verification failed', { error: err });
+        }
+        // Continue - payment status will be updated by webhook
+      }
+
+      // Check access: clinic (free) or paid
+      const hasAccess =
+        assessment.access_type === 'clinic' ||
+        (assessment.access_type === 'independent' && assessment.payment_status === 'paid');
+
+      if (!hasAccess) {
+        // No access yet - redirect to access gate
+        logInfo('PumpDriveResults', 'Access not granted, redirecting to access gate', {
+          accessType: assessment.access_type,
+          paymentStatus: assessment.payment_status
+        });
+        navigate('/pumpdrive/access');
+        return;
+      }
+
+      // Access granted!
+      setAccessGranted(true);
+      setAssessmentId(assessment.id);
+      logInfo('PumpDriveResults', 'Access granted - showing results', {
+        accessType: assessment.access_type
+      });
+    } catch (err) {
+      logError('PumpDriveResults', 'Error checking access', { error: err });
+      setError('Unable to verify access. Please try again.');
+    } finally {
+      setCheckingAccess(false);
+    }
+  };
+
+  // Check access first before loading results
   useEffect(() => {
-    generateRecommendations();
+    checkAccess();
   }, []);
+
+  // Only generate recommendations after access is granted
+  useEffect(() => {
+    if (accessGranted && !hasAttempted) {
+      generateRecommendations();
+    }
+  }, [accessGranted]);
 
   // Fetch stored assessment from database when assessment ID becomes available
   useEffect(() => {
@@ -657,7 +747,18 @@ export default function PumpDriveResults() {
     window.location.reload();
   };
 
-
+  // Show loading while checking access
+  if (checkingAccess) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100 flex items-center justify-center p-6">
+        <div className="bg-white rounded-xl shadow-lg p-8 text-center max-w-md">
+          <div className="animate-spin h-12 w-12 border-4 border-purple-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">Verifying Access</h2>
+          <p className="text-gray-600">Please wait while we check your access...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -765,6 +866,19 @@ export default function PumpDriveResults() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
+        {/* Logout Button */}
+        <div className="flex justify-end mb-4">
+          <button
+            onClick={handleLogout}
+            className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            Logout
+          </button>
+        </div>
+
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">

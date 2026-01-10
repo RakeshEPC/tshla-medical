@@ -137,7 +137,9 @@ jobs:
             elevenlabs-diabetes-agent-en="${{ secrets.ELEVENLABS_DIABETES_AGENT_EN }}" \
             elevenlabs-diabetes-agent-es="${{ secrets.ELEVENLABS_DIABETES_AGENT_ES }}" \
             elevenlabs-diabetes-agent-hi="${{ secrets.ELEVENLABS_DIABETES_AGENT_HI }}" \
-            elevenlabs-agent-id="${{ secrets.ELEVENLABS_AGENT_ID }}"
+            elevenlabs-agent-id="${{ secrets.ELEVENLABS_AGENT_ID }}" \
+            stripe-secret-key="${{ secrets.STRIPE_SECRET_KEY_LIVE }}" \
+            stripe-webhook-secret="${{ secrets.STRIPE_WEBHOOK_SECRET }}"
 
         # Then update the container image and env vars
         echo "Updating container image and environment variables..."
@@ -185,7 +187,12 @@ jobs:
             "NODE_ENV=production" \
             "PORT=3000" \
             "API_BASE_URL=https://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io" \
-            "CLINIC_PHONE_NUMBER=+18325938100"
+            "CLINIC_PHONE_NUMBER=+18325938100" \
+            "STRIPE_SECRET_KEY=secretref:stripe-secret-key" \
+            "STRIPE_WEBHOOK_SECRET=secretref:stripe-webhook-secret" \
+            "VITE_STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY_LIVE }}" \
+            "VITE_ENABLE_PAYMENT_FLOW=true" \
+            "VITE_REPORT_PRICE_CENTS=999"
 
     - name: Get Container App URL
       id: get_url

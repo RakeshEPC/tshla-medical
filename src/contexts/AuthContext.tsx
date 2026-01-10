@@ -61,6 +61,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     checkAuth();
+
+    // Listen for auth state changes (registration, login, logout)
+    const { data: authListener } = supabaseAuthService.onAuthStateChange(async (event, session) => {
+      logInfo('AuthContext', `Auth state changed: ${event}`);
+
+      if (event === 'SIGNED_IN' && session) {
+        // User signed in or registered - fetch their profile
+        const result = await supabaseAuthService.getCurrentUser();
+        if (result.success && result.user) {
+          setUser({
+            id: result.user.id,
+            email: result.user.email,
+            name: result.user.name,
+            role: result.user.role,
+            specialty: result.user.specialty,
+            practiceId: result.user.id,
+            accessType: result.user.accessType,
+          });
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+      }
+    });
+
+    // Cleanup listener on unmount
+    return () => {
+      authListener?.subscription?.unsubscribe();
+    };
   }, []);
 
   const login = async (email: string, password: string) => {

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 import { sliderMCPService } from '../services/sliderMCP.service';
 import { freeTextMCPService } from '../services/freeTextMCP.service';
 import { dtsqsService } from '../services/dtsqs.service';
@@ -84,6 +86,7 @@ type AssessmentStep = 'sliders' | 'features' | 'story' | 'clarify' | 'results';
 
 const PumpDriveUnified: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   
   // Step management
   const [currentStep, setCurrentStep] = useState<AssessmentStep>('sliders');
@@ -281,10 +284,69 @@ const PumpDriveUnified: React.FC = () => {
     await checkForClarifyingQuestions();
   };
 
+  const saveAssessmentToDatabase = async () => {
+    try {
+      if (!user?.id) {
+        console.error('❌ No user ID found, cannot save assessment');
+        return null;
+      }
+
+      console.log('💾 Saving assessment to database for user:', user.id);
+
+      // Get patient name
+      const { data: patientData } = await supabase
+        .from('patients')
+        .select('first_name, last_name')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      const patientName = patientData
+        ? `${patientData.first_name} ${patientData.last_name}`
+        : 'Unknown Patient';
+
+      // Create assessment record
+      const { data: assessment, error } = await supabase
+        .from('pump_assessments')
+        .insert({
+          patient_id: user.id,
+          patient_name: patientName,
+          slider_values: sliderValues,
+          selected_features: selectedFeatures,
+          lifestyle_text: freeText.trim() || null,
+          assessment_data: {
+            sliders: sliderValues,
+            features: selectedFeatures,
+            freeText: freeText.trim(),
+            timestamp: new Date().toISOString()
+          },
+          final_recommendation: { pending: true }, // Placeholder, will be updated after payment
+          access_type: 'pending',
+          payment_status: 'pending'
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ Error saving assessment:', error);
+        return null;
+      }
+
+      console.log('✅ Assessment saved successfully:', assessment.id);
+      return assessment.id;
+
+    } catch (error) {
+      console.error('❌ Error in saveAssessmentToDatabase:', error);
+      return null;
+    }
+  };
+
   const checkForClarifyingQuestions = async () => {
     try {
       setIsProcessing(true);
       console.log('🤔 Checking if clarifying questions are needed...');
+
+      // Save assessment to database first
+      await saveAssessmentToDatabase();
 
       // Prepare input data for AI analysis
       const inputData = {
@@ -309,15 +371,15 @@ const PumpDriveUnified: React.FC = () => {
         sessionStorage.setItem('pumpDriveClarifyingQuestions', JSON.stringify(result.clarifyingQuestions));
         setCurrentStep('clarify');
       } else {
-        console.log('✅ No clarifying questions needed, going to results');
-        // Go directly to results
-        navigate('/pumpdrive/results');
+        console.log('✅ No clarifying questions needed, going to access gate');
+        // Go directly to access gate
+        navigate('/pumpdrive/access');
       }
 
     } catch (error) {
       console.error('❌ Error checking for clarifying questions:', error);
-      // Fall back to going to results
-      navigate('/pumpdrive/results');
+      // Fall back to going to access gate
+      navigate('/pumpdrive/access');
     } finally {
       setIsProcessing(false);
     }
@@ -357,8 +419,8 @@ const PumpDriveUnified: React.FC = () => {
         setCompletedSteps(prev => [...prev, 'clarify']);
       }
 
-      // Navigate to results
-      navigate('/pumpdrive/results');
+      // Navigate to access gate
+      navigate('/pumpdrive/access');
     } catch (error) {
       console.error('❌ Error saving clarifying answers:', error);
       alert('Error saving your answers. Please try again.');
@@ -1008,8 +1070,8 @@ const PumpDriveUnified: React.FC = () => {
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <button
                   onClick={() => {
-                    // Skip clarifying questions and go to results
-                    navigate('/pumpdrive/results');
+                    // Skip clarifying questions and go to access gate
+                    navigate('/pumpdrive/access');
                   }}
                   className="px-8 py-3 rounded-xl text-lg font-semibold bg-gray-200 text-gray-700 hover:bg-gray-300 transition-all"
                 >

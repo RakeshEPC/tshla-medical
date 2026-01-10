@@ -185,7 +185,7 @@ class SupabaseAuthService {
           .from('medical_staff')
           .select('*')
           .eq('auth_user_id', authData.user.id)
-          .single() as unknown as Promise<any>,
+          .maybeSingle() as unknown as Promise<any>,
         10000,
         'Medical staff profile lookup'
       ) as any;
@@ -371,7 +371,7 @@ class SupabaseAuthService {
           .from('patients')
           .select('*')
           .eq('auth_user_id', authData.user.id)
-          .single() as unknown as Promise<any>,
+          .maybeSingle() as unknown as Promise<any>,
         10000,
         'Patient profile lookup'
       ) as any;
@@ -778,7 +778,7 @@ class SupabaseAuthService {
           .from('medical_staff')
           .select('*')
           .eq('auth_user_id', user.id)
-          .single() as unknown as Promise<any>,
+          .maybeSingle() as unknown as Promise<any>,
         10000,
         'Medical staff profile query'
       ) as any;
@@ -822,7 +822,7 @@ class SupabaseAuthService {
           .from('patients')
           .select('*')
           .eq('auth_user_id', user.id)
-          .single() as unknown as Promise<any>,
+          .maybeSingle() as unknown as Promise<any>,
         10000,
         'Patient profile query'
       ) as any;
@@ -918,6 +918,15 @@ class SupabaseAuthService {
     } catch (error) {
       return false;
     }
+  }
+
+  /**
+   * Listen for auth state changes (login, logout, registration)
+   */
+  onAuthStateChange(callback: (event: string, session: any) => void) {
+    return supabase.auth.onAuthStateChange((event, session) => {
+      callback(event, session);
+    });
   }
 
   /**

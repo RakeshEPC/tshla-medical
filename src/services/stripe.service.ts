@@ -5,16 +5,17 @@ import { logError, logWarn, logInfo, logDebug } from './logger.service';
 const getStripePublishableKey = () => {
   const key = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
   if (!key || key === 'pk_test_51example...') {
-    logError('stripe', 'Stripe publishable key not configured', {
+    logWarn('stripe', 'Stripe publishable key not configured - payments will not work', {
       hint: 'Set VITE_STRIPE_PUBLISHABLE_KEY in .env file',
       docs: 'See docs/STRIPE_SETUP_GUIDE.md for setup instructions'
     });
-    throw new Error('Stripe is not configured. Please contact support.');
+    return null;
   }
   return key;
 };
 
-const stripePromise = loadStripe(getStripePublishableKey());
+const stripeKey = getStripePublishableKey();
+const stripePromise = stripeKey ? loadStripe(stripeKey) : null;
 
 export interface PumpDrivePlan {
   id: string;
@@ -44,6 +45,7 @@ export const PUMPDRIVE_PLANS: PumpDrivePlan[] = [
 
 interface CheckoutSessionData {
   patientName: string;
+  assessmentId: string;
   assessmentData: any;
   successUrl: string;
   cancelUrl: string;
@@ -61,6 +63,7 @@ export const createPumpReportCheckout = async (data: CheckoutSessionData) => {
       },
       body: JSON.stringify({
         patientName: data.patientName,
+        assessmentId: data.assessmentId,
         assessmentData: data.assessmentData,
         successUrl: data.successUrl,
         cancelUrl: data.cancelUrl,
