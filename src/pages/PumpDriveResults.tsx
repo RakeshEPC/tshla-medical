@@ -309,7 +309,7 @@ export default function PumpDriveResults() {
     const fetchStoredAssessment = async () => {
       const savedAssessmentId = sessionStorage.getItem('pumpdrive_assessment_id');
 
-      if (savedAssessmentId && !storedAssessment) {
+      if (savedAssessmentId) {
         setLoadingStoredData(true);
         try {
           const data = await assessmentHistoryService.getAssessmentById(parseInt(savedAssessmentId));
