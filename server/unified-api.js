@@ -2,8 +2,8 @@
  * TSHLA Medical - Unified API Server
  * Combines all microservices into one Express application
  * Created: October 19, 2025
- * Updated: December 29, 2025 - Added OpenAI Realtime API WebSocket relay
- * Version: 2.1.0
+ * Updated: January 10, 2026 - Stripe payment integration for PumpDrive
+ * Version: 2.1.1
  *
  * Consolidates:
  * - Pump Report API (pump-report-api.js)
