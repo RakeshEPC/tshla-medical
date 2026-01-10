@@ -25,9 +25,9 @@ const PumpDriveDTSQs = lazy(() => import('../../pages/PumpDriveDTSQs'));
 
 // PumpDrive components (require authentication)
 const PumpDriveUnified = lazy(() => import('../../pages/PumpDriveUnified'));
+const PumpDriveAccessGate = lazy(() => import('../../pages/PumpDriveAccessGate'));
 const PumpDriveResults = lazy(() => import('../../pages/PumpDriveResults'));
 const PumpDriveHTMLReport = lazy(() => import('../../pages/PumpDriveHTMLReport'));
-const PumpDriveBilling = lazy(() => import('../../pages/PumpDriveBilling'));
 const AssessmentHistory = lazy(() => import('../../pages/pumpdrive/AssessmentHistory'));
 
 // Text-based assessment components (to be implemented)
@@ -55,9 +55,9 @@ export default function PumpDriveBundle() {
             <PumpDriveUnified />
           </PumpDriveAuthGuard>
         } />
-        <Route path="billing" element={
+        <Route path="access" element={
           <PumpDriveAuthGuard>
-            <PumpDriveBilling />
+            <PumpDriveAccessGate />
           </PumpDriveAuthGuard>
         } />
         <Route path="results" element={

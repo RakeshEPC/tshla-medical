@@ -18,6 +18,7 @@ const LoadingSpinner = () => (
 // ========================================
 // CORE PAGES (loaded immediately)
 // ========================================
+import PumpDriveHomepage from './pages/PumpDriveHomepage';
 import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
 import PatientLogin from './pages/PatientLogin';
@@ -139,7 +140,8 @@ function App() {
           <Suspense fallback={<LoadingSpinner />}>
             <Routes>
               {/* ===== CORE ROUTES (no lazy loading) ===== */}
-              <Route path="/" element={<LandingPage />} />
+              <Route path="/" element={<PumpDriveHomepage />} />
+              <Route path="/staff" element={<LandingPage />} />
               <Route path="/login" element={<Login />} />
               <Route path="/patient-login" element={<PatientLogin />} />
               <Route path="/auth-redirect" element={<AuthRedirect />} />

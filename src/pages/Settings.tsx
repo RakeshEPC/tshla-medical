@@ -7,7 +7,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabaseAuthService } from '../services/supabaseAuth.service';
-import { sessionManagementService, UserSession } from '../services/sessionManagement.service';
+import { sessionManagementService } from '../services/sessionManagement.service';
+import type { UserSession } from '../services/sessionManagement.service';
 import MFAEnrollment from '../components/auth/MFAEnrollment';
 import { Monitor, Smartphone, Tablet, X } from 'lucide-react';
 
