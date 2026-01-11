@@ -31,6 +31,7 @@ COPY server/openai-realtime-relay.js ./
 COPY server/logger.js ./
 COPY server/api/ ./api/
 COPY server/services/ ./services/
+COPY server/middleware/ ./middleware/
 COPY server/utils/ ./utils/
 COPY server/routes/ ./routes/
 COPY server/config/ ./config/
