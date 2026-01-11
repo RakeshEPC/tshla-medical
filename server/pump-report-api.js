@@ -52,6 +52,7 @@ if (isStripeConfigured) {
     hint: 'Set STRIPE_SECRET_KEY environment variable',
     docs: 'See docs/STRIPE_SETUP_GUIDE.md for setup instructions',
     configured: !!stripeSecretKey,
+    stripeKeyValue: stripeSecretKey ? 'SET_BUT_INVALID' : 'NOT_SET',
     isPlaceholder: stripeSecretKey === 'sk_test_example...' || stripeSecretKey === 'sk_test_51example...'
   });
 }
