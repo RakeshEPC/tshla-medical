@@ -192,7 +192,7 @@ jobs:
             "STRIPE_WEBHOOK_SECRET=secretref:stripe-webhook-secret" \
             "VITE_STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY_LIVE }}" \
             "VITE_ENABLE_PAYMENT_FLOW=true" \
-            "VITE_REPORT_PRICE_CENTS=999"
+            "VITE_REPORT_PRICE_CENTS=499"
 
         # CRITICAL: The container update above should trigger a new revision with the secrets
         # No additional restart needed - the `az containerapp update` with new image triggers deployment

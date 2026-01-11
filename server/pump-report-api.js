@@ -495,7 +495,7 @@ app.post('/api/auth/register', registrationLimiter, checkDatabaseStatus, async (
       .insert({
         user_id: userId,
         access_type: 'initial_purchase',
-        payment_amount_cents: 999,
+        payment_amount_cents: 499,
         ip_address: req.ip,
         user_agent: req.get('User-Agent')
       });
@@ -727,7 +727,7 @@ app.post('/api/auth/renew-access', async (req, res) => {
       .insert({
         user_id: userId,
         access_type: 'renewal',
-        payment_amount_cents: 999
+        payment_amount_cents: 499
       });
 
     if (logError) {
@@ -1043,7 +1043,7 @@ app.post('/api/stripe/create-pump-report-session', async (req, res) => {
       });
     }
 
-    const { patientName, assessmentData, assessmentId, successUrl, cancelUrl, priceInCents = 999 } = req.body;
+    const { patientName, assessmentData, assessmentId, successUrl, cancelUrl, priceInCents = 499 } = req.body;
 
     if (!patientName || !assessmentId) {
       return res.status(400).json({
