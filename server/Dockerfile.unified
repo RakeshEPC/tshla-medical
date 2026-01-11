@@ -7,18 +7,14 @@ FROM node:20-slim
 # Set working directory
 WORKDIR /app
 
-# Copy package files from ROOT directory (contains ALL dependencies including speakeasy, qrcode, stripe)
-# Note: server/package.json does NOT have all dependencies - must use root package.json
-# Build context is now root directory, so copy package.json directly
-COPY package.json package-lock.json ./
-
-# CRITICAL: Remove "type": "module" from package.json to allow CommonJS server code
-# The server uses require() syntax, but frontend needs "type": "module" for Vite
-# Also remove "prepare" script that runs husky (causes exit code 127 in Docker)
-RUN sed -i '/"type": "module",/d' package.json && \
-    sed -i '/"prepare": "husky",/d' package.json
+# Copy server package.json and package-lock.json which has ALL server dependencies
+# Note: We use server/package.json instead of root package.json because:
+# - Root package.json is for frontend (Vite) and has "type": "module"
+# - Server uses CommonJS (require) and needs server-specific deps like express-ws, stripe, etc.
+COPY server/package.json server/package-lock.json ./
 
 # Install dependencies + curl for healthcheck
+# npm ci will use the lock file for deterministic builds
 RUN npm ci --omit=dev && \
     apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
