@@ -12,6 +12,11 @@ WORKDIR /app
 # Build context is now root directory, so copy package.json directly
 COPY package.json package-lock.json ./
 
+# CRITICAL: Remove "type": "module" from package.json to allow CommonJS server code
+# The server uses require() syntax, but frontend needs "type": "module" for Vite
+# This sed command removes the line containing "type": "module" from package.json
+RUN sed -i '/"type": "module",/d' package.json
+
 # Install dependencies + curl for healthcheck
 # CRITICAL: Use --ignore-scripts to skip husky prepare script (causes exit code 127)
 # This prevents: npm error command sh -c husky
