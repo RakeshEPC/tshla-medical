@@ -62,13 +62,13 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Right Image - Clean */}
+            {/* Right Image - Healthcare Professional with Insulin Pumps */}
             <div className="relative">
-              <div className="bg-tesla-medium-gray rounded-lg overflow-hidden shadow-tesla-lg">
+              <div className="bg-gradient-to-br from-blue-900 via-blue-800 to-purple-900 rounded-lg overflow-hidden shadow-tesla-lg">
                 <img
-                  src="https://images.unsplash.com/photo-1509914398892-963f53e6e2f1?w=800&h=600&fit=crop"
-                  alt="Person smiling while canoeing on a peaceful river"
-                  className="w-full h-[500px] object-cover opacity-90"
+                  src="/images/healthcare-professional-pumps.jpg"
+                  alt="Healthcare professional with AI-powered insulin pump technology"
+                  className="w-full h-[500px] object-cover opacity-95"
                 />
               </div>
             </div>
