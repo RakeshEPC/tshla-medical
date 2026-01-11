@@ -95,6 +95,19 @@ app.use(express.json({
   }
 }));
 
+// DEBUG endpoint to check environment variables (TEMPORARY - REMOVE AFTER FIXING)
+app.get('/api/debug/env-check', (req, res) => {
+  const stripeKey = process.env.STRIPE_SECRET_KEY;
+  res.json({
+    stripe_secret_key_exists: !!stripeKey,
+    stripe_key_length: stripeKey ? stripeKey.length : 0,
+    stripe_key_prefix: stripeKey ? stripeKey.substring(0, 8) : 'NOT_SET',
+    is_placeholder: stripeKey === 'sk_test_example...' || stripeKey === 'sk_test_51example...',
+    node_env: process.env.NODE_ENV,
+    all_env_vars_count: Object.keys(process.env).length
+  });
+});
+
 // Phase 3 Security: Rate limiting (must be after body parsing)
 app.use('/api/', apiLimiter); // General API rate limit: 100 req/min
 
