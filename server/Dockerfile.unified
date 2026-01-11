@@ -13,6 +13,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 
 # Install dependencies + curl for healthcheck
+# Skip husky git hooks in production Docker builds (causes exit code 127)
+ENV HUSKY=0
 RUN npm ci --only=production && \
     apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
