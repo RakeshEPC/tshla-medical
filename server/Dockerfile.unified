@@ -19,22 +19,9 @@ RUN npm ci --omit=dev && \
     apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 # Copy all application files from server/ subdirectory
-COPY server/unified-api.js ./
-COPY server/pump-report-api.js ./
-COPY server/medical-auth-api.js ./
-COPY server/enhanced-schedule-notes-api.js ./
-COPY server/admin-account-api.js ./
-COPY server/patient-summary-api.js ./
-COPY server/diabetes-education-api.js ./
-COPY server/pump-recommendation-engine-ai.js ./
-COPY server/openai-realtime-relay.js ./
-COPY server/logger.js ./
-COPY server/api/ ./api/
-COPY server/services/ ./services/
-COPY server/middleware/ ./middleware/
-COPY server/utils/ ./utils/
-COPY server/routes/ ./routes/
-COPY server/config/ ./config/
+# Use wildcard to copy everything at once instead of listing individual files
+# This ensures we don't miss any files or directories
+COPY server/ ./
 
 # Expose port (Azure App Service will set PORT env var)
 EXPOSE 3000
