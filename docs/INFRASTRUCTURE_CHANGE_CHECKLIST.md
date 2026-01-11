@@ -92,6 +92,79 @@ This checklist prevents breaking changes when deploying new services or infrastr
 
 ---
 
+## RLS Policy Verification Checklist
+
+### ✅ Before and After Auth Changes (MFA, Password Policies, Session Changes)
+
+**CRITICAL**: Auth system changes can **delete all RLS policies** without warning!
+
+- [ ] **Before auth deployment**
+  - Backup current policies: `node scripts/backup-rls-policies.cjs`
+  - Document current policy state
+  - Verify source of truth exists: `supabase/policies/templates.sql`
+  - Test restore script works: `node scripts/restore-rls-policies.cjs --dry-run`
+
+- [ ] **After auth deployment**
+  - Validate policies still exist: `node scripts/validate-rls-policies.cjs`
+  - Test user access: Login and verify templates load
+  - Check CI/CD: GitHub Actions RLS validation should pass
+  - If validation fails: `node scripts/restore-rls-policies.cjs`
+
+- [ ] **Daily monitoring**
+  - GitHub Actions runs daily RLS validation automatically
+  - Check for "RLS Policy Drift" issues
+  - Subscribe to GitHub notifications for RLS validation failures
+
+### ✅ When Templates or Other Tables Stop Loading
+
+If users report "no templates" or empty data despite records existing:
+
+1. **Diagnose**:
+   ```bash
+   node scripts/check-rls-policies.cjs
+   ```
+   Expected: "✅ RLS VALIDATION PASSED"
+   If failed: Proceed to step 2
+
+2. **Restore policies**:
+   ```bash
+   node scripts/restore-rls-policies.cjs
+   ```
+   This will guide you through restoring from source of truth
+
+3. **Verify fix**:
+   - Login at https://www.tshla.ai
+   - Check templates page loads
+   - Run: `node scripts/validate-rls-policies.cjs`
+
+4. **Investigate root cause**:
+   - Check Supabase audit logs
+   - Review recent deployments (especially auth changes)
+   - Document in incident log
+
+### 📁 RLS Policy Files Reference
+
+| File | Purpose |
+|------|---------|
+| `supabase/policies/templates.sql` | **SOURCE OF TRUTH** - All RLS policies |
+| `scripts/backup-rls-policies.cjs` | Export current policies from Supabase |
+| `scripts/restore-rls-policies.cjs` | Apply policies from source to Supabase |
+| `scripts/validate-rls-policies.cjs` | Check if policies exist (CI/CD) |
+| `scripts/check-rls-policies.cjs` | Diagnose RLS issues with detailed output |
+| `.github/workflows/rls-validation.yml` | Daily automated validation |
+
+### 🚨 Historical Incidents
+
+**Jan 11, 2026: Templates Not Loading After MFA**
+- **Cause**: Jan 8 MFA deployment deleted all RLS policies
+- **Impact**: Templates page empty for 3 days (users saw 0 results)
+- **Fix**: Manually recreated policies via Supabase SQL Editor
+- **Prevention**: Created automated validation and restore scripts
+
+**Why this keeps happening**: Supabase auth changes (MFA, session updates) can reset RLS policies as a security measure. Our safeguards now catch this immediately.
+
+---
+
 ## Content Security Policy (CSP) Quick Reference
 
 ### Common CSP Violations & Fixes

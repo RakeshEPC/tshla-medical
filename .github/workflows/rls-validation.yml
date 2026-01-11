@@ -1,0 +1,171 @@
+name: RLS Policy Validation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'supabase/policies/**'
+      - 'src/services/**'
+      - '.github/workflows/rls-validation.yml'
+      - 'scripts/validate-rls-policies.cjs'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'supabase/policies/**'
+      - 'src/services/**'
+  workflow_dispatch:
+  # Run daily to catch policy drift
+  schedule:
+    - cron: '0 8 * * *'  # 8 AM UTC every day
+
+jobs:
+  validate-rls:
+    runs-on: ubuntu-latest
+    name: Validate RLS Policies in Supabase
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          npm install --no-save @supabase/supabase-js
+
+      - name: Validate Templates RLS Policies
+        id: validate
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          echo "🔍 Validating RLS policies for templates table..."
+
+          # Run validation script in CI mode
+          if node scripts/validate-rls-policies.cjs --ci --table=templates; then
+            echo "✅ RLS validation PASSED"
+            echo "status=pass" >> $GITHUB_OUTPUT
+          else
+            echo "❌ RLS validation FAILED"
+            echo "status=fail" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: Comment on PR (if failed)
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## ⚠️ RLS Policy Validation Failed
+
+            The templates table is missing critical RLS policies or policies are misconfigured.
+
+            **Impact**: Users will not be able to view templates in the application.
+
+            **To Fix**:
+            1. Review changes to \`supabase/policies/templates.sql\`
+            2. Run: \`node scripts/restore-rls-policies.cjs\`
+            3. Or manually add policies in Supabase Dashboard
+            4. See: [docs/RLS_SAFEGUARDS.md](../blob/main/docs/RLS_SAFEGUARDS.md)
+
+            **Common Causes**:
+            - Auth system changes deleted policies
+            - Manual policy deletion in Supabase Dashboard
+            - Migration script missing RLS policy restoration
+
+            **Validation Details**:
+            Check the workflow logs for details about which policies are missing.
+            `
+            })
+
+      - name: Create Issue (if scheduled check failed)
+        if: failure() && github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Check if issue already exists
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'rls-policy-drift'
+            });
+
+            if (issues.data.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: '🚨 RLS Policies Missing or Misconfigured',
+                labels: ['bug', 'critical', 'rls-policy-drift'],
+                body: `## RLS Policy Drift Detected
+
+            The daily RLS validation check has detected that critical policies are missing or misconfigured in the Supabase database.
+
+            **Table**: templates
+            **Detected**: ${new Date().toISOString()}
+            **Impact**: Users cannot view templates
+
+            **Immediate Actions Required**:
+            1. Run: \`node scripts/validate-rls-policies.cjs\` to see details
+            2. Restore policies: \`node scripts/restore-rls-policies.cjs\`
+            3. Verify: Login and check https://www.tshla.ai/templates
+
+            **Root Cause Investigation**:
+            - Check recent Supabase auth changes (MFA, password policies)
+            - Review Supabase dashboard audit logs
+            - Check if policies were manually deleted
+
+            **Related Documentation**:
+            - [RLS Safeguards](../blob/main/docs/RLS_SAFEGUARDS.md)
+            - [MFA Implementation Impact](../blob/main/docs/MFA_IMPLEMENTATION_IMPACT.md)
+            - [Infrastructure Change Checklist](../blob/main/docs/INFRASTRUCTURE_CHANGE_CHECKLIST.md)
+
+            **Prevention**:
+            This automated check exists to catch policy drift early. If you see this issue:
+            1. It means policies were deleted outside of version control
+            2. Restore from source of truth: \`supabase/policies/templates.sql\`
+            3. Investigate what caused the deletion
+
+            ---
+            *This issue was automatically created by the RLS Validation workflow.*
+            `
+              });
+            }
+
+      - name: Notify on Success (if recovered)
+        if: success() && github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Close any open RLS policy drift issues
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'rls-policy-drift'
+            });
+
+            for (const issue of issues.data) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `✅ RLS policies have been restored and validation is now passing. Closing this issue.`
+              });
+
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: 'closed'
+              });
+            }
