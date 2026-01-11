@@ -251,11 +251,21 @@ app.get('/api/debug/templates/:authUserId', async (req, res) => {
     // Step 2: Load user templates
     const { data: userTemplates, error: userError } = await supabase
       .from('templates')
-      .select('id, name, visit_type, is_system_template, created_at')
+      .select('id, name, template_type, is_system_template, created_at')
       .eq('created_by', staffData.id)
       .order('created_at', { ascending: false });
 
-    if (!userError && userTemplates) {
+    if (userError) {
+      result.diagnosis.push({
+        level: 'error',
+        message: 'Error loading user templates',
+        error: userError.message,
+        code: userError.code,
+        hint: userError.code === 'PGRST301' || userError.message.includes('RLS')
+          ? 'RLS policy may be blocking query - check Supabase Dashboard → Database → templates → Policies'
+          : userError.hint
+      });
+    } else if (userTemplates) {
       result.templates.user = userTemplates;
       result.diagnosis.push({
         level: 'info',
@@ -266,11 +276,21 @@ app.get('/api/debug/templates/:authUserId', async (req, res) => {
     // Step 3: Load system templates
     const { data: systemTemplates, error: systemError } = await supabase
       .from('templates')
-      .select('id, name, visit_type, is_system_template, created_at')
+      .select('id, name, template_type, is_system_template, created_at')
       .eq('is_system_template', true)
       .order('created_at', { ascending: false });
 
-    if (!systemError && systemTemplates) {
+    if (systemError) {
+      result.diagnosis.push({
+        level: 'error',
+        message: 'Error loading system templates',
+        error: systemError.message,
+        code: systemError.code,
+        hint: systemError.code === 'PGRST301' || systemError.message.includes('RLS')
+          ? 'RLS policy may be blocking query - check Supabase Dashboard → Database → templates → Policies'
+          : systemError.hint
+      });
+    } else if (systemTemplates) {
       result.templates.system = systemTemplates;
       result.diagnosis.push({
         level: 'info',
@@ -281,11 +301,21 @@ app.get('/api/debug/templates/:authUserId', async (req, res) => {
     // Step 4: Load legacy templates (created_by is null)
     const { data: legacyTemplates, error: legacyError } = await supabase
       .from('templates')
-      .select('id, name, visit_type, is_system_template, created_at')
+      .select('id, name, template_type, is_system_template, created_at')
       .is('created_by', null)
       .order('created_at', { ascending: false });
 
-    if (!legacyError && legacyTemplates) {
+    if (legacyError) {
+      result.diagnosis.push({
+        level: 'error',
+        message: 'Error loading legacy templates',
+        error: legacyError.message,
+        code: legacyError.code,
+        hint: legacyError.code === 'PGRST301' || legacyError.message.includes('RLS')
+          ? 'RLS policy may be blocking query - check Supabase Dashboard → Database → templates → Policies'
+          : legacyError.hint
+      });
+    } else if (legacyTemplates) {
       result.templates.legacy = legacyTemplates;
       result.diagnosis.push({
         level: 'info',
@@ -299,12 +329,30 @@ app.get('/api/debug/templates/:authUserId', async (req, res) => {
 
     // Step 5: Final diagnosis
     if (result.templates.total === 0) {
-      result.diagnosis.push({
-        level: 'warning',
-        message: 'No templates found in database',
-        suggestion: 'Templates may need to be seeded',
-        action: 'Run: npx tsx scripts/seed-templates.ts'
-      });
+      const hasErrors = result.diagnosis.some(d => d.level === 'error');
+      if (hasErrors) {
+        result.diagnosis.push({
+          level: 'error',
+          message: 'No templates loaded due to errors above',
+          possibleCauses: [
+            '1. RLS policies are blocking queries (most likely)',
+            '2. Templates table is empty (less likely - 16 exist in DB)',
+            '3. Column name mismatch (fixed in this version)'
+          ],
+          actions: [
+            'Check Supabase Dashboard → Database → templates → Policies',
+            'Ensure policies allow SELECT for authenticated users',
+            'Add policy: "Allow authenticated users to read system templates"'
+          ]
+        });
+      } else {
+        result.diagnosis.push({
+          level: 'warning',
+          message: 'No templates found in database',
+          suggestion: 'Templates may need to be seeded',
+          action: 'Run: npx tsx scripts/seed-templates.ts'
+        });
+      }
     } else {
       result.diagnosis.push({
         level: 'success',

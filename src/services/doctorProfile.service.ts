@@ -267,7 +267,7 @@ class DoctorProfileService {
         const { data: legacyTemplates, error: legacyError } = await supabase
           .from('templates')
           .select('*')
-          .is('created_by', 'null')  // PostgREST requires string 'null', not actual null
+          .is('created_by', null)  // FIXED: Use actual null, not string 'null'
           .order('created_at', { ascending: false });
 
         console.log('🔍 [doctorProfile] Query results:', {
