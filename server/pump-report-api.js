@@ -1051,6 +1051,24 @@ app.post('/api/stripe/create-pump-report-session', async (req, res) => {
       });
     }
 
+    // CRITICAL: Check if assessment already paid to prevent duplicate charges
+    const { data: existingAssessment, error: fetchError } = await supabase
+      .from('pump_assessments')
+      .select('payment_status')
+      .eq('id', assessmentId)
+      .single();
+
+    if (fetchError) {
+      throw new Error(`Failed to fetch assessment: ${fetchError.message}`);
+    }
+
+    if (existingAssessment.payment_status === 'paid') {
+      return res.status(400).json({
+        error: 'Payment already completed',
+        message: 'This assessment has already been paid for. Please refresh the page.',
+      });
+    }
+
     // Update existing assessment with payment pending status
     const { error: updateError } = await supabase
       .from('pump_assessments')

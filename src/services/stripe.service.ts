@@ -30,7 +30,7 @@ export const PUMPDRIVE_PLANS: PumpDrivePlan[] = [
   {
     id: 'pump_report',
     name: 'Pump Recommendation Report',
-    price: 9.99,
+    price: 4.99,
     description: 'Professional one-page pump recommendation report',
     features: [
       'AI-powered pump matching across 23 dimensions',
@@ -67,7 +67,7 @@ export const createPumpReportCheckout = async (data: CheckoutSessionData) => {
         assessmentData: data.assessmentData,
         successUrl: data.successUrl,
         cancelUrl: data.cancelUrl,
-        priceInCents: 999, // $9.99
+        priceInCents: 499, // $4.99
       }),
     });
 
