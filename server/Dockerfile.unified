@@ -7,8 +7,9 @@ FROM node:20-slim
 # Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package.json package-lock.json ./
+# Copy package files from PARENT directory (contains ALL dependencies including speakeasy, qrcode, stripe)
+# Note: server/package.json does NOT have all dependencies - must use root package.json
+COPY ../package.json ../package-lock.json ./
 
 # Install dependencies + curl for healthcheck
 RUN npm ci --only=production && \
