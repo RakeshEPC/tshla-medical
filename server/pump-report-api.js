@@ -57,19 +57,6 @@ if (isStripeConfigured) {
   });
 }
 
-// DEBUG endpoint to check environment variables (TEMPORARY - REMOVE AFTER FIXING)
-app.get('/api/debug/env-check', (req, res) => {
-  const stripeKey = process.env.STRIPE_SECRET_KEY;
-  res.json({
-    stripe_secret_key_exists: !!stripeKey,
-    stripe_key_length: stripeKey ? stripeKey.length : 0,
-    stripe_key_prefix: stripeKey ? stripeKey.substring(0, 8) : 'NOT_SET',
-    is_placeholder: stripeKey === 'sk_test_example...' || stripeKey === 'sk_test_51example...',
-    node_env: process.env.NODE_ENV,
-    all_env_vars_count: Object.keys(process.env).length
-  });
-});
-
 // Initialize Supabase client for token verification
 const { createClient } = require('@supabase/supabase-js');
 const supabase = createClient(
