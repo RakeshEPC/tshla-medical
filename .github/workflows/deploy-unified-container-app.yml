@@ -194,6 +194,13 @@ jobs:
             "VITE_ENABLE_PAYMENT_FLOW=true" \
             "VITE_REPORT_PRICE_CENTS=999"
 
+        # CRITICAL: Restart container to load secrets that were just set
+        # Azure warning: "Containerapp must be restarted in order for secret changes to take effect"
+        echo "Restarting container to load secrets..."
+        az containerapp revision restart \
+          --name ${{ env.CONTAINER_APP_NAME }} \
+          --resource-group ${{ env.RESOURCE_GROUP }}
+
     - name: Get Container App URL
       id: get_url
       run: |
