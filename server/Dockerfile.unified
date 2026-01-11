@@ -13,9 +13,9 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 
 # Install dependencies + curl for healthcheck
-# Skip husky git hooks in production Docker builds (causes exit code 127)
-ENV HUSKY=0
-RUN npm ci --only=production && \
+# CRITICAL: Use --ignore-scripts to skip husky prepare script (causes exit code 127)
+# This prevents: npm error command sh -c husky
+RUN npm ci --omit=dev --ignore-scripts && \
     apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 # Copy all application files from server/ subdirectory
