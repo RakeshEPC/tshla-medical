@@ -14,13 +14,12 @@ COPY package.json package-lock.json ./
 
 # CRITICAL: Remove "type": "module" from package.json to allow CommonJS server code
 # The server uses require() syntax, but frontend needs "type": "module" for Vite
-# This sed command removes the line containing "type": "module" from package.json
-RUN sed -i '/"type": "module",/d' package.json
+# Also remove "prepare" script that runs husky (causes exit code 127 in Docker)
+RUN sed -i '/"type": "module",/d' package.json && \
+    sed -i '/"prepare": "husky",/d' package.json
 
 # Install dependencies + curl for healthcheck
-# CRITICAL: Set HUSKY=0 to skip husky git hooks (causes exit code 127 in Docker)
-# Husky respects this env var and skips installation in CI/Docker environments
-RUN export HUSKY=0 && npm ci --omit=dev && \
+RUN npm ci --omit=dev && \
     apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 # Copy all application files from server/ subdirectory
