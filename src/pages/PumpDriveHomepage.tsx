@@ -74,32 +74,56 @@ export default function PumpDriveHomepage() {
 
       {/* Hero Section */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-16">
-        <div className="text-center max-w-4xl mx-auto">
-          {/* Headline */}
-          <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
-            Make a pump decision<br />you can stand behind.
-          </h1>
+        <div className="grid lg:grid-cols-2 gap-12 items-center">
+          {/* Left Content */}
+          <div>
+            {/* Headline */}
+            <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
+              Make a pump decision<br />you can stand behind.
+            </h1>
 
-          {/* Subheadline */}
-          <p className="text-xl text-gray-600 mb-10 leading-relaxed">
-            AI assists with processing. The decision framework is clinician-designed
-            and refined through real-world pump use patterns.
-          </p>
-
-          {/* Primary CTA */}
-          <button
-            onClick={handleGetStarted}
-            className="bg-blue-600 text-white px-12 py-4 rounded-lg text-lg font-semibold hover:bg-blue-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-          >
-            {user ? 'View My Results' : 'Start Pump Decision'}
-          </button>
-
-          {/* Secondary info */}
-          {!user && (
-            <p className="mt-4 text-sm text-gray-500">
-              Results in minutes, clarity for years
+            {/* Subheadline */}
+            <p className="text-xl text-gray-600 mb-10 leading-relaxed">
+              AI assists with processing. The decision framework is clinician-designed
+              and refined through real-world pump use patterns.
             </p>
-          )}
+
+            {/* Primary CTA */}
+            <div className="flex flex-col sm:flex-row gap-4">
+              <button
+                onClick={handleGetStarted}
+                className="bg-blue-600 text-white px-12 py-4 rounded-lg text-lg font-semibold hover:bg-blue-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+              >
+                {user ? 'View My Results' : 'Start Pump Decision'}
+              </button>
+              {!user && (
+                <button
+                  onClick={handleLogin}
+                  className="border-2 border-blue-600 text-blue-600 px-8 py-4 rounded-lg text-lg font-semibold hover:bg-blue-50 transition-all"
+                >
+                  Sign In
+                </button>
+              )}
+            </div>
+
+            {/* Secondary info */}
+            {!user && (
+              <p className="mt-6 text-sm text-gray-500">
+                Results in minutes, clarity for years
+              </p>
+            )}
+          </div>
+
+          {/* Right Image - Healthcare Professional */}
+          <div className="relative">
+            <div className="bg-gradient-to-br from-blue-900 via-blue-800 to-purple-900 rounded-2xl overflow-hidden shadow-2xl">
+              <img
+                src="/images/healthcare-professional-pumps.jpg"
+                alt="Healthcare professional with AI-powered insulin pump technology"
+                className="w-full h-[500px] object-cover opacity-95"
+              />
+            </div>
+          </div>
         </div>
       </section>
 
