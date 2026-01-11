@@ -1,0 +1,111 @@
+name: CSP Validation
+
+on:
+  pull_request:
+    paths:
+      - 'public/staticwebapp.config.json'
+      - '.github/workflows/deploy-*.yml'
+      - 'server/**'
+  push:
+    branches:
+      - main
+    paths:
+      - 'public/staticwebapp.config.json'
+  workflow_dispatch:
+
+jobs:
+  validate-csp:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install --no-save @supabase/supabase-js
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+        continue-on-error: true
+
+      - name: Run CSP Validation
+        id: validate
+        run: |
+          node scripts/validate-csp.cjs > csp-validation.log 2>&1
+          EXIT_CODE=$?
+          cat csp-validation.log
+          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+          exit $EXIT_CODE
+        continue-on-error: true
+
+      - name: Comment on PR (if failed)
+        if: failure() && github.event_name == 'pull_request' && steps.validate.outputs.exit_code != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const log = fs.readFileSync('csp-validation.log', 'utf8');
+
+            const body = `## ⚠️ CSP Validation Failed
+
+The Content Security Policy validation has detected issues that may break production:
+
+\`\`\`
+${log}
+\`\`\`
+
+### What this means:
+- New Azure Container Apps were deployed but not added to CSP
+- Users will see "Refused to connect" errors in browser console
+- Services may be unreachable from the frontend
+
+### How to fix:
+1. Add missing URLs to \`public/staticwebapp.config.json\`
+2. Update the \`connect-src\` directive
+3. See: [Infrastructure Change Checklist](../blob/main/docs/INFRASTRUCTURE_CHANGE_CHECKLIST.md)
+
+### Example:
+\`\`\`json
+"connect-src": "... https://new-service.redpebble-e4551b7a.eastus.azurecontainerapps.io ..."
+\`\`\`
+`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+      - name: Upload validation log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: csp-validation-log
+          path: csp-validation.log
+
+      - name: Fail job if validation failed
+        if: steps.validate.outputs.exit_code != '0'
+        run: |
+          echo "❌ CSP validation failed - see logs above"
+          exit 1
+
+  # Optional: Warn but don't fail for PRs (remove this and keep strict validation if you prefer)
+  pr-warning-only:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    needs: validate-csp
+    steps:
+      - name: CSP Warning Summary
+        if: failure()
+        run: |
+          echo "⚠️ CSP validation failed but allowing PR to continue"
+          echo "Please review the validation errors before merging"
+          echo "Production deployments will be blocked if CSP is invalid"

@@ -188,9 +188,159 @@ app.get('/', (req, res) => {
       schedule_api: '/api/schedule/*, /api/notes/*',
       admin_api: '/api/accounts/*',
       websocket: 'ws://[host]/ws/deepgram',
-      previsit_twiml: '/api/twilio/previsit-twiml'
+      previsit_twiml: '/api/twilio/previsit-twiml',
+      debug_templates: '/api/debug/templates/:authUserId'
     }
   });
+});
+
+// Debug endpoint - Template loading diagnostics
+app.get('/api/debug/templates/:authUserId', async (req, res) => {
+  const { authUserId } = req.params;
+
+  try {
+    logger.info('Debug', 'Template diagnostic requested', { authUserId });
+
+    // Step 1: Find medical_staff record
+    const { data: staffData, error: staffError } = await supabase
+      .from('medical_staff')
+      .select('id, email, first_name, last_name, role, auth_user_id, is_active, is_verified')
+      .eq('auth_user_id', authUserId)
+      .maybeSingle();
+
+    const result = {
+      timestamp: new Date().toISOString(),
+      authUserId,
+      medicalStaff: null,
+      templates: {
+        user: [],
+        system: [],
+        legacy: [],
+        total: 0
+      },
+      diagnosis: []
+    };
+
+    if (staffError) {
+      result.diagnosis.push({
+        level: 'error',
+        message: 'Error querying medical_staff table',
+        error: staffError.message
+      });
+      return res.status(500).json(result);
+    }
+
+    if (!staffData) {
+      result.diagnosis.push({
+        level: 'error',
+        message: 'No medical_staff record found for this auth_user_id',
+        suggestion: 'User may not be properly registered as medical staff',
+        action: 'Run: node scripts/find-and-fix-admin.cjs'
+      });
+      return res.status(404).json(result);
+    }
+
+    result.medicalStaff = staffData;
+    result.diagnosis.push({
+      level: 'success',
+      message: 'Medical staff record found',
+      staffId: staffData.id,
+      email: staffData.email
+    });
+
+    // Step 2: Load user templates
+    const { data: userTemplates, error: userError } = await supabase
+      .from('templates')
+      .select('id, name, visit_type, is_system_template, created_at')
+      .eq('created_by', staffData.id)
+      .order('created_at', { ascending: false });
+
+    if (!userError && userTemplates) {
+      result.templates.user = userTemplates;
+      result.diagnosis.push({
+        level: 'info',
+        message: `Found ${userTemplates.length} user templates`
+      });
+    }
+
+    // Step 3: Load system templates
+    const { data: systemTemplates, error: systemError } = await supabase
+      .from('templates')
+      .select('id, name, visit_type, is_system_template, created_at')
+      .eq('is_system_template', true)
+      .order('created_at', { ascending: false });
+
+    if (!systemError && systemTemplates) {
+      result.templates.system = systemTemplates;
+      result.diagnosis.push({
+        level: 'info',
+        message: `Found ${systemTemplates.length} system templates`
+      });
+    }
+
+    // Step 4: Load legacy templates (created_by is null)
+    const { data: legacyTemplates, error: legacyError } = await supabase
+      .from('templates')
+      .select('id, name, visit_type, is_system_template, created_at')
+      .is('created_by', null)
+      .order('created_at', { ascending: false });
+
+    if (!legacyError && legacyTemplates) {
+      result.templates.legacy = legacyTemplates;
+      result.diagnosis.push({
+        level: 'info',
+        message: `Found ${legacyTemplates.length} legacy templates`
+      });
+    }
+
+    result.templates.total = (userTemplates?.length || 0) +
+                             (systemTemplates?.length || 0) +
+                             (legacyTemplates?.length || 0);
+
+    // Step 5: Final diagnosis
+    if (result.templates.total === 0) {
+      result.diagnosis.push({
+        level: 'warning',
+        message: 'No templates found in database',
+        suggestion: 'Templates may need to be seeded',
+        action: 'Run: npx tsx scripts/seed-templates.ts'
+      });
+    } else {
+      result.diagnosis.push({
+        level: 'success',
+        message: `Total ${result.templates.total} templates available for this user`
+      });
+    }
+
+    // Step 6: Check localStorage cache (can't check from server, provide instructions)
+    result.diagnosis.push({
+      level: 'info',
+      message: 'To check browser localStorage cache:',
+      instructions: [
+        '1. Open browser DevTools (F12)',
+        '2. Go to Application/Storage tab',
+        '3. Expand Local Storage',
+        `4. Look for key: doctor_profile_${authUserId}`,
+        '5. If exists, check templates array length',
+        `6. To clear: localStorage.removeItem('doctor_profile_${authUserId}')`
+      ]
+    });
+
+    res.json(result);
+
+  } catch (error) {
+    logger.error('Debug', 'Template diagnostic error', { error: error.message });
+    res.status(500).json({
+      timestamp: new Date().toISOString(),
+      authUserId,
+      error: error.message,
+      diagnosis: [{
+        level: 'error',
+        message: 'Unexpected error during diagnosis',
+        error: error.message
+      }]
+    });
+  }
 });
 
 // Pre-Visit TwiML Endpoint for Twilio Integration
