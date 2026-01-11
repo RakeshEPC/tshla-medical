@@ -7,30 +7,31 @@ FROM node:20-slim
 # Set working directory
 WORKDIR /app
 
-# Copy package files from PARENT directory (contains ALL dependencies including speakeasy, qrcode, stripe)
+# Copy package files from ROOT directory (contains ALL dependencies including speakeasy, qrcode, stripe)
 # Note: server/package.json does NOT have all dependencies - must use root package.json
-COPY ../package.json ../package-lock.json ./
+# Build context is now root directory, so copy package.json directly
+COPY package.json package-lock.json ./
 
 # Install dependencies + curl for healthcheck
 RUN npm ci --only=production && \
     apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-# Copy all application files
-COPY unified-api.js ./
-COPY pump-report-api.js ./
-COPY medical-auth-api.js ./
-COPY enhanced-schedule-notes-api.js ./
-COPY admin-account-api.js ./
-COPY patient-summary-api.js ./
-COPY diabetes-education-api.js ./
-COPY pump-recommendation-engine-ai.js ./
-COPY openai-realtime-relay.js ./
-COPY logger.js ./
-COPY api/ ./api/
-COPY services/ ./services/
-COPY utils/ ./utils/
-COPY routes/ ./routes/
-COPY config/ ./config/
+# Copy all application files from server/ subdirectory
+COPY server/unified-api.js ./
+COPY server/pump-report-api.js ./
+COPY server/medical-auth-api.js ./
+COPY server/enhanced-schedule-notes-api.js ./
+COPY server/admin-account-api.js ./
+COPY server/patient-summary-api.js ./
+COPY server/diabetes-education-api.js ./
+COPY server/pump-recommendation-engine-ai.js ./
+COPY server/openai-realtime-relay.js ./
+COPY server/logger.js ./
+COPY server/api/ ./api/
+COPY server/services/ ./services/
+COPY server/utils/ ./utils/
+COPY server/routes/ ./routes/
+COPY server/config/ ./config/
 
 # Expose port (Azure App Service will set PORT env var)
 EXPOSE 3000

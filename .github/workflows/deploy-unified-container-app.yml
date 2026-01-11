@@ -31,14 +31,14 @@ jobs:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
     - name: Build and push Docker image
-      working-directory: ./server
       run: |
         # Login to ACR
         az acr login --name tshlaregistry
 
         # Build with timestamp to force new revision
+        # Build from ROOT directory so Dockerfile can access both root package.json and server/ files
         DEPLOY_TIMESTAMP=$(date +%s)
-        docker build -f Dockerfile.unified \
+        docker build -f server/Dockerfile.unified \
           --platform linux/amd64 \
           --no-cache \
           --build-arg DEPLOY_TIMESTAMP=$DEPLOY_TIMESTAMP \
