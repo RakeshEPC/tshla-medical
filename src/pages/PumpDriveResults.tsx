@@ -868,10 +868,10 @@ export default function PumpDriveResults() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-4 md:p-8">
+      <div className="max-w-6xl mx-auto">
         {/* Header with Logout Button */}
-        <div className="relative mb-6">
+        <div className="relative mb-8">
           {/* Logout Button - Top Right */}
           <div className="absolute top-0 right-0">
             <button
@@ -893,14 +893,14 @@ export default function PumpDriveResults() {
               </svg>
               Analysis Complete
             </div>
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900">
-              Your Top Personalized Pump Pick
+            <h1 className="text-4xl md:text-5xl font-bold text-gray-900">
+              Your Personalized Pump Recommendation
             </h1>
           </div>
         </div>
 
         {/* Main Pump Recommendation - Center Focus */}
-        <div className="max-w-3xl mx-auto mb-10">
+        <div className="max-w-4xl mx-auto mb-8">
           {/* Elegant Photo Frame Border Effect with Shadow */}
           <div className="relative p-2 rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-500 to-blue-700 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)]">
             {/* Inner light blue highlight */}
@@ -981,8 +981,8 @@ export default function PumpDriveResults() {
         </div>
 
         {/* Action Plan and Assessment Section - Side by Side */}
-        <div className="max-w-6xl mx-auto mb-4">
-          <div className="grid md:grid-cols-2 gap-4">
+        <div className="max-w-6xl mx-auto mb-8">
+          <div className="grid md:grid-cols-2 gap-6">
             {/* Left: Action Plan */}
             <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl shadow-xl p-6 border-2 border-blue-300">
               <h2 className="text-xl font-bold text-gray-900 mb-3 flex items-center gap-2">
@@ -1073,11 +1073,11 @@ export default function PumpDriveResults() {
 
         {/* Alternative Options - Smaller Cards */}
         {allPumps.length > 1 && (
-          <div className="mb-4">
-            <h2 className="text-lg font-bold text-gray-900 mb-2 text-center">
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4 text-center">
               Other Options to Consider
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {allPumps.slice(1).map((pump) => {
                 const manufacturer = getManufacturerByPumpName(pump.name);
 
@@ -1176,17 +1176,17 @@ export default function PumpDriveResults() {
         )}
 
         {/* Print Button */}
-        <div className="text-center mb-3">
+        <div className="text-center mb-8">
           <button
             onClick={handlePrint}
-            className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-all text-sm"
+            className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-all shadow-md"
           >
             🖨️ Print / Save PDF
           </button>
         </div>
 
         {/* Footer Disclaimer */}
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center">
+        <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-6 text-center shadow-md">
           <p className="text-xs text-amber-800">
             <strong>⚠️ Important:</strong> {importantDisclaimers.medical}
           </p>
