@@ -258,7 +258,7 @@ export default function MedicalDictationModern({ patientId, preloadPatientData =
         <div className={styles.headerContent}>
           <div className={styles.headerLeft}>
             <button
-              onClick={() => navigate('/doctor')}
+              onClick={() => navigate('/staff-dashboard')}
               className={`${styles.btn} ${styles.btnIcon}`}
             >
               <ChevronLeft size={16} />

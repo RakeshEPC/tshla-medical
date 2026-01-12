@@ -633,7 +633,7 @@ Visit Date: ${patientDetails.visitDate}
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => navigate('/doctor')}
+              onClick={() => navigate('/staff-dashboard')}
               className="glass-button p-2 rounded-lg hover:scale-105 transition-transform"
             >
               <ArrowLeft className="w-5 h-5" />
