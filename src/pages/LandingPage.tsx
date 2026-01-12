@@ -62,12 +62,12 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Right Image - Healthcare Professional with Insulin Pumps */}
+            {/* Right Image - TSHLA Medical Team */}
             <div className="relative">
               <div className="bg-gradient-to-br from-blue-900 via-blue-800 to-purple-900 rounded-lg overflow-hidden shadow-tesla-lg">
                 <img
-                  src="/images/healthcare-professional-pumps.jpg"
-                  alt="Healthcare professional with AI-powered insulin pump technology"
+                  src="/images/tshla-team-photo.jpg"
+                  alt="TSHLA Medical Team - Expert diabetes care providers"
                   className="w-full h-[500px] object-cover opacity-95"
                 />
               </div>
