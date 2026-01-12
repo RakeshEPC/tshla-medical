@@ -521,16 +521,37 @@ class SupabaseAuthService {
           authUserId: authData.user.id,
         });
 
-        // Note: We cannot delete the orphaned auth user from client-side
-        // (requires service role key). Admin must clean up manually via Supabase Dashboard.
+        // CRITICAL: Roll back the auth user creation to prevent orphaned accounts
+        console.error('🔄 [SupabaseAuth] Rolling back auth user creation due to medical_staff insert failure');
+        try {
+          await supabase.auth.admin.deleteUser(authData.user.id);
+          console.log('✅ [SupabaseAuth] Successfully deleted orphaned auth user');
+        } catch (deleteError) {
+          console.error('❌ [SupabaseAuth] Failed to delete orphaned auth user:', deleteError);
+          logError('SupabaseAuth', 'Failed to rollback orphaned auth user', {
+            authUserId: authData.user.id,
+            deleteError
+          });
+        }
+
+        // Return detailed error message
+        const errorMessage = staffError.code === '23505'
+          ? 'An account with this email already exists in the medical staff database. Please use a different email.'
+          : staffError.code === '42501'
+          ? 'ERROR: Row Level Security (RLS) policy is blocking account creation. The admin needs to check Supabase RLS policies for the medical_staff table. Contact your system administrator.'
+          : staffError.code === 'PGRST116'
+          ? 'Database configuration error. Please contact system administrator.'
+          : `Failed to create medical staff profile: ${staffError.message || 'Unknown database error'}`;
 
         return {
           success: false,
-          error: staffError.code === '23505'
-            ? 'An account with this email already exists. Please use a different email or contact support.'
-            : staffError.code === '42501'
-            ? 'Permission denied: Row Level Security policy is blocking account creation. Please contact your system administrator to fix Supabase RLS policies.'
-            : `Failed to create medical staff profile: ${staffError.message}. If this persists, contact support.`,
+          error: errorMessage,
+          _debugInfo: {
+            code: staffError.code,
+            message: staffError.message,
+            details: staffError.details,
+            hint: staffError.hint,
+          }
         };
       }
 

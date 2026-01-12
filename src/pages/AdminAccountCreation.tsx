@@ -87,7 +87,12 @@ export default function AdminAccountCreation() {
             enablePumpDrive: true,
           });
         } else {
-          setMessage({ type: 'error', text: result.error || 'Failed to create staff account' });
+          // Show detailed error with debug info if available
+          let errorText = result.error || 'Failed to create staff account';
+          if (result._debugInfo) {
+            errorText += `\n\nDebug Info:\nCode: ${result._debugInfo.code || 'N/A'}\nDetails: ${result._debugInfo.details || 'N/A'}`;
+          }
+          setMessage({ type: 'error', text: errorText });
         }
       } else {
         // Create patient account
