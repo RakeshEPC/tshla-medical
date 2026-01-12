@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Templates RLS</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>Template RLS Test</h1>
+    <button onclick="testTemplates()">Test Templates Access</button>
+    <pre id="result"></pre>
+
+    <script>
+        const supabase = window.supabase.createClient(
+            'https://minvvjdflezibmgkplqb.supabase.co',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1pbnZ2amRmbGV6aWJtZ2twbHFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYwNDE5ODgsImV4cCI6MjA3MTYxNzk4OH0.-qzlS3artX2DWOVQgIqwd1jd3Utlnik6yOMFhyGcHl8'
+        );
+
+        async function testTemplates() {
+            const result = document.getElementById('result');
+            
+            result.textContent = 'Testing templates access...\n\n';
+
+            // Test 1: Without auth (should return 0)
+            const { data: unauthData, error: unauthError } = await supabase
+                .from('templates')
+                .select('id, name')
+                .eq('is_system_template', true);
+
+            result.textContent += `Test 1: Unauthenticated access\n`;
+            result.textContent += `  Result: ${unauthData?.length || 0} templates\n`;
+            result.textContent += `  Error: ${unauthError?.message || 'None'}\n\n`;
+
+            // Now check if there's a session
+            const { data: { session } } = await supabase.auth.getSession();
+            
+            result.textContent += `Current session: ${session ? 'Logged in as ' + session.user.email : 'Not logged in'}\n\n`;
+
+            if (!session) {
+                result.textContent += '⚠️  Not logged in. Policies require authentication.\n';
+                result.textContent += '   Login at https://www.tshla.ai/login first, then run this test again.\n';
+            }
+        }
+    </script>
+</body>
+</html>

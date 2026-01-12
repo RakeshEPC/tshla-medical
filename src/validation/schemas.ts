@@ -121,7 +121,7 @@ export const medicalStaffSchema = z.object({
     .max(50, 'Last name must be 50 characters or less')
     .regex(nameRegex, 'Last name can only contain letters, spaces, hyphens, and apostrophes'),
 
-  role: z.enum(['doctor', 'nurse', 'staff', 'admin', 'super_admin']),
+  role: z.enum(['provider', 'nurse', 'staff', 'admin', 'super_admin']),
 
   specialty: z
     .string()

@@ -54,7 +54,7 @@ export default function AccountManager() {
     password: '',
     firstName: '',
     lastName: '',
-    role: 'doctor',
+    role: 'provider',
     specialty: '',
     practice: 'TSHLA Medical',
     enablePumpDrive: true
@@ -152,7 +152,7 @@ export default function AccountManager() {
           password: newAccount.password,
           firstName: sanitizationService.sanitizeUserInput(newAccount.firstName),
           lastName: sanitizationService.sanitizeUserInput(newAccount.lastName),
-          role: newAccount.accountType === 'admin' ? 'admin' : (newAccount.role || 'doctor'),
+          role: newAccount.accountType === 'admin' ? 'admin' : (newAccount.role || 'provider'),
           specialty: newAccount.specialty ? sanitizationService.sanitizeUserInput(newAccount.specialty) : undefined,
           practice: newAccount.practice ? sanitizationService.sanitizeUserInput(newAccount.practice) : undefined,
         });
@@ -197,7 +197,7 @@ export default function AccountManager() {
           password: newAccount.password,
           firstName: sanitizationService.sanitizeUserInput(newAccount.firstName),
           lastName: sanitizationService.sanitizeUserInput(newAccount.lastName),
-          role: newAccount.accountType === 'admin' ? 'admin' : (newAccount.role || 'doctor'),
+          role: newAccount.accountType === 'admin' ? 'admin' : (newAccount.role || 'provider'),
           specialty: newAccount.specialty ? sanitizationService.sanitizeUserInput(newAccount.specialty) : undefined,
           practice: newAccount.practice ? sanitizationService.sanitizeUserInput(newAccount.practice) : undefined,
         });
@@ -249,7 +249,7 @@ export default function AccountManager() {
         password: '',
         firstName: '',
         lastName: '',
-        role: 'doctor',
+        role: 'provider',
         specialty: '',
         practice: 'TSHLA Medical',
         enablePumpDrive: true
@@ -558,7 +558,7 @@ export default function AccountManager() {
                   <div className="grid grid-cols-4 gap-3">
                     {[
                       { value: 'admin', label: 'Admin', icon: '👑' },
-                      { value: 'staff', label: 'Staff/Doctor', icon: '👨‍⚕️' },
+                      { value: 'staff', label: 'Staff/Provider', icon: '👨‍⚕️' },
                       { value: 'patient', label: 'Patient', icon: '🧑' },
                       { value: 'pumpdrive', label: 'PumpDrive Patient', icon: '💊' }
                     ].map(type => (
@@ -645,7 +645,7 @@ export default function AccountManager() {
                           onChange={e => setNewAccount({ ...newAccount, role: e.target.value })}
                           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                         >
-                          <option value="doctor">Doctor</option>
+                          <option value="provider">Provider</option>
                           <option value="nurse">Nurse</option>
                           <option value="staff">Staff</option>
                         </select>
@@ -795,7 +795,7 @@ export default function AccountManager() {
                 >
                   <option value="all">All Accounts</option>
                   <option value="admin">Admins</option>
-                  <option value="staff">Staff/Doctors</option>
+                  <option value="staff">Staff/Providers</option>
                   <option value="patient">Patients</option>
                   <option value="pumpdrive">PumpDrive Patients</option>
                 </select>

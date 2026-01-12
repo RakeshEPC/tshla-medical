@@ -21,12 +21,12 @@ export default function StaffDashboard() {
     // For now, all roles use the same dashboard
     // In future, we can create separate dashboards for each role
     switch (user.role) {
-      case 'doctor':
+      case 'provider':
       case 'dietician':
       case 'psychiatrist':
       case 'nurse':
       case 'admin':
-        // All roles currently use the doctor dashboard
+        // All roles currently use the unified dashboard
         // This can be expanded with role-specific dashboards later
         break;
       default:
@@ -53,7 +53,7 @@ export default function StaffDashboard() {
                         ? 'Nurse'
                         : user.role === 'admin'
                           ? 'Administrator'
-                          : 'Doctor'}
+                          : 'Provider'}
                 </span>
                 {user.specialty && <span className="text-xs text-blue-600">{user.specialty}</span>}
               </div>
