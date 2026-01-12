@@ -838,7 +838,11 @@ export default function PumpDriveResults() {
       pros: [],
       cons: []
     },
-    alternatives = []
+    alternatives = [],
+    decisionSummary = {
+      userPriorities: [],
+      keyFactors: []
+    }
   } = recommendation || {};
 
   // Prepare all 3 pumps for display
@@ -866,198 +870,324 @@ export default function PumpDriveResults() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
-        {/* Logout Button */}
-        <div className="flex justify-end mb-4">
-          <button
-            onClick={handleLogout}
-            className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-            Logout
-          </button>
+        {/* Header with Logout Button */}
+        <div className="relative mb-6">
+          {/* Logout Button - Top Right */}
+          <div className="absolute top-0 right-0">
+            <button
+              onClick={handleLogout}
+              className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              Logout
+            </button>
+          </div>
+
+          {/* Center Header Content */}
+          <div className="text-center">
+            <div className="inline-flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white px-6 py-3 rounded-full text-lg font-bold mb-4 shadow-lg">
+              <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Analysis Complete
+            </div>
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-900">
+              Your Top Personalized Pump Pick
+            </h1>
+          </div>
         </div>
 
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
-            Your Pump Recommendations
-          </h1>
-          <p className="text-gray-600 text-lg">
-            Top 3 matches based on your preferences
-          </p>
-        </div>
-
-        {/* Side-by-Side Pump Comparison */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-          {allPumps.map((pump) => {
-            const manufacturer = getManufacturerByPumpName(pump.name);
-
-            return (
-              <div
-                key={pump.rank}
-                className={`bg-white rounded-2xl shadow-lg p-6 border-2 ${
-                  pump.rank === 1
-                    ? 'border-green-500 ring-2 ring-green-200'
-                    : 'border-gray-200'
-                } transition-all hover:shadow-xl`}
-              >
-                {/* Rank Badge */}
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-4xl">{pump.icon}</span>
-                  <div className={`px-3 py-1 rounded-full font-semibold text-sm ${
-                    pump.rank === 1
-                      ? 'bg-green-100 text-green-800'
-                      : pump.rank === 2
-                      ? 'bg-blue-100 text-blue-800'
-                      : 'bg-purple-100 text-purple-800'
-                  }`}>
-                    {pump.score}% Match
-                  </div>
+        {/* Main Pump Recommendation - Center Focus */}
+        <div className="max-w-3xl mx-auto mb-10">
+          {/* Elegant Photo Frame Border Effect with Shadow */}
+          <div className="relative p-2 rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-500 to-blue-700 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)]">
+            {/* Inner light blue highlight */}
+            <div className="relative p-1 rounded-3xl bg-gradient-to-br from-blue-200 via-sky-100 to-blue-200">
+              {/* Medium blue accent border */}
+              <div className="relative p-1 rounded-3xl bg-gradient-to-br from-blue-700 via-indigo-600 to-blue-700">
+                {/* Light teal inner border transitioning to green */}
+                <div className="relative p-2 rounded-3xl bg-gradient-to-br from-teal-100 via-cyan-50 to-emerald-100">
+                  {/* White matting */}
+                  <div className="relative p-3 rounded-3xl bg-white shadow-[0_10px_30px_-10px_rgba(0,0,0,0.3)]">
+                    {/* Green inner glow */}
+                    <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl shadow-[inset_0_2px_20px_rgba(34,197,94,0.15)] p-6 relative">
+                {/* Best Match Badge */}
+                <div className="absolute top-0 right-0 bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-2 rounded-bl-3xl rounded-tr-3xl font-bold text-sm shadow-lg">
+                  🏆 BEST MATCH
                 </div>
 
-                {/* Pump Name */}
-                <h3 className="text-xl font-bold text-gray-900 mb-3">
-                  {pump.name}
-                </h3>
-
-                {/* Why This Pump */}
-                <div className="mb-4">
-                  <p className="text-sm font-semibold text-gray-700 mb-2">
-                    {pump.rank === 1 ? 'Why it\'s your #1 match:' : 'Why consider this:'}
-                  </p>
-                  <p className="text-gray-600 text-sm leading-relaxed">
-                    {pump.explanation.substring(0, 150)}
-                    {pump.explanation.length > 150 ? '...' : ''}
-                  </p>
+            {/* Pump Header */}
+            <div className="flex items-center gap-2 mb-3 mt-2">
+              <span className="text-4xl">🏆</span>
+              <div>
+                <div className="bg-green-600 text-white px-3 py-1 rounded-full font-bold text-base inline-block mb-1">
+                  {allPumps[0].score}% Match
                 </div>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  {allPumps[0].name}
+                </h2>
+              </div>
+            </div>
 
-                {/* Pros */}
-                <div className="mb-4">
-                  <p className="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">
-                    ✅ Best for you:
-                  </p>
-                  <ul className="space-y-1.5">
-                    {pump.pros.map((pro, i) => (
-                      <li key={i} className="text-sm text-gray-700 flex items-start">
-                        <span className="text-green-500 mr-2 mt-0.5">•</span>
-                        <span>{pro}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+            {/* Why This Choice */}
+            <div className="bg-white rounded-lg p-4 shadow-md mb-3">
+              <h3 className="text-base font-bold text-green-700 mb-2">
+                Why This is Your #1 Choice:
+              </h3>
+              <p className="text-gray-700 text-sm leading-relaxed">
+                {allPumps[0].explanation}
+              </p>
+            </div>
 
-                {/* Cons */}
-                <div className="mb-4">
-                  <p className="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">
-                    💭 Consider:
-                  </p>
-                  <ul className="space-y-1.5">
-                    {pump.cons.map((con, i) => (
-                      <li key={i} className="text-sm text-gray-600 flex items-start">
-                        <span className="text-amber-500 mr-2 mt-0.5">•</span>
-                        <span>{con}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+            {/* Top Strengths */}
+            <div className="bg-white rounded-lg p-4 shadow-md mb-2">
+              <h3 className="text-sm font-bold text-gray-900 mb-2 flex items-center gap-1">
+                <span className="text-base">✅</span>
+                Top Strengths
+              </h3>
+              <ul className="space-y-1.5">
+                {allPumps[0].pros.map((pro, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <span className="text-green-600 flex-shrink-0 mt-0.5 text-sm">✓</span>
+                    <span className="text-gray-700 font-medium text-sm">{pro}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
 
-                {/* Contact Info */}
-                {manufacturer && (
-                  <div className="pt-4 border-t border-gray-200">
-                    <p className="text-xs font-semibold text-gray-500 uppercase mb-2">
-                      Contact Manufacturer:
-                    </p>
-                    <div className="space-y-1">
-                      <a
-                        href={`tel:${manufacturer.phone}`}
-                        className="text-blue-600 hover:text-blue-800 text-sm font-medium block"
-                      >
-                        📞 {manufacturer.phone}
-                      </a>
-                      <a
-                        href={manufacturer.website}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-800 text-sm block truncate"
-                      >
-                        🌐 {manufacturer.website.replace('https://', '')}
-                      </a>
+            {/* Things to Consider */}
+            <div className="bg-white rounded-lg p-4 shadow-md">
+              <h3 className="text-sm font-bold text-gray-900 mb-2 flex items-center gap-1">
+                <span className="text-base">💭</span>
+                Discuss with Doctor
+              </h3>
+              <ul className="space-y-1.5">
+                {allPumps[0].cons.map((con, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <span className="text-amber-600 flex-shrink-0 mt-0.5 text-sm">•</span>
+                    <span className="text-gray-700 font-medium text-sm">{con}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
                     </div>
                   </div>
-                )}
+                </div>
               </div>
-            );
-          })}
+            </div>
+          </div>
         </div>
 
-        {/* Questions for Your Doctor */}
-        <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
-            <span className="mr-3">💬</span>
-            Questions for Your Doctor
-          </h2>
-          <p className="text-gray-600 mb-6">
-            Bring these to your appointment for an informed discussion:
-          </p>
-          <ol className="space-y-3">
-            <li className="flex items-start">
-              <span className="bg-blue-100 text-blue-700 font-bold rounded-full w-7 h-7 flex items-center justify-center text-sm mr-3 flex-shrink-0 mt-0.5">
-                1
-              </span>
-              <span className="text-gray-700">
-                Is <strong>{topRecommendation.name}</strong> right for my specific diabetes needs?
-              </span>
-            </li>
-            <li className="flex items-start">
-              <span className="bg-blue-100 text-blue-700 font-bold rounded-full w-7 h-7 flex items-center justify-center text-sm mr-3 flex-shrink-0 mt-0.5">
-                2
-              </span>
-              <span className="text-gray-700">
-                Will my insurance cover this pump, and are there any out-of-pocket costs?
-              </span>
-            </li>
-            <li className="flex items-start">
-              <span className="bg-blue-100 text-blue-700 font-bold rounded-full w-7 h-7 flex items-center justify-center text-sm mr-3 flex-shrink-0 mt-0.5">
-                3
-              </span>
-              <span className="text-gray-700">
-                When can I start, and what training will I receive?
-              </span>
-            </li>
-          </ol>
+        {/* Action Plan and Assessment Section - Side by Side */}
+        <div className="max-w-6xl mx-auto mb-4">
+          <div className="grid md:grid-cols-2 gap-4">
+            {/* Left: Action Plan */}
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl shadow-xl p-6 border-2 border-blue-300">
+              <h2 className="text-xl font-bold text-gray-900 mb-3 flex items-center gap-2">
+                <span className="text-2xl">📋</span>
+                Your Action Plan
+              </h2>
+
+              <div className="space-y-3 mb-4">
+              {/* Step 1 */}
+              <div className="bg-white rounded-lg p-4 shadow border-l-4 border-green-500">
+                <div className="flex items-start gap-3">
+                  <div className="bg-green-500 text-white rounded-full w-7 h-7 flex items-center justify-center font-bold flex-shrink-0 text-sm">
+                    1
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-900 text-base">Schedule Doctor Appointment</h3>
+                    <p className="text-gray-600 text-sm mt-1">Discuss this recommendation and get a prescription</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 2 */}
+              <div className="bg-white rounded-lg p-4 shadow border-l-4 border-purple-500">
+                <div className="flex items-start gap-3">
+                  <div className="bg-purple-500 text-white rounded-full w-7 h-7 flex items-center justify-center font-bold flex-shrink-0 text-sm">
+                    2
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-900 text-base">Check Insurance Coverage</h3>
+                    <p className="text-gray-600 text-sm mt-1">Verify coverage and out-of-pocket costs</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Questions for Doctor */}
+            <div className="bg-white rounded-lg p-4 shadow-md">
+              <h3 className="text-base font-bold text-gray-900 mb-2 flex items-center gap-1">
+                <span className="text-lg">❓</span>
+                Questions to Ask Your Doctor
+              </h3>
+              <ul className="space-y-2">
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-600 flex-shrink-0 mt-0.5 text-sm">•</span>
+                  <span className="text-gray-700 text-sm">Is this pump compatible with my lifestyle?</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-600 flex-shrink-0 mt-0.5 text-sm">•</span>
+                  <span className="text-gray-700 text-sm">What training will I need?</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-600 flex-shrink-0 mt-0.5 text-sm">•</span>
+                  <span className="text-gray-700 text-sm">Are there any medical reasons I shouldn't use this?</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-600 flex-shrink-0 mt-0.5 text-sm">•</span>
+                  <span className="text-gray-700 text-sm">What's the process for getting a prescription?</span>
+                </li>
+              </ul>
+            </div>
+            </div>
+
+            {/* Right: How Your Assessment Shaped This */}
+            {decisionSummary.userPriorities && decisionSummary.userPriorities.length > 0 && (
+              <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl shadow-xl p-6 border-2 border-purple-300">
+                <h2 className="text-xl font-bold text-gray-900 mb-3 flex items-center gap-2">
+                  <span className="text-2xl">✓</span>
+                  How Your Assessment Shaped This
+                </h2>
+                <p className="text-sm text-gray-600 mb-4">
+                  Your personalized results are based on what matters most to you
+                </p>
+
+                <div className="space-y-2">
+                  {decisionSummary.userPriorities.map((priority, index) => (
+                    <div key={index} className="bg-white rounded-lg p-3 shadow-md border-l-4 border-purple-500">
+                      <div className="flex items-start gap-2">
+                        <span className="text-purple-600 font-bold text-lg flex-shrink-0">✓</span>
+                        <span className="text-gray-800 font-semibold text-sm leading-relaxed">{priority}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex flex-wrap justify-center gap-4 mb-8">
+        {/* Alternative Options - Smaller Cards */}
+        {allPumps.length > 1 && (
+          <div className="mb-4">
+            <h2 className="text-lg font-bold text-gray-900 mb-2 text-center">
+              Other Options to Consider
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {allPumps.slice(1).map((pump) => {
+                const manufacturer = getManufacturerByPumpName(pump.name);
+
+                return (
+                  <div
+                    key={pump.rank}
+                    className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-200 hover:shadow-xl transition-all"
+                  >
+                    {/* Rank Badge */}
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="text-4xl">{pump.icon}</span>
+                      <div className={`px-3 py-1 rounded-full font-semibold text-sm ${
+                        pump.rank === 2
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-purple-100 text-purple-800'
+                      }`}>
+                        {pump.score}% Match
+                      </div>
+                    </div>
+
+                    {/* Pump Name */}
+                    <h3 className="text-xl font-bold text-gray-900 mb-3">
+                      {pump.name}
+                    </h3>
+
+                    {/* Why This Pump */}
+                    <div className="mb-4">
+                      <p className="text-sm font-semibold text-gray-700 mb-2">
+                        Why consider this:
+                      </p>
+                      <p className="text-gray-600 text-sm leading-relaxed">
+                        {pump.explanation.substring(0, 150)}
+                        {pump.explanation.length > 150 ? '...' : ''}
+                      </p>
+                    </div>
+
+                    {/* Pros */}
+                    <div className="mb-4">
+                      <p className="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">
+                        ✅ Strengths:
+                      </p>
+                      <ul className="space-y-1.5">
+                        {pump.pros.map((pro, i) => (
+                          <li key={i} className="text-sm text-gray-700 flex items-start">
+                            <span className="text-green-500 mr-2 mt-0.5">•</span>
+                            <span>{pro}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Cons */}
+                    <div className="mb-4">
+                      <p className="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">
+                        💭 Consider:
+                      </p>
+                      <ul className="space-y-1.5">
+                        {pump.cons.map((con, i) => (
+                          <li key={i} className="text-sm text-gray-600 flex items-start">
+                            <span className="text-amber-500 mr-2 mt-0.5">•</span>
+                            <span>{con}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Contact Info */}
+                    {manufacturer && (
+                      <div className="pt-4 border-t border-gray-200">
+                        <p className="text-xs font-semibold text-gray-500 uppercase mb-2">
+                          Contact:
+                        </p>
+                        <div className="space-y-1">
+                          <a
+                            href={`tel:${manufacturer.phone}`}
+                            className="text-blue-600 hover:text-blue-800 text-sm font-medium block"
+                          >
+                            📞 {manufacturer.phone}
+                          </a>
+                          <a
+                            href={manufacturer.website}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800 text-sm block truncate"
+                          >
+                            🌐 {manufacturer.website.replace('https://', '')}
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Print Button */}
+        <div className="text-center mb-3">
           <button
             onClick={handlePrint}
-            className="px-8 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
+            className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-all text-sm"
           >
             🖨️ Print / Save PDF
-          </button>
-
-          {assessmentId && (
-            <button
-              onClick={() => setEmailModalOpen(true)}
-              className="px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
-            >
-              📧 Email to Doctor
-            </button>
-          )}
-
-          <button
-            onClick={resetAndStartOver}
-            className="px-8 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
-          >
-            🔄 Retake Assessment
           </button>
         </div>
 
         {/* Footer Disclaimer */}
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
-          <p className="text-sm text-amber-800">
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center">
+          <p className="text-xs text-amber-800">
             <strong>⚠️ Important:</strong> {importantDisclaimers.medical}
           </p>
         </div>
