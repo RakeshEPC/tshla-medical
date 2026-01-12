@@ -12,6 +12,7 @@ interface AppointmentItem {
   internal_id?: string;
   tsh_id?: string;
   old_emr_number?: string;
+  patient_phone?: string;
 }
 
 export default function StaffPreVisitWorkflow() {
@@ -38,6 +39,7 @@ export default function StaffPreVisitWorkflow() {
         .select(`
           id,
           patient_name,
+          patient_phone,
           scheduled_date,
           start_time,
           provider_name,
@@ -45,7 +47,8 @@ export default function StaffPreVisitWorkflow() {
           unified_patients!unified_patient_id (
             patient_id,
             tshla_id,
-            mrn
+            mrn,
+            phone_display
           )
         `)
         .gte('scheduled_date', today.toISOString().split('T')[0])
@@ -64,7 +67,8 @@ export default function StaffPreVisitWorkflow() {
         pre_visit_complete: apt.pre_visit_complete || false,
         internal_id: apt.unified_patients?.patient_id,
         tsh_id: apt.unified_patients?.tshla_id,
-        old_emr_number: apt.unified_patients?.mrn
+        old_emr_number: apt.unified_patients?.mrn,
+        patient_phone: apt.unified_patients?.phone_display || apt.patient_phone
       }));
 
       setAppointments(formattedAppointments);
@@ -192,6 +196,9 @@ export default function StaffPreVisitWorkflow() {
                     Old EMR #
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Phone
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Provider
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -205,7 +212,7 @@ export default function StaffPreVisitWorkflow() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredAppointments.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                       {filter === 'pending' && 'No pending appointments - great job!'}
                       {filter === 'completed' && 'No completed pre-visits yet'}
                       {filter === 'all' && 'No appointments found'}
@@ -234,6 +241,11 @@ export default function StaffPreVisitWorkflow() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-mono font-bold text-orange-600">
                           {apt.old_emr_number || 'N/A'}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {apt.patient_phone || 'N/A'}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
