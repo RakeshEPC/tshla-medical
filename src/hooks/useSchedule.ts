@@ -338,16 +338,21 @@ export function useSchedule({
     refreshSchedule();
   }, [selectedProviders, dateString]); // Use the actual dependencies instead of refreshSchedule
 
-  // Auto-refresh interval
+  // Auto-refresh interval with proper cleanup
   useEffect(() => {
     if (!autoRefresh) return;
 
     const interval = setInterval(() => {
+      console.log('⏰ [useSchedule] Auto-refresh triggered');
       refreshSchedule();
     }, refreshInterval);
 
-    return () => clearInterval(interval);
-  }, [autoRefresh, refreshInterval, selectedProviders, dateString]); // Remove refreshSchedule dependency
+    // Cleanup function to clear interval on unmount or dependency change
+    return () => {
+      console.log('🧹 [useSchedule] Clearing auto-refresh interval');
+      clearInterval(interval);
+    };
+  }, [autoRefresh, refreshInterval, refreshSchedule]); // Include refreshSchedule for proper cleanup
 
   return {
     appointments,

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabaseAuthService as unifiedAuthService } from '../services/supabaseAuth.service';
@@ -56,12 +56,49 @@ export default function DoctorDashboardUnified() {
     selectedProviders,
     date: selectedDate,
     autoRefresh: true,
-    refreshInterval: 30000,
+    refreshInterval: 60000, // Increased from 30s to 60s to reduce re-render frequency
   });
 
   logInfo('DoctorDashboardUnified', 'Dashboard loaded with provider filter', {});
 
-  // Load available providers from appointments
+  // Memoize provider calculation to prevent unnecessary re-renders
+  const { calculatedProviders, calculatedCounts } = useMemo(() => {
+    if (!appointments || appointments.length === 0) {
+      return { calculatedProviders: [], calculatedCounts: {} };
+    }
+
+    const providerMap = new Map<string, Provider>();
+    const counts: Record<string, number> = {};
+
+    appointments.forEach((apt) => {
+      const name = apt.doctorName || 'Unknown Provider';
+      const id = name;
+
+      if (!providerMap.has(id)) {
+        providerMap.set(id, {
+          id,
+          name,
+          specialty: '',
+        });
+        counts[id] = 0;
+      }
+      counts[id]++;
+    });
+
+    const providers = Array.from(providerMap.values()).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
+
+    console.log('✅ [Dashboard] Calculated providers from appointments:', {
+      count: providers.length,
+      providers: providers.map(p => ({ id: p.id, name: p.name })),
+      counts
+    });
+
+    return { calculatedProviders: providers, calculatedCounts: counts };
+  }, [appointments]);
+
+  // Load available providers from database on date change
   useEffect(() => {
     const loadProviders = async () => {
       try {
@@ -70,17 +107,10 @@ export default function DoctorDashboardUnified() {
         const dateString = selectedDate.toISOString().split('T')[0];
         console.log('🔍 [Dashboard] Loading providers for date:', dateString);
 
-        // Get unique providers from provider_schedules for the selected date
         const { data, error } = await supabase
           .from('provider_schedules')
           .select('provider_id, provider_name')
           .eq('scheduled_date', dateString);
-
-        console.log('📊 [Dashboard] Provider query result:', {
-          error,
-          dataCount: data?.length || 0,
-          sampleData: data?.slice(0, 3)
-        });
 
         if (error) {
           console.error('❌ [Dashboard] Error loading providers:', error);
@@ -88,21 +118,15 @@ export default function DoctorDashboardUnified() {
         }
 
         if (data && data.length > 0) {
-          // Create unique provider list
           const providerMap = new Map<string, Provider>();
           const counts: Record<string, number> = {};
 
           data.forEach((apt: any) => {
-            // Use provider_name as unique ID since provider_id may be the same for all
             const name = apt.provider_name || 'Unknown Provider';
-            const id = name; // Use the name as the unique identifier
+            const id = name;
 
             if (!providerMap.has(id)) {
-              providerMap.set(id, {
-                id,
-                name,
-                specialty: '', // Could be enhanced later
-              });
+              providerMap.set(id, { id, name, specialty: '' });
               counts[id] = 0;
             }
             counts[id]++;
@@ -112,16 +136,8 @@ export default function DoctorDashboardUnified() {
             a.name.localeCompare(b.name)
           );
 
-          console.log('✅ [Dashboard] Found unique providers:', {
-            count: providers.length,
-            providers: providers.map(p => ({ id: p.id, name: p.name })),
-            counts
-          });
-
           setAvailableProviders(providers);
           setAppointmentCounts(counts);
-        } else {
-          console.warn('⚠️ [Dashboard] No provider data found for date:', dateString);
         }
       } catch (error) {
         console.error('❌ [Dashboard] Failed to load providers:', error);
@@ -129,7 +145,14 @@ export default function DoctorDashboardUnified() {
     };
 
     loadProviders();
-  }, [selectedDate, appointments.length]);
+  }, [selectedDate]); // Removed appointments.length dependency to prevent circular re-renders
+
+  // Update counts when appointments change (using memoized values)
+  useEffect(() => {
+    if (calculatedProviders.length > 0) {
+      setAppointmentCounts(calculatedCounts);
+    }
+  }, [calculatedProviders, calculatedCounts]);
 
   const saveAppointment = async () => {
     if (!newAppointment.appointmentTime || !newAppointment.patientName.trim()) {
