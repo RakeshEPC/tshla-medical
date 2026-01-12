@@ -42,7 +42,7 @@ export default function StaffPreVisitWorkflow() {
           start_time,
           provider_name,
           pre_visit_complete,
-          unified_patients!provider_schedules_unified_patient_id_fkey (
+          unified_patients!unified_patient_id (
             patient_id,
             tshla_id,
             mrn

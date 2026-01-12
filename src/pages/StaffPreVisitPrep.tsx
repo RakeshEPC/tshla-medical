@@ -56,7 +56,7 @@ export default function StaffPreVisitPrep() {
         .from('provider_schedules')
         .select(`
           *,
-          unified_patients!provider_schedules_unified_patient_id_fkey (
+          unified_patients!unified_patient_id (
             patient_id,
             tshla_id,
             phone_primary,
