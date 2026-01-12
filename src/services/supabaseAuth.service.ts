@@ -505,8 +505,8 @@ class SupabaseAuthService {
           practice: data.practice,
           auth_user_id: authData.user.id,
           is_active: true,
-          is_verified: false,
-          created_by: 'self-registration',
+          is_verified: true, // Auto-verify accounts created via admin panel
+          created_by: 'admin-panel',
         })
         .select()
         .single();
