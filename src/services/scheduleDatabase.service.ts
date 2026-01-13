@@ -233,7 +233,7 @@ class ScheduleDatabaseService {
         patientPhone: note.patient_phone,
         patientEmail: note.patient_email,
         rawTranscript: note.raw_transcript || '',
-        aiProcessedNote: note.ai_processed_note || '',
+        aiProcessedNote: note.processed_note || '', // DB column is 'processed_note'
         recordingMode: note.recording_mode || 'dictation',
         isQuickNote: note.is_quick_note,
         visitDate: note.visit_date,
