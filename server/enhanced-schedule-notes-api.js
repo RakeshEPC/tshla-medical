@@ -653,6 +653,64 @@ app.post('/api/simple/note', async (req, res) => {
   }
 });
 
+// Update existing dictated note (for auto-save)
+app.put('/api/simple/note/:noteId', async (req, res) => {
+  try {
+    const { noteId } = req.params;
+    const {
+      patientName,
+      patientMrn,
+      patientPhone,
+      patientEmail,
+      rawTranscript,
+      aiProcessedNote,
+      recordingMode,
+    } = req.body;
+
+    const updateData = {
+      last_edited_at: new Date().toISOString(),
+    };
+
+    // Only update fields that are provided
+    if (patientName !== undefined) updateData.patient_name = patientName;
+    if (patientMrn !== undefined) updateData.patient_mrn = patientMrn;
+    if (patientPhone !== undefined) updateData.patient_phone = patientPhone;
+    if (patientEmail !== undefined) updateData.patient_email = patientEmail;
+    if (rawTranscript !== undefined) updateData.raw_transcript = rawTranscript;
+    if (aiProcessedNote !== undefined) updateData.processed_note = aiProcessedNote;
+    if (recordingMode !== undefined) updateData.recording_mode = recordingMode;
+
+    const { data, error } = await unifiedSupabase
+      .from('dictated_notes')
+      .update(updateData)
+      .eq('id', noteId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    if (!data) {
+      return res.status(404).json({
+        success: false,
+        error: 'Note not found',
+      });
+    }
+
+    res.json({
+      success: true,
+      noteId: data.id,
+      message: 'Note updated successfully',
+    });
+  } catch (error) {
+    logger.error('API', error.message, { error });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update note',
+      details: error.message,
+    });
+  }
+});
+
 // Get simple notes for provider
 app.get('/api/simple/notes/:providerId', async (req, res) => {
   try {

@@ -360,46 +360,43 @@ export default function MedicalDictation({
   // Auto-save to database every 30 seconds with changes detected
   useEffect(() => {
     const databaseAutoSaveInterval = setInterval(async () => {
-      // Auto-save now works even without patient name (patient name is optional)
+      // Auto-save: UPDATE existing note if we have a note ID, or skip if no note created yet
       // Only auto-save if we have content and already have a saved note ID (avoid creating duplicates)
       if ((transcript || processedNote) && databaseAutoSaveStatus !== 'saving' && lastSavedNoteId) {
         try {
           setDatabaseAutoSaveStatus('saving');
 
-          // TODO: Implement UPDATE endpoint instead of creating new notes
-          // For now, auto-save is disabled to prevent duplicates
-          // User must click "Save to Database" manually
+          // Update the existing note via PUT endpoint
+          const response = await fetch(`http://localhost:3003/api/simple/note/${lastSavedNoteId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              patientName: patientDetails.name || 'Unidentified Patient',
+              patientMrn: patientDetails.mrn,
+              patientPhone: patientDetails.phone,
+              patientEmail: patientDetails.email,
+              rawTranscript: transcript,
+              aiProcessedNote: processedNote,
+              recordingMode: recordingMode || 'dictation',
+            }),
+          });
 
-          setDatabaseAutoSaveStatus('idle');
-          logDebug('MedicalDictation', 'Auto-save skipped - manual save required to prevent duplicates');
+          const data = await response.json();
 
-          // const noteId = await scheduleDatabaseService.saveNote(
-          //   providerId,
-          //   providerName,
-          //   {
-          //     patientName: patientDetails.name || '',
-          //     patientMrn: patientDetails.mrn,
-          //     rawTranscript: transcript,
-          //     aiProcessedNote: processedNote,
-          //     recordingMode: recordingMode || 'dictation',
-          //     isQuickNote: !patientId
-          //   }
-          // );
-
-          // if (noteId) {
-          //   setLastSavedNoteId(String(noteId));
-          //   setLastDatabaseSaveTime(new Date());
-          //   setDatabaseAutoSaveStatus('saved');
-          //   logDebug('MedicalDictation', `Auto-saved at ${new Date().toLocaleTimeString()}`);
-          //   setTimeout(() => setDatabaseAutoSaveStatus('idle'), 3000);
-          // } else {
-          //   setDatabaseAutoSaveStatus('error');
-          //   setTimeout(() => setDatabaseAutoSaveStatus('idle'), 5000);
-          // }
+          if (data.success) {
+            setDatabaseAutoSaveStatus('saved');
+            setLastDatabaseSaveTime(new Date());
+            setTimeout(() => setDatabaseAutoSaveStatus('idle'), 2000);
+            logInfo('MedicalDictation', 'Auto-save successful', {});
+          } else {
+            throw new Error(data.error || 'Auto-save failed');
+          }
         } catch (error) {
-          logError('MedicalDictation', 'Error message', {});
           setDatabaseAutoSaveStatus('error');
-          setTimeout(() => setDatabaseAutoSaveStatus('idle'), 5000);
+          setTimeout(() => setDatabaseAutoSaveStatus('idle'), 3000);
+          logError('MedicalDictation', 'Auto-save error', { error });
         }
       }
     }, 30000); // Check every 30 seconds
