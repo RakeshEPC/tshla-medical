@@ -236,12 +236,20 @@ export default function StaffPreVisitPrep() {
       {/* Header */}
       <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <button
-            onClick={() => navigate('/staff-previsit-workflow')}
-            className="text-purple-100 hover:text-white mb-2"
-          >
-            ← Back to Pre-Visit Workflow
-          </button>
+          <div className="flex items-center justify-between mb-2">
+            <button
+              onClick={() => navigate('/staff-previsit-workflow')}
+              className="text-purple-100 hover:text-white"
+            >
+              ← Back to Pre-Visit Workflow
+            </button>
+            <button
+              onClick={() => navigate('/staff-dashboard')}
+              className="px-4 py-2 bg-white text-purple-700 rounded-lg hover:bg-purple-50 font-medium transition-colors"
+            >
+              ← Back to Dashboard
+            </button>
+          </div>
           <h1 className="text-3xl font-bold">Pre-Visit Preparation</h1>
           <p className="text-purple-100 mt-1">Prepare patient information before provider visit</p>
         </div>
