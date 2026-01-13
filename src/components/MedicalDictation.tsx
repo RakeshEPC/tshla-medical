@@ -51,6 +51,7 @@ interface DictationNote {
   recordingMode: 'dictation' | 'conversation';
   isQuickNote?: boolean;
   visitDate?: string;
+  createdAt?: string;
 }
 
 interface MedicalDictationProps {

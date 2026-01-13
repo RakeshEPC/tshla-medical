@@ -18,6 +18,7 @@ interface DictationNote {
   recordingMode: 'dictation' | 'conversation';
   isQuickNote?: boolean;
   visitDate?: string;
+  createdAt?: string; // When the note was actually created
 }
 
 interface DictationHistorySidebarProps {
@@ -94,9 +95,11 @@ export default function DictationHistorySidebar({
 
   // Filter dictations based on selected time range
   const filteredDictations = dictations.filter(dictation => {
-    if (!dictation.visitDate) return true; // Show all if no date
+    // Use createdAt (when note was saved) as primary, fall back to visitDate
+    const dateStr = dictation.createdAt || dictation.visitDate;
+    if (!dateStr) return true; // Show all if no date
 
-    const dictationDate = new Date(dictation.visitDate);
+    const dictationDate = new Date(dateStr);
     const now = new Date();
 
     if (filterMode === 'today') {
@@ -142,14 +145,16 @@ export default function DictationHistorySidebar({
   };
 
   // Calculate counts for filter buttons
-  const todayCount = dictations.filter(d =>
-    d.visitDate && new Date(d.visitDate).toDateString() === new Date().toDateString()
-  ).length;
+  const todayCount = dictations.filter(d => {
+    const dateStr = d.createdAt || d.visitDate;
+    return dateStr && new Date(dateStr).toDateString() === new Date().toDateString();
+  }).length;
 
   const weekCount = dictations.filter(d => {
-    if (!d.visitDate) return true;
+    const dateStr = d.createdAt || d.visitDate;
+    if (!dateStr) return true;
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    return new Date(d.visitDate) >= sevenDaysAgo;
+    return new Date(dateStr) >= sevenDaysAgo;
   }).length;
 
   if (!isOpen) {

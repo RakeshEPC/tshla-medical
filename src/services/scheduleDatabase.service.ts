@@ -26,6 +26,7 @@ interface DictatedNote {
   recordingMode: 'dictation' | 'conversation';
   isQuickNote?: boolean;
   visitDate?: string;
+  createdAt?: string;
 }
 
 class ScheduleDatabaseService {
@@ -224,7 +225,22 @@ class ScheduleDatabaseService {
         throw new Error(data.error || 'Failed to load notes');
       }
 
-      return data.notes || [];
+      // Map snake_case API response to camelCase interface
+      const notes = (data.notes || []).map((note: any) => ({
+        id: note.id,
+        patientName: note.patient_name || '',
+        patientMrn: note.patient_mrn,
+        patientPhone: note.patient_phone,
+        patientEmail: note.patient_email,
+        rawTranscript: note.raw_transcript || '',
+        aiProcessedNote: note.ai_processed_note || '',
+        recordingMode: note.recording_mode || 'dictation',
+        isQuickNote: note.is_quick_note,
+        visitDate: note.visit_date,
+        createdAt: note.created_at
+      }));
+
+      return notes;
     } catch (error) {
       logError('scheduleDatabase', 'Error message', {});
       return [];
