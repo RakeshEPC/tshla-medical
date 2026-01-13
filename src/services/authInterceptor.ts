@@ -55,7 +55,6 @@ export const handleAuthError = (error: any, isRetry = false): Promise<never> => 
       '/pumpdrive/assessment',
       '/pumpdrive/report',
       '/quick-note',
-      '/quick-note-modern',
       '/dictation'
     ];
     const isProtectedPath = protectedPaths.some(path => currentPath.startsWith(path));

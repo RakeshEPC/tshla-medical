@@ -53,7 +53,6 @@ const StaffPreVisitWorkflow = lazy(() => import('./pages/StaffPreVisitWorkflow')
 // Dictation & Notes
 const DictationPageEnhanced = lazy(() => import('./pages/DictationPageEnhanced'));
 const QuickNote = lazy(() => import('./pages/QuickNote'));
-const QuickNoteModern = lazy(() => import('./pages/QuickNoteModern'));
 const DictationHistory = lazy(() => import('./pages/DictationHistory'));
 const DictationViewer = lazy(() => import('./pages/DictationViewer'));
 
@@ -352,16 +351,6 @@ function App() {
                   <ProtectedRoute>
                     <Suspense fallback={<LoadingSpinner />}>
                       <QuickNote />
-                    </Suspense>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/quick-note-modern"
-                element={
-                  <ProtectedRoute>
-                    <Suspense fallback={<LoadingSpinner />}>
-                      <QuickNoteModern />
                     </Suspense>
                   </ProtectedRoute>
                 }
