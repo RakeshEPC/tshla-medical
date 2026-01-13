@@ -24,6 +24,7 @@ import type { OrderExtractionResult } from '../services/orderExtraction.service'
 import '../styles/modernUI.css';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
 import { dictationStorageService } from '../services/dictationStorage.service';
+import DictationHistorySidebar from './DictationHistorySidebar';
 
 // Speech recognition interfaces removed - using HIPAA-compliant services only
 
@@ -37,6 +38,19 @@ interface AppointmentData {
   unified_patient_id: string;
   patient_dob?: string;
   patient_mrn?: string;
+}
+
+interface DictationNote {
+  id?: number;
+  patientName: string;
+  patientMrn?: string;
+  patientEmail?: string;
+  patientPhone?: string;
+  rawTranscript: string;
+  aiProcessedNote: string;
+  recordingMode: 'dictation' | 'conversation';
+  isQuickNote?: boolean;
+  visitDate?: string;
 }
 
 interface MedicalDictationProps {
@@ -98,6 +112,9 @@ export default function MedicalDictation({
   // Dictation auto-save state
   const [currentDictationId, setCurrentDictationId] = useState<string | null>(null);
   const autoSaveManagerRef = useRef<any>(null);
+
+  // Dictation History Sidebar state
+  const [showDictationSidebar, setShowDictationSidebar] = useState(false);
 
   // Patient details for live editing
   const [patientDetails, setPatientDetails] = useState({
@@ -988,6 +1005,39 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
     }
   };
 
+  // Load dictation from sidebar into editor
+  const handleLoadDictation = (dictation: DictationNote) => {
+    console.log('📋 Loading dictation:', dictation.id);
+
+    // Populate transcript
+    setTranscript(dictation.rawTranscript || '');
+
+    // Populate processed note
+    setProcessedNote(dictation.aiProcessedNote || '');
+    setShowProcessed(!!dictation.aiProcessedNote);
+
+    // Populate patient details
+    setPatientDetails({
+      name: dictation.patientName || '',
+      mrn: dictation.patientMrn || '',
+      dob: '', // Not stored in DictatedNote
+      age: null,
+      email: dictation.patientEmail || '',
+      phone: dictation.patientPhone || '',
+      visitDate: dictation.visitDate || new Date().toLocaleDateString()
+    });
+
+    // Set current note ID for sidebar highlighting (convert number to string)
+    setLastSavedNoteId(dictation.id ? String(dictation.id) : null);
+
+    // Clear processing states
+    setIsProcessing(false);
+    setAiProcessingFailed(false);
+
+    // Scroll to top so user sees loaded content
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Compact Header with Patient Info */}
@@ -1018,6 +1068,17 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
                 title="View all patient orders"
               >
                 📋 Staff Orders
+              </button>
+              <button
+                onClick={() => setShowDictationSidebar(!showDictationSidebar)}
+                className={`px-3 py-1 text-xs rounded flex items-center gap-1 font-medium transition-colors ${
+                  showDictationSidebar
+                    ? 'bg-purple-600 text-white hover:bg-purple-700'
+                    : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                }`}
+                title="View dictation history"
+              >
+                📝 History {showDictationSidebar ? '✕' : '▸'}
               </button>
               <button
                 onClick={async () => {
@@ -1386,8 +1447,12 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
 
         {/* Template selector removed - using the one in left column instead */}
 
-        {/* Two Column Layout - 40% | 60% */}
-        <div className="grid grid-cols-1 lg:grid-cols-[2fr_3fr] gap-4">
+        {/* Two or Three Column Layout - 40% | 60% (or 30% | 45% | 25% with sidebar) */}
+        <div className={`grid grid-cols-1 gap-4 ${
+          showDictationSidebar
+            ? 'lg:grid-cols-[2fr_3fr_2fr]'
+            : 'lg:grid-cols-[2fr_3fr]'
+        }`}>
           {/* Left Column - Previous Visit & Template */}
           <div className="space-y-4">
             {/* Previous Visit Note */}
@@ -1768,6 +1833,18 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
               </div>
             )}
           </div>
+
+          {/* Right Column - Dictation History Sidebar */}
+          {showDictationSidebar && currentUser && (
+            <DictationHistorySidebar
+              providerId={currentUser.id || currentUser.email || 'unknown'}
+              providerName={currentUser.name || currentUser.email || 'Provider'}
+              isOpen={showDictationSidebar}
+              onToggle={() => setShowDictationSidebar(false)}
+              onDictationSelect={handleLoadDictation}
+              currentDictationId={lastSavedNoteId ? parseInt(lastSavedNoteId, 10) : null}
+            />
+          )}
         </div>
 
       </div>
