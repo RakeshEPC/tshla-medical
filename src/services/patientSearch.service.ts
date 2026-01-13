@@ -54,6 +54,10 @@ class PatientSearchService {
   /**
    * Search patients by query string
    * Searches across: name, phone, MRN, patient_id
+   *
+   * Searches unified_patients table first, then falls back to provider_schedules
+   * if no results found. This ensures patients in the schedule are searchable
+   * even if they haven't been migrated to unified_patients yet.
    */
   async searchPatients(query: string, limit: number = 10): Promise<PatientSearchResult[]> {
     if (!query || query.trim().length < 2) {
@@ -111,20 +115,100 @@ class PatientSearchService {
         dbQuery = dbQuery.or(orFilter);
       }
 
-      console.log('🔍 [PatientSearch] Executing query...');
+      console.log('🔍 [PatientSearch] Executing unified_patients query...');
       const { data, error } = await dbQuery;
 
       if (error) {
-        console.error('❌ [PatientSearch] Query error:', error);
+        console.error('❌ [PatientSearch] unified_patients query error:', error);
         logError('PatientSearchService', 'Search error', { error, query });
-        throw error;
       }
 
-      console.log('✅ [PatientSearch] Query result:', data?.length || 0, 'patients found');
-      console.log('📊 [PatientSearch] First result:', data?.[0]);
-      logInfo('PatientSearchService', `Found ${data?.length || 0} patients matching "${query}"`);
+      let results = (data as PatientSearchResult[]) || [];
+      console.log('✅ [PatientSearch] unified_patients result:', results.length, 'patients found');
 
-      return data as PatientSearchResult[] || [];
+      // Fallback: If no results in unified_patients, search provider_schedules
+      if (results.length === 0) {
+        console.log('🔍 [PatientSearch] No results in unified_patients, searching provider_schedules...');
+
+        let scheduleQuery = supabase
+          .from('provider_schedules')
+          .select(`
+            id,
+            patient_name,
+            patient_phone,
+            unified_patient_id,
+            unified_patients!provider_schedules_unified_patient_id_fkey (
+              patient_id,
+              tshla_id,
+              mrn,
+              phone_display,
+              date_of_birth,
+              age,
+              gender
+            )
+          `)
+          .limit(limit * 3); // Get more to dedupe
+
+        // Search by patient name or phone in schedule
+        if (normalizedPhone.length >= 3) {
+          scheduleQuery = scheduleQuery.or(`patient_phone.ilike.%${searchTerm}%`);
+        } else if (searchTerm.length >= 2) {
+          scheduleQuery = scheduleQuery.or(`patient_name.ilike.%${searchTerm}%`);
+        }
+
+        const { data: scheduleData, error: scheduleError } = await scheduleQuery;
+
+        if (scheduleError) {
+          console.error('❌ [PatientSearch] Schedule query error:', scheduleError);
+        } else if (scheduleData && scheduleData.length > 0) {
+          console.log('✅ [PatientSearch] Found', scheduleData.length, 'schedule entries');
+
+          // Convert schedule data to PatientSearchResult format
+          // Deduplicate by patient_name+phone
+          const patientMap = new Map<string, PatientSearchResult>();
+
+          scheduleData.forEach((apt: any) => {
+            const patientData = apt.unified_patients;
+            const nameParts = apt.patient_name?.split(' ') || ['', ''];
+            const firstName = nameParts[0] || '';
+            const lastName = nameParts.slice(1).join(' ') || '';
+            const phoneNormalized = apt.patient_phone?.replace(/\D/g, '') || '';
+
+            // Create unique key for deduplication
+            const key = `${apt.patient_name}-${phoneNormalized}`;
+
+            if (!patientMap.has(key) && apt.patient_name) {
+              patientMap.set(key, {
+                id: apt.unified_patient_id || apt.id,
+                patient_id: patientData?.patient_id || apt.id,
+                full_name: apt.patient_name,
+                first_name: firstName,
+                last_name: lastName,
+                phone_primary: phoneNormalized,
+                phone_display: patientData?.phone_display || apt.patient_phone || '',
+                email: undefined,
+                date_of_birth: patientData?.date_of_birth,
+                age: patientData?.age,
+                gender: patientData?.gender,
+                mrn: patientData?.mrn,
+                tshla_id: patientData?.tshla_id,
+                is_active: true
+              });
+            }
+          });
+
+          results = Array.from(patientMap.values()).slice(0, limit);
+          console.log('✅ [PatientSearch] Extracted', results.length, 'unique patients from schedules');
+        }
+      }
+
+      console.log('📊 [PatientSearch] Final result:', results.length, 'patients');
+      if (results.length > 0) {
+        console.log('📊 [PatientSearch] First result:', results[0]);
+      }
+      logInfo('PatientSearchService', `Found ${results.length} patients matching "${query}"`);
+
+      return results;
     } catch (error) {
       console.error('❌ [PatientSearch] Search failed:', error);
       logError('PatientSearchService', 'Search failed', { error, query });
