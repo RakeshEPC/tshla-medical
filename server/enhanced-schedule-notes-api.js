@@ -879,7 +879,7 @@ app.get('/api/providers/:providerId/notes', async (req, res) => {
 
     let query = unifiedSupabase
       .from('dictated_notes')
-      .select('id, patient_name, patient_phone, visit_date, visit_type, note_title, chief_complaint, status, template_name, created_at, signed_at, quality_score, requires_review')
+      .select('id, patient_name, patient_mrn, patient_phone, patient_email, visit_date, raw_transcript, ai_processed_note, recording_mode, is_quick_note, visit_type, note_title, chief_complaint, status, template_name, created_at, signed_at, quality_score, requires_review')
       .eq('provider_id', providerId);
 
     if (status) {
