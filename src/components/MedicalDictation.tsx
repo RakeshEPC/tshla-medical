@@ -963,6 +963,38 @@ Visit Date: ${patientDetails.visitDate}
             setLastDatabaseSaveTime(new Date());
             setTimeout(() => setDatabaseAutoSaveStatus('idle'), 2000);
             logInfo('MedicalDictation', 'Note created after processing', { noteId: data.noteId });
+
+            // Auto-generate patient summary after successful note save
+            if (patientDetails.phone && processedContent) {
+              try {
+                const summaryResponse = await fetch(`${apiBaseUrl}/api/patient-summaries/create`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    dictationId: data.noteId,
+                    patientPhone: patientDetails.phone,
+                    patientName: patientDetails.name || 'Unidentified Patient',
+                    patientMrn: patientDetails.mrn,
+                    soapNote: processedContent,
+                    providerId,
+                    providerName
+                  })
+                });
+
+                const summaryData = await summaryResponse.json();
+                if (summaryData.success) {
+                  logInfo('MedicalDictation', 'Patient summary auto-generated', {
+                    summaryId: summaryData.data.id,
+                    shareLink: summaryData.data.shareLinkUrl
+                  });
+                  console.log('✅ Patient summary created! View in Staff Patient Summaries dashboard');
+                }
+              } catch (summaryError) {
+                // Don't fail the entire save if summary generation fails
+                logError('MedicalDictation', 'Patient summary auto-generation failed', { summaryError });
+                console.error('⚠️ Patient summary generation failed (note was still saved):', summaryError);
+              }
+            }
           }
         }
       } catch (saveError) {
