@@ -86,17 +86,19 @@ export default function DictationHistorySidebar({
         // Sort by ID (higher ID = newer) since we don't have createdAt
         const sorted = notes.sort((a, b) => (b.id || 0) - (a.id || 0));
 
-        // Add date debugging info
+        // Add date debugging info - USE UTC to match database timestamps
         const now = new Date();
-        const nowDateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-        logs.push(`📅 Current browser date: ${nowDateStr} (${now.toLocaleString()})`);
+        const nowUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+        const nowDateStr = `${nowUTC.getUTCFullYear()}-${String(nowUTC.getUTCMonth() + 1).padStart(2, '0')}-${String(nowUTC.getUTCDate()).padStart(2, '0')}`;
+        logs.push(`📅 Current date (UTC): ${nowDateStr} | Local: ${now.toLocaleString()}`);
 
         notes.forEach((note, i) => {
           if (note.createdAt) {
             const dictationDate = new Date(note.createdAt);
-            const dictationDateStr = `${dictationDate.getFullYear()}-${String(dictationDate.getMonth() + 1).padStart(2, '0')}-${String(dictationDate.getDate()).padStart(2, '0')}`;
+            // Use UTC date components since database stores UTC timestamps
+            const dictationDateStr = `${dictationDate.getUTCFullYear()}-${String(dictationDate.getUTCMonth() + 1).padStart(2, '0')}-${String(dictationDate.getUTCDate()).padStart(2, '0')}`;
             const isToday = dictationDateStr === nowDateStr;
-            logs.push(`🔍 Note ${i + 1} Date: ${dictationDateStr} | Is Today? ${isToday}`);
+            logs.push(`🔍 Note ${i + 1} Date (UTC): ${dictationDateStr} | Is Today? ${isToday}`);
           }
         });
 
@@ -136,28 +138,29 @@ export default function DictationHistorySidebar({
     const dictationDate = new Date(dateStr);
     const now = new Date();
 
-    // Simple date comparison - just compare YYYY-MM-DD strings in local timezone
-    const dictationDateStr = `${dictationDate.getFullYear()}-${String(dictationDate.getMonth() + 1).padStart(2, '0')}-${String(dictationDate.getDate()).padStart(2, '0')}`;
-    const nowDateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    // USE UTC DATE COMPONENTS - database stores UTC timestamps
+    const dictationDateStr = `${dictationDate.getUTCFullYear()}-${String(dictationDate.getUTCMonth() + 1).padStart(2, '0')}-${String(dictationDate.getUTCDate()).padStart(2, '0')}`;
+    const nowUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    const nowDateStr = `${nowUTC.getUTCFullYear()}-${String(nowUTC.getUTCMonth() + 1).padStart(2, '0')}-${String(nowUTC.getUTCDate()).padStart(2, '0')}`;
 
     console.log('🔍 [Filter Debug] ID:', dictation.id, {
       dateStr,
-      dictationDateStr,
-      nowDateStr,
+      'dictation (UTC)': dictationDateStr,
+      'now (UTC)': nowDateStr,
       filterMode,
       isToday: dictationDateStr === nowDateStr
     });
 
     if (filterMode === 'today') {
-      // Simple string comparison of YYYY-MM-DD
+      // Compare UTC dates
       const matches = dictationDateStr === nowDateStr;
       console.log('📅 [Today Filter]', dictationDateStr, '===', nowDateStr, '?', matches);
       return matches;
     } else {
-      // Last 7 days - check if within 7 days
-      const sevenDaysAgo = new Date(now);
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const sevenDaysAgoStr = `${sevenDaysAgo.getFullYear()}-${String(sevenDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(sevenDaysAgo.getDate()).padStart(2, '0')}`;
+      // Last 7 days - check if within 7 days (UTC)
+      const sevenDaysAgo = new Date(nowUTC);
+      sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 7);
+      const sevenDaysAgoStr = `${sevenDaysAgo.getUTCFullYear()}-${String(sevenDaysAgo.getUTCMonth() + 1).padStart(2, '0')}-${String(sevenDaysAgo.getUTCDate()).padStart(2, '0')}`;
       const matches = dictationDateStr >= sevenDaysAgoStr;
       console.log('📅 [Week Filter]', dictationDateStr, '>=', sevenDaysAgoStr, '?', matches);
       return matches;
@@ -196,14 +199,16 @@ export default function DictationHistorySidebar({
     onDictationSelect(dictation);
   };
 
-  // Calculate counts for filter buttons
+  // Calculate counts for filter buttons - USE UTC
   const todayCount = dictations.filter(d => {
     const dateStr = d.createdAt || d.visitDate;
     if (!dateStr) return false;
     const dictationDate = new Date(dateStr);
     const now = new Date();
-    const dictationDateStr = `${dictationDate.getFullYear()}-${String(dictationDate.getMonth() + 1).padStart(2, '0')}-${String(dictationDate.getDate()).padStart(2, '0')}`;
-    const nowDateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    // Use UTC date components
+    const dictationDateStr = `${dictationDate.getUTCFullYear()}-${String(dictationDate.getUTCMonth() + 1).padStart(2, '0')}-${String(dictationDate.getUTCDate()).padStart(2, '0')}`;
+    const nowUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    const nowDateStr = `${nowUTC.getUTCFullYear()}-${String(nowUTC.getUTCMonth() + 1).padStart(2, '0')}-${String(nowUTC.getUTCDate()).padStart(2, '0')}`;
     return dictationDateStr === nowDateStr;
   }).length;
 
@@ -212,10 +217,12 @@ export default function DictationHistorySidebar({
     if (!dateStr) return true;
     const dictationDate = new Date(dateStr);
     const now = new Date();
-    const sevenDaysAgo = new Date(now);
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const dictationDateStr = `${dictationDate.getFullYear()}-${String(dictationDate.getMonth() + 1).padStart(2, '0')}-${String(dictationDate.getDate()).padStart(2, '0')}`;
-    const sevenDaysAgoStr = `${sevenDaysAgo.getFullYear()}-${String(sevenDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(sevenDaysAgo.getDate()).padStart(2, '0')}`;
+    const nowUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    const sevenDaysAgo = new Date(nowUTC);
+    sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 7);
+    // Use UTC date components
+    const dictationDateStr = `${dictationDate.getUTCFullYear()}-${String(dictationDate.getUTCMonth() + 1).padStart(2, '0')}-${String(dictationDate.getUTCDate()).padStart(2, '0')}`;
+    const sevenDaysAgoStr = `${sevenDaysAgo.getUTCFullYear()}-${String(sevenDaysAgo.getUTCMonth() + 1).padStart(2, '0')}-${String(sevenDaysAgo.getUTCDate()).padStart(2, '0')}`;
     return dictationDateStr >= sevenDaysAgoStr;
   }).length;
 
