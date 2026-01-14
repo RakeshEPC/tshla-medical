@@ -32,14 +32,14 @@ interface DictatedNote {
 class ScheduleDatabaseService {
   private readonly API_BASE_URL = import.meta.env.MODE === 'production'
     ? 'https://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io'
-    : 'http://localhost';
+    : 'http://localhost:3003';
 
   /**
    * Get schedule for a provider on a specific date
    */
   async getScheduleForDate(providerId: string, date: string): Promise<Patient[]> {
     try {
-      const url = `${this.API_BASE_URL}:3003/api/simple/schedule/${providerId}/${date}`;
+      const url = `${this.API_BASE_URL}/api/simple/schedule/${providerId}/${date}`;
       const response = await fetch(url);
 
       if (!response.ok) {
@@ -70,7 +70,7 @@ class ScheduleDatabaseService {
     appointmentDate: string
   ): Promise<boolean> {
     try {
-      const response = await fetch(`${this.API_BASE_URL}:3003/api/appointments`, {
+      const response = await fetch(`${this.API_BASE_URL}/api/appointments`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -104,7 +104,7 @@ class ScheduleDatabaseService {
    */
   async updateAppointment(appointmentId: string, patient: Patient): Promise<boolean> {
     try {
-      const response = await fetch(`${this.API_BASE_URL}:3003/api/appointments/${appointmentId}`, {
+      const response = await fetch(`${this.API_BASE_URL}/api/appointments/${appointmentId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -135,7 +135,7 @@ class ScheduleDatabaseService {
    */
   async deleteAppointment(appointmentId: string): Promise<boolean> {
     try {
-      const response = await fetch(`${this.API_BASE_URL}:3003/api/appointments/${appointmentId}`, {
+      const response = await fetch(`${this.API_BASE_URL}/api/appointments/${appointmentId}`, {
         method: 'DELETE',
       });
 
@@ -163,7 +163,7 @@ class ScheduleDatabaseService {
       // Get appointment_id from sessionStorage to link note to appointment
       const appointmentId = sessionStorage.getItem('current_appointment_id');
 
-      const response = await fetch(`${this.API_BASE_URL}:3003/api/dictated-notes`, {
+      const response = await fetch(`${this.API_BASE_URL}/api/dictated-notes`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -210,7 +210,7 @@ class ScheduleDatabaseService {
    */
   async getNotes(providerId: string, date?: string): Promise<DictatedNote[]> {
     try {
-      let url = `${this.API_BASE_URL}:3003/api/providers/${providerId}/notes`;
+      let url = `${this.API_BASE_URL}/api/providers/${providerId}/notes`;
       if (date) {
         url += `?date=${date}`;
       }
