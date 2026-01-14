@@ -116,6 +116,10 @@ const StaffPatientSummaries = lazy(() => import('./pages/StaffPatientSummaries')
 const PatientSummaryPortal = lazy(() => import('./pages/PatientSummaryPortal'));
 const UnifiedPatientChart = lazy(() => import('./pages/UnifiedPatientChart'));
 
+// Patient Payment System
+const StaffPaymentDashboard = lazy(() => import('./pages/StaffPaymentDashboard'));
+const PatientPaymentReports = lazy(() => import('./pages/PatientPaymentReports'));
+
 // PCM (Principal Care Management) System
 const SimplePCMPatientDashboard = lazy(() => import('./pages/SimplePCMPatientDashboard'));
 const PCMProviderDashboard = lazy(() => import('./pages/PCMProviderDashboard'));
@@ -646,6 +650,31 @@ function App() {
                   <ProtectedRoute>
                     <Suspense fallback={<LoadingSpinner />}>
                       <UnifiedPatientChart />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* ===== PATIENT PAYMENT SYSTEM ===== */}
+              {/* Staff Payment Dashboard */}
+              <Route
+                path="/patient-payments"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <StaffPaymentDashboard />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Payment Reports */}
+              <Route
+                path="/patient-payments/reports"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <PatientPaymentReports />
                     </Suspense>
                   </ProtectedRoute>
                 }

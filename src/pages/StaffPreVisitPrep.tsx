@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { paymentRequestService } from '../services/paymentRequest.service';
+import type { PaymentRequest, PaymentType } from '../types/payment.types';
 
 // Get API URL from environment
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -51,10 +53,19 @@ export default function StaffPreVisitPrep() {
     billingNotes: ''
   });
 
+  // Payment Request States
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentType, setPaymentType] = useState<PaymentType>('copay');
+  const [paymentLink, setPaymentLink] = useState('');
+  const [activePaymentRequest, setActivePaymentRequest] = useState<PaymentRequest | null>(null);
+  const [generatingPayment, setGeneratingPayment] = useState(false);
+  const [shareLinkId, setShareLinkId] = useState<string | null>(null);
+
   useEffect(() => {
     if (appointmentId) {
       loadAppointmentData();
       loadExistingPreVisit();
+      loadShareLinkAndPayment();
     }
   }, [appointmentId]);
 
@@ -140,6 +151,110 @@ export default function StaffPreVisitPrep() {
       // No existing data, that's fine
       console.log('No existing pre-visit data found');
     }
+  };
+
+  const loadShareLinkAndPayment = async () => {
+    try {
+      // Get share_link_id from patient_audio_summaries for this appointment
+      const { data: summaryData } = await supabase
+        .from('patient_audio_summaries')
+        .select('share_link_id')
+        .eq('appointment_id', appointmentId)
+        .maybeSingle();
+
+      if (summaryData?.share_link_id) {
+        setShareLinkId(summaryData.share_link_id);
+
+        // Load active payment request if exists
+        const { data: previsitData } = await supabase
+          .from('previsit_data')
+          .select('active_payment_request_id')
+          .eq('appointment_id', appointmentId)
+          .maybeSingle();
+
+        if (previsitData?.active_payment_request_id) {
+          const { data: paymentData } = await supabase
+            .from('patient_payment_requests')
+            .select('*')
+            .eq('id', previsitData.active_payment_request_id)
+            .single();
+
+          if (paymentData) {
+            setActivePaymentRequest(paymentData);
+            setPaymentLink(`${window.location.origin}/patient-summary/${summaryData.share_link_id}`);
+
+            // If payment is paid, update the billing state
+            if (paymentData.payment_status === 'paid') {
+              setBilling(prev => ({
+                ...prev,
+                patientPaid: true,
+                paymentMethod: 'Credit Card (Stripe)'
+              }));
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.log('No share link or payment request found');
+    }
+  };
+
+  const handleGeneratePaymentRequest = async () => {
+    if (!paymentAmount || !appointment || !shareLinkId) {
+      alert('Please ensure patient has a summary link and enter a payment amount');
+      return;
+    }
+
+    const amountCents = Math.round(parseFloat(paymentAmount) * 100);
+    if (isNaN(amountCents) || amountCents <= 0) {
+      alert('Please enter a valid payment amount');
+      return;
+    }
+
+    setGeneratingPayment(true);
+    try {
+      const staffData = sessionStorage.getItem('tshla_medical_user');
+      const staffId = staffData ? JSON.parse(staffData).id : null;
+
+      const response = await paymentRequestService.createPaymentRequest({
+        previsit_id: appointmentId,
+        appointment_id: appointmentId,
+        tshla_id: appointment.tsh_id || '',
+        share_link_id: shareLinkId,
+        patient_name: appointment.patient_name,
+        patient_phone: appointment.patient_phone,
+        athena_mrn: appointment.old_emr_number,
+        amount_cents: amountCents,
+        payment_type: paymentType,
+        em_code: billing.emCode,
+        provider_name: appointment.provider_name,
+        visit_date: appointment.scheduled_date,
+        notes: `Payment request generated from pre-visit prep`
+      });
+
+      if (response.success) {
+        setActivePaymentRequest(response.paymentRequest);
+        setPaymentLink(response.paymentLink);
+
+        // Update previsit_data with active payment request ID
+        await supabase
+          .from('previsit_data')
+          .update({ active_payment_request_id: response.paymentRequest.id })
+          .eq('appointment_id', appointmentId);
+
+        alert('Payment request generated! Copy the link to send to patient via Klara.');
+      }
+    } catch (error) {
+      console.error('Error generating payment request:', error);
+      alert('Failed to generate payment request');
+    } finally {
+      setGeneratingPayment(false);
+    }
+  };
+
+  const handleCopyPaymentLink = () => {
+    navigator.clipboard.writeText(paymentLink);
+    alert('Payment link copied to clipboard!');
   };
 
   const handleSaveDraft = async () => {
@@ -588,6 +703,150 @@ export default function StaffPreVisitPrep() {
                 />
               </div>
             </div>
+          </div>
+
+          {/* Online Payment Request */}
+          <div className={`bg-white rounded-lg shadow-md p-6 transition-all ${
+            activePaymentRequest?.payment_status === 'paid'
+              ? 'border-2 border-green-500'
+              : activePaymentRequest
+                ? 'border-2 border-blue-500'
+                : 'border-2 border-gray-300'
+          }`}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">💳</span>
+                <h3 className="text-lg font-bold text-gray-900">Online Payment Request</h3>
+              </div>
+              {activePaymentRequest?.payment_status === 'paid' && (
+                <span className="flex items-center gap-1 text-green-600 font-semibold text-sm">
+                  <span className="text-xl">✓</span>
+                  Patient Paid Online
+                </span>
+              )}
+              {activePaymentRequest?.payment_status === 'pending' && (
+                <span className="flex items-center gap-1 text-blue-600 font-semibold text-sm">
+                  <span className="text-xl">⏳</span>
+                  Payment Pending
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-gray-600 mb-4">Send payment link to patient via Klara</p>
+
+            {!shareLinkId && (
+              <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4 mb-4">
+                <p className="text-sm text-yellow-800 font-medium">
+                  ⚠ Patient needs an audio summary created first to generate payment link
+                </p>
+              </div>
+            )}
+
+            {!activePaymentRequest ? (
+              <div className="grid grid-cols-3 gap-4">
+                {/* Payment Amount */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Payment Amount</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                    <input
+                      type="text"
+                      value={paymentAmount}
+                      onChange={(e) => setPaymentAmount(formatCurrency(e.target.value))}
+                      className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="0.00"
+                      disabled={!shareLinkId}
+                    />
+                  </div>
+                </div>
+
+                {/* Payment Type */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Payment Type</label>
+                  <select
+                    value={paymentType}
+                    onChange={(e) => setPaymentType(e.target.value as PaymentType)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    disabled={!shareLinkId}
+                  >
+                    <option value="copay">Copay</option>
+                    <option value="deductible">Deductible</option>
+                    <option value="balance">Balance</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+
+                {/* Generate Button */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">&nbsp;</label>
+                  <button
+                    onClick={handleGeneratePaymentRequest}
+                    disabled={generatingPayment || !shareLinkId || !paymentAmount}
+                    className="w-full px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg font-semibold shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {generatingPayment ? '🔄 Generating...' : '📨 Generate Payment Link'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Payment Status */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-600">Amount</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      ${(activePaymentRequest.amount_cents / 100).toFixed(2)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Type</p>
+                    <p className="text-lg font-semibold text-gray-900 capitalize">
+                      {activePaymentRequest.payment_type}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Status</p>
+                    <p className={`text-lg font-semibold capitalize ${
+                      activePaymentRequest.payment_status === 'paid' ? 'text-green-600' :
+                      activePaymentRequest.payment_status === 'pending' ? 'text-blue-600' :
+                      'text-gray-600'
+                    }`}>
+                      {activePaymentRequest.payment_status}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Payment Link */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Payment Link (Send via Klara)</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={paymentLink}
+                      readOnly
+                      className="flex-1 px-3 py-2 border-2 border-blue-300 rounded-lg bg-blue-50 font-mono text-sm"
+                    />
+                    <button
+                      onClick={handleCopyPaymentLink}
+                      className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold shadow-md transition-all"
+                    >
+                      📋 Copy Link
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Copy this link and send to patient via Klara. Patient will see payment option on their summary page.
+                  </p>
+                </div>
+
+                {activePaymentRequest.payment_status === 'paid' && activePaymentRequest.paid_at && (
+                  <div className="bg-green-50 border-2 border-green-500 rounded-lg p-4">
+                    <p className="text-sm text-green-800 font-semibold">
+                      ✓ Patient paid ${(activePaymentRequest.amount_cents / 100).toFixed(2)} on{' '}
+                      {new Date(activePaymentRequest.paid_at).toLocaleString()}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Insurance Notes */}

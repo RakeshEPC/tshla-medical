@@ -21,6 +21,9 @@ import {
   Lock,
   RefreshCw
 } from 'lucide-react';
+import { paymentRequestService } from '../services/paymentRequest.service';
+import PatientPaymentCard from '../components/PatientPaymentCard';
+import type { PaymentRequest } from '../types/payment.types';
 
 interface SummaryInfo {
   summaryId: string;
@@ -63,6 +66,10 @@ export default function PatientSummaryPortal() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // Payment requests
+  const [pendingPayments, setPendingPayments] = useState<PaymentRequest[]>([]);
+  const [loadingPayments, setLoadingPayments] = useState(false);
 
   /**
    * Load summary info on mount
@@ -167,11 +174,34 @@ export default function PatientSummaryPortal() {
       setSummaryContent(data.data);
       setStep('summary_view');
 
+      // Load pending payments after successful verification
+      if (formattedTshlaId) {
+        loadPendingPayments(formattedTshlaId);
+      }
+
     } catch (err: any) {
       console.error('Error verifying TSHLA ID:', err);
       setVerificationError('Network error. Please try again.');
     } finally {
       setIsVerifying(false);
+    }
+  };
+
+  /**
+   * Load pending payment requests for this patient
+   */
+  const loadPendingPayments = async (tshlaIdToUse: string) => {
+    setLoadingPayments(true);
+    try {
+      const payments = await paymentRequestService.getPaymentsByTshlaId(tshlaIdToUse);
+      // Only show pending payments
+      const pending = payments.filter(p => p.payment_status === 'pending');
+      setPendingPayments(pending);
+    } catch (err) {
+      console.error('Error loading payments:', err);
+      // Don't show error to patient - payments are optional
+    } finally {
+      setLoadingPayments(false);
     }
   };
 
@@ -386,6 +416,24 @@ export default function PatientSummaryPortal() {
         {/* Summary View Step */}
         {step === 'summary_view' && summaryContent && (
           <div className="space-y-6">
+            {/* Payment Cards */}
+            {pendingPayments.length > 0 && (
+              <div className="space-y-4">
+                {pendingPayments.map((payment) => (
+                  <PatientPaymentCard
+                    key={payment.id}
+                    payment={payment}
+                    onPaymentComplete={() => {
+                      // Reload payments after successful payment
+                      if (tshlaId) {
+                        loadPendingPayments(tshlaId);
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+
             {/* Header Card */}
             <div className="bg-white rounded-2xl shadow-xl p-6">
               <div className="flex items-center justify-between mb-4">
