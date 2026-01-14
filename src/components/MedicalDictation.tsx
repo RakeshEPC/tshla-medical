@@ -868,6 +868,70 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
       setProcessedNoteVersions(prev => [...prev, newVersion]);
       setProcessedNote(processedContent);
       setShowProcessed(true);
+
+      // Auto-save after processing
+      try {
+        setDatabaseAutoSaveStatus('saving');
+
+        if (lastSavedNoteId) {
+          // Update existing note
+          const response = await fetch(`http://localhost:3003/api/simple/note/${lastSavedNoteId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              patientName: patientDetails.name || 'Unidentified Patient',
+              patientMrn: patientDetails.mrn,
+              patientPhone: patientDetails.phone,
+              patientEmail: patientDetails.email,
+              rawTranscript: contentToProcess,
+              aiProcessedNote: processedContent,
+              recordingMode: recordingMode || 'dictation',
+            }),
+          });
+
+          const data = await response.json();
+          if (data.success) {
+            setDatabaseAutoSaveStatus('saved');
+            setLastDatabaseSaveTime(new Date());
+            setTimeout(() => setDatabaseAutoSaveStatus('idle'), 2000);
+            logInfo('MedicalDictation', 'Auto-saved after processing', {});
+          }
+        } else {
+          // Create new note
+          const response = await fetch('http://localhost:3003/api/simple/note', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              providerId,
+              providerName,
+              patientName: patientDetails.name || 'Unidentified Patient',
+              patientMrn: patientDetails.mrn,
+              patientPhone: patientDetails.phone,
+              patientEmail: patientDetails.email,
+              rawTranscript: contentToProcess,
+              aiProcessedNote: processedContent,
+              recordingMode: recordingMode || 'dictation',
+            }),
+          });
+
+          const data = await response.json();
+          if (data.success) {
+            setLastSavedNoteId(String(data.noteId));
+            setDatabaseAutoSaveStatus('saved');
+            setLastDatabaseSaveTime(new Date());
+            setTimeout(() => setDatabaseAutoSaveStatus('idle'), 2000);
+            logInfo('MedicalDictation', 'Note created after processing', { noteId: data.noteId });
+          }
+        }
+      } catch (saveError) {
+        setDatabaseAutoSaveStatus('error');
+        setTimeout(() => setDatabaseAutoSaveStatus('idle'), 3000);
+        logError('MedicalDictation', 'Auto-save after processing failed', { saveError });
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
