@@ -130,7 +130,7 @@ export default function MedicalDictation({
 
   // Get current user for provider ID
   const currentUser = unifiedAuthService.getCurrentUser();
-  const providerId = currentUser?.id || currentUser?.email || 'doctor-default-001';
+  const providerId = currentUser?.email || currentUser?.id || 'doctor-default-001';
   const providerName = currentUser?.name || 'Dr. Default';
 
   // Load patient data if patientId is provided and preload is enabled
@@ -1911,7 +1911,7 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
           {/* Right Column - Dictation History Sidebar */}
           {showDictationSidebar && currentUser && (
             <DictationHistorySidebar
-              providerId={currentUser.id || currentUser.email || 'unknown'}
+              providerId={currentUser.email || currentUser.id || 'unknown'}
               providerName={currentUser.name || currentUser.email || 'Provider'}
               isOpen={showDictationSidebar}
               onToggle={() => setShowDictationSidebar(false)}
