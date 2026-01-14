@@ -407,7 +407,7 @@ router.get('/staff/pending-summaries', async (req, res) => {
           ...summary,
           tshla_id: patientData?.tshla_id || 'N/A',
           patient_id: patientData?.patient_id || 'N/A',
-          share_link_url: `${process.env.VITE_APP_URL || 'https://tshla-medical.azurewebsites.net'}/patient-summary/${summary.share_link_id}`
+          share_link_url: `${process.env.VITE_APP_URL || 'https://app.tshla.ai'}/patient-summary/${summary.share_link_id}`
         };
       })
     );
