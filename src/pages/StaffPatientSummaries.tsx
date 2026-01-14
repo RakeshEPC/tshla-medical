@@ -34,6 +34,7 @@ interface PatientSummary {
   patient_mrn: string;
   tshla_id: string;
   patient_id: string;
+  athena_mrn: string;
   provider_name: string;
   provider_id: string;
   created_at: string;
@@ -46,6 +47,9 @@ interface PatientSummary {
   summary_script: string;
   followup_date: string | null;
   followup_notes: string | null;
+  appointment_made: boolean;
+  appointment_made_at: string | null;
+  appointment_made_by: string | null;
 }
 
 export default function StaffPatientSummaries() {
@@ -125,7 +129,8 @@ export default function StaffPatientSummaries() {
         s.patient_name?.toLowerCase().includes(query) ||
         s.patient_phone?.includes(query) ||
         s.tshla_id?.toLowerCase().includes(query) ||
-        s.patient_mrn?.toLowerCase().includes(query)
+        s.patient_mrn?.toLowerCase().includes(query) ||
+        s.athena_mrn?.toLowerCase().includes(query)
       );
     }
 
@@ -199,6 +204,37 @@ export default function StaffPatientSummaries() {
     }
 
     setSelectedSummaries(new Set());
+  };
+
+  /**
+   * Toggle appointment made status
+   */
+  const handleAppointmentMadeToggle = async (summaryId: string, currentStatus: boolean) => {
+    try {
+      // Get current staff user ID
+      const staffData = sessionStorage.getItem('tshla_medical_user');
+      const staffId = staffData ? JSON.parse(staffData).id : null;
+
+      const response = await fetch(`${API_BASE_URL}/api/staff/patient-summaries/${summaryId}/appointment-made`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          appointmentMade: !currentStatus,
+          staffId
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update appointment status');
+      }
+
+      // Reload summaries to reflect change
+      await loadSummaries();
+
+    } catch (err: any) {
+      console.error('Error toggling appointment status:', err);
+      alert(`Failed to update appointment status: ${err.message}`);
+    }
   };
 
   /**
@@ -286,9 +322,14 @@ export default function StaffPatientSummaries() {
   };
 
   /**
-   * Format follow-up date with color coding
+   * Format follow-up date with color coding and appointment checkbox
    */
-  const formatFollowUpDate = (followupDate: string | null, followupNotes: string | null) => {
+  const formatFollowUpDate = (
+    summaryId: string,
+    followupDate: string | null,
+    followupNotes: string | null,
+    appointmentMade: boolean
+  ) => {
     if (!followupDate) {
       return (
         <span className="text-xs text-gray-400">Not scheduled</span>
@@ -331,7 +372,7 @@ export default function StaffPatientSummaries() {
       : `in ${diffDays} days`;
 
     return (
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-2">
         <div className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${colorClass}`}>
           {icon}
           {formattedDate}
@@ -342,6 +383,18 @@ export default function StaffPatientSummaries() {
             {followupNotes.length > 30 ? followupNotes.substring(0, 30) + '...' : followupNotes}
           </div>
         )}
+        {/* Appointment Made Checkbox */}
+        <label className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
+          <input
+            type="checkbox"
+            checked={appointmentMade}
+            onChange={() => handleAppointmentMadeToggle(summaryId, appointmentMade)}
+            className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+          />
+          <span className={`text-xs font-medium ${appointmentMade ? 'text-green-700' : 'text-gray-600'}`}>
+            Appt Made
+          </span>
+        </label>
       </div>
     );
   };
@@ -375,7 +428,7 @@ export default function StaffPatientSummaries() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search patient name, phone, TSHLA ID..."
+                placeholder="Search patient name, phone, MRN..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -494,6 +547,9 @@ export default function StaffPatientSummaries() {
                       TSHLA ID
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Athena MRN
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Provider
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -551,6 +607,26 @@ export default function StaffPatientSummaries() {
                           </button>
                         </div>
                       </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <code className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">
+                            {summary.athena_mrn || 'N/A'}
+                          </code>
+                          {summary.athena_mrn && summary.athena_mrn !== 'N/A' && (
+                            <button
+                              onClick={() => copyToClipboard(summary.athena_mrn, `mrn-${summary.id}`)}
+                              className="p-1 hover:bg-gray-200 rounded"
+                              title="Copy Athena MRN"
+                            >
+                              {copiedItem === `mrn-${summary.id}` ? (
+                                <CheckCircle className="w-4 h-4 text-green-600" />
+                              ) : (
+                                <Copy className="w-4 h-4 text-gray-400" />
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-6 py-4 text-sm text-gray-900">
                         {summary.provider_name || 'N/A'}
                       </td>
@@ -561,7 +637,7 @@ export default function StaffPatientSummaries() {
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        {formatFollowUpDate(summary.followup_date, summary.followup_notes)}
+                        {formatFollowUpDate(summary.id, summary.followup_date, summary.followup_notes, summary.appointment_made)}
                       </td>
                       <td className="px-6 py-4">
                         {getStatusBadge(summary.status, summary.expires_at)}

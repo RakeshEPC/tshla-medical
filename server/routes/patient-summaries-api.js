@@ -486,10 +486,10 @@ router.get('/staff/pending-summaries', async (req, res) => {
     // Enrich with TSHLA ID from unified_patients
     const enrichedData = await Promise.all(
       data.map(async (summary) => {
-        // Look up TSHLA ID by phone
+        // Look up TSHLA ID and MRN by phone
         const { data: patientData } = await supabase
           .from('unified_patients')
-          .select('tshla_id, patient_id')
+          .select('tshla_id, patient_id, mrn')
           .eq('phone_primary', summary.patient_phone.replace(/\D/g, ''))
           .single();
 
@@ -497,6 +497,7 @@ router.get('/staff/pending-summaries', async (req, res) => {
           ...summary,
           tshla_id: patientData?.tshla_id || 'N/A',
           patient_id: patientData?.patient_id || 'N/A',
+          athena_mrn: patientData?.mrn || summary.patient_mrn || 'N/A',  // Prefer unified_patients.mrn (Athena ID)
           share_link_url: `${process.env.VITE_APP_URL || 'https://www.tshla.ai'}/patient-summary/${summary.share_link_id}`
         };
       })
@@ -552,6 +553,50 @@ router.post('/staff/summaries/:id/mark-sent', async (req, res) => {
 
   } catch (error) {
     console.error('❌ [Mark Sent] Error:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * PATCH /api/patient-summaries/:id/appointment-made
+ * Toggle appointment made status for follow-up tracking
+ */
+router.patch('/patient-summaries/:id/appointment-made', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { appointmentMade, staffId } = req.body;
+
+    console.log(`📅 [Appointment Toggle] Summary ${id}, Made: ${appointmentMade}`);
+
+    const updateData = {
+      appointment_made: appointmentMade,
+      appointment_made_at: appointmentMade ? new Date().toISOString() : null,
+      appointment_made_by: appointmentMade ? staffId : null
+    };
+
+    const { data, error } = await supabase
+      .from('patient_audio_summaries')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Database error: ${error.message}`);
+    }
+
+    console.log(`✅ Appointment status updated for summary ${id}`);
+
+    res.json({
+      success: true,
+      data: data
+    });
+
+  } catch (error) {
+    console.error('❌ [Appointment Toggle] Error:', error.message);
     res.status(500).json({
       success: false,
       error: error.message
