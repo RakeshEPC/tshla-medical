@@ -44,6 +44,8 @@ interface PatientSummary {
   staff_sent_by: string | null;
   status: 'pending' | 'sent' | 'accessed' | 'expired';
   summary_script: string;
+  followup_date: string | null;
+  followup_notes: string | null;
 }
 
 export default function StaffPatientSummaries() {
@@ -283,6 +285,67 @@ export default function StaffPatientSummaries() {
     return `${diffDays} days`;
   };
 
+  /**
+   * Format follow-up date with color coding
+   */
+  const formatFollowUpDate = (followupDate: string | null, followupNotes: string | null) => {
+    if (!followupDate) {
+      return (
+        <span className="text-xs text-gray-400">Not scheduled</span>
+      );
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const followUp = new Date(followupDate);
+    followUp.setHours(0, 0, 0, 0);
+    const diffMs = followUp.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+    // Determine color based on timing
+    let colorClass = 'text-gray-700 bg-gray-50';
+    let icon = <Calendar className="w-3 h-3" />;
+
+    if (diffDays < 0) {
+      // Overdue
+      colorClass = 'text-red-700 bg-red-50';
+      icon = <AlertCircle className="w-3 h-3" />;
+    } else if (diffDays <= 14) {
+      // Upcoming (within 2 weeks)
+      colorClass = 'text-yellow-700 bg-yellow-50';
+      icon = <Clock className="w-3 h-3" />;
+    }
+
+    const formattedDate = followUp.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+
+    const relativeTime = diffDays < 0
+      ? `${Math.abs(diffDays)} days ago`
+      : diffDays === 0
+      ? 'Today'
+      : diffDays === 1
+      ? 'Tomorrow'
+      : `in ${diffDays} days`;
+
+    return (
+      <div className="flex flex-col gap-1">
+        <div className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${colorClass}`}>
+          {icon}
+          {formattedDate}
+        </div>
+        <div className="text-xs text-gray-500">{relativeTime}</div>
+        {followupNotes && (
+          <div className="text-xs text-gray-600 italic" title={followupNotes}>
+            {followupNotes.length > 30 ? followupNotes.substring(0, 30) + '...' : followupNotes}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
@@ -437,6 +500,9 @@ export default function StaffPatientSummaries() {
                       Created
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Follow Up
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -493,6 +559,9 @@ export default function StaffPatientSummaries() {
                         <div className="text-xs text-gray-500">
                           Expires in {getTimeUntilExpiration(summary.expires_at)}
                         </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        {formatFollowUpDate(summary.followup_date, summary.followup_notes)}
                       </td>
                       <td className="px-6 py-4">
                         {getStatusBadge(summary.status, summary.expires_at)}

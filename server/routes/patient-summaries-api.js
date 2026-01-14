@@ -132,6 +132,91 @@ Generate ONLY the conversational phone script:`;
 }
 
 /**
+ * Extract follow-up date from SOAP note using AI
+ * Returns: { date: '2026-03-15', notes: 'Repeat labs' } or null
+ */
+async function extractFollowUpDate(soapNote) {
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+
+  const prompt = `You are analyzing a medical SOAP note to extract follow-up appointment information.
+
+TODAY'S DATE: ${today}
+
+TASK: Extract when the patient should return for follow-up. Look for phrases like:
+- "Follow up in 2 weeks"
+- "RTC 3 months"
+- "Return to clinic in 6 weeks"
+- "Next appointment in 1 month"
+- "Repeat labs in 2 months"
+- Specific dates mentioned
+
+IMPORTANT RULES:
+1. Calculate the exact date based on TODAY'S DATE
+2. Return JSON format ONLY
+3. If NO follow-up mentioned, return: {"date": null, "notes": null}
+4. Include context in "notes" (e.g., "Repeat TSH labs", "Post-op check")
+
+SOAP NOTE:
+${soapNote}
+
+Return JSON only (no explanation):`;
+
+  try {
+    const response = await fetch(
+      `${AZURE_OPENAI_ENDPOINT}/openai/deployments/${AZURE_OPENAI_DEPLOYMENT}/chat/completions?api-version=${AZURE_API_VERSION}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'api-key': AZURE_OPENAI_KEY
+        },
+        body: JSON.stringify({
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a medical data extraction specialist. You extract structured information from clinical notes and return valid JSON only.'
+            },
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          temperature: 0.3, // Lower temperature for more consistent extraction
+          max_tokens: 150,
+          response_format: { type: "json_object" } // Force JSON response
+        })
+      }
+    );
+
+    if (!response.ok) {
+      console.error('Azure OpenAI API error for follow-up extraction:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    const content = data.choices[0]?.message?.content || '{}';
+    const extracted = JSON.parse(content);
+
+    // Validate the extracted data
+    if (extracted.date) {
+      // Verify date format (YYYY-MM-DD)
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(extracted.date)) {
+        console.warn('Invalid date format from AI:', extracted.date);
+        return null;
+      }
+    }
+
+    console.log(`📅 Follow-up extracted: ${extracted.date ? extracted.date : 'None'} ${extracted.notes ? '(' + extracted.notes + ')' : ''}`);
+    return extracted.date ? extracted : null;
+
+  } catch (error) {
+    console.error('Error extracting follow-up date:', error.message);
+    return null; // Fail gracefully - don't block summary creation
+  }
+}
+
+/**
  * Generate audio from text using ElevenLabs
  */
 async function generateAudio(text, voiceId = DEFAULT_VOICE_ID) {
@@ -305,7 +390,10 @@ router.post('/patient-summaries/create', async (req, res) => {
     const summary = await generatePatientSummary(soapNote);
     console.log(`✅ Summary generated: ${summary.wordCount} words, ~${summary.estimatedSeconds}s`);
 
-    // Step 2: Create database record (audio generated on-demand later)
+    // Step 2: Extract follow-up date from SOAP note
+    const followUpInfo = await extractFollowUpDate(soapNote);
+
+    // Step 3: Create database record (audio generated on-demand later)
     const { data, error } = await supabase
       .from('patient_audio_summaries')
       .insert({
@@ -318,7 +406,9 @@ router.post('/patient-summaries/create', async (req, res) => {
         provider_id: providerId,
         provider_name: providerName,
         voice_id: voiceId || DEFAULT_VOICE_ID,
-        status: 'pending'
+        status: 'pending',
+        followup_date: followUpInfo?.date || null,
+        followup_notes: followUpInfo?.notes || null
       })
       .select()
       .single();
