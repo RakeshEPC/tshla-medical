@@ -624,14 +624,15 @@ app.post('/api/simple/note', async (req, res) => {
         provider_name: providerName,
         patient_name: patientName,
         patient_mrn: patientMrn,
+        patient_phone: patientPhone,
+        patient_email: patientEmail,
         visit_date: visitDate,
         note_title: noteTitle,
         raw_transcript: rawTranscript,
         processed_note: aiProcessedNote,
         recording_mode: recordingMode,
         status: 'completed',
-        dictated_at: new Date().toISOString(),
-        is_quick_note: isQuickNote
+        created_at: new Date().toISOString()
       })
       .select()
       .single();
