@@ -1215,27 +1215,73 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
 
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object;
+      const metadata = session.metadata;
 
-      // Update payment status
-      const { error: paymentError } = await supabase
-        .from('payment_records')
-        .update({ status: 'succeeded' })
-        .eq('stripe_session_id', session.id);
+      // Handle pump report payment
+      if (metadata.type === 'pump_report') {
+        // Update payment status
+        const { error: paymentError } = await supabase
+          .from('payment_records')
+          .update({ status: 'succeeded' })
+          .eq('stripe_session_id', session.id);
 
-      if (paymentError) {
-        logger.error('Failed to update payment record:', paymentError);
+        if (paymentError) {
+          logger.error('Failed to update payment record:', paymentError);
+        }
+
+        const { error: assessmentError} = await supabase
+          .from('pump_assessments')
+          .update({ payment_status: 'paid' })
+          .eq('id', session.metadata.assessment_id);
+
+        if (assessmentError) {
+          logger.error('Failed to update assessment payment status:', assessmentError);
+        }
+
+        logger.info('App', 'Pump report payment completed', { assessmentId: metadata.assessment_id });
       }
 
-      const { error: assessmentError } = await supabase
-        .from('pump_assessments')
-        .update({ payment_status: 'paid' })
-        .eq('id', session.metadata.assessment_id);
+      // Handle office visit payment (NEW)
+      if (metadata.type === 'office_visit_copay') {
+        // Update payment request status
+        const { error: paymentRequestError } = await supabase
+          .from('patient_payment_requests')
+          .update({
+            payment_status: 'paid',
+            paid_at: new Date().toISOString(),
+            stripe_payment_intent_id: session.payment_intent,
+            stripe_charge_id: session.payment_intent
+          })
+          .eq('id', metadata.payment_request_id);
 
-      if (assessmentError) {
-        logger.error('Failed to update assessment payment status:', assessmentError);
+        if (paymentRequestError) {
+          logger.error('Failed to update payment request:', paymentRequestError);
+        }
+
+        // Get payment request to find previsit_id
+        const { data: paymentRequest } = await supabase
+          .from('patient_payment_requests')
+          .select('previsit_id')
+          .eq('id', metadata.payment_request_id)
+          .single();
+
+        // Update previsit_data if linked
+        if (paymentRequest?.previsit_id) {
+          await supabase
+            .from('previsit_data')
+            .update({
+              patient_paid: true,
+              payment_method: 'Credit Card (Stripe)',
+              billing_updated_at: new Date().toISOString()
+            })
+            .eq('id', paymentRequest.previsit_id);
+        }
+
+        logger.info('App', 'Office visit payment completed', {
+          paymentRequestId: metadata.payment_request_id,
+          tshlaId: metadata.tshla_id
+        });
       }
-
-      logger.info('App', 'Placeholder message');
     }
 
     res.json({ received: true });

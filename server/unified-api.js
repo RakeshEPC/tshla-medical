@@ -2000,6 +2000,16 @@ if (patientSummaryApi) {
   logger.info('UnifiedAPI', 'Patient Summaries API mounted at /api (patient-summaries/* and staff/*)');
 }
 
+// Patient Payment Requests API - Online payment processing for copays/deductibles
+let patientPaymentApi = null;
+try {
+  patientPaymentApi = require('./routes/patient-payment-api');
+  app.use('/api/payment-requests', patientPaymentApi); // Routes: /api/payment-requests/*
+  logger.info('UnifiedAPI', 'Patient Payment API mounted at /api/payment-requests');
+} catch (error) {
+  logger.error('UnifiedAPI', 'Patient Payment API not mounted - module failed to load', { error: error.message });
+}
+
 // CCD Summary API - HIPAA-Compliant CCD file upload and summary generation
 let ccdSummaryApi = null;
 try {
