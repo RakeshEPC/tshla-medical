@@ -85,7 +85,6 @@ export default function MedicalDictation({
   const [templates, setTemplates] = useState<DoctorTemplate[]>([]);
   const [recentTemplates, setRecentTemplates] = useState<DoctorTemplate[]>([]);
   const [favoriteTemplates, setFavoriteTemplates] = useState<DoctorTemplate[]>([]);
-  const [previousVisitNote, setPreviousVisitNote] = useState('');
   const [showPatientDetails, setShowPatientDetails] = useState(false);
   const [lastSavedNoteId, setLastSavedNoteId] = useState<string | null>(null);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
@@ -799,7 +798,7 @@ export default function MedicalDictation({
     setShowProcessed(false);
 
     try {
-      // Build patient context with previous visit if available
+      // Build patient context
       const patientContext = `
 PATIENT INFORMATION:
 Name: ${patientDetails.name || '[Not provided]'}
@@ -807,15 +806,6 @@ MRN: ${patientDetails.mrn || '[Not provided]'}
 DOB: ${patientDetails.dob || '[Not provided]'}
 Email: ${patientDetails.email || '[Not provided]'}
 Visit Date: ${patientDetails.visitDate}
-
-${previousVisitNote ? `PREVIOUS VISIT NOTE:
-${previousVisitNote}
-
-INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. Include:
-- Reference to previous conditions and their current status
-- Trend analysis for chronic conditions
-- Updated assessment incorporating historical context
-- Continuity in the treatment plan` : ''}
       `.trim();
 
       // For dictation, include mode information
@@ -1503,24 +1493,8 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
             ? 'lg:grid-cols-[2fr_3fr_2fr]'
             : 'lg:grid-cols-[2fr_3fr]'
         }`}>
-          {/* Left Column - Previous Visit & Template */}
+          {/* Left Column - Template */}
           <div className="space-y-4">
-            {/* Previous Visit Note */}
-            <div className="bg-white rounded-lg shadow-sm p-4">
-              <h2 className="text-md font-semibold text-gray-800 mb-2">
-                📋 Previous Visit Note
-              </h2>
-              <textarea
-                value={previousVisitNote}
-                onChange={(e) => setPreviousVisitNote(e.target.value)}
-                placeholder="Paste previous visit note from EMR here..."
-                className="w-full h-20 px-2 py-1 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-              />
-              <div className="mt-2 text-xs text-gray-500">
-                This will be used to create continuity with today's visit
-              </div>
-            </div>
-
             {/* Template Selection */}
             <div className="bg-white rounded-lg shadow-sm p-4">
               <h2 className="text-md font-semibold text-gray-800 mb-2 flex items-center gap-2">
@@ -1730,11 +1704,6 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
               <div className="flex justify-between items-center mb-3">
                 <h2 className="text-lg font-semibold text-gray-800">
                   📝 Processed Clinical Note
-                  {previousVisitNote && (
-                    <span className="ml-2 text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded">
-                      + History
-                    </span>
-                  )}
                 </h2>
                 {showProcessed && (
                   <div className="flex gap-2">
