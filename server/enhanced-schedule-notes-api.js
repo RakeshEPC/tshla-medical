@@ -608,6 +608,8 @@ app.post('/api/simple/note', async (req, res) => {
       providerName,
       patientName,
       patientMrn,
+      patientPhone,
+      patientEmail,
       rawTranscript,
       aiProcessedNote,
       recordingMode = 'dictation',
