@@ -581,9 +581,13 @@ router.post('/patient-summaries/:linkId/verify-tshla', async (req, res) => {
       });
     }
 
-    // Compare TSHLA IDs (case-insensitive)
-    if (patient.tshla_id.toLowerCase() !== tshlaId.toLowerCase()) {
-      console.warn(`❌ TSHLA ID mismatch: Expected ${patient.tshla_id}, Got ${tshlaId}`);
+    // Compare TSHLA IDs (case-insensitive, ignore spaces/dashes)
+    // Normalize both IDs by removing all non-alphanumeric characters
+    const normalizedDbTshlaId = patient.tshla_id.replace(/[^A-Z0-9]/gi, '').toLowerCase();
+    const normalizedInputTshlaId = tshlaId.replace(/[^A-Z0-9]/gi, '').toLowerCase();
+
+    if (normalizedDbTshlaId !== normalizedInputTshlaId) {
+      console.warn(`❌ TSHLA ID mismatch: Expected ${patient.tshla_id} (normalized: ${normalizedDbTshlaId}), Got ${tshlaId} (normalized: ${normalizedInputTshlaId})`);
       await logAccess(summary.id, 'failed_tshla_verification', ipAddress, userAgent, tshlaId, false);
       return res.status(403).json({
         success: false,
