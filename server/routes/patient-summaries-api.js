@@ -328,7 +328,7 @@ router.post('/patient-summaries/create', async (req, res) => {
       throw new Error(`Database error: ${error.message}`);
     }
 
-    const shareLinkUrl = `${process.env.VITE_APP_URL || 'https://app.tshla.ai'}/patient-summary/${data.share_link_id}`;
+    const shareLinkUrl = `${process.env.VITE_APP_URL || 'https://www.tshla.ai'}/patient-summary/${data.share_link_id}`;
 
     console.log('✅ Patient summary created successfully!');
     console.log(`   Summary ID: ${data.id}`);
@@ -407,7 +407,7 @@ router.get('/staff/pending-summaries', async (req, res) => {
           ...summary,
           tshla_id: patientData?.tshla_id || 'N/A',
           patient_id: patientData?.patient_id || 'N/A',
-          share_link_url: `${process.env.VITE_APP_URL || 'https://app.tshla.ai'}/patient-summary/${summary.share_link_id}`
+          share_link_url: `${process.env.VITE_APP_URL || 'https://www.tshla.ai'}/patient-summary/${summary.share_link_id}`
         };
       })
     );
