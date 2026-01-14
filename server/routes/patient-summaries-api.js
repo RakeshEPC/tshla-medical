@@ -25,9 +25,9 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 // Azure OpenAI configuration (HIPAA compliant)
 const AZURE_OPENAI_KEY = process.env.AZURE_OPENAI_KEY;
-const AZURE_OPENAI_ENDPOINT = process.env.VITE_AZURE_OPENAI_ENDPOINT;
-const AZURE_OPENAI_DEPLOYMENT = process.env.VITE_AZURE_OPENAI_DEPLOYMENT || 'gpt-4';
-const AZURE_API_VERSION = process.env.VITE_AZURE_OPENAI_API_VERSION || '2024-02-01';
+const AZURE_OPENAI_ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT;
+const AZURE_OPENAI_DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o';
+const AZURE_API_VERSION = process.env.AZURE_OPENAI_API_VERSION || '2024-10-01-preview';
 
 // ElevenLabs configuration
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
