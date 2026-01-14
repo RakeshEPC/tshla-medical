@@ -1997,7 +1997,7 @@ if (patientChartApi) {
 }
 if (patientSummaryApi) {
   app.use('/api', patientSummaryApi); // Routes: /api/patient-summaries/* and /api/staff/pending-summaries
-  logger.info('UnifiedAPI', 'Patient Summaries API mounted at /api/patient-summaries (Web-based patient portal)');
+  logger.info('UnifiedAPI', 'Patient Summaries API mounted at /api (patient-summaries/* and staff/*)');
 }
 
 // CCD Summary API - HIPAA-Compliant CCD file upload and summary generation

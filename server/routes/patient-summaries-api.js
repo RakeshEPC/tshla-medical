@@ -274,7 +274,7 @@ async function checkRateLimit(ipAddress) {
  * Create a new patient summary with shareable link
  * Called automatically after doctor completes dictation
  */
-router.post('/create', async (req, res) => {
+router.post('/patient-summaries/create', async (req, res) => {
   try {
     const {
       dictationId,
