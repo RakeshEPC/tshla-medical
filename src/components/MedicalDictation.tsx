@@ -365,9 +365,12 @@ export default function MedicalDictation({
       if ((transcript || processedNote) && databaseAutoSaveStatus !== 'saving' && lastSavedNoteId) {
         try {
           setDatabaseAutoSaveStatus('saving');
+          const apiBaseUrl = import.meta.env.MODE === 'production'
+            ? 'https://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io'
+            : 'http://localhost:3003';
 
           // Update the existing note via PUT endpoint
-          const response = await fetch(`http://localhost:3003/api/simple/note/${lastSavedNoteId}`, {
+          const response = await fetch(`${apiBaseUrl}/api/simple/note/${lastSavedNoteId}`, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
@@ -872,10 +875,13 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
       // Auto-save after processing
       try {
         setDatabaseAutoSaveStatus('saving');
+        const apiBaseUrl = import.meta.env.MODE === 'production'
+          ? 'https://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io'
+          : 'http://localhost:3003';
 
         if (lastSavedNoteId) {
           // Update existing note
-          const response = await fetch(`http://localhost:3003/api/simple/note/${lastSavedNoteId}`, {
+          const response = await fetch(`${apiBaseUrl}/api/simple/note/${lastSavedNoteId}`, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
@@ -900,7 +906,7 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
           }
         } else {
           // Create new note
-          const response = await fetch('http://localhost:3003/api/simple/note', {
+          const response = await fetch(`${apiBaseUrl}/api/simple/note`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

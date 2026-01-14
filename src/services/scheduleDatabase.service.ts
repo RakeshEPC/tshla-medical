@@ -30,7 +30,9 @@ interface DictatedNote {
 }
 
 class ScheduleDatabaseService {
-  private readonly API_BASE_URL = 'http://localhost'; // FORCE localhost for debugging
+  private readonly API_BASE_URL = import.meta.env.MODE === 'production'
+    ? 'https://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io'
+    : 'http://localhost';
 
   /**
    * Get schedule for a provider on a specific date
