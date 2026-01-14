@@ -53,10 +53,10 @@ export interface PaymentRequest {
 
 export interface CreatePaymentRequestData {
   previsit_id?: string;
-  appointment_id?: string;
+  appointment_id?: string | number;
   patient_id?: string;
   tshla_id: string;
-  share_link_id: string;
+  share_link_id?: string; // Optional - will be auto-generated if not provided
   patient_name: string;
   patient_phone: string;
   athena_mrn?: string;

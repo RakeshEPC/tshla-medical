@@ -155,53 +155,69 @@ export default function StaffPreVisitPrep() {
 
   const loadShareLinkAndPayment = async () => {
     try {
-      // Get share_link_id from patient_audio_summaries for this appointment
+      // Try to get share_link_id from patient_audio_summaries (if audio summary exists)
       const { data: summaryData } = await supabase
         .from('patient_audio_summaries')
         .select('share_link_id')
         .eq('appointment_id', appointmentId)
         .maybeSingle();
 
+      // Set share_link_id if audio summary exists (for combined portal)
       if (summaryData?.share_link_id) {
         setShareLinkId(summaryData.share_link_id);
+      }
+      // Note: If no audio summary, share_link_id remains null
+      // Payment system will auto-generate one and use standalone payment portal
 
-        // Load active payment request if exists
-        const { data: previsitData } = await supabase
-          .from('previsit_data')
-          .select('active_payment_request_id')
-          .eq('appointment_id', appointmentId)
-          .maybeSingle();
+      // Load active payment request if exists
+      const { data: previsitData } = await supabase
+        .from('previsit_data')
+        .select('active_payment_request_id')
+        .eq('appointment_id', appointmentId)
+        .maybeSingle();
 
-        if (previsitData?.active_payment_request_id) {
-          const { data: paymentData } = await supabase
-            .from('patient_payment_requests')
-            .select('*')
-            .eq('id', previsitData.active_payment_request_id)
-            .single();
+      if (previsitData?.active_payment_request_id) {
+        const { data: paymentData } = await supabase
+          .from('patient_payment_requests')
+          .select('*')
+          .eq('id', previsitData.active_payment_request_id)
+          .single();
 
-          if (paymentData) {
-            setActivePaymentRequest(paymentData);
+        if (paymentData) {
+          setActivePaymentRequest(paymentData);
+
+          // Generate payment link based on whether audio summary exists
+          if (summaryData?.share_link_id) {
+            // Combined portal (audio summary + payment)
             setPaymentLink(`${window.location.origin}/patient-summary/${summaryData.share_link_id}`);
+          } else {
+            // Standalone payment portal
+            setPaymentLink(`${window.location.origin}/payment/${paymentData.id}`);
+          }
 
-            // If payment is paid, update the billing state
-            if (paymentData.payment_status === 'paid') {
-              setBilling(prev => ({
-                ...prev,
-                patientPaid: true,
-                paymentMethod: 'Credit Card (Stripe)'
-              }));
-            }
+          // If payment is paid, update the billing state
+          if (paymentData.payment_status === 'paid') {
+            setBilling(prev => ({
+              ...prev,
+              patientPaid: true,
+              paymentMethod: 'Credit Card (Stripe)'
+            }));
           }
         }
       }
     } catch (error) {
-      console.log('No share link or payment request found');
+      console.log('Error loading payment request:', error);
     }
   };
 
   const handleGeneratePaymentRequest = async () => {
-    if (!paymentAmount || !appointment || !shareLinkId) {
-      alert('Please ensure patient has a summary link and enter a payment amount');
+    if (!paymentAmount || !appointment) {
+      alert('Please enter a payment amount');
+      return;
+    }
+
+    if (!appointment.tsh_id) {
+      alert('Patient must have a TSHLA ID to generate payment request');
       return;
     }
 
@@ -219,8 +235,9 @@ export default function StaffPreVisitPrep() {
       const response = await paymentRequestService.createPaymentRequest({
         previsit_id: appointmentId,
         appointment_id: appointmentId,
-        tshla_id: appointment.tsh_id || '',
-        share_link_id: shareLinkId,
+        patient_id: appointment.internal_id,
+        tshla_id: appointment.tsh_id,
+        share_link_id: shareLinkId || undefined, // Optional - will be auto-generated if missing
         patient_name: appointment.patient_name,
         patient_phone: appointment.patient_phone,
         athena_mrn: appointment.old_emr_number,
@@ -731,15 +748,12 @@ export default function StaffPreVisitPrep() {
                 </span>
               )}
             </div>
-            <p className="text-sm text-gray-600 mb-4">Send payment link to patient via Klara</p>
-
-            {!shareLinkId && (
-              <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4 mb-4">
-                <p className="text-sm text-yellow-800 font-medium">
-                  ⚠ Patient needs an audio summary created first to generate payment link
-                </p>
-              </div>
-            )}
+            <p className="text-sm text-gray-600 mb-4">
+              {shareLinkId
+                ? 'Generate payment link to send via Klara (will combine with patient summary)'
+                : 'Generate standalone payment link to send via Klara'
+              }
+            </p>
 
             {!activePaymentRequest ? (
               <div className="grid grid-cols-3 gap-4">
@@ -754,7 +768,6 @@ export default function StaffPreVisitPrep() {
                       onChange={(e) => setPaymentAmount(formatCurrency(e.target.value))}
                       className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="0.00"
-                      disabled={!shareLinkId}
                     />
                   </div>
                 </div>
@@ -766,7 +779,6 @@ export default function StaffPreVisitPrep() {
                     value={paymentType}
                     onChange={(e) => setPaymentType(e.target.value as PaymentType)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    disabled={!shareLinkId}
                   >
                     <option value="copay">Copay</option>
                     <option value="deductible">Deductible</option>
@@ -780,7 +792,7 @@ export default function StaffPreVisitPrep() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">&nbsp;</label>
                   <button
                     onClick={handleGeneratePaymentRequest}
-                    disabled={generatingPayment || !shareLinkId || !paymentAmount}
+                    disabled={generatingPayment || !paymentAmount}
                     className="w-full px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg font-semibold shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {generatingPayment ? '🔄 Generating...' : '📨 Generate Payment Link'}

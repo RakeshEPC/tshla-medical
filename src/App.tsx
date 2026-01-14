@@ -119,6 +119,7 @@ const UnifiedPatientChart = lazy(() => import('./pages/UnifiedPatientChart'));
 // Patient Payment System
 const StaffPaymentDashboard = lazy(() => import('./pages/StaffPaymentDashboard'));
 const PatientPaymentReports = lazy(() => import('./pages/PatientPaymentReports'));
+const PatientPaymentPortal = lazy(() => import('./pages/PatientPaymentPortal'));
 
 // PCM (Principal Care Management) System
 const SimplePCMPatientDashboard = lazy(() => import('./pages/SimplePCMPatientDashboard'));
@@ -656,6 +657,16 @@ function App() {
               />
 
               {/* ===== PATIENT PAYMENT SYSTEM ===== */}
+              {/* Standalone Payment Portal - Public page (TSHLA ID verification required) */}
+              <Route
+                path="/payment/:paymentId"
+                element={
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <PatientPaymentPortal />
+                  </Suspense>
+                }
+              />
+
               {/* Staff Payment Dashboard */}
               <Route
                 path="/patient-payments"

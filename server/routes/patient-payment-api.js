@@ -53,10 +53,10 @@ router.post('/create', async (req, res) => {
     } = req.body;
 
     // Validation
-    if (!tshlaId || !shareLinkId || !patientName || !amountCents || !paymentType || !providerName) {
+    if (!tshlaId || !patientName || !amountCents || !paymentType || !providerName) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required fields: tshlaId, shareLinkId, patientName, amountCents, paymentType, providerName'
+        error: 'Missing required fields: tshlaId, patientName, amountCents, paymentType, providerName'
       });
     }
 
@@ -67,6 +67,9 @@ router.post('/create', async (req, res) => {
       });
     }
 
+    // Auto-generate share_link_id if not provided (for standalone payments without audio summary)
+    const finalShareLinkId = shareLinkId || `PAY-${tshlaId}-${Date.now()}`;
+
     // Create payment request
     const { data, error } = await supabase
       .from('patient_payment_requests')
@@ -75,7 +78,7 @@ router.post('/create', async (req, res) => {
         appointment_id: appointmentId || null,
         patient_id: patientId || null,
         tshla_id: tshlaId,
-        share_link_id: shareLinkId,
+        share_link_id: finalShareLinkId,
         patient_name: patientName,
         patient_phone: patientPhone,
         athena_mrn: athenaMrn || null,
@@ -95,9 +98,11 @@ router.post('/create', async (req, res) => {
       throw new Error(`Database error: ${error.message}`);
     }
 
-    // Generate payment link
+    // Generate payment link - use standalone payment portal if no audio summary exists
     const appUrl = process.env.VITE_APP_URL || 'https://www.tshla.ai';
-    const paymentLink = `${appUrl}/patient-summary/${shareLinkId}`;
+    const paymentLink = shareLinkId
+      ? `${appUrl}/patient-summary/${shareLinkId}` // Has audio summary
+      : `${appUrl}/payment/${data.id}`; // Standalone payment
 
     // Update previsit_data if previsitId provided
     if (previsitId) {
@@ -161,6 +166,55 @@ router.get('/by-tshla-id/:tshlaId', async (req, res) => {
 });
 
 /**
+ * Get payment request details for standalone payment portal
+ * GET /api/payment-requests/portal/:paymentId
+ * Public endpoint - used by patient payment portal (TSHLA ID verification happens client-side)
+ */
+router.get('/portal/:paymentId', async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+
+    const { data, error } = await supabase
+      .from('patient_payment_requests')
+      .select('*')
+      .eq('id', paymentId)
+      .single();
+
+    if (error || !data) {
+      return res.status(404).json({
+        success: false,
+        error: 'Payment request not found'
+      });
+    }
+
+    // Return payment details (sensitive data filtered by TSHLA ID verification on client)
+    res.json({
+      success: true,
+      paymentRequest: {
+        id: data.id,
+        patient_name: data.patient_name,
+        tshla_id: data.tshla_id,
+        athena_mrn: data.athena_mrn,
+        amount_cents: data.amount_cents,
+        payment_type: data.payment_type,
+        payment_status: data.payment_status,
+        provider_name: data.provider_name,
+        visit_date: data.visit_date,
+        em_code: data.em_code,
+        created_at: data.created_at,
+        paid_at: data.paid_at
+      }
+    });
+  } catch (error) {
+    logger.error('PaymentAPI', 'Get payment portal details error', { error: error.message });
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
  * Initiate Stripe checkout for a payment request
  * POST /api/payment-requests/:id/checkout
  */
@@ -213,8 +267,12 @@ router.post('/:id/checkout', async (req, res) => {
         quantity: 1,
       }],
       mode: 'payment',
-      success_url: `${appUrl}/patient-summary/${paymentRequest.share_link_id}?payment_success=true`,
-      cancel_url: `${appUrl}/patient-summary/${paymentRequest.share_link_id}?payment_canceled=true`,
+      success_url: paymentRequest.share_link_id && !paymentRequest.share_link_id.startsWith('PAY-')
+        ? `${appUrl}/patient-summary/${paymentRequest.share_link_id}?payment_success=true`
+        : `${appUrl}/payment/${id}?payment_success=true`,
+      cancel_url: paymentRequest.share_link_id && !paymentRequest.share_link_id.startsWith('PAY-')
+        ? `${appUrl}/patient-summary/${paymentRequest.share_link_id}?payment_canceled=true`
+        : `${appUrl}/payment/${id}?payment_canceled=true`,
       metadata: {
         type: 'office_visit_copay',
         payment_request_id: id,
