@@ -87,7 +87,6 @@ export default function MedicalDictation({
   const [favoriteTemplates, setFavoriteTemplates] = useState<DoctorTemplate[]>([]);
   const [previousVisitNote, setPreviousVisitNote] = useState('');
   const [showPatientDetails, setShowPatientDetails] = useState(false);
-  const [isSavingToDatabase, setIsSavingToDatabase] = useState(false);
   const [lastSavedNoteId, setLastSavedNoteId] = useState<string | null>(null);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [databaseAutoSaveStatus, setDatabaseAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -1036,83 +1035,6 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
     }
   };
 
-  const saveToDatabase = async () => {
-    if (!transcript && !processedNote) {
-      alert('No content to save. Please dictate some notes first.');
-      return;
-    }
-
-    // Patient name is now optional - will be saved with placeholder if missing
-    const hasPatientName = patientDetails.name && patientDetails.name.trim() !== '';
-
-    // Warn user if saving without patient name
-    if (!hasPatientName) {
-      const confirmSave = window.confirm(
-        '⚠️ No Patient Name Entered\n\n' +
-        'This note will be saved as "Unidentified Patient" and flagged for identification.\n\n' +
-        'You can add the patient name later before finalizing the note.\n\n' +
-        'Continue saving?'
-      );
-      if (!confirmSave) {
-        return;
-      }
-    }
-
-    setIsSavingToDatabase(true);
-
-    try {
-      if (!currentUser) {
-        throw new Error('No authenticated user found');
-      }
-
-      // Use the providerId and providerName from state (already set from getCurrentUser)
-
-      // Save the note to database using our new simplified service
-      const noteId = await scheduleDatabaseService.saveNote(
-        providerId,
-        providerName,
-        {
-          patientName: patientDetails.name,
-          patientMrn: patientDetails.mrn,
-          patientEmail: patientDetails.email,
-          patientPhone: patientDetails.phone,
-          rawTranscript: transcript,
-          aiProcessedNote: processedNote,
-          recordingMode: recordingMode || 'dictation',
-          isQuickNote: !patientId // true for QuickNote, false for regular dictation
-        }
-      );
-
-      if (noteId) {
-        // If this is a QuickNote, also add the patient to today's schedule
-        if (!patientId) {
-          await scheduleDatabaseService.addQuickNotePatientToSchedule(
-            providerId,
-            providerName,
-            patientDetails.name,
-            patientDetails.mrn
-          );
-        }
-
-        setLastSavedNoteId(noteId.toString());
-        setShowSaveSuccess(true);
-        setTimeout(() => setShowSaveSuccess(false), 5000);
-
-        logInfo('MedicalDictation', 'Info message', {});
-
-        // Clear auto-save data since it's now permanently saved
-        localStorage.removeItem('autosave_dictation');
-      } else {
-        throw new Error('Failed to save note - no ID returned');
-      }
-
-    } catch (error) {
-      logError('MedicalDictation', 'Error message', {});
-      alert(`Failed to save to database: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsSavingToDatabase(false);
-    }
-  };
 
   // Load dictation from sidebar into editor
   const handleLoadDictation = (dictation: DictationNote) => {
@@ -1506,15 +1428,6 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
                 className="px-6 py-3 bg-blue-600 text-white text-base font-bold rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all flex items-center gap-2 shadow-lg"
               >
                 {isProcessing ? '⏳ PROCESSING...' : '🤖 PROCESS WITH AI'}
-              </button>
-
-              <button
-                onClick={saveToDatabase}
-                disabled={(!transcript.trim() && !processedNote.trim()) || isSavingToDatabase}
-                className="px-6 py-3 bg-green-600 text-white text-base font-bold rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all flex items-center gap-2 shadow-lg"
-                title={patientDetails.name.trim() ? "Save note and create appointment in database" : "Save note (patient name will be required before finalizing)"}
-              >
-                {isSavingToDatabase ? '💾 SAVING...' : '💾 SAVE TO DATABASE'}
               </button>
 
               {/* Enroll in PCM Button - Show if we have processed content or extracted orders */}
