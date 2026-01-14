@@ -65,7 +65,8 @@ export default function DictationHistorySidebar({
       const logs: string[] = [];
 
       try {
-        logs.push(`🔍 Loading notes for: ${providerId}`);
+        logs.push(`🔍 Provider ID: ${providerId}`);
+        logs.push(`👤 Provider Name: ${providerName}`);
         logs.push(`🌐 API Mode: ${import.meta.env.MODE}`);
 
         console.log('📋 [DictationHistorySidebar] Loading dictations for provider:', providerId);

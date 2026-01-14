@@ -128,10 +128,28 @@ export default function MedicalDictation({
     visitDate: new Date().toLocaleDateString()
   });
 
-  // Get current user for provider ID
-  const currentUser = unifiedAuthService.getCurrentUser();
-  const providerId = currentUser?.email || currentUser?.id || 'doctor-default-001';
-  const providerName = currentUser?.name || 'Dr. Default';
+  // Get current user for provider ID - using state since getCurrentUser is async
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [providerId, setProviderId] = useState<string>('doctor-default-001');
+  const [providerName, setProviderName] = useState<string>('Dr. Default');
+
+  // Load current user on mount
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      const result = await unifiedAuthService.getCurrentUser();
+      if (result.success && result.user) {
+        setCurrentUser(result.user);
+        setProviderId(result.user.email || result.user.id || 'doctor-default-001');
+        setProviderName(result.user.name || 'Dr. Default');
+        console.log('👤 [MedicalDictation] Loaded current user:', {
+          email: result.user.email,
+          id: result.user.id,
+          name: result.user.name
+        });
+      }
+    };
+    loadCurrentUser();
+  }, []);
 
   // Load patient data if patientId is provided and preload is enabled
   useEffect(() => {
@@ -1024,13 +1042,11 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
     setIsSavingToDatabase(true);
 
     try {
-      const currentUser = unifiedAuthService.getCurrentUser();
       if (!currentUser) {
         throw new Error('No authenticated user found');
       }
 
-      const providerId = currentUser.id || currentUser.email || 'doctor-default-001';
-      const providerName = currentUser.name || 'Dr. Provider';
+      // Use the providerId and providerName from state (already set from getCurrentUser)
 
       // Save the note to database using our new simplified service
       const noteId = await scheduleDatabaseService.saveNote(
@@ -1911,8 +1927,8 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
           {/* Right Column - Dictation History Sidebar */}
           {showDictationSidebar && currentUser && (
             <DictationHistorySidebar
-              providerId={currentUser.email || currentUser.id || 'unknown'}
-              providerName={currentUser.name || currentUser.email || 'Provider'}
+              providerId={providerId}
+              providerName={providerName}
               isOpen={showDictationSidebar}
               onToggle={() => setShowDictationSidebar(false)}
               onDictationSelect={handleLoadDictation}
