@@ -328,7 +328,7 @@ router.post('/patient-summaries/create', async (req, res) => {
       throw new Error(`Database error: ${error.message}`);
     }
 
-    const shareLinkUrl = `${process.env.VITE_APP_URL || 'https://tshla-medical.azurewebsites.net'}/patient-summary/${data.share_link_id}`;
+    const shareLinkUrl = `${process.env.VITE_APP_URL || 'https://app.tshla.ai'}/patient-summary/${data.share_link_id}`;
 
     console.log('✅ Patient summary created successfully!');
     console.log(`   Summary ID: ${data.id}`);
