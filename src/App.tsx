@@ -110,6 +110,10 @@ const PatientPortal = lazy(() => import('./pages/PatientPortal'));
 // Patient Portal (Unified System)
 const PatientPortalLogin = lazy(() => import('./pages/PatientPortalLogin'));
 const PatientPortalDashboard = lazy(() => import('./pages/PatientPortalDashboard'));
+
+// Patient Audio Summaries (Web-based patient visit summaries)
+const StaffPatientSummaries = lazy(() => import('./pages/StaffPatientSummaries'));
+const PatientSummaryPortal = lazy(() => import('./pages/PatientSummaryPortal'));
 const UnifiedPatientChart = lazy(() => import('./pages/UnifiedPatientChart'));
 
 // PCM (Principal Care Management) System
@@ -612,6 +616,30 @@ function App() {
                   </Suspense>
                 }
               />
+
+              {/* ===== PATIENT AUDIO SUMMARIES (WEB-BASED) ===== */}
+              {/* Staff Dashboard - View all patient summaries */}
+              <Route
+                path="/staff-patient-summaries"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <StaffPatientSummaries />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Patient Summary Portal - Public page (TSHLA ID verification required) */}
+              <Route
+                path="/patient-summary/:linkId"
+                element={
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <PatientSummaryPortal />
+                  </Suspense>
+                }
+              />
+
               <Route
                 path="/patient-chart"
                 element={

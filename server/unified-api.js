@@ -1954,8 +1954,8 @@ try {
 let patientSummaryApi = null;
 let echoAudioSummaryRoutes = null;
 try {
-  patientSummaryApi = require('./patient-summary-api');
-  logger.info('UnifiedAPI', 'Patient summary API loaded');
+  patientSummaryApi = require('./routes/patient-summaries-api');
+  logger.info('UnifiedAPI', 'Patient summary API loaded (Web-based patient portal)');
 } catch (e) {
   logger.info('UnifiedAPI', 'Patient summary API not available', { error: e.message });
 }
@@ -1996,7 +1996,8 @@ if (patientChartApi) {
   logger.info('UnifiedAPI', 'Patient Chart API mounted at /api/patient-chart');
 }
 if (patientSummaryApi) {
-  app.use(patientSummaryApi); // Routes: /api/patient-summaries/* (BETA)
+  app.use('/api', patientSummaryApi); // Routes: /api/patient-summaries/* and /api/staff/pending-summaries
+  logger.info('UnifiedAPI', 'Patient Summaries API mounted at /api/patient-summaries (Web-based patient portal)');
 }
 
 // CCD Summary API - HIPAA-Compliant CCD file upload and summary generation

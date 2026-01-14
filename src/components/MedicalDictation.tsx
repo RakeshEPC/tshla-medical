@@ -388,23 +388,42 @@ export default function MedicalDictation({
             : 'http://localhost:3003';
 
           // Update the existing note via PUT endpoint
+          const requestBody = {
+            patientName: patientDetails.name || 'Unidentified Patient',
+            patientMrn: patientDetails.mrn,
+            patientPhone: patientDetails.phone,
+            patientEmail: patientDetails.email,
+            patientDob: patientDetails.dob,
+            visitDate: patientDetails.visitDate,
+            rawTranscript: transcript,
+            aiProcessedNote: processedNote,
+            recordingMode: recordingMode || 'dictation',
+          };
+
+          console.log('🔄 Auto-save PUT request:', {
+            url: `${apiBaseUrl}/api/simple/note/${lastSavedNoteId}`,
+            body: requestBody
+          });
+
           const response = await fetch(`${apiBaseUrl}/api/simple/note/${lastSavedNoteId}`, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-              patientName: patientDetails.name || 'Unidentified Patient',
-              patientMrn: patientDetails.mrn,
-              patientPhone: patientDetails.phone,
-              patientEmail: patientDetails.email,
-              patientDob: patientDetails.dob,
-              visitDate: patientDetails.visitDate,
-              rawTranscript: transcript,
-              aiProcessedNote: processedNote,
-              recordingMode: recordingMode || 'dictation',
-            }),
+            body: JSON.stringify(requestBody),
           });
+
+          console.log('🔄 Auto-save PUT response status:', response.status);
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error('❌ Auto-save PUT failed:', {
+              status: response.status,
+              statusText: response.statusText,
+              body: errorText
+            });
+            throw new Error(`Auto-save failed: ${response.status} ${errorText}`);
+          }
 
           const data = await response.json();
 

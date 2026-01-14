@@ -86,6 +86,20 @@ export default function DictationHistorySidebar({
         // Sort by ID (higher ID = newer) since we don't have createdAt
         const sorted = notes.sort((a, b) => (b.id || 0) - (a.id || 0));
 
+        // Add date debugging info
+        const now = new Date();
+        const nowDateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        logs.push(`📅 Current browser date: ${nowDateStr} (${now.toLocaleString()})`);
+
+        notes.forEach((note, i) => {
+          if (note.createdAt) {
+            const dictationDate = new Date(note.createdAt);
+            const dictationDateStr = `${dictationDate.getFullYear()}-${String(dictationDate.getMonth() + 1).padStart(2, '0')}-${String(dictationDate.getDate()).padStart(2, '0')}`;
+            const isToday = dictationDateStr === nowDateStr;
+            logs.push(`🔍 Note ${i + 1} Date: ${dictationDateStr} | Is Today? ${isToday}`);
+          }
+        });
+
         setDictations(sorted);
         setDiagnostics(logs);
       } catch (error) {
@@ -114,20 +128,39 @@ export default function DictationHistorySidebar({
   const filteredDictations = dictations.filter(dictation => {
     // Use createdAt (when note was saved) as primary, fall back to visitDate
     const dateStr = dictation.createdAt || dictation.visitDate;
-    if (!dateStr) return true; // Show all if no date
+    if (!dateStr) {
+      console.log('⚠️ [Filter] No date for dictation ID:', dictation.id, 'showing it anyway');
+      return true; // Show all if no date
+    }
 
     const dictationDate = new Date(dateStr);
     const now = new Date();
 
+    // Simple date comparison - just compare YYYY-MM-DD strings in local timezone
+    const dictationDateStr = `${dictationDate.getFullYear()}-${String(dictationDate.getMonth() + 1).padStart(2, '0')}-${String(dictationDate.getDate()).padStart(2, '0')}`;
+    const nowDateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    console.log('🔍 [Filter Debug] ID:', dictation.id, {
+      dateStr,
+      dictationDateStr,
+      nowDateStr,
+      filterMode,
+      isToday: dictationDateStr === nowDateStr
+    });
+
     if (filterMode === 'today') {
-      // Compare dates in local timezone to avoid UTC mismatch
-      // toLocaleDateString() returns consistent format for same calendar day
-      return dictationDate.toLocaleDateString() === now.toLocaleDateString();
+      // Simple string comparison of YYYY-MM-DD
+      const matches = dictationDateStr === nowDateStr;
+      console.log('📅 [Today Filter]', dictationDateStr, '===', nowDateStr, '?', matches);
+      return matches;
     } else {
-      // Last 7 days - compare in local timezone
-      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      // Compare dates ignoring time by comparing date strings
-      return dictationDate.toLocaleDateString() >= sevenDaysAgo.toLocaleDateString();
+      // Last 7 days - check if within 7 days
+      const sevenDaysAgo = new Date(now);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const sevenDaysAgoStr = `${sevenDaysAgo.getFullYear()}-${String(sevenDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(sevenDaysAgo.getDate()).padStart(2, '0')}`;
+      const matches = dictationDateStr >= sevenDaysAgoStr;
+      console.log('📅 [Week Filter]', dictationDateStr, '>=', sevenDaysAgoStr, '?', matches);
+      return matches;
     }
   });
 
@@ -166,14 +199,24 @@ export default function DictationHistorySidebar({
   // Calculate counts for filter buttons
   const todayCount = dictations.filter(d => {
     const dateStr = d.createdAt || d.visitDate;
-    return dateStr && new Date(dateStr).toLocaleDateString() === new Date().toLocaleDateString();
+    if (!dateStr) return false;
+    const dictationDate = new Date(dateStr);
+    const now = new Date();
+    const dictationDateStr = `${dictationDate.getFullYear()}-${String(dictationDate.getMonth() + 1).padStart(2, '0')}-${String(dictationDate.getDate()).padStart(2, '0')}`;
+    const nowDateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    return dictationDateStr === nowDateStr;
   }).length;
 
   const weekCount = dictations.filter(d => {
     const dateStr = d.createdAt || d.visitDate;
     if (!dateStr) return true;
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    return new Date(dateStr).toLocaleDateString() >= sevenDaysAgo.toLocaleDateString();
+    const dictationDate = new Date(dateStr);
+    const now = new Date();
+    const sevenDaysAgo = new Date(now);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const dictationDateStr = `${dictationDate.getFullYear()}-${String(dictationDate.getMonth() + 1).padStart(2, '0')}-${String(dictationDate.getDate()).padStart(2, '0')}`;
+    const sevenDaysAgoStr = `${sevenDaysAgo.getFullYear()}-${String(sevenDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(sevenDaysAgo.getDate()).padStart(2, '0')}`;
+    return dictationDateStr >= sevenDaysAgoStr;
   }).length;
 
   if (!isOpen) {
