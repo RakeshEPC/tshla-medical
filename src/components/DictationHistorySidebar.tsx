@@ -103,12 +103,14 @@ export default function DictationHistorySidebar({
     const now = new Date();
 
     if (filterMode === 'today') {
-      // Same day
-      return dictationDate.toDateString() === now.toDateString();
+      // Compare dates in local timezone to avoid UTC mismatch
+      // toLocaleDateString() returns consistent format for same calendar day
+      return dictationDate.toLocaleDateString() === now.toLocaleDateString();
     } else {
-      // Last 7 days
+      // Last 7 days - compare in local timezone
       const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      return dictationDate >= sevenDaysAgo;
+      // Compare dates ignoring time by comparing date strings
+      return dictationDate.toLocaleDateString() >= sevenDaysAgo.toLocaleDateString();
     }
   });
 
@@ -147,14 +149,14 @@ export default function DictationHistorySidebar({
   // Calculate counts for filter buttons
   const todayCount = dictations.filter(d => {
     const dateStr = d.createdAt || d.visitDate;
-    return dateStr && new Date(dateStr).toDateString() === new Date().toDateString();
+    return dateStr && new Date(dateStr).toLocaleDateString() === new Date().toLocaleDateString();
   }).length;
 
   const weekCount = dictations.filter(d => {
     const dateStr = d.createdAt || d.visitDate;
     if (!dateStr) return true;
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    return new Date(dateStr) >= sevenDaysAgo;
+    return new Date(dateStr).toLocaleDateString() >= sevenDaysAgo.toLocaleDateString();
   }).length;
 
   if (!isOpen) {
