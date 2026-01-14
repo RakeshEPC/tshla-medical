@@ -42,6 +42,14 @@ export default function StaffPreVisitPrep() {
   const [questionnaire, setQuestionnaire] = useState('');
   const [insuranceNotes, setInsuranceNotes] = useState('');
   const [otherDocs, setOtherDocs] = useState('');
+  const [billing, setBilling] = useState({
+    emCode: '',
+    copayAmount: '',
+    amountCharged: '',
+    patientPaid: false,
+    paymentMethod: '',
+    billingNotes: ''
+  });
 
   useEffect(() => {
     if (appointmentId) {
@@ -49,6 +57,21 @@ export default function StaffPreVisitPrep() {
       loadExistingPreVisit();
     }
   }, [appointmentId]);
+
+  // Currency formatting helper
+  const formatCurrency = (value: string) => {
+    // Remove non-numeric characters except decimal
+    const numericValue = value.replace(/[^0-9.]/g, '');
+    // Limit to 2 decimal places
+    const parts = numericValue.split('.');
+    if (parts.length > 2) {
+      return parts[0] + '.' + parts.slice(1).join('');
+    }
+    if (parts[1]?.length > 2) {
+      return parts[0] + '.' + parts[1].substring(0, 2);
+    }
+    return numericValue;
+  };
 
   const loadAppointmentData = async () => {
     try {
@@ -104,6 +127,14 @@ export default function StaffPreVisitPrep() {
         setQuestionnaire(data.patient_questionnaire || '');
         setInsuranceNotes(data.insurance_notes || '');
         setOtherDocs(data.other_documents || '');
+        setBilling({
+          emCode: data.em_code || '',
+          copayAmount: data.copay_amount?.toString() || '',
+          amountCharged: data.amount_charged?.toString() || '',
+          patientPaid: data.patient_paid || false,
+          paymentMethod: data.payment_method || '',
+          billingNotes: data.billing_notes || ''
+        });
       }
     } catch (error) {
       // No existing data, that's fine
@@ -125,6 +156,13 @@ export default function StaffPreVisitPrep() {
         patient_questionnaire: questionnaire,
         insurance_notes: insuranceNotes,
         other_documents: otherDocs,
+        em_code: billing.emCode || null,
+        copay_amount: billing.copayAmount ? parseFloat(billing.copayAmount) : null,
+        amount_charged: billing.amountCharged ? parseFloat(billing.amountCharged) : null,
+        patient_paid: billing.patientPaid,
+        payment_method: billing.paymentMethod || null,
+        billing_notes: billing.billingNotes || null,
+        billing_updated_at: new Date().toISOString(),
         completed: false
       };
 
@@ -411,6 +449,145 @@ export default function StaffPreVisitPrep() {
               className="w-full h-64 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
               placeholder="Patient concerns, questions, goals for visit..."
             />
+          </div>
+
+          {/* Billing & Payment */}
+          <div className={`bg-white rounded-lg shadow-md p-6 transition-all ${
+            billing.patientPaid ? 'border-2 border-green-500' : 'border-2 border-yellow-400'
+          }`}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">💰</span>
+                <h3 className="text-lg font-bold text-gray-900">Billing & Payment</h3>
+              </div>
+              {billing.patientPaid && (
+                <span className="flex items-center gap-1 text-green-600 font-semibold text-sm">
+                  <span className="text-xl">✓</span>
+                  Paid
+                </span>
+              )}
+              {!billing.patientPaid && billing.amountCharged && (
+                <span className="flex items-center gap-1 text-yellow-600 font-semibold text-sm">
+                  <span className="text-xl">⚠</span>
+                  Unpaid
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-gray-600 mb-4">E/M code, copay, and payment tracking</p>
+
+            <div className="grid grid-cols-2 gap-4">
+              {/* E/M Code */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">E/M Code</label>
+                <select
+                  value={billing.emCode}
+                  onChange={(e) => setBilling({...billing, emCode: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                >
+                  <option value="">Select code...</option>
+                  <option value="99211">99211 - Minimal (5 min)</option>
+                  <option value="99212">99212 - Low (10 min)</option>
+                  <option value="99213">99213 - Moderate (15 min)</option>
+                  <option value="99214">99214 - Moderate-High (25 min)</option>
+                  <option value="99215">99215 - High (40 min)</option>
+                  <option value="99381">99381 - New Preventive (Infant)</option>
+                  <option value="99382">99382 - New Preventive (1-4 yr)</option>
+                  <option value="99383">99383 - New Preventive (5-11 yr)</option>
+                  <option value="99384">99384 - New Preventive (12-17 yr)</option>
+                  <option value="99385">99385 - New Preventive (18-39 yr)</option>
+                  <option value="99386">99386 - New Preventive (40-64 yr)</option>
+                  <option value="99387">99387 - New Preventive (65+ yr)</option>
+                  <option value="99391">99391 - Est Preventive (Infant)</option>
+                  <option value="99392">99392 - Est Preventive (1-4 yr)</option>
+                  <option value="99393">99393 - Est Preventive (5-11 yr)</option>
+                  <option value="99394">99394 - Est Preventive (12-17 yr)</option>
+                  <option value="99395">99395 - Est Preventive (18-39 yr)</option>
+                  <option value="99396">99396 - Est Preventive (40-64 yr)</option>
+                  <option value="99397">99397 - Est Preventive (65+ yr)</option>
+                </select>
+              </div>
+
+              {/* Copay/Deductible */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Copay/Deductible</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                  <input
+                    type="text"
+                    value={billing.copayAmount}
+                    onChange={(e) => setBilling({...billing, copayAmount: formatCurrency(e.target.value)})}
+                    className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+
+              {/* Amount Charged */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Amount Charged</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                  <input
+                    type="text"
+                    value={billing.amountCharged}
+                    onChange={(e) => setBilling({...billing, amountCharged: formatCurrency(e.target.value)})}
+                    className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+
+              {/* Payment Method */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+                <select
+                  value={billing.paymentMethod}
+                  onChange={(e) => setBilling({...billing, paymentMethod: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                >
+                  <option value="">Select method...</option>
+                  <option value="Cash">Cash</option>
+                  <option value="Credit Card">Credit Card</option>
+                  <option value="Debit Card">Debit Card</option>
+                  <option value="Check">Check</option>
+                  <option value="Insurance">Insurance</option>
+                  <option value="Payment Plan">Payment Plan</option>
+                  <option value="Not Paid">Not Paid</option>
+                </select>
+              </div>
+
+              {/* Patient Paid Checkbox */}
+              <div className="col-span-2">
+                <label className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${
+                  billing.patientPaid
+                    ? 'bg-green-50 border-2 border-green-500'
+                    : 'bg-gray-50 border-2 border-gray-300 hover:border-gray-400'
+                }`}>
+                  <input
+                    type="checkbox"
+                    checked={billing.patientPaid}
+                    onChange={(e) => setBilling({...billing, patientPaid: e.target.checked})}
+                    className="w-5 h-5 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                  />
+                  <span className={`font-semibold ${
+                    billing.patientPaid ? 'text-green-700' : 'text-gray-700'
+                  }`}>
+                    {billing.patientPaid ? '✓ Patient Paid' : 'Patient Paid'}
+                  </span>
+                </label>
+              </div>
+
+              {/* Billing Notes */}
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Billing Notes</label>
+                <textarea
+                  value={billing.billingNotes}
+                  onChange={(e) => setBilling({...billing, billingNotes: e.target.value})}
+                  className="w-full h-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                  placeholder="Payment plan details, insurance pending, waived copay, etc..."
+                />
+              </div>
+            </div>
           </div>
 
           {/* Insurance Notes */}
