@@ -56,26 +56,42 @@ export default function DictationHistorySidebar({
   const [isLoading, setIsLoading] = useState(true);
   const [filterMode, setFilterMode] = useState<'today' | 'week'>('today');
   const [selectedDictationId, setSelectedDictationId] = useState<number | null>(currentDictationId || null);
+  const [diagnostics, setDiagnostics] = useState<string[]>([]);
 
   // Load dictations from database
   useEffect(() => {
     const loadDictations = async () => {
       setIsLoading(true);
+      const logs: string[] = [];
+
       try {
+        logs.push(`🔍 Loading notes for: ${providerId}`);
+        logs.push(`🌐 API Mode: ${import.meta.env.MODE}`);
+
         console.log('📋 [DictationHistorySidebar] Loading dictations for provider:', providerId);
 
         // Use existing service method - returns DictatedNote[]
         const notes = await scheduleDatabaseService.getNotes(providerId);
 
+        logs.push(`✅ API returned ${notes.length} notes`);
         console.log('📋 [DictationHistorySidebar] Loaded', notes.length, 'dictations');
+
+        if (notes.length > 0) {
+          notes.forEach((note, i) => {
+            logs.push(`📝 Note ${i + 1}: ID=${note.id}, Patient=${note.patientName}, Created=${note.createdAt || 'N/A'}`);
+          });
+        }
 
         // Sort by ID (higher ID = newer) since we don't have createdAt
         const sorted = notes.sort((a, b) => (b.id || 0) - (a.id || 0));
 
         setDictations(sorted);
+        setDiagnostics(logs);
       } catch (error) {
         console.error('❌ [DictationHistorySidebar] Error loading dictations:', error);
+        logs.push(`❌ ERROR: ${error instanceof Error ? error.message : String(error)}`);
         setDictations([]);
+        setDiagnostics(logs);
       } finally {
         setIsLoading(false);
       }
@@ -217,6 +233,21 @@ export default function DictationHistorySidebar({
         <div className="p-8 text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-2"></div>
           <p className="text-sm text-gray-500">Loading dictations...</p>
+        </div>
+      )}
+
+      {/* Diagnostics Panel */}
+      {diagnostics.length > 0 && (
+        <div className="bg-yellow-50 border-t border-b border-yellow-200 p-3">
+          <p className="text-xs font-semibold text-yellow-800 mb-2">🔧 Diagnostics:</p>
+          <div className="space-y-1">
+            {diagnostics.map((log, i) => (
+              <p key={i} className="text-xs font-mono text-yellow-900">{log}</p>
+            ))}
+          </div>
+          <p className="text-xs text-yellow-700 mt-2">
+            Total notes fetched: {dictations.length} | After filtering ({filterMode}): {filteredDictations.length}
+          </p>
         </div>
       )}
 
