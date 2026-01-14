@@ -1208,12 +1208,40 @@ INSTRUCTIONS: Create a comprehensive note that builds upon the previous visit. I
                 <User className="w-4 h-4 text-blue-600" />
                 <h3 className="text-sm font-semibold text-gray-900">Patient Information</h3>
               </div>
-              {lastDatabaseSaveTime && (
-                <span className="text-xs text-gray-600 flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  Last saved: {lastDatabaseSaveTime.toLocaleTimeString()}
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    // Clear all patient fields
+                    setPatientDetails({
+                      name: '',
+                      mrn: '',
+                      dob: '',
+                      age: null,
+                      email: '',
+                      phone: '',
+                      visitDate: new Date().toLocaleDateString()
+                    });
+                    // Clear sessionStorage
+                    sessionStorage.removeItem('current_patient');
+                    sessionStorage.removeItem('current_appointment_id');
+                    // Clear transcript and processed note
+                    setTranscript('');
+                    setProcessedNote('');
+                    setShowProcessed(false);
+                  }}
+                  className="px-3 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700 flex items-center gap-1"
+                  title="Clear all patient fields and start fresh"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  Clear All
+                </button>
+                {lastDatabaseSaveTime && (
+                  <span className="text-xs text-gray-600 flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    Last saved: {lastDatabaseSaveTime.toLocaleTimeString()}
+                  </span>
+                )}
+              </div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
               <div className="flex flex-col gap-1">
