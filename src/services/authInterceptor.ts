@@ -153,11 +153,16 @@ export const setupFetchInterceptor = () => {
       // These are authenticated via JWT tokens, not Supabase session redirects
       const isDiabetesEducationApi = requestUrl.includes('/api/diabetes-education');
 
+      // SKIP auth interception for patient summary portal (PUBLIC - TSHLA ID verification only)
+      // Patient summaries are public links that require TSHLA ID verification, not login
+      const isPatientSummaryApi = requestUrl.includes('/api/patient-summaries');
+
       // SKIP auth interception for admin routes
       const currentPath = window.location.pathname;
       const isAdminRoute = currentPath.startsWith('/admin');
+      const isPatientSummaryRoute = currentPath.startsWith('/patient-summary');
 
-      if (isAdminApi || isAdminRoute || isSupabaseApi || isDeepgramProxy || isDiabetesEducationApi) {
+      if (isAdminApi || isAdminRoute || isSupabaseApi || isDeepgramProxy || isDiabetesEducationApi || isPatientSummaryApi || isPatientSummaryRoute) {
         console.log('🔓 [AuthInterceptor] SKIPPING interception for:', {
           url: requestUrl,
           path: currentPath,
@@ -166,6 +171,8 @@ export const setupFetchInterceptor = () => {
                   isAdminRoute ? 'Admin route' :
                   isSupabaseApi ? 'Supabase API call' :
                   isDiabetesEducationApi ? 'Diabetes Education API call' :
+                  isPatientSummaryApi ? 'Patient Summary API call (public)' :
+                  isPatientSummaryRoute ? 'Patient Summary route (public)' :
                   'Deepgram proxy call'
         });
         // Return the response as-is, let the calling code handle errors
