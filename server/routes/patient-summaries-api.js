@@ -241,7 +241,7 @@ async function logAccess(summaryId, accessType, ipAddress, userAgent, tshlaIdAtt
 
 /**
  * Check rate limiting for TSHLA ID verification
- * Max 5 attempts per IP per hour
+ * Max 20 attempts per IP per hour (TEMPORARY FOR TESTING - restore to 5 for production)
  */
 async function checkRateLimit(ipAddress) {
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -260,9 +260,9 @@ async function checkRateLimit(ipAddress) {
   }
 
   const attemptCount = data ? data.length : 0;
-  console.log(`🔒 Rate limit check: ${attemptCount}/5 failed attempts for IP ${ipAddress}`);
+  console.log(`🔒 Rate limit check: ${attemptCount}/20 failed attempts for IP ${ipAddress} (TESTING MODE)`);
 
-  return attemptCount >= 5;
+  return attemptCount >= 20; // TEMPORARY: Increased for testing (TODO: Change back to 5 for production)
 }
 
 // =====================================================
