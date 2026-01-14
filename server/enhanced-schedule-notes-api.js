@@ -610,32 +610,41 @@ app.post('/api/simple/note', async (req, res) => {
       patientMrn,
       patientPhone,
       patientEmail,
+      patientDob,
+      visitDate: providedVisitDate,
       rawTranscript,
       aiProcessedNote,
       recordingMode = 'dictation',
       isQuickNote = false,
     } = req.body;
 
-    const visitDate = new Date().toISOString().split('T')[0];
+    const visitDate = providedVisitDate || new Date().toISOString().split('T')[0];
     const noteTitle = `${patientName} - ${visitDate}`;
+
+    const insertData = {
+      provider_id: providerId,
+      provider_name: providerName,
+      patient_name: patientName,
+      patient_mrn: patientMrn,
+      patient_phone: patientPhone,
+      patient_email: patientEmail,
+      visit_date: visitDate,
+      note_title: noteTitle,
+      raw_transcript: rawTranscript,
+      processed_note: aiProcessedNote,
+      recording_mode: recordingMode,
+      status: 'completed',
+      created_at: new Date().toISOString()
+    };
+
+    // Only add patient_dob if it exists in database schema
+    if (patientDob) {
+      insertData.patient_dob = patientDob;
+    }
 
     const { data, error } = await unifiedSupabase
       .from('dictated_notes')
-      .insert({
-        provider_id: providerId,
-        provider_name: providerName,
-        patient_name: patientName,
-        patient_mrn: patientMrn,
-        patient_phone: patientPhone,
-        patient_email: patientEmail,
-        visit_date: visitDate,
-        note_title: noteTitle,
-        raw_transcript: rawTranscript,
-        processed_note: aiProcessedNote,
-        recording_mode: recordingMode,
-        status: 'completed',
-        created_at: new Date().toISOString()
-      })
+      .insert(insertData)
       .select()
       .single();
 
@@ -665,6 +674,8 @@ app.put('/api/simple/note/:noteId', async (req, res) => {
       patientMrn,
       patientPhone,
       patientEmail,
+      patientDob,
+      visitDate,
       rawTranscript,
       aiProcessedNote,
       recordingMode,
@@ -679,6 +690,8 @@ app.put('/api/simple/note/:noteId', async (req, res) => {
     if (patientMrn !== undefined) updateData.patient_mrn = patientMrn;
     if (patientPhone !== undefined) updateData.patient_phone = patientPhone;
     if (patientEmail !== undefined) updateData.patient_email = patientEmail;
+    if (patientDob !== undefined) updateData.patient_dob = patientDob;
+    if (visitDate !== undefined) updateData.visit_date = visitDate;
     if (rawTranscript !== undefined) updateData.raw_transcript = rawTranscript;
     if (aiProcessedNote !== undefined) updateData.processed_note = aiProcessedNote;
     if (recordingMode !== undefined) updateData.recording_mode = recordingMode;
