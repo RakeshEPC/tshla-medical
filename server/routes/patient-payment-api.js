@@ -9,6 +9,7 @@ const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 const stripe = require('stripe');
 const logger = require('../logger');
+const receiptGenerator = require('../services/receiptGenerator.service');
 
 // Initialize Supabase
 const supabase = createClient(
@@ -733,9 +734,6 @@ router.get('/:id/receipt', async (req, res) => {
         error: 'Receipt can only be generated for paid payments'
       });
     }
-
-    // Import receipt generator (dynamic import for ES module)
-    const { default: receiptGenerator } = await import('../services/receiptGenerator.service.js');
 
     // Set response headers for PDF download
     const filename = receiptGenerator.getReceiptFilename(payment);

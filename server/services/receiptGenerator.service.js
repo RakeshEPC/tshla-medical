@@ -3,8 +3,8 @@
  * Generates professional PDF receipts for patient payments
  */
 
-import PDFDocument from 'pdfkit';
-import { logger } from '../utils/logger.js';
+const PDFDocument = require('pdfkit');
+const logger = require('../logger');
 
 class ReceiptGeneratorService {
   /**
@@ -271,4 +271,4 @@ class ReceiptGeneratorService {
   }
 }
 
-export default new ReceiptGeneratorService();
+module.exports = new ReceiptGeneratorService();
