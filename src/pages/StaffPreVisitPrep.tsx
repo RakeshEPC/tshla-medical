@@ -243,6 +243,15 @@ export default function StaffPreVisitPrep() {
       return;
     }
 
+    // Stripe minimum is $0.50 for online credit card payments
+    if (amountCents < 50) {
+      alert(
+        'Online credit card payments must be at least $0.50 (Stripe minimum).\n\n' +
+        'For amounts under $0.50, please collect payment in the office or adjust the amount.'
+      );
+      return;
+    }
+
     setGeneratingPayment(true);
     try {
       const staffData = sessionStorage.getItem('tshla_medical_user');

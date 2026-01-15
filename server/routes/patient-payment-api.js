@@ -275,6 +275,18 @@ router.post('/:id/checkout', async (req, res) => {
       });
     }
 
+    // Validate minimum amount ($0.50 Stripe requirement)
+    if (paymentRequest.amount_cents < 50) {
+      logger.warn('PaymentAPI', 'Payment amount below Stripe minimum', {
+        paymentRequestId: id,
+        amountCents: paymentRequest.amount_cents
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'Payment amount must be at least $0.50 for online credit card payments. Please collect this payment in the office or adjust the amount.'
+      });
+    }
+
     // Create Stripe checkout session
     const appUrl = process.env.VITE_APP_URL || 'https://www.tshla.ai';
     const session = await stripeInstance.checkout.sessions.create({
