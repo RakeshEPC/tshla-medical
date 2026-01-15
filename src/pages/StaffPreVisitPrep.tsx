@@ -248,6 +248,30 @@ export default function StaffPreVisitPrep() {
       const staffData = sessionStorage.getItem('tshla_medical_user');
       const staffId = staffData ? JSON.parse(staffData).id : null;
 
+      // Check if a pending or paid payment already exists for this patient/amount
+      const { data: existingPayments } = await supabase
+        .from('patient_payment_requests')
+        .select('id, payment_status, created_at')
+        .eq('tshla_id', appointment.tsh_id)
+        .eq('amount_cents', Math.round(parseFloat(paymentAmount) * 100))
+        .eq('payment_type', paymentType)
+        .in('payment_status', ['pending', 'paid'])
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (existingPayments && existingPayments.length > 0) {
+        const existing = existingPayments[0];
+        const createdDate = new Date(existing.created_at).toLocaleString();
+        const confirmed = confirm(
+          `A ${existing.payment_status} payment request already exists for this patient (created ${createdDate}).\n\n` +
+          `Do you want to create another payment request?`
+        );
+        if (!confirmed) {
+          setGeneratingPayment(false);
+          return;
+        }
+      }
+
       // Format visit date as YYYY-MM-DD for database DATE field
       const visitDate = appointment.scheduled_date
         ? new Date(appointment.scheduled_date).toISOString().split('T')[0]
