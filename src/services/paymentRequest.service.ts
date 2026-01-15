@@ -131,6 +131,21 @@ class PaymentRequestService {
   }
 
   /**
+   * Mark receipt as sent to patient
+   */
+  async markReceiptSent(paymentRequestId: string, sent: boolean, staffId?: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/api/payment-requests/${paymentRequestId}/mark-receipt-sent`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ receiptSent: sent, staffId })
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to update receipt sent status');
+    }
+  }
+
+  /**
    * Cancel a payment request
    */
   async cancelPayment(paymentRequestId: string): Promise<void> {

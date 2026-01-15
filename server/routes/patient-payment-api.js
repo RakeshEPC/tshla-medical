@@ -457,6 +457,51 @@ router.patch('/:id/mark-posted', async (req, res) => {
 });
 
 /**
+ * Mark receipt as sent to patient
+ * PATCH /api/payment-requests/:id/mark-receipt-sent
+ */
+router.patch('/:id/mark-receipt-sent', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { receiptSent, staffId } = req.body;
+
+    const updateData = {
+      receipt_sent: receiptSent,
+      receipt_sent_at: receiptSent ? new Date().toISOString() : null,
+      receipt_sent_by: receiptSent ? (staffId || null) : null
+    };
+
+    const { data, error } = await supabase
+      .from('patient_payment_requests')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Database error: ${error.message}`);
+    }
+
+    logger.info('PaymentAPI', 'Receipt sent status updated', {
+      paymentRequestId: id,
+      receiptSent,
+      staffId
+    });
+
+    res.json({
+      success: true,
+      paymentRequest: data
+    });
+  } catch (error) {
+    logger.error('PaymentAPI', 'Mark receipt sent error', { error: error.message });
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
  * Cancel a payment request
  * DELETE /api/payment-requests/:id
  */

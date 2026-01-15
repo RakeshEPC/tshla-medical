@@ -70,6 +70,19 @@ export default function StaffPaymentDashboard() {
     }
   };
 
+  const handleToggleReceiptSent = async (paymentId: string, currentStatus: boolean) => {
+    try {
+      const staffData = sessionStorage.getItem('tshla_medical_user');
+      const staffId = staffData ? JSON.parse(staffData).id : undefined;
+
+      await paymentRequestService.markReceiptSent(paymentId, !currentStatus, staffId);
+      await loadPayments(); // Reload to update display
+    } catch (error) {
+      console.error('Error toggling receipt sent:', error);
+      alert('Failed to update receipt sent status');
+    }
+  };
+
   const handleCancelPayment = async (paymentId: string) => {
     if (!confirm('Cancel this payment request? This cannot be undone.')) return;
 
@@ -335,22 +348,45 @@ export default function StaffPaymentDashboard() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {new Date(payment.visit_date).toLocaleDateString()}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {payment.posted_in_emr ? (
-                          <div className="text-sm">
-                            <div className="flex items-center gap-1 text-green-600 font-semibold">
-                              <span className="text-lg">✓</span>
-                              Posted
-                            </div>
-                            {payment.posted_in_emr_at && (
-                              <div className="text-xs text-gray-500">
-                                {new Date(payment.posted_in_emr_at).toLocaleDateString()}
+                      <td className="px-6 py-4">
+                        <div className="space-y-2">
+                          {/* EMR Posted Status */}
+                          {payment.posted_in_emr ? (
+                            <div className="text-sm">
+                              <div className="flex items-center gap-1 text-green-600 font-semibold">
+                                <span className="text-lg">✓</span>
+                                Posted
                               </div>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-sm text-gray-400">Not posted</span>
-                        )}
+                              {payment.posted_in_emr_at && (
+                                <div className="text-xs text-gray-500">
+                                  {new Date(payment.posted_in_emr_at).toLocaleDateString()}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-400">Not posted</span>
+                          )}
+
+                          {/* Receipt Sent Checkbox - Only show for paid payments */}
+                          {payment.payment_status === 'paid' && (
+                            <label className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
+                              <input
+                                type="checkbox"
+                                checked={payment.receipt_sent}
+                                onChange={() => handleToggleReceiptSent(payment.id, payment.receipt_sent)}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <span className={`text-xs font-medium ${payment.receipt_sent ? 'text-blue-700' : 'text-gray-600'}`}>
+                                Receipt Sent
+                              </span>
+                            </label>
+                          )}
+                          {payment.receipt_sent && payment.receipt_sent_at && (
+                            <div className="text-xs text-gray-500 ml-6">
+                              {new Date(payment.receipt_sent_at).toLocaleDateString()}
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <div className="flex gap-2">

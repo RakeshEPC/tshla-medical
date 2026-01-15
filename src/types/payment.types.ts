@@ -40,6 +40,11 @@ export interface PaymentRequest {
   posted_in_emr_at: string | null;
   posted_in_emr_by: string | null;
 
+  // Receipt Tracking
+  receipt_sent: boolean;
+  receipt_sent_at: string | null;
+  receipt_sent_by: string | null;
+
   // Metadata
   provider_name: string;
   visit_date: string;
