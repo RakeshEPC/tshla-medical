@@ -41,6 +41,7 @@ export default function DictationViewer() {
         .from('dictations')
         .select('*')
         .eq('id', dictationId)
+        .is('deleted_at', null)  // CRITICAL: Exclude soft-deleted dictations
         .single();
 
       if (error) throw error;

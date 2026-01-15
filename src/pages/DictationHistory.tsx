@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { FileText, Calendar, User, Clock, Search, Filter } from 'lucide-react';
+import { FileText, Calendar, User, Clock, Search, Filter, Trash2 } from 'lucide-react';
+import { dictationStorageService } from '../services/dictationStorage.service';
+import ConfirmDeleteDictationModal from '../components/ConfirmDeleteDictationModal';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Dictation {
   id: string;
@@ -15,27 +18,57 @@ interface Dictation {
   appointment_id: number | null;
 }
 
+type DateRangeFilter = '7days' | '30days' | '90days' | 'all';
+
 export default function DictationHistory() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [dictations, setDictations] = useState<Dictation[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'completed' | 'signed'>('all');
+  const [dateRangeFilter, setDateRangeFilter] = useState<DateRangeFilter>('30days');
+
+  // Delete modal state
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [dictationToDelete, setDictationToDelete] = useState<Dictation | null>(null);
 
   useEffect(() => {
     loadDictations();
-  }, [statusFilter]);
+  }, [statusFilter, dateRangeFilter]);
 
   const loadDictations = async () => {
     try {
       setLoading(true);
 
+      // Calculate date range
+      let dateThreshold: string | null = null;
+      if (dateRangeFilter !== 'all') {
+        const now = new Date();
+        const daysAgo = {
+          '7days': 7,
+          '30days': 30,
+          '90days': 90
+        }[dateRangeFilter];
+
+        const thresholdDate = new Date(now);
+        thresholdDate.setDate(thresholdDate.getDate() - daysAgo);
+        dateThreshold = thresholdDate.toISOString();
+      }
+
       let query = supabase
         .from('dictations')
         .select('*')
+        .is('deleted_at', null)  // CRITICAL: Exclude soft-deleted dictations
         .order('created_at', { ascending: false })
         .limit(100);
 
+      // Apply date range filter
+      if (dateThreshold) {
+        query = query.gte('created_at', dateThreshold);
+      }
+
+      // Apply status filter
       if (statusFilter !== 'all') {
         query = query.eq('status', statusFilter);
       }
@@ -73,6 +106,40 @@ export default function DictationHistory() {
     return styles[status as keyof typeof styles] || styles.draft;
   };
 
+  const handleDeleteClick = (dictation: Dictation, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDictationToDelete(dictation);
+    setDeleteModalOpen(true);
+  };
+
+  const handleConfirmDelete = async (reason: 'wrong_chart' | 'duplicate' | 'test' | 'other') => {
+    if (!dictationToDelete || !user?.id) return;
+
+    const result = await dictationStorageService.deleteDictation(
+      dictationToDelete.id,
+      user.id,
+      reason
+    );
+
+    if (result.success) {
+      setDeleteModalOpen(false);
+      setDictationToDelete(null);
+      loadDictations(); // Refresh list
+      alert('Dictation deleted successfully');
+    } else {
+      alert(`Failed to delete: ${result.error}`);
+    }
+  };
+
+  const getDateRangeLabel = () => {
+    switch (dateRangeFilter) {
+      case '7days': return 'Last 7 Days';
+      case '30days': return 'Last 30 Days';
+      case '90days': return 'Last 90 Days';
+      case 'all': return 'All Time';
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -92,7 +159,7 @@ export default function DictationHistory() {
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Search and Filter Bar */}
         <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Search */}
             <div className="relative">
               <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
@@ -103,6 +170,21 @@ export default function DictationHistory() {
                 placeholder="Search by patient name, MRN, or note content..."
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
+            </div>
+
+            {/* Date Range Filter */}
+            <div className="relative">
+              <Calendar className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+              <select
+                value={dateRangeFilter}
+                onChange={(e) => setDateRangeFilter(e.target.value as DateRangeFilter)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="7days">Last 7 Days</option>
+                <option value="30days">Last 30 Days</option>
+                <option value="90days">Last 90 Days</option>
+                <option value="all">All Time</option>
+              </select>
             </div>
 
             {/* Status Filter */}
@@ -128,6 +210,7 @@ export default function DictationHistory() {
           <div className="bg-white rounded-lg shadow-md p-4">
             <div className="text-sm text-gray-600">Total Dictations</div>
             <div className="text-2xl font-bold text-gray-900">{dictations.length}</div>
+            <div className="text-xs text-gray-500 mt-1">({getDateRangeLabel()})</div>
           </div>
           <div className="bg-white rounded-lg shadow-md p-4">
             <div className="text-sm text-gray-600">Completed</div>
@@ -206,15 +289,27 @@ export default function DictationHistory() {
                       </div>
                     </div>
                   </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(`/dictation-viewer/${dictation.id}`);
-                    }}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
-                  >
-                    View Note
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {/* Delete Button - Only show for draft/in_progress */}
+                    {(dictation.status === 'draft' || dictation.status === 'in_progress') && (
+                      <button
+                        onClick={(e) => handleDeleteClick(dictation, e)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Delete dictation"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/dictation-viewer/${dictation.id}`);
+                      }}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
+                    >
+                      View Note
+                    </button>
+                  </div>
                 </div>
 
                 {/* Note Preview */}
@@ -228,6 +323,24 @@ export default function DictationHistory() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {dictationToDelete && (
+        <ConfirmDeleteDictationModal
+          dictation={{
+            id: dictationToDelete.id,
+            patient_name: dictationToDelete.patient_name,
+            patient_mrn: dictationToDelete.patient_mrn,
+            visit_date: dictationToDelete.visit_date
+          }}
+          isOpen={deleteModalOpen}
+          onClose={() => {
+            setDeleteModalOpen(false);
+            setDictationToDelete(null);
+          }}
+          onConfirm={handleConfirmDelete}
+        />
+      )}
     </div>
   );
 }

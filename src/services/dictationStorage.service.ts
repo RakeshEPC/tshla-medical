@@ -78,7 +78,7 @@ class DictationStorageService {
   }
 
   /**
-   * Load existing dictation for an appointment
+   * Load existing dictation for an appointment (excludes deleted)
    */
   async loadDictationByAppointment(appointmentId: number): Promise<DictationData | null> {
     try {
@@ -86,6 +86,7 @@ class DictationStorageService {
         .from('dictations')
         .select('*')
         .eq('appointment_id', appointmentId)
+        .is('deleted_at', null)  // CRITICAL: Exclude soft-deleted dictations
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
@@ -139,7 +140,7 @@ class DictationStorageService {
   }
 
   /**
-   * Get all dictations for a provider
+   * Get all dictations for a provider (excludes deleted)
    */
   async getDictationsForProvider(providerId: string, limit = 50): Promise<DictationData[]> {
     try {
@@ -147,6 +148,7 @@ class DictationStorageService {
         .from('dictations')
         .select('*')
         .eq('provider_id', providerId)
+        .is('deleted_at', null)  // CRITICAL: Exclude soft-deleted dictations
         .order('created_at', { ascending: false })
         .limit(limit);
 
@@ -204,6 +206,76 @@ class DictationStorageService {
     const getCurrentId = () => currentDictationId;
 
     return { start, stop, getCurrentId };
+  }
+
+  /**
+   * Soft delete a dictation (mark as deleted, don't remove from database)
+   * IMPORTANT: This completely isolates the dictation from all queries
+   */
+  async deleteDictation(
+    dictationId: string,
+    providerId: string,
+    reason: 'wrong_chart' | 'duplicate' | 'test' | 'other'
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      // First, verify the dictation exists and is not already deleted
+      const { data: existing, error: checkError } = await supabase
+        .from('dictations')
+        .select('id, status, patient_name, deleted_at')
+        .eq('id', dictationId)
+        .single();
+
+      if (checkError) throw new Error('Dictation not found');
+      if (existing.deleted_at) throw new Error('Dictation already deleted');
+
+      // Cannot delete signed/final notes (safety check)
+      if (existing.status === 'signed' || existing.status === 'final') {
+        throw new Error('Cannot delete signed or finalized notes');
+      }
+
+      // Soft delete: Mark as deleted
+      const { error: deleteError } = await supabase
+        .from('dictations')
+        .update({
+          deleted_at: new Date().toISOString(),
+          deleted_by_provider_id: providerId,
+          deletion_reason: reason
+        })
+        .eq('id', dictationId);
+
+      if (deleteError) throw deleteError;
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error deleting dictation:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get dictation details for verification before delete
+   */
+  async getDictationForDeletion(dictationId: string): Promise<{
+    id: string;
+    patient_name: string;
+    patient_mrn: string;
+    visit_date: string;
+    status: string;
+  } | null> {
+    try {
+      const { data, error } = await supabase
+        .from('dictations')
+        .select('id, patient_name, patient_mrn, visit_date, status, deleted_at')
+        .eq('id', dictationId)
+        .is('deleted_at', null)  // Only return if not already deleted
+        .single();
+
+      if (error) return null;
+      return data;
+    } catch (error) {
+      console.error('Error loading dictation for deletion:', error);
+      return null;
+    }
   }
 }
 
