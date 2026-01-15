@@ -253,10 +253,13 @@ export default function StaffPreVisitPrep() {
         ? new Date(appointment.scheduled_date).toISOString().split('T')[0]
         : null;
 
+      // Convert appointmentId to integer for database
+      const appointmentIdInt = appointmentId ? parseInt(appointmentId, 10) : null;
+
       const requestData = {
-        previsit_id: appointmentId,
-        appointment_id: appointmentId,
-        patient_id: appointment.internal_id,
+        previsit_id: appointmentIdInt,
+        appointment_id: appointmentIdInt,
+        patient_id: appointment.internal_id || null,
         tshla_id: appointment.tsh_id,
         share_link_id: shareLinkId || undefined,
         patient_name: appointment.patient_name,
@@ -271,12 +274,23 @@ export default function StaffPreVisitPrep() {
         created_by: staffId
       };
 
-      console.log('🔍 Creating payment request:', {
+      console.log('🔍 Creating payment request with full data:', {
+        previsit_id: requestData.previsit_id,
+        appointment_id: requestData.appointment_id,
+        patient_id: requestData.patient_id,
         tshla_id: requestData.tshla_id,
         patient_name: requestData.patient_name,
         amount_cents: requestData.amount_cents,
         payment_type: requestData.payment_type,
-        provider_name: requestData.provider_name
+        provider_name: requestData.provider_name,
+        created_by: requestData.created_by
+      });
+
+      console.log('🔍 Field types:', {
+        'typeof previsit_id': typeof requestData.previsit_id,
+        'typeof appointment_id': typeof requestData.appointment_id,
+        'typeof patient_id': typeof requestData.patient_id,
+        'typeof created_by': typeof requestData.created_by
       });
 
       const response = await paymentRequestService.createPaymentRequest(requestData);
