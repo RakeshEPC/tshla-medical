@@ -702,4 +702,63 @@ router.get('/reports/outstanding', async (req, res) => {
   }
 });
 
+/**
+ * Download receipt PDF for a payment
+ * GET /api/payment-requests/:id/receipt
+ */
+router.get('/:id/receipt', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Fetch payment data
+    const { data: payment, error } = await supabase
+      .from('patient_payment_requests')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error || !payment) {
+      logger.error('PaymentAPI', 'Payment not found for receipt', { id });
+      return res.status(404).json({
+        success: false,
+        error: 'Payment request not found'
+      });
+    }
+
+    // Check if payment is paid
+    if (payment.payment_status !== 'paid') {
+      logger.warn('PaymentAPI', 'Receipt requested for unpaid payment', { id, status: payment.payment_status });
+      return res.status(400).json({
+        success: false,
+        error: 'Receipt can only be generated for paid payments'
+      });
+    }
+
+    // Import receipt generator (dynamic import for ES module)
+    const { default: receiptGenerator } = await import('../services/receiptGenerator.service.js');
+
+    // Set response headers for PDF download
+    const filename = receiptGenerator.getReceiptFilename(payment);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    // Generate and stream PDF
+    await receiptGenerator.generateReceipt(payment, res);
+
+    logger.info('PaymentAPI', 'Receipt downloaded', {
+      paymentId: id,
+      filename
+    });
+
+  } catch (error) {
+    logger.error('PaymentAPI', 'Receipt generation error', { error: error.message });
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to generate receipt'
+      });
+    }
+  }
+});
+
 module.exports = router;

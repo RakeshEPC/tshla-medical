@@ -367,6 +367,20 @@ export default function StaffPaymentDashboard() {
                             <span className="text-sm text-gray-400">Not posted</span>
                           )}
 
+                          {/* Download Receipt Button - Only show for paid payments */}
+                          {payment.payment_status === 'paid' && (
+                            <a
+                              href={`${import.meta.env.VITE_API_BASE_URL || 'https://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io'}/api/payment-requests/${payment.id}/receipt`}
+                              download
+                              className="flex items-center gap-2 px-2 py-1 text-xs font-medium text-blue-700 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              Download Receipt
+                            </a>
+                          )}
+
                           {/* Receipt Sent Checkbox - Only show for paid payments */}
                           {payment.payment_status === 'paid' && (
                             <label className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
