@@ -30,6 +30,7 @@
     "nodemailer": "^6.9.7",
     "openai": "^4.20.1",
     "pdf-parse": "^1.1.1",
+    "pdfkit": "^0.15.1",
     "qrcode": "^1.5.4",
     "speakeasy": "^2.0.0",
     "stripe": "^14.5.0",
