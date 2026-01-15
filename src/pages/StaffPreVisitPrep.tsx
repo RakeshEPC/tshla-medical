@@ -156,11 +156,27 @@ export default function StaffPreVisitPrep() {
   const loadShareLinkAndPayment = async () => {
     try {
       // Try to get share_link_id from patient_audio_summaries (if audio summary exists)
-      const { data: summaryData } = await supabase
-        .from('patient_audio_summaries')
-        .select('share_link_id')
+      // Relationship: appointment -> dictation -> patient_audio_summary
+
+      // First, find dictation for this appointment
+      const { data: dictationData } = await supabase
+        .from('dictations')
+        .select('id')
         .eq('appointment_id', appointmentId)
+        .is('deleted_at', null)
         .maybeSingle();
+
+      let summaryData = null;
+      if (dictationData) {
+        // Then find audio summary for this dictation
+        const { data } = await supabase
+          .from('patient_audio_summaries')
+          .select('share_link_id')
+          .eq('dictation_id', dictationData.id)
+          .is('deleted_at', null)
+          .maybeSingle();
+        summaryData = data;
+      }
 
       // Set share_link_id if audio summary exists (for combined portal)
       if (summaryData?.share_link_id) {
