@@ -223,7 +223,7 @@ export default function StaffPatientSummaries() {
       const staffData = sessionStorage.getItem('tshla_medical_user');
       const staffId = staffData ? JSON.parse(staffData).id : null;
 
-      const response = await fetch(`${API_BASE_URL}/api/staff/patient-summaries/${summaryId}/appointment-made`, {
+      const response = await fetch(`${API_BASE_URL}/api/patient-summaries/${summaryId}/appointment-made`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
