@@ -58,7 +58,7 @@ export default function CalendarIntegration() {
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => navigate('/staff-dashboard')}
+                onClick={() => navigate('/dashboard')}
                 className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
               >
                 ← Back to Dashboard
@@ -172,7 +172,7 @@ export default function CalendarIntegration() {
               <h3 className="text-lg font-semibold mb-4">Week View</h3>
               <p className="text-gray-600 mb-4">Weekly calendar view coming soon...</p>
               <button
-                onClick={() => navigate('/staff-dashboard')}
+                onClick={() => navigate('/dashboard')}
                 className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
               >
                 Return to Daily Schedule
@@ -185,7 +185,7 @@ export default function CalendarIntegration() {
               <h3 className="text-lg font-semibold mb-4">Day View</h3>
               <p className="text-gray-600 mb-4">Day view available in main dashboard</p>
               <button
-                onClick={() => navigate('/staff-dashboard')}
+                onClick={() => navigate('/dashboard')}
                 className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
               >
                 Go to Daily Schedule

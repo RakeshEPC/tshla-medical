@@ -287,7 +287,7 @@ export default function TemplateBuilder() {
             </div>
             <div className="flex gap-3">
               <button
-                onClick={() => navigate('/staff-dashboard')}
+                onClick={() => navigate('/dashboard')}
                 className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 flex items-center gap-2"
               >
                 <Home className="h-5 w-5" />

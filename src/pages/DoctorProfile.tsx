@@ -100,7 +100,7 @@ export default function DoctorProfile() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
               <button
-                onClick={() => navigate('/staff-dashboard')}
+                onClick={() => navigate('/dashboard')}
                 className="mr-4 p-2 hover:bg-gray-100 rounded-lg transition"
               >
                 <ArrowLeft className="w-5 h-5" />

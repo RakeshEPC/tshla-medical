@@ -82,7 +82,7 @@ export default function PracticeSetup() {
     
     // In real app, this would validate with backend
     alert(`Joining practice with code: ${invitationCode}`);
-    navigate('/staff-dashboard');
+    navigate('/dashboard');
   };
 
   const handleSendInvitation = () => {

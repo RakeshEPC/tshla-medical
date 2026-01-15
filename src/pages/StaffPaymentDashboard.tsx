@@ -102,7 +102,7 @@ export default function StaffPaymentDashboard() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between mb-2">
             <button
-              onClick={() => navigate('/staff-dashboard')}
+              onClick={() => navigate('/dashboard')}
               className="text-green-100 hover:text-white"
             >
               ← Back to Dashboard

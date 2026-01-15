@@ -736,7 +736,7 @@ export default function SchedulePageV2() {
           <div className="flex justify-between items-center">
             <div>
               <button
-                onClick={() => navigate('/staff-dashboard')}
+                onClick={() => navigate('/dashboard')}
                 className="text-blue-100 hover:text-white mb-2"
               >
                 ← Back to Dashboard

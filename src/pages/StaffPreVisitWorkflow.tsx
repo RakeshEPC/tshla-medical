@@ -111,7 +111,7 @@ export default function StaffPreVisitWorkflow() {
               <p className="text-purple-100 mt-1">Prepare patient data before provider visits</p>
             </div>
             <button
-              onClick={() => navigate('/staff-dashboard')}
+              onClick={() => navigate('/dashboard')}
               className="px-4 py-2 bg-white text-purple-700 rounded-lg hover:bg-purple-50 font-medium transition-colors"
             >
               ← Back to Dashboard

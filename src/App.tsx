@@ -262,8 +262,12 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+              {/* Redirect old staff-dashboard to main dashboard */}
+              <Route path="/staff-dashboard" element={<Navigate to="/dashboard" replace />} />
+
+              {/* PCM Staff Workflow - separate from main dashboard */}
               <Route
-                path="/staff-dashboard"
+                path="/pcm/workflow"
                 element={
                   <ProtectedRoute>
                     <Suspense fallback={<LoadingSpinner />}>

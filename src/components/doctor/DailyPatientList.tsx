@@ -15,6 +15,8 @@ import {
   AlertCircle,
   CheckCircle,
   Circle,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import type { UnifiedAppointment } from '../../services/unifiedAppointment.service';
 
@@ -118,6 +120,22 @@ export default function DailyPatientList({
   onAddAppointment,
   isLoading = false,
 }: DailyPatientListProps) {
+  // State to track which providers are expanded
+  const [expandedProviders, setExpandedProviders] = useState<Set<string>>(new Set());
+
+  // Toggle provider expansion
+  const toggleProvider = (providerName: string) => {
+    setExpandedProviders(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(providerName)) {
+        newSet.delete(providerName);
+      } else {
+        newSet.add(providerName);
+      }
+      return newSet;
+    });
+  };
+
   // Group appointments by provider
   const appointmentsByProvider = appointments.reduce(
     (acc, appointment) => {
@@ -254,33 +272,41 @@ export default function DailyPatientList({
               const providerAppointments = appointmentsByProvider[providerName];
               const providerColor = getProviderBadgeColor(providerName);
               const providerInitials = getProviderInitials(providerName);
+              const isExpanded = expandedProviders.has(providerName);
 
               return (
-                <div key={providerName} className="bg-white rounded-lg border-2 border-gray-200 overflow-hidden">
-                  {/* Provider Header */}
-                  <div className={`${providerColor} p-4 flex items-center space-x-3`}>
-                    <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center text-white text-lg font-bold shadow-lg">
+                <div key={providerName} className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+                  {/* Provider Header - Clickable to expand/collapse */}
+                  <div
+                    className={`${providerColor} p-3 flex items-center space-x-3 cursor-pointer hover:opacity-90 transition-opacity`}
+                    onClick={() => toggleProvider(providerName)}
+                  >
+                    <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white text-base font-bold">
                       {providerInitials}
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-lg font-bold text-white">{providerName}</h3>
-                      <p className="text-sm text-white/90">
+                      <h3 className="text-base font-bold text-white">{providerName}</h3>
+                      <p className="text-xs text-white/90">
                         {providerAppointments.length} appointment{providerAppointments.length !== 1 ? 's' : ''}
                         {providerAppointments.length > 0 && (
                           <span className="ml-2">
-                            ({providerAppointments[0].time} - {providerAppointments[providerAppointments.length - 1].time})
+                            {providerAppointments[0].time} - {providerAppointments[providerAppointments.length - 1].time}
                           </span>
                         )}
                       </p>
                     </div>
+                    <div className="text-white">
+                      {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+                    </div>
                   </div>
 
-                  {/* Provider's Appointments */}
-                  <div className="divide-y divide-gray-200">
-                    {providerAppointments.map((appointment, idx) => (
+                  {/* Provider's Appointments - Collapsible */}
+                  {isExpanded && (
+                    <div className="divide-y divide-gray-100">
+                      {providerAppointments.map((appointment, idx) => (
                       <div
                         key={`${providerName}-${idx}`}
-                        className={`p-4 cursor-pointer transition-all duration-200 hover:bg-gray-50 ${
+                        className={`p-3 cursor-pointer transition-all duration-200 hover:bg-gray-50 ${
                           appointment.status === 'completed' ? 'bg-green-50/50' :
                           appointment.status === 'in-progress' ? 'bg-blue-50/50' :
                           appointment.status === 'cancelled' ? 'bg-red-50/50' :
@@ -288,65 +314,48 @@ export default function DailyPatientList({
                         }`}
                         onClick={() => onPatientClick(appointment)}
                       >
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center space-x-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3 flex-1">
                             <div className="flex items-center space-x-2">
                               <Clock className="w-4 h-4 text-gray-500" />
-                              <span className="font-bold text-base">{appointment.time}</span>
+                              <span className="font-semibold text-sm">{appointment.time}</span>
                             </div>
                             {getStatusIcon(appointment.status)}
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <button
-                              onClick={e => {
-                                e.stopPropagation();
-                                onPatientClick(appointment);
-                              }}
-                              className="p-2 rounded hover:bg-gray-200 transition-colors"
-                              title="Start Dictation"
-                            >
-                              <FileText className="w-4 h-4" />
-                            </button>
-                            {appointment.patientPhone && <Phone className="w-4 h-4 text-gray-400" />}
-                          </div>
-                        </div>
-
-                        <div className="ml-6">
-                          <div className="flex items-center space-x-2 mb-1">
-                            <User className="w-4 h-4 text-gray-500" />
-                            <span className="font-semibold text-lg">{appointment.patientName}</span>
+                            <div className="flex items-center space-x-2">
+                              <User className="w-4 h-4 text-gray-500" />
+                              <span className="font-medium text-sm">{appointment.patientName}</span>
+                            </div>
                             {appointment.patientAge && (
-                              <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700 font-medium">
-                                Age {appointment.patientAge}
+                              <span className="px-2 py-0.5 text-xs rounded bg-blue-100 text-blue-700">
+                                {appointment.patientAge}y
                               </span>
                             )}
                             {appointment.visitType && (
-                              <span className="px-2 py-1 text-xs rounded-full bg-gray-200 text-gray-700 font-medium">
+                              <span className="px-2 py-0.5 text-xs rounded bg-gray-100 text-gray-600">
                                 {appointment.visitType.replace('-', ' ')}
                               </span>
                             )}
+                            {appointment.visitReason && (
+                              <span className="text-xs text-gray-500 truncate max-w-xs">
+                                {appointment.visitReason}
+                              </span>
+                            )}
                           </div>
-
-                          {(appointment.patientDob || appointment.visitReason) && (
-                            <div className="text-sm text-gray-600 mt-1 space-y-0.5">
-                              {appointment.patientDob && (
-                                <p>📅 DOB: {new Date(appointment.patientDob).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</p>
-                              )}
-                              {appointment.visitReason && (
-                                <p>{appointment.visitReason}</p>
-                              )}
-                            </div>
-                          )}
-
-                          {appointment.patientPhone && (
-                            <p className="text-sm text-gray-500 mt-1">
-                              📞 {appointment.patientPhone}
-                            </p>
-                          )}
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              onPatientClick(appointment);
+                            }}
+                            className="p-1.5 rounded hover:bg-gray-200 transition-colors"
+                            title="Start Dictation"
+                          >
+                            <FileText className="w-4 h-4 text-gray-600" />
+                          </button>
                         </div>
                       </div>
                     ))}
-                  </div>
+                    </div>
+                  )}
                 </div>
               );
             })

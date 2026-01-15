@@ -414,7 +414,7 @@ export default function StaffPreVisitPrep() {
               ← Back to Pre-Visit Workflow
             </button>
             <button
-              onClick={() => navigate('/staff-dashboard')}
+              onClick={() => navigate('/dashboard')}
               className="px-4 py-2 bg-white text-purple-700 rounded-lg hover:bg-purple-50 font-medium transition-colors"
             >
               ← Back to Dashboard

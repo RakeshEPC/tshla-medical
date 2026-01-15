@@ -325,10 +325,10 @@ export default function SchedulePage() {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
               <button
-                onClick={() => navigate('/staff-dashboard')}
+                onClick={() => navigate('/dashboard')}
                 className="text-gray-600 hover:text-gray-900"
               >
-                ← Back
+                ← Back to Dashboard
               </button>
               <h1 className="text-xl font-semibold">Schedule & Calendar</h1>
               <span className="text-sm text-gray-500">
