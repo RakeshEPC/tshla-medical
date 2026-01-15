@@ -248,12 +248,12 @@ export default function StaffPreVisitPrep() {
       const staffData = sessionStorage.getItem('tshla_medical_user');
       const staffId = staffData ? JSON.parse(staffData).id : null;
 
-      const response = await paymentRequestService.createPaymentRequest({
+      const requestData = {
         previsit_id: appointmentId,
         appointment_id: appointmentId,
         patient_id: appointment.internal_id,
         tshla_id: appointment.tsh_id,
-        share_link_id: shareLinkId || undefined, // Optional - will be auto-generated if missing
+        share_link_id: shareLinkId || undefined,
         patient_name: appointment.patient_name,
         patient_phone: appointment.patient_phone,
         athena_mrn: appointment.old_emr_number,
@@ -263,7 +263,19 @@ export default function StaffPreVisitPrep() {
         provider_name: appointment.provider_name,
         visit_date: appointment.scheduled_date,
         notes: `Payment request generated from pre-visit prep`
+      };
+
+      console.log('🔍 Creating payment request:', {
+        tshla_id: requestData.tshla_id,
+        patient_name: requestData.patient_name,
+        amount_cents: requestData.amount_cents,
+        payment_type: requestData.payment_type,
+        provider_name: requestData.provider_name
       });
+
+      const response = await paymentRequestService.createPaymentRequest(requestData);
+
+      console.log('✅ Payment request response:', response);
 
       if (response.success) {
         setActivePaymentRequest(response.paymentRequest);
@@ -277,9 +289,10 @@ export default function StaffPreVisitPrep() {
 
         alert('Payment request generated! Copy the link to send to patient via Klara.');
       }
-    } catch (error) {
-      console.error('Error generating payment request:', error);
-      alert('Failed to generate payment request');
+    } catch (error: any) {
+      console.error('❌ Error generating payment request:', error);
+      console.error('Error details:', error.message, error.stack);
+      alert(`Failed to generate payment request: ${error.message || 'Unknown error'}`);
     } finally {
       setGeneratingPayment(false);
     }

@@ -34,6 +34,8 @@ if (isStripeConfigured) {
  */
 router.post('/create', async (req, res) => {
   try {
+    logger.info('PaymentAPI', 'Payment request received', { body: req.body });
+
     const {
       previsitId,
       appointmentId,
@@ -52,11 +54,22 @@ router.post('/create', async (req, res) => {
       createdBy
     } = req.body;
 
-    // Validation
-    if (!tshlaId || !patientName || !amountCents || !paymentType || !providerName) {
+    // Enhanced validation with detailed logging
+    const missingFields = [];
+    if (!tshlaId) missingFields.push('tshlaId');
+    if (!patientName) missingFields.push('patientName');
+    if (!amountCents) missingFields.push('amountCents');
+    if (!paymentType) missingFields.push('paymentType');
+    if (!providerName) missingFields.push('providerName');
+
+    if (missingFields.length > 0) {
+      logger.error('PaymentAPI', 'Missing required fields', {
+        missingFields,
+        receivedData: { tshlaId, patientName, amountCents, paymentType, providerName }
+      });
       return res.status(400).json({
         success: false,
-        error: 'Missing required fields: tshlaId, patientName, amountCents, paymentType, providerName'
+        error: `Missing required fields: ${missingFields.join(', ')}`
       });
     }
 
@@ -70,32 +83,42 @@ router.post('/create', async (req, res) => {
     // Auto-generate share_link_id if not provided (for standalone payments without audio summary)
     const finalShareLinkId = shareLinkId || `PAY-${tshlaId}-${Date.now()}`;
 
+    const insertData = {
+      previsit_id: previsitId || null,
+      appointment_id: appointmentId || null,
+      patient_id: patientId || null,
+      tshla_id: tshlaId,
+      share_link_id: finalShareLinkId,
+      patient_name: patientName,
+      patient_phone: patientPhone,
+      athena_mrn: athenaMrn || null,
+      amount_cents: amountCents,
+      payment_type: paymentType,
+      em_code: emCode || null,
+      provider_name: providerName,
+      visit_date: visitDate,
+      notes: notes || null,
+      created_by: createdBy || null,
+      payment_status: 'pending'
+    };
+
+    logger.info('PaymentAPI', 'Inserting payment request', { insertData });
+
     // Create payment request
     const { data, error } = await supabase
       .from('patient_payment_requests')
-      .insert({
-        previsit_id: previsitId || null,
-        appointment_id: appointmentId || null,
-        patient_id: patientId || null,
-        tshla_id: tshlaId,
-        share_link_id: finalShareLinkId,
-        patient_name: patientName,
-        patient_phone: patientPhone,
-        athena_mrn: athenaMrn || null,
-        amount_cents: amountCents,
-        payment_type: paymentType,
-        em_code: emCode || null,
-        provider_name: providerName,
-        visit_date: visitDate,
-        notes: notes || null,
-        created_by: createdBy || null,
-        payment_status: 'pending'
-      })
+      .insert(insertData)
       .select()
       .single();
 
     if (error) {
-      throw new Error(`Database error: ${error.message}`);
+      logger.error('PaymentAPI', 'Database insert failed', {
+        error: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint
+      });
+      throw new Error(`Database error: ${error.message} (Code: ${error.code})`);
     }
 
     // Generate payment link - use standalone payment portal if no audio summary exists
