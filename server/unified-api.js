@@ -2010,6 +2010,16 @@ try {
   logger.error('UnifiedAPI', 'Patient Payment API not mounted - module failed to load', { error: error.message });
 }
 
+// Stripe Webhook Handler - Process payment completion events
+let stripeWebhook = null;
+try {
+  stripeWebhook = require('./routes/stripe-webhook');
+  app.use('/api/webhooks', stripeWebhook); // Routes: /api/webhooks/stripe
+  logger.info('UnifiedAPI', 'Stripe Webhook Handler mounted at /api/webhooks');
+} catch (error) {
+  logger.error('UnifiedAPI', 'Stripe Webhook Handler not mounted - module failed to load', { error: error.message });
+}
+
 // CCD Summary API - HIPAA-Compliant CCD file upload and summary generation
 let ccdSummaryApi = null;
 try {
