@@ -21,7 +21,8 @@ import {
   Calendar,
   User,
   CheckCheck,
-  X
+  X,
+  Trash2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -70,6 +71,13 @@ export default function StaffPatientSummaries() {
   // UI state
   const [copiedItem, setCopiedItem] = useState<string | null>(null);
   const [selectedSummaries, setSelectedSummaries] = useState<Set<string>>(new Set());
+
+  // Delete modal state
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [summaryToDelete, setSummaryToDelete] = useState<PatientSummary | null>(null);
+  const [confirmPatientName, setConfirmPatientName] = useState('');
+  const [deleteReason, setDeleteReason] = useState<'wrong_chart' | 'duplicate' | 'test' | 'other'>('wrong_chart');
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   /**
    * Load summaries from backend
@@ -234,6 +242,60 @@ export default function StaffPatientSummaries() {
     } catch (err: any) {
       console.error('Error toggling appointment status:', err);
       alert(`Failed to update appointment status: ${err.message}`);
+    }
+  };
+
+  /**
+   * Handle delete button click
+   */
+  const handleDeleteClick = (summary: PatientSummary) => {
+    setSummaryToDelete(summary);
+    setConfirmPatientName('');
+    setDeleteReason('wrong_chart');
+    setDeleteError(null);
+    setDeleteModalOpen(true);
+  };
+
+  /**
+   * Confirm and execute delete
+   */
+  const handleConfirmDelete = async () => {
+    if (!summaryToDelete) return;
+
+    // Verify patient name matches
+    if (confirmPatientName.trim().toLowerCase() !== summaryToDelete.patient_name.toLowerCase()) {
+      setDeleteError('Patient name does not match. Please type the name exactly as shown.');
+      return;
+    }
+
+    try {
+      // Get current staff user ID
+      const staffData = sessionStorage.getItem('tshla_medical_user');
+      const staffId = staffData ? JSON.parse(staffData).id : null;
+
+      const response = await fetch(`${API_BASE_URL}/api/staff/patient-summaries/${summaryToDelete.id}/delete`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          providerId: staffId,
+          reason: deleteReason
+        })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to delete summary');
+      }
+
+      // Close modal and reload
+      setDeleteModalOpen(false);
+      setSummaryToDelete(null);
+      await loadSummaries();
+      alert('Patient summary deleted successfully');
+
+    } catch (err: any) {
+      console.error('Error deleting summary:', err);
+      setDeleteError(err.message || 'Failed to delete summary');
     }
   };
 
@@ -689,6 +751,18 @@ export default function StaffPatientSummaries() {
                           >
                             <ExternalLink className="w-4 h-4" />
                           </a>
+
+                          {/* Delete Button */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteClick(summary);
+                            }}
+                            className="p-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg"
+                            title="Delete summary (wrong chart)"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -727,6 +801,94 @@ export default function StaffPatientSummaries() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteModalOpen && summaryToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-red-100 rounded-full">
+                <Trash2 className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Delete Patient Summary?</h3>
+                <p className="text-sm text-gray-600">This action cannot be undone</p>
+              </div>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+              <div className="text-sm text-amber-800">
+                <div><strong>Patient:</strong> {summaryToDelete.patient_name}</div>
+                <div><strong>TSHLA ID:</strong> {summaryToDelete.tshla_id}</div>
+                <div><strong>Created:</strong> {formatDateTime(summaryToDelete.created_at)}</div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Reason for deletion <span className="text-red-600">*</span>
+                </label>
+                <select
+                  value={deleteReason}
+                  onChange={(e) => setDeleteReason(e.target.value as any)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                >
+                  <option value="wrong_chart">Wrong Patient Chart</option>
+                  <option value="duplicate">Duplicate Entry</option>
+                  <option value="test">Test/Demo Data</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Type patient name to confirm <span className="text-red-600">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={confirmPatientName}
+                  onChange={(e) => {
+                    setConfirmPatientName(e.target.value);
+                    setDeleteError(null);
+                  }}
+                  placeholder={summaryToDelete.patient_name}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Type "{summaryToDelete.patient_name}" to confirm deletion
+                </p>
+              </div>
+
+              {deleteError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800">
+                  {deleteError}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setDeleteModalOpen(false);
+                  setSummaryToDelete(null);
+                  setConfirmPatientName('');
+                  setDeleteError(null);
+                }}
+                className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium"
+              >
+                Delete Summary
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

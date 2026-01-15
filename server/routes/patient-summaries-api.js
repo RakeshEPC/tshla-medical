@@ -461,7 +461,8 @@ router.get('/staff/pending-summaries', async (req, res) => {
     let query = supabase
       .from('patient_audio_summaries')
       .select('*')
-      .order('created_at', { ascending: false });
+      .is('deleted_at', null)  // CRITICAL: Exclude soft-deleted summaries
+      .order('created_at', { ascending: false});
 
     // Apply filters
     if (startDate) {
@@ -597,6 +598,86 @@ router.patch('/patient-summaries/:id/appointment-made', async (req, res) => {
 
   } catch (error) {
     console.error('❌ [Appointment Toggle] Error:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * DELETE /api/staff/patient-summaries/:id/delete
+ * Soft delete a patient audio summary (wrong chart, duplicate, etc.)
+ * HIPAA Audit Trail: Records who deleted, when, and why
+ */
+router.delete('/staff/patient-summaries/:id/delete', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { providerId, reason } = req.body;
+
+    console.log(`🗑️  [Delete Summary] Summary ${id}, Reason: ${reason}`);
+
+    // Validate reason
+    const validReasons = ['wrong_chart', 'duplicate', 'test', 'other'];
+    if (!validReasons.includes(reason)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid deletion reason'
+      });
+    }
+
+    // Check if summary exists and is not already deleted
+    const { data: existing, error: fetchError } = await supabase
+      .from('patient_audio_summaries')
+      .select('id, patient_name, deleted_at')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !existing) {
+      return res.status(404).json({
+        success: false,
+        error: 'Patient summary not found'
+      });
+    }
+
+    if (existing.deleted_at) {
+      return res.status(400).json({
+        success: false,
+        error: 'Summary is already deleted'
+      });
+    }
+
+    // Perform soft delete
+    const { data, error } = await supabase
+      .from('patient_audio_summaries')
+      .update({
+        deleted_at: new Date().toISOString(),
+        deleted_by_provider_id: providerId,
+        deletion_reason: reason
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Database error: ${error.message}`);
+    }
+
+    console.log(`✅ Summary ${id} soft deleted by provider ${providerId}`);
+
+    res.json({
+      success: true,
+      message: 'Patient summary deleted successfully',
+      data: {
+        id: data.id,
+        deleted_at: data.deleted_at,
+        deleted_by: providerId,
+        reason: reason
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ [Delete Summary] Error:', error.message);
     res.status(500).json({
       success: false,
       error: error.message
