@@ -967,6 +967,13 @@ Visit Date: ${patientDetails.visitDate}
             // Auto-generate patient summary after successful note save
             if (patientDetails.phone && processedContent) {
               try {
+                console.log('🔄 Creating patient audio summary...', {
+                  dictationId: data.noteId,
+                  patientPhone: patientDetails.phone,
+                  patientName: patientDetails.name,
+                  hasProcessedContent: !!processedContent
+                });
+
                 const summaryResponse = await fetch(`${apiBaseUrl}/api/patient-summaries/create`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -981,19 +988,41 @@ Visit Date: ${patientDetails.visitDate}
                   })
                 });
 
+                if (!summaryResponse.ok) {
+                  const errorText = await summaryResponse.text();
+                  console.error('❌ Patient summary API error:', {
+                    status: summaryResponse.status,
+                    statusText: summaryResponse.statusText,
+                    error: errorText
+                  });
+                  throw new Error(`API returned ${summaryResponse.status}: ${errorText}`);
+                }
+
                 const summaryData = await summaryResponse.json();
                 if (summaryData.success) {
                   logInfo('MedicalDictation', 'Patient summary auto-generated', {
                     summaryId: summaryData.data.id,
                     shareLink: summaryData.data.shareLinkUrl
                   });
-                  console.log('✅ Patient summary created! View in Staff Patient Summaries dashboard');
+                  console.log('✅ Patient summary created! View in Staff Patient Summaries dashboard', {
+                    summaryId: summaryData.data.summaryId,
+                    shareLinkUrl: summaryData.data.shareLinkUrl
+                  });
+                } else {
+                  console.error('❌ Patient summary creation failed:', summaryData.error);
                 }
               } catch (summaryError) {
                 // Don't fail the entire save if summary generation fails
                 logError('MedicalDictation', 'Patient summary auto-generation failed', { summaryError });
                 console.error('⚠️ Patient summary generation failed (note was still saved):', summaryError);
               }
+            } else {
+              console.log('⏭️ Skipping patient summary creation:', {
+                hasPhone: !!patientDetails.phone,
+                hasProcessedContent: !!processedContent,
+                phone: patientDetails.phone,
+                contentLength: processedContent?.length
+              });
             }
           }
         }
