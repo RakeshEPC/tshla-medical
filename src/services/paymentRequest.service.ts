@@ -35,12 +35,25 @@ class PaymentRequestService {
         emCode: data.em_code,
         providerName: data.provider_name,
         visitDate: data.visit_date,
-        notes: data.notes
+        notes: data.notes,
+        createdBy: data.created_by
       })
     });
 
     if (!response.ok) {
-      throw new Error('Failed to create payment request');
+      // Get detailed error message from server
+      let errorMessage = `Failed to create payment request (${response.status})`;
+      try {
+        const errorData = await response.json();
+        if (errorData.error) {
+          errorMessage = errorData.error;
+        }
+      } catch (e) {
+        // If response is not JSON, use status text
+        errorMessage = `Failed to create payment request: ${response.statusText}`;
+      }
+      console.error('❌ Payment creation failed:', errorMessage);
+      throw new Error(errorMessage);
     }
 
     return response.json();

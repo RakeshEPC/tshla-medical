@@ -248,6 +248,11 @@ export default function StaffPreVisitPrep() {
       const staffData = sessionStorage.getItem('tshla_medical_user');
       const staffId = staffData ? JSON.parse(staffData).id : null;
 
+      // Format visit date as YYYY-MM-DD for database DATE field
+      const visitDate = appointment.scheduled_date
+        ? new Date(appointment.scheduled_date).toISOString().split('T')[0]
+        : null;
+
       const requestData = {
         previsit_id: appointmentId,
         appointment_id: appointmentId,
@@ -261,8 +266,9 @@ export default function StaffPreVisitPrep() {
         payment_type: paymentType,
         em_code: billing.emCode,
         provider_name: appointment.provider_name,
-        visit_date: appointment.scheduled_date,
-        notes: `Payment request generated from pre-visit prep`
+        visit_date: visitDate,
+        notes: `Payment request generated from pre-visit prep`,
+        created_by: staffId
       };
 
       console.log('🔍 Creating payment request:', {
