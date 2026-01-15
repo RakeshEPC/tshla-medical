@@ -22,13 +22,25 @@ export default function PatientPaymentCard({ payment, onPaymentComplete }: Patie
     setError(null);
 
     try {
+      console.log('🔍 Initiating checkout for payment:', payment.id);
       const response = await paymentRequestService.initiateCheckout(payment.id);
+      console.log('✅ Checkout response:', response);
+
+      if (!response.checkoutUrl) {
+        throw new Error('No checkout URL received from server');
+      }
 
       // Redirect to Stripe Checkout
+      console.log('🔗 Redirecting to Stripe:', response.checkoutUrl);
       window.location.href = response.checkoutUrl;
     } catch (err: any) {
-      console.error('Error initiating checkout:', err);
-      setError('Failed to start payment. Please try again or contact the office.');
+      console.error('❌ Error initiating checkout:', err);
+      console.error('Error details:', {
+        message: err.message,
+        response: err.response,
+        stack: err.stack
+      });
+      setError(`Failed to start payment: ${err.message || 'Please try again or contact the office.'}`);
       setIsProcessing(false);
     }
   };
