@@ -56,10 +56,10 @@ export default function DictationHistory() {
         dateThreshold = thresholdDate.toISOString();
       }
 
+      // Query dictated_notes table (where actual dictations are stored)
       let query = supabase
-        .from('dictations')
+        .from('dictated_notes')
         .select('*')
-        .is('deleted_at', null)  // CRITICAL: Exclude soft-deleted dictations
         .order('created_at', { ascending: false })
         .limit(100);
 
@@ -76,7 +76,21 @@ export default function DictationHistory() {
       const { data, error } = await query;
 
       if (error) throw error;
-      setDictations(data || []);
+
+      // Map dictated_notes to Dictation interface format
+      const mappedData = (data || []).map(note => ({
+        id: String(note.id),
+        patient_name: note.patient_name,
+        patient_mrn: note.patient_mrn,
+        visit_date: note.visit_date,
+        created_at: note.created_at,
+        status: note.status || 'completed',
+        transcription_text: note.raw_transcript || '',
+        final_note: note.processed_note || '',
+        appointment_id: null
+      }));
+
+      setDictations(mappedData);
     } catch (error) {
       console.error('Error loading dictations:', error);
       alert('Failed to load dictations');
@@ -290,16 +304,8 @@ export default function DictationHistory() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {/* Delete Button - Only show for draft/in_progress */}
-                    {(dictation.status === 'draft' || dictation.status === 'in_progress') && (
-                      <button
-                        onClick={(e) => handleDeleteClick(dictation, e)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Delete dictation"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    )}
+                    {/* Delete Button - Temporarily disabled (dictated_notes table doesn't have soft delete) */}
+                    {/* TODO: Add soft delete columns to dictated_notes table */}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
