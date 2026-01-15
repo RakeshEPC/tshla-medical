@@ -130,8 +130,24 @@ export default function PatientPaymentPortal() {
     setVerificationError(null);
 
     try {
+      console.log('🔍 TSHLA ID Verification:', {
+        entered: formattedTshlaId,
+        stored: paymentRequest.tshla_id,
+        match: formattedTshlaId === paymentRequest.tshla_id
+      });
+
+      // Normalize both IDs for comparison (remove spaces, dashes, make uppercase)
+      const normalizedEntered = formattedTshlaId.replace(/[\s-]/g, '').toUpperCase();
+      const normalizedStored = (paymentRequest.tshla_id || '').replace(/[\s-]/g, '').toUpperCase();
+
+      console.log('🔍 Normalized comparison:', {
+        normalized_entered: normalizedEntered,
+        normalized_stored: normalizedStored,
+        match: normalizedEntered === normalizedStored
+      });
+
       // Verify TSHLA ID matches the payment request
-      if (formattedTshlaId !== paymentRequest.tshla_id) {
+      if (normalizedEntered !== normalizedStored) {
         setVerificationError('TSHLA ID does not match this payment request. Please check your ID and try again.');
         return;
       }
