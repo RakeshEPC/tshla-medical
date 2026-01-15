@@ -256,10 +256,16 @@ export default function StaffPreVisitPrep() {
       // Convert appointmentId to integer for database
       const appointmentIdInt = appointmentId ? parseInt(appointmentId, 10) : null;
 
+      // Validate patient_id is a valid UUID format (8-4-4-4-12 hex characters)
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const validPatientId = appointment.internal_id && uuidRegex.test(appointment.internal_id)
+        ? appointment.internal_id
+        : null;
+
       const requestData = {
         previsit_id: appointmentIdInt,
         appointment_id: appointmentIdInt,
-        patient_id: appointment.internal_id || null,
+        patient_id: validPatientId,
         tshla_id: appointment.tsh_id,
         share_link_id: shareLinkId || undefined,
         patient_name: appointment.patient_name,
