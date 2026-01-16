@@ -161,7 +161,23 @@ export default function DictationHistory() {
   };
 
   const handleConfirmDelete = async (reason: 'wrong_chart' | 'duplicate' | 'test' | 'other') => {
-    if (!dictationToDelete || !user?.id) return;
+    if (!dictationToDelete) {
+      console.error('❌ [DictationHistory] No dictation to delete');
+      return;
+    }
+
+    if (!user?.id) {
+      console.error('❌ [DictationHistory] No user ID available');
+      alert('Cannot delete: User not authenticated');
+      return;
+    }
+
+    console.log('🗑️ [DictationHistory] Starting delete for:', {
+      dictationId: dictationToDelete.id,
+      userId: user.id,
+      reason: reason,
+      patientName: dictationToDelete.patient_name
+    });
 
     const result = await dictationStorageService.deleteDictation(
       dictationToDelete.id,
@@ -169,10 +185,18 @@ export default function DictationHistory() {
       reason
     );
 
+    console.log('📋 [DictationHistory] Delete result:', result);
+
     if (result.success) {
+      // Immediately remove from UI (optimistic update)
+      setDictations(prev => prev.filter(d => d.id !== dictationToDelete.id));
+
       setDeleteModalOpen(false);
       setDictationToDelete(null);
-      loadDictations(); // Refresh list
+
+      // Also reload from server to ensure sync
+      await loadDictations();
+
       alert('Dictation deleted successfully');
     } else {
       alert(`Failed to delete: ${result.error}`);
