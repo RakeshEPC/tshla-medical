@@ -67,6 +67,7 @@ export default function StaffPatientSummaries() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<string>('7days');
+  const [providerFilter, setProviderFilter] = useState<string>('all');
 
   // UI state
   const [copiedItem, setCopiedItem] = useState<string | null>(null);
@@ -142,8 +143,13 @@ export default function StaffPatientSummaries() {
       );
     }
 
+    // Apply provider filter
+    if (providerFilter !== 'all') {
+      filtered = filtered.filter(s => s.provider_id === providerFilter);
+    }
+
     setFilteredSummaries(filtered);
-  }, [searchQuery, summaries]);
+  }, [searchQuery, providerFilter, summaries]);
 
   /**
    * Load summaries on mount and when filters change
@@ -310,6 +316,21 @@ export default function StaffPatientSummaries() {
       newSelection.add(summaryId);
     }
     setSelectedSummaries(newSelection);
+  };
+
+  /**
+   * Get unique providers from summaries
+   */
+  const getUniqueProviders = () => {
+    const providersMap = new Map<string, string>();
+    summaries.forEach(s => {
+      if (s.provider_id && s.provider_name) {
+        providersMap.set(s.provider_id, s.provider_name);
+      }
+    });
+    return Array.from(providersMap.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   };
 
   /**
@@ -490,7 +511,7 @@ export default function StaffPatientSummaries() {
           </div>
 
           {/* Filters */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Search */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -501,6 +522,23 @@ export default function StaffPatientSummaries() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
+            </div>
+
+            {/* Provider Filter */}
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <select
+                value={providerFilter}
+                onChange={(e) => setProviderFilter(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
+              >
+                <option value="all">All Providers</option>
+                {getUniqueProviders().map(provider => (
+                  <option key={provider.id} value={provider.id}>
+                    {provider.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Status Filter */}
