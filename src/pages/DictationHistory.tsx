@@ -100,6 +100,17 @@ export default function DictationHistory() {
         firstRecord: data?.[0]
       });
 
+      // DEBUG: Check if any deleted notes are sneaking through
+      if (data && data.length > 0) {
+        const deletedNotes = data.filter((note: any) => note.deleted_at !== null);
+        if (deletedNotes.length > 0) {
+          console.error('🚨 [DictationHistory] DELETED NOTES IN RESULTS!', deletedNotes);
+        }
+        console.log('🔍 [DictationHistory] Sample note deleted_at values:',
+          data.slice(0, 3).map((n: any) => ({ id: n.id, deleted_at: n.deleted_at }))
+        );
+      }
+
       if (error) {
         console.error('❌ Supabase error:', error);
         console.error('❌ Error details:', JSON.stringify(error, null, 2));
