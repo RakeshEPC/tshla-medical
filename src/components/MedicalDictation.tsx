@@ -25,6 +25,7 @@ import '../styles/modernUI.css';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
 import { dictationStorageService } from '../services/dictationStorage.service';
 import DictationHistorySidebar from './DictationHistorySidebar';
+import RecordingConfirmationModal from './RecordingConfirmationModal';
 
 // Speech recognition interfaces removed - using HIPAA-compliant services only
 
@@ -114,6 +115,9 @@ export default function MedicalDictation({
 
   // Dictation History Sidebar state
   const [showDictationSidebar, setShowDictationSidebar] = useState(false);
+
+  // Recording Confirmation Modal state
+  const [showRecordingConfirmation, setShowRecordingConfirmation] = useState(false);
 
   // Patient details for live editing
   const [patientDetails, setPatientDetails] = useState({
@@ -585,7 +589,8 @@ export default function MedicalDictation({
     };
   }, [isRecording]);
 
-  const startRecording = async () => {
+  // Handler to show confirmation modal before recording
+  const handleStartRecordingClick = () => {
     if (isRecording) return;
 
     if (!recordingMode) {
@@ -594,6 +599,17 @@ export default function MedicalDictation({
       alert(message);
       return;
     }
+
+    // Show confirmation modal
+    setShowRecordingConfirmation(true);
+  };
+
+  // Actual recording start (called after confirmation)
+  const startRecording = async () => {
+    if (isRecording) return;
+
+    // Close confirmation modal
+    setShowRecordingConfirmation(false);
 
     // Clear any previous errors
     setRecordingError('');
@@ -1438,7 +1454,7 @@ Visit Date: ${patientDetails.visitDate}
             {/* Recording and Process Controls - Moved to Top */}
             <div className="flex items-center gap-2">
               <button
-                onClick={isRecording ? stopRecording : startRecording}
+                onClick={isRecording ? stopRecording : handleStartRecordingClick}
                 disabled={isProcessing || !recordingMode}
                 className={`px-8 py-3 rounded-lg font-bold transition-all flex items-center gap-2 text-lg shadow-lg ${
                   !recordingMode
@@ -1935,6 +1951,17 @@ Visit Date: ${patientDetails.visitDate}
         patientName={patientDetails.name}
         isOpen={showAudioSummaryModal}
         onClose={() => setShowAudioSummaryModal(false)}
+      />
+
+      {/* Recording Confirmation Modal */}
+      <RecordingConfirmationModal
+        isOpen={showRecordingConfirmation}
+        onConfirm={startRecording}
+        onCancel={() => setShowRecordingConfirmation(false)}
+        patientName={patientDetails.name}
+        patientMrn={patientDetails.mrn}
+        templateName={selectedTemplate?.name}
+        recordingMode={recordingMode}
       />
     </div>
   );
