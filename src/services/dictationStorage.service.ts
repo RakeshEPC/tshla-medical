@@ -29,6 +29,14 @@ class DictationStorageService {
    * Create or update a dictation
    */
   async saveDictation(data: DictationData): Promise<{ success: boolean; id?: string; error?: string }> {
+    console.log('💾 [DictationStorage] saveDictation called with:', {
+      hasId: !!data.id,
+      patientName: data.patient_name,
+      appointmentId: data.appointment_id,
+      providerId: data.provider_id,
+      status: data.status
+    });
+
     try {
       const dictationData: any = {
         appointment_id: data.appointment_id,
@@ -51,6 +59,7 @@ class DictationStorageService {
 
       if (data.id) {
         // Update existing dictation
+        console.log('🔄 [DictationStorage] Updating existing dictation:', data.id);
         const { data: result, error } = await supabase
           .from('dictations')
           .update(dictationData)
@@ -58,21 +67,31 @@ class DictationStorageService {
           .select()
           .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ [DictationStorage] Update error:', error);
+          throw error;
+        }
+        console.log('✅ [DictationStorage] Dictation updated successfully:', result.id);
         return { success: true, id: result.id };
       } else {
         // Create new dictation
+        console.log('➕ [DictationStorage] Creating new dictation in "dictations" table');
         const { data: result, error } = await supabase
           .from('dictations')
           .insert([dictationData])
           .select()
           .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ [DictationStorage] Insert error:', error);
+          throw error;
+        }
+        console.log('✅ [DictationStorage] Dictation created successfully in "dictations" table, ID:', result.id);
         return { success: true, id: result.id };
       }
     } catch (error: any) {
-      console.error('Error saving dictation:', error);
+      console.error('❌ [DictationStorage] Error saving dictation:', error);
+      console.error('❌ [DictationStorage] Error details:', JSON.stringify(error, null, 2));
       return { success: false, error: error.message };
     }
   }
