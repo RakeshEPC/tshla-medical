@@ -21,6 +21,8 @@ interface Dictation {
 type DateRangeFilter = '7days' | '30days' | '90days' | 'all';
 
 export default function DictationHistory() {
+  console.log('🎬 DictationHistory component mounted');
+
   const navigate = useNavigate();
   const { user } = useAuth();
   const [dictations, setDictations] = useState<Dictation[]>([]);
@@ -33,13 +35,17 @@ export default function DictationHistory() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [dictationToDelete, setDictationToDelete] = useState<Dictation | null>(null);
 
+  console.log('👤 User:', user?.email, 'Loading:', loading, 'Dictations:', dictations.length);
+
   useEffect(() => {
+    console.log('🔄 useEffect triggered - loading dictations');
     loadDictations();
   }, [statusFilter, dateRangeFilter]);
 
   const loadDictations = async () => {
     try {
       setLoading(true);
+      console.log('🔍 DictationHistory: Loading dictations...');
 
       // Calculate date range
       let dateThreshold: string | null = null;
@@ -55,6 +61,9 @@ export default function DictationHistory() {
         thresholdDate.setDate(thresholdDate.getDate() - daysAgo);
         dateThreshold = thresholdDate.toISOString();
       }
+
+      console.log('📅 Date filter:', dateRangeFilter, 'Threshold:', dateThreshold);
+      console.log('🏷️ Status filter:', statusFilter);
 
       // Query dictated_notes table (where actual dictations are stored)
       let query = supabase
@@ -75,7 +84,12 @@ export default function DictationHistory() {
 
       const { data, error } = await query;
 
-      if (error) throw error;
+      console.log('📊 Query result:', { count: data?.length || 0, error });
+
+      if (error) {
+        console.error('❌ Supabase error:', error);
+        throw error;
+      }
 
       // Map dictated_notes to Dictation interface format
       const mappedData = (data || []).map(note => ({
@@ -90,10 +104,11 @@ export default function DictationHistory() {
         appointment_id: null
       }));
 
+      console.log('✅ Loaded dictations:', mappedData.length);
       setDictations(mappedData);
     } catch (error) {
-      console.error('Error loading dictations:', error);
-      alert('Failed to load dictations');
+      console.error('❌ Error loading dictations:', error);
+      alert('Failed to load dictations: ' + (error instanceof Error ? error.message : 'Unknown error'));
     } finally {
       setLoading(false);
     }
