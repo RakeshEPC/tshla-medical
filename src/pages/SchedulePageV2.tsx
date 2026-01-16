@@ -263,7 +263,16 @@ function WeeklyView({ weeklyData, navigate, getStatusColor }: WeeklyViewProps) {
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        window.open(`/staff-previsit-prep?appointmentId=${apt.id}`, '_blank');
+                                        const url = `/staff-previsit-prep?appointmentId=${apt.id}`;
+                                        console.log('🔗 Opening pre-visit prep in new tab:', url);
+                                        const newWindow = window.open(url, '_blank');
+                                        if (!newWindow) {
+                                          console.error('❌ Popup blocked! Falling back to same-tab navigation');
+                                          alert('Popup was blocked by browser. Please allow popups for this site, or we will open in the same tab.');
+                                          navigate(url);
+                                        } else {
+                                          console.log('✅ New tab opened successfully');
+                                        }
                                       }}
                                       className="text-purple-600 hover:underline text-[9px]"
                                       title="Open pre-visit prep in new tab"
@@ -275,7 +284,16 @@ function WeeklyView({ weeklyData, navigate, getStatusColor }: WeeklyViewProps) {
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      window.open(`/staff-previsit-prep?appointmentId=${apt.id}`, '_blank');
+                                      const url = `/staff-previsit-prep?appointmentId=${apt.id}`;
+                                      console.log('🔗 Opening pre-visit prep in new tab:', url);
+                                      const newWindow = window.open(url, '_blank');
+                                      if (!newWindow) {
+                                        console.error('❌ Popup blocked! Falling back to same-tab navigation');
+                                        alert('Popup was blocked by browser. Please allow popups for this site, or we will open in the same tab.');
+                                        navigate(url);
+                                      } else {
+                                        console.log('✅ New tab opened successfully');
+                                      }
                                     }}
                                     className="text-purple-600 font-semibold hover:underline cursor-pointer"
                                     title="Open pre-visit prep in new tab"
