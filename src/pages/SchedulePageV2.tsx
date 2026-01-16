@@ -780,7 +780,7 @@ export default function SchedulePageV2() {
               onClick={() => navigate('/dashboard')}
               className="text-blue-100 hover:text-white text-sm"
             >
-              ← Back
+              ← Back to Dashboard
             </button>
             <h1 className="text-xl font-bold">Provider Schedule</h1>
           </div>
