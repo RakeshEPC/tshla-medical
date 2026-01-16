@@ -97,16 +97,15 @@ export default function StaffPaymentDashboard() {
   };
 
   const handleCopyPaymentLink = (payment: PaymentRequest) => {
-    // Generate payment link (same logic as in StaffPreVisitPrep)
-    let paymentLink: string;
+    // Always use standalone payment portal link for reliability
+    // The payment portal can handle both standalone payments and payments with audio summaries
+    const paymentLink = `${window.location.origin}/payment/${payment.id}`;
 
-    if (payment.share_link_id) {
-      // Combined portal (audio summary + payment)
-      paymentLink = `${window.location.origin}/patient-summary/${payment.share_link_id}`;
-    } else {
-      // Standalone payment portal
-      paymentLink = `${window.location.origin}/payment/${payment.id}`;
-    }
+    console.log('📋 Generated payment link:', {
+      paymentId: payment.id,
+      link: paymentLink,
+      hasShareLink: !!payment.share_link_id
+    });
 
     // Copy to clipboard
     navigator.clipboard.writeText(paymentLink).then(() => {
