@@ -21,6 +21,9 @@ interface AppointmentData {
   dob?: string;
   status: string;
   notes?: string;
+  appointmentType?: string;  // New: appointment type (new-patient, follow-up, telehealth, etc.)
+  isTelehealth?: boolean;    // New: telehealth flag
+  duration?: number;         // New: appointment duration in minutes
   preVisitComplete?: boolean;
   dictationComplete?: boolean;
   dictationId?: string;
@@ -490,6 +493,9 @@ export default function SchedulePageV2() {
           dob: apt.patient_dob || patient?.date_of_birth,
           status: apt.status || 'scheduled',
           notes: apt.chief_diagnosis || apt.visit_reason,
+          appointmentType: apt.appointment_type,
+          isTelehealth: apt.is_telehealth || false,
+          duration: apt.duration_minutes,
           hasPriorDictation: priorCount > 0,
           priorDictationCount: priorCount
         };
@@ -685,8 +691,44 @@ export default function SchedulePageV2() {
         return 'bg-blue-100 text-blue-700 border-blue-300';
       case 'cancelled':
         return 'bg-red-100 text-red-700 border-red-300';
+      case 'checked-in':
+        return 'bg-orange-100 text-orange-700 border-orange-300';
       default:
         return 'bg-yellow-100 text-yellow-700 border-yellow-300';
+    }
+  };
+
+  const getAppointmentTypeColor = (type: string): string => {
+    switch (type?.toLowerCase()) {
+      case 'new-patient':
+        return 'bg-purple-100 text-purple-700 border border-purple-300';
+      case 'follow-up':
+        return 'bg-blue-100 text-blue-700 border border-blue-300';
+      case 'telehealth':
+        return 'bg-green-100 text-green-700 border border-green-300';
+      case 'consultation':
+        return 'bg-orange-100 text-orange-700 border border-orange-300';
+      case 'block-time':
+        return 'bg-gray-200 text-gray-600 border border-gray-400';
+      default:
+        return 'bg-gray-100 text-gray-600 border border-gray-300';
+    }
+  };
+
+  const getAppointmentTypeLabel = (type: string): string => {
+    switch (type?.toLowerCase()) {
+      case 'new-patient':
+        return 'NEW PATIENT';
+      case 'follow-up':
+        return 'ESTABLISHED';
+      case 'telehealth':
+        return 'TELEHEALTH';
+      case 'consultation':
+        return 'CONSULT';
+      case 'block-time':
+        return 'BLOCKED';
+      default:
+        return type?.toUpperCase() || 'OFFICE VISIT';
     }
   };
 
@@ -926,6 +968,12 @@ export default function SchedulePageV2() {
                           <div className="flex-1">
                             <div className="flex items-center gap-3 mb-2">
                               <div className="text-2xl font-bold text-blue-600">{apt.time}</div>
+                              {/* Duration indicator (if not 30 min) */}
+                              {apt.duration && apt.duration !== 30 && (
+                                <span className="text-sm text-gray-500 font-medium">
+                                  ({apt.duration} min)
+                                </span>
+                              )}
                               {/* Only show status if NOT scheduled */}
                               {apt.status !== 'scheduled' && (
                                 <span
@@ -937,7 +985,23 @@ export default function SchedulePageV2() {
                             </div>
 
                             <div className="mb-2">
-                              <p className="text-xl font-bold text-gray-900">{apt.patient}</p>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-xl font-bold text-gray-900">{apt.patient}</p>
+
+                                {/* Appointment Type Badge */}
+                                {apt.appointmentType && (
+                                  <span className={`px-2 py-1 text-xs font-bold rounded ${getAppointmentTypeColor(apt.appointmentType)}`}>
+                                    {getAppointmentTypeLabel(apt.appointmentType)}
+                                  </span>
+                                )}
+
+                                {/* Telehealth Indicator */}
+                                {apt.isTelehealth && (
+                                  <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded border border-green-300">
+                                    💻 VIRTUAL
+                                  </span>
+                                )}
+                              </div>
                             </div>
 
                             {/* Patient IDs - PROMINENT */}
