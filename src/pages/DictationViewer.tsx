@@ -37,17 +37,44 @@ export default function DictationViewer() {
 
   const loadDictation = async () => {
     try {
+      console.log('🔍 [DictationViewer] Loading dictation ID:', dictationId);
+
       const { data, error } = await supabase
-        .from('dictations')
+        .from('dictated_notes')  // Fixed: Query dictated_notes instead of dictations
         .select('*')
         .eq('id', dictationId)
         .is('deleted_at', null)  // CRITICAL: Exclude soft-deleted dictations
         .single();
 
+      console.log('📋 [DictationViewer] Query result:', { data, error });
+
       if (error) throw error;
-      setDictation(data);
+
+      // Map dictated_notes fields to DictationData interface
+      const mappedData = {
+        id: String(data.id),
+        patient_name: data.patient_name,
+        patient_mrn: data.patient_mrn || '',
+        patient_dob: data.patient_dob || '',
+        visit_date: data.visit_date || data.created_at,
+        visit_type: data.visit_type || 'General Visit',
+        transcription_text: data.raw_transcript || '',
+        final_note: data.processed_note || '',
+        status: data.status || 'completed',
+        created_at: data.created_at,
+        updated_at: data.updated_at || data.created_at,
+        completed_at: data.completed_at || '',
+        signed_at: data.signed_at || '',
+        diagnosis_codes: data.diagnosis_codes || [],
+        procedure_codes: data.procedure_codes || [],
+        medications_prescribed: data.medications_prescribed || null,
+        orders_placed: data.orders_placed || null
+      };
+
+      console.log('✅ [DictationViewer] Mapped data:', mappedData);
+      setDictation(mappedData);
     } catch (error) {
-      console.error('Error loading dictation:', error);
+      console.error('❌ [DictationViewer] Error loading dictation:', error);
       alert('Failed to load dictation');
     } finally {
       setLoading(false);

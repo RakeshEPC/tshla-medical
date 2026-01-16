@@ -237,12 +237,16 @@ class DictationStorageService {
     reason: 'wrong_chart' | 'duplicate' | 'test' | 'other'
   ): Promise<{ success: boolean; error?: string }> {
     try {
+      console.log('🗑️ [DictationStorage] Deleting dictation:', dictationId, 'Reason:', reason);
+
       // First, verify the dictation exists and is not already deleted
       const { data: existing, error: checkError } = await supabase
-        .from('dictations')
+        .from('dictated_notes')  // Fixed: Use dictated_notes table
         .select('id, status, patient_name, deleted_at')
         .eq('id', dictationId)
         .single();
+
+      console.log('📋 [DictationStorage] Existing dictation:', existing, 'Error:', checkError);
 
       if (checkError) throw new Error('Dictation not found');
       if (existing.deleted_at) throw new Error('Dictation already deleted');
@@ -254,7 +258,7 @@ class DictationStorageService {
 
       // Soft delete: Mark as deleted
       const { error: deleteError } = await supabase
-        .from('dictations')
+        .from('dictated_notes')  // Fixed: Use dictated_notes table
         .update({
           deleted_at: new Date().toISOString(),
           deleted_by_provider_id: providerId,
@@ -262,11 +266,15 @@ class DictationStorageService {
         })
         .eq('id', dictationId);
 
-      if (deleteError) throw deleteError;
+      if (deleteError) {
+        console.error('❌ [DictationStorage] Delete error:', deleteError);
+        throw deleteError;
+      }
 
+      console.log('✅ [DictationStorage] Dictation soft-deleted successfully');
       return { success: true };
     } catch (error: any) {
-      console.error('Error deleting dictation:', error);
+      console.error('❌ [DictationStorage] Error deleting dictation:', error);
       return { success: false, error: error.message };
     }
   }
@@ -283,7 +291,7 @@ class DictationStorageService {
   } | null> {
     try {
       const { data, error } = await supabase
-        .from('dictations')
+        .from('dictated_notes')  // Fixed: Use dictated_notes table
         .select('id, patient_name, patient_mrn, visit_date, status, deleted_at')
         .eq('id', dictationId)
         .is('deleted_at', null)  // Only return if not already deleted

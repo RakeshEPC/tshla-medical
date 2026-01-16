@@ -70,9 +70,11 @@ export default function DictationHistory() {
       console.log('🏷️ Status filter:', statusFilter);
 
       // Query dictated_notes table (where QuickNote saves dictations)
+      // CRITICAL: Exclude soft-deleted dictations
       let query = supabase
         .from('dictated_notes')
         .select('*')
+        .is('deleted_at', null)  // Only show non-deleted dictations
         .order('created_at', { ascending: false })
         .limit(100);
 
@@ -336,8 +338,15 @@ export default function DictationHistory() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {/* Delete Button - Temporarily disabled (dictated_notes table doesn't have soft delete) */}
-                    {/* TODO: Add soft delete columns to dictated_notes table */}
+                    {/* Delete Button */}
+                    <button
+                      onClick={(e) => handleDeleteClick(dictation, e)}
+                      className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors flex items-center gap-2"
+                      title="Delete this dictation"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Delete
+                    </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
