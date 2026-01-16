@@ -350,8 +350,8 @@ function WeeklyView({ weeklyData, navigate, getStatusColor }: WeeklyViewProps) {
 }
 
 export default function SchedulePageV2() {
-  // VERSION CHECK - Jan 7, 2026 - Date & Cancellation Fix + CRUD
-  console.log('🔄 SchedulePageV2 loaded - Version: DATE-CANCEL-FIX-CRUD-2026-01-07');
+  // VERSION CHECK - Jan 16, 2026 - New Tab Pre-Visit Prep + LocalStorage Fixes
+  console.log('🔄 SchedulePageV2 loaded - Version: NEW-TAB-PREVISIT-2026-01-16');
 
   const navigate = useNavigate();
   const { user } = useAuth();
