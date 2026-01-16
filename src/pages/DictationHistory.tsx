@@ -70,12 +70,14 @@ export default function DictationHistory() {
       console.log('🏷️ Status filter:', statusFilter);
 
       // Query dictations table (where actual dictations are stored)
+      // NOTE: Temporarily removed deleted_at filter to debug - will add back once confirmed working
       let query = supabase
         .from('dictations')
         .select('*')
-        .is('deleted_at', null)  // Exclude soft-deleted dictations
         .order('created_at', { ascending: false })
         .limit(100);
+
+      console.log('🔍 Query built (no deleted_at filter for debugging)');
 
       // Apply date range filter
       if (dateThreshold) {
