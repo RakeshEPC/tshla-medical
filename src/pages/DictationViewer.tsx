@@ -43,12 +43,17 @@ export default function DictationViewer() {
         .from('dictated_notes')  // Fixed: Query dictated_notes instead of dictations
         .select('*')
         .eq('id', dictationId)
-        .is('deleted_at', null)  // CRITICAL: Exclude soft-deleted dictations
         .single();
 
       console.log('📋 [DictationViewer] Query result:', { data, error });
 
       if (error) throw error;
+
+      // Check if this dictation was soft-deleted
+      if (data.deleted_at !== null && data.deleted_at !== undefined) {
+        console.error('❌ [DictationViewer] This dictation was deleted at:', data.deleted_at);
+        throw new Error('This dictation has been deleted');
+      }
 
       // Map dictated_notes fields to DictationData interface
       const mappedData = {

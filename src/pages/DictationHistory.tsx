@@ -70,11 +70,10 @@ export default function DictationHistory() {
       console.log('🏷️ Status filter:', statusFilter);
 
       // Query dictated_notes table (where QuickNote saves dictations)
-      // CRITICAL: Exclude soft-deleted dictations
+      // NOTE: We'll filter deleted_at manually because Supabase .is() seems unreliable
       let query = supabase
         .from('dictated_notes')
         .select('*')
-        .is('deleted_at', null)  // Only show non-deleted dictations
         .order('created_at', { ascending: false })
         .limit(100);
 
@@ -92,7 +91,7 @@ export default function DictationHistory() {
 
       const { data, error } = await query;
 
-      console.log('📊 Query result:', {
+      console.log('📊 Query result (before deleted filter):', {
         count: data?.length || 0,
         error: error,
         hasData: !!data,
@@ -100,16 +99,21 @@ export default function DictationHistory() {
         firstRecord: data?.[0]
       });
 
-      // DEBUG: Check if any deleted notes are sneaking through
-      if (data && data.length > 0) {
-        const deletedNotes = data.filter((note: any) => note.deleted_at !== null);
-        if (deletedNotes.length > 0) {
-          console.error('🚨 [DictationHistory] DELETED NOTES IN RESULTS!', deletedNotes);
+      // CRITICAL: Manually filter out soft-deleted notes
+      // (Supabase .is('deleted_at', null) doesn't seem to work reliably)
+      const filteredData = (data || []).filter((note: any) => {
+        const isDeleted = note.deleted_at !== null && note.deleted_at !== undefined;
+        if (isDeleted) {
+          console.log('🗑️ [DictationHistory] Filtering out deleted note:', note.id, 'deleted_at:', note.deleted_at);
         }
-        console.log('🔍 [DictationHistory] Sample note deleted_at values:',
-          data.slice(0, 3).map((n: any) => ({ id: n.id, deleted_at: n.deleted_at }))
-        );
-      }
+        return !isDeleted;
+      });
+
+      console.log('📊 After manual deleted filter:', {
+        beforeCount: data?.length || 0,
+        afterCount: filteredData.length,
+        removedCount: (data?.length || 0) - filteredData.length
+      });
 
       if (error) {
         console.error('❌ Supabase error:', error);
@@ -117,12 +121,12 @@ export default function DictationHistory() {
         throw error;
       }
 
-      if (!data || data.length === 0) {
+      if (!filteredData || filteredData.length === 0) {
         console.warn('⚠️ No dictations found in database. Table might be empty or RLS blocking access.');
       }
 
       // Map dictated_notes table to Dictation interface format
-      const mappedData = (data || []).map(note => ({
+      const mappedData = filteredData.map(note => ({
         id: String(note.id),
         patient_name: note.patient_name,
         patient_mrn: note.patient_mrn,
