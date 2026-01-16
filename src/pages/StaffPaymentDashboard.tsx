@@ -96,6 +96,28 @@ export default function StaffPaymentDashboard() {
     }
   };
 
+  const handleCopyPaymentLink = (payment: PaymentRequest) => {
+    // Generate payment link (same logic as in StaffPreVisitPrep)
+    let paymentLink: string;
+
+    if (payment.share_link_id) {
+      // Combined portal (audio summary + payment)
+      paymentLink = `${window.location.origin}/patient-summary/${payment.share_link_id}`;
+    } else {
+      // Standalone payment portal
+      paymentLink = `${window.location.origin}/payment/${payment.id}`;
+    }
+
+    // Copy to clipboard
+    navigator.clipboard.writeText(paymentLink).then(() => {
+      alert(`✓ Payment link copied to clipboard!\n\n${paymentLink}\n\nYou can now send this to the patient via Klara or text.`);
+    }).catch(err => {
+      console.error('Failed to copy:', err);
+      // Fallback: show the link in an alert so user can manually copy
+      alert(`Payment Link:\n\n${paymentLink}\n\nPlease copy this link manually.`);
+    });
+  };
+
   const filteredPayments = payments.filter(payment => {
     if (!searchQuery) return true;
 
@@ -403,7 +425,21 @@ export default function StaffPaymentDashboard() {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <div className="flex gap-2">
+                        <div className="flex flex-col gap-2">
+                          {/* Copy Payment Link Button - Show for pending payments */}
+                          {payment.payment_status === 'pending' && (
+                            <button
+                              onClick={() => handleCopyPaymentLink(payment)}
+                              className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-xs font-semibold flex items-center gap-1 justify-center"
+                              title="Copy payment link to send to patient"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                              </svg>
+                              Copy Link
+                            </button>
+                          )}
+
                           {payment.payment_status === 'paid' && !payment.posted_in_emr && (
                             <button
                               onClick={() => handleMarkAsPosted(payment.id)}
@@ -412,6 +448,7 @@ export default function StaffPaymentDashboard() {
                               Mark Posted
                             </button>
                           )}
+
                           {payment.payment_status === 'pending' && (
                             <button
                               onClick={() => handleCancelPayment(payment.id)}
@@ -436,6 +473,7 @@ export default function StaffPaymentDashboard() {
           <ul className="text-sm text-blue-800 space-y-1">
             <li><strong>Pending:</strong> Payment request sent, awaiting patient payment</li>
             <li><strong>Paid:</strong> Patient completed payment via Stripe</li>
+            <li><strong>Copy Link:</strong> Get payment link again to send to patient (if they lost the original)</li>
             <li><strong>Mark Posted:</strong> Click when payment is posted to EMR (moves to archive)</li>
             <li><strong>Cancel:</strong> Cancel pending payment request (cannot be undone)</li>
           </ul>
