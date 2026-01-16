@@ -257,21 +257,35 @@ class DictationStorageService {
       }
 
       // Soft delete: Mark as deleted
-      const { error: deleteError } = await supabase
+      const { data: updateResult, error: deleteError, count } = await supabase
         .from('dictated_notes')  // Fixed: Use dictated_notes table
         .update({
           deleted_at: new Date().toISOString(),
           deleted_by_provider_id: providerId,
           deletion_reason: reason
         })
-        .eq('id', dictationId);
+        .eq('id', dictationId)
+        .select();  // CRITICAL: Must call .select() to get result
+
+      console.log('🔍 [DictationStorage] Update result:', {
+        updateResult,
+        deleteError,
+        count,
+        affectedRows: updateResult?.length || 0
+      });
 
       if (deleteError) {
         console.error('❌ [DictationStorage] Delete error:', deleteError);
         throw deleteError;
       }
 
-      console.log('✅ [DictationStorage] Dictation soft-deleted successfully');
+      // Check if any rows were actually updated
+      if (!updateResult || updateResult.length === 0) {
+        console.error('❌ [DictationStorage] No rows updated! RLS policy may be blocking the update.');
+        throw new Error('Failed to delete: No rows were updated. This may be a permissions issue.');
+      }
+
+      console.log('✅ [DictationStorage] Dictation soft-deleted successfully, affected rows:', updateResult.length);
       return { success: true };
     } catch (error: any) {
       console.error('❌ [DictationStorage] Error deleting dictation:', error);
