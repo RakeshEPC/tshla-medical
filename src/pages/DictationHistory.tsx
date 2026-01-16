@@ -69,15 +69,14 @@ export default function DictationHistory() {
       console.log('📅 Date filter:', dateRangeFilter, 'Threshold:', dateThreshold);
       console.log('🏷️ Status filter:', statusFilter);
 
-      // Query dictations table (where actual dictations are stored)
-      // NOTE: Temporarily removed deleted_at filter to debug - will add back once confirmed working
+      // Query dictated_notes table (where QuickNote saves dictations)
       let query = supabase
-        .from('dictations')
+        .from('dictated_notes')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(100);
 
-      console.log('🔍 Query built (no deleted_at filter for debugging)');
+      console.log('🔍 Query built for dictated_notes table');
 
       // Apply date range filter
       if (dateThreshold) {
@@ -109,17 +108,17 @@ export default function DictationHistory() {
         console.warn('⚠️ No dictations found in database. Table might be empty or RLS blocking access.');
       }
 
-      // Map dictations table to Dictation interface format
+      // Map dictated_notes table to Dictation interface format
       const mappedData = (data || []).map(note => ({
         id: String(note.id),
         patient_name: note.patient_name,
         patient_mrn: note.patient_mrn,
         visit_date: note.visit_date,
         created_at: note.created_at,
-        status: note.status || 'draft',
-        transcription_text: note.transcription_text || '',
-        final_note: note.final_note || '',
-        appointment_id: note.appointment_id
+        status: note.status || 'completed',
+        transcription_text: note.raw_transcript || '',
+        final_note: note.processed_note || '',
+        appointment_id: null
       }));
 
       console.log('✅ Loaded dictations:', mappedData.length);
