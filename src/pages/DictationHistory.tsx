@@ -69,10 +69,11 @@ export default function DictationHistory() {
       console.log('📅 Date filter:', dateRangeFilter, 'Threshold:', dateThreshold);
       console.log('🏷️ Status filter:', statusFilter);
 
-      // Query dictated_notes table (where actual dictations are stored)
+      // Query dictations table (where actual dictations are stored)
       let query = supabase
-        .from('dictated_notes')
+        .from('dictations')
         .select('*')
+        .is('deleted_at', null)  // Exclude soft-deleted dictations
         .order('created_at', { ascending: false })
         .limit(100);
 
@@ -95,17 +96,17 @@ export default function DictationHistory() {
         throw error;
       }
 
-      // Map dictated_notes to Dictation interface format
+      // Map dictations table to Dictation interface format
       const mappedData = (data || []).map(note => ({
         id: String(note.id),
         patient_name: note.patient_name,
         patient_mrn: note.patient_mrn,
         visit_date: note.visit_date,
         created_at: note.created_at,
-        status: note.status || 'completed',
-        transcription_text: note.raw_transcript || '',
-        final_note: note.processed_note || '',
-        appointment_id: null
+        status: note.status || 'draft',
+        transcription_text: note.transcription_text || '',
+        final_note: note.final_note || '',
+        appointment_id: note.appointment_id
       }));
 
       console.log('✅ Loaded dictations:', mappedData.length);
