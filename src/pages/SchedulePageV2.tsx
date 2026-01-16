@@ -773,104 +773,99 @@ export default function SchedulePageV2() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex justify-between items-center">
-            <div>
-              <button
-                onClick={() => navigate('/dashboard')}
-                className="text-blue-100 hover:text-white mb-2"
-              >
-                ← Back to Dashboard
-              </button>
-              <h1 className="text-3xl font-bold">Provider Schedule</h1>
-            </div>
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md">
+        <div className="max-w-7xl mx-auto px-4 py-2">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="text-blue-100 hover:text-white text-sm"
+            >
+              ← Back
+            </button>
+            <h1 className="text-xl font-bold">Provider Schedule</h1>
           </div>
         </div>
       </div>
 
       {/* Date Navigation Bar */}
       <div className="bg-white border-b shadow-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          {/* View Mode Toggle */}
-          <div className="flex items-center justify-center mb-4">
-            <div className="inline-flex rounded-lg border-2 border-gray-300 p-1 bg-gray-50">
-              <button
-                onClick={() => setViewMode('daily')}
-                className={`px-6 py-2 rounded-md font-semibold transition-all ${
-                  viewMode === 'daily'
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                📅 Daily View
-              </button>
-              <button
-                onClick={() => setViewMode('weekly')}
-                className={`px-6 py-2 rounded-md font-semibold transition-all ${
-                  viewMode === 'weekly'
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                📆 Weekly View
-              </button>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            {/* Date Controls */}
+        <div className="max-w-7xl mx-auto px-4 py-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            {/* Left: View Toggle & Date Controls */}
             <div className="flex items-center gap-2">
+              {/* View Mode Toggle */}
+              <div className="inline-flex rounded border border-gray-300 bg-gray-50">
+                <button
+                  onClick={() => setViewMode('daily')}
+                  className={`px-3 py-1 text-xs font-semibold transition-all ${
+                    viewMode === 'daily'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  📅 Daily
+                </button>
+                <button
+                  onClick={() => setViewMode('weekly')}
+                  className={`px-3 py-1 text-xs font-semibold transition-all ${
+                    viewMode === 'weekly'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  📆 Weekly
+                </button>
+              </div>
+
+              {/* Date Controls */}
               <button
                 onClick={() => changeDate(viewMode === 'weekly' ? -7 : -1)}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors"
+                className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs font-medium"
               >
-                ← {viewMode === 'weekly' ? 'Prev Week' : 'Prev'}
+                ←
               </button>
               <input
                 type="date"
                 value={selectedDate.toISOString().split('T')[0]}
                 onChange={(e) => setSelectedDate(new Date(e.target.value))}
-                className="px-4 py-2 border-2 border-gray-300 rounded-lg font-medium focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                className="px-2 py-1 border border-gray-300 rounded text-xs font-medium focus:border-blue-500"
               />
-              <button
-                onClick={() => setSelectedDate(new Date('2025-01-07'))}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
-                title="View sample data (imported appointments)"
-              >
-                📊 Sample Data (Jan 7, 2025)
-              </button>
               <button
                 onClick={() => {
                   const today = new Date();
                   today.setHours(0, 0, 0, 0);
                   setSelectedDate(today);
                 }}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium"
               >
-                📅 Today
+                Today
               </button>
               <button
                 onClick={() => changeDate(viewMode === 'weekly' ? 7 : 1)}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors"
+                className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs font-medium"
               >
-                {viewMode === 'weekly' ? 'Next Week' : 'Next'} →
+                →
               </button>
             </div>
 
-            {/* Provider Filter & New Appointment Button */}
+            {/* Center: Date & Stats */}
+            <div className="text-center">
+              <h2 className="text-sm font-bold text-gray-900">
+                {viewMode === 'weekly' ? getWeekRange(selectedDate) : formatDate(selectedDate)}
+              </h2>
+              {viewMode === 'daily' && (
+                <p className="text-xs text-gray-600">
+                  {totalAppointments} appts • {providerGroups.length} providers
+                </p>
+              )}
+            </div>
+
+            {/* Right: Provider Filter & New Appointment */}
             <div className="flex items-center gap-2">
-              <button
-                onClick={handleNewAppointment}
-                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-colors shadow-md"
-              >
-                ➕ New Appointment
-              </button>
-              <label className="text-sm font-medium text-gray-700">Provider:</label>
               <select
                 value={selectedProvider}
                 onChange={(e) => setSelectedProvider(e.target.value)}
-                className="px-4 py-2 border-2 border-gray-300 rounded-lg font-medium focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                className="px-2 py-1 border border-gray-300 rounded text-xs font-medium focus:border-blue-500"
               >
                 <option value="all">All Providers ({allProviders.length})</option>
                 {allProviders.map((provider) => (
@@ -879,31 +874,26 @@ export default function SchedulePageV2() {
                   </option>
                 ))}
               </select>
+              <button
+                onClick={handleNewAppointment}
+                className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs font-semibold"
+              >
+                ➕ New
+              </button>
+              <button
+                onClick={() => setSelectedDate(new Date('2025-01-07'))}
+                className="px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-xs"
+                title="View sample data"
+              >
+                📊
+              </button>
             </div>
-          </div>
-
-          {/* Date Display */}
-          <div className="mt-4 text-center">
-            <h2 className="text-2xl font-bold text-gray-900">
-              {viewMode === 'weekly' ? `Week of ${getWeekRange(selectedDate)}` : formatDate(selectedDate)}
-            </h2>
-            {viewMode === 'daily' && (
-              <p className="text-gray-600">
-                {totalAppointments} appointment{totalAppointments !== 1 ? 's' : ''} •{' '}
-                {providerGroups.length} provider{providerGroups.length !== 1 ? 's' : ''}
-              </p>
-            )}
-            {viewMode === 'weekly' && (
-              <p className="text-gray-600">
-                {allProviders.length} provider{allProviders.length !== 1 ? 's' : ''} • Monday - Friday
-              </p>
-            )}
           </div>
         </div>
       </div>
 
       {/* Schedule Content */}
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="max-w-7xl mx-auto px-4 py-3">
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
             <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600"></div>
@@ -927,26 +917,26 @@ export default function SchedulePageV2() {
             </button>
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-3">
             {providerGroups.map((provider) => (
               <div key={provider.providerId} className="bg-white rounded-lg shadow-lg overflow-hidden">
                 {/* Provider Header */}
-                <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4">
+                <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-2">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-xl font-bold">{formatProviderName(provider.providerName)}</h3>
-                      <p className="text-blue-100 text-sm">Provider ID: {provider.providerId}</p>
+                      <h3 className="text-base font-bold">{formatProviderName(provider.providerName)}</h3>
+                      <p className="text-blue-100 text-xs">ID: {provider.providerId}</p>
                     </div>
                     <div className="text-right">
-                      <div className="text-3xl font-bold">{provider.appointments.length}</div>
-                      <div className="text-blue-100 text-sm">appointments</div>
+                      <div className="text-xl font-bold">{provider.appointments.length}</div>
+                      <div className="text-blue-100 text-xs">appts</div>
                     </div>
                   </div>
                 </div>
 
                 {/* Appointments Grid */}
-                <div className="p-6 bg-gray-50">
-                  <div className="grid gap-4">
+                <div className="p-3 bg-gray-50">
+                  <div className="grid gap-2">
                     {provider.appointments.map((apt, index) => {
                       // DEBUG: Log first appointment data at render time
                       if (index === 0) {
@@ -961,84 +951,84 @@ export default function SchedulePageV2() {
                       return (
                       <div
                         key={apt.id}
-                        className="bg-white rounded-lg border-2 border-gray-200 p-4 hover:border-blue-400 hover:shadow-md transition-all"
+                        className="bg-white rounded border border-gray-200 p-2 hover:border-blue-400 hover:shadow transition-all"
                       >
-                        <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-start justify-between gap-2">
                           {/* Left: Time & Patient Info */}
                           <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <div className="text-2xl font-bold text-blue-600">{apt.time}</div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="text-base font-bold text-blue-600">{apt.time}</div>
                               {/* Duration indicator (if not 30 min) */}
                               {apt.duration && apt.duration !== 30 && (
-                                <span className="text-sm text-gray-500 font-medium">
-                                  ({apt.duration} min)
+                                <span className="text-xs text-gray-500 font-medium">
+                                  ({apt.duration}m)
                                 </span>
                               )}
                               {/* Only show status if NOT scheduled */}
                               {apt.status !== 'scheduled' && (
                                 <span
-                                  className={`px-3 py-1 text-xs font-bold rounded-full border-2 ${getStatusColor(apt.status)}`}
+                                  className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${getStatusColor(apt.status)}`}
                                 >
                                   {apt.status.toUpperCase()}
                                 </span>
                               )}
                             </div>
 
-                            <div className="mb-2">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <p className="text-xl font-bold text-gray-900">{apt.patient}</p>
+                            <div className="mb-1">
+                              <div className="flex items-center gap-1 flex-wrap">
+                                <p className="text-sm font-bold text-gray-900">{apt.patient}</p>
 
                                 {/* Appointment Type Badge */}
                                 {apt.appointmentType && (
-                                  <span className={`px-2 py-1 text-xs font-bold rounded ${getAppointmentTypeColor(apt.appointmentType)}`}>
+                                  <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded ${getAppointmentTypeColor(apt.appointmentType)}`}>
                                     {getAppointmentTypeLabel(apt.appointmentType)}
                                   </span>
                                 )}
 
                                 {/* Telehealth Indicator */}
                                 {apt.isTelehealth && (
-                                  <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded border border-green-300">
+                                  <span className="px-1.5 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded border border-green-300">
                                     💻 VIRTUAL
                                   </span>
                                 )}
                               </div>
                             </div>
 
-                            {/* Patient IDs - PROMINENT */}
+                            {/* Patient IDs - COMPACT */}
                             {(apt.internalId || apt.tshId || apt.mrn) && (
-                              <div className="flex flex-wrap items-center gap-2 mb-3">
+                              <div className="flex flex-wrap items-center gap-1 mb-2">
                                 {apt.mrn && (
-                                  <span className="px-3 py-1.5 bg-green-50 border-2 border-green-400 text-green-700 text-sm font-mono font-bold rounded-lg">
-                                    🏥 MRN: {apt.mrn}
+                                  <span className="px-1.5 py-0.5 bg-green-50 border border-green-400 text-green-700 text-[10px] font-mono font-bold rounded">
+                                    MRN: {apt.mrn}
                                   </span>
                                 )}
                                 {apt.internalId && (
-                                  <span className="px-3 py-1.5 bg-blue-50 border-2 border-blue-300 text-blue-700 text-sm font-mono font-bold rounded-lg">
-                                    🆔 Internal ID: {apt.internalId}
+                                  <span className="px-1.5 py-0.5 bg-blue-50 border border-blue-300 text-blue-700 text-[10px] font-mono font-bold rounded">
+                                    ID: {apt.internalId}
                                   </span>
                                 )}
                                 {apt.tshId && (
-                                  <span className="px-3 py-1.5 bg-purple-50 border-2 border-purple-300 text-purple-700 text-sm font-mono font-bold rounded-lg">
-                                    🎫 {apt.tshId}
+                                  <span className="px-1.5 py-0.5 bg-purple-50 border border-purple-300 text-purple-700 text-[10px] font-mono font-bold rounded">
+                                    {apt.tshId}
                                   </span>
                                 )}
                               </div>
                             )}
 
                             {/* Workflow Status Grid */}
-                            <div className="grid grid-cols-2 gap-2 mb-3">
+                            <div className="grid grid-cols-4 gap-1 mb-2">
                               {/* Pre-Visit */}
                               <div>
                                 {apt.preVisitComplete ? (
-                                  <span className="px-3 py-1.5 bg-green-50 border-2 border-green-300 text-green-700 text-xs font-bold rounded-lg inline-block w-full text-center">
-                                    ✅ Pre-Visit Ready
+                                  <span className="px-1 py-0.5 bg-green-50 border border-green-300 text-green-700 text-[9px] font-bold rounded inline-block w-full text-center">
+                                    ✅ Pre
                                   </span>
                                 ) : (
                                   <button
                                     onClick={() => navigate(`/staff-previsit-prep?appointmentId=${apt.id}`)}
-                                    className="px-3 py-1.5 bg-purple-50 border-2 border-purple-300 text-purple-700 text-xs font-bold rounded-lg w-full hover:bg-purple-100 transition-colors"
+                                    className="px-1 py-0.5 bg-purple-50 border border-purple-300 text-purple-700 text-[9px] font-bold rounded w-full hover:bg-purple-100"
                                   >
-                                    📋 Prep Pre-Visit
+                                    📋 Pre
                                   </button>
                                 )}
                               </div>
@@ -1048,13 +1038,13 @@ export default function SchedulePageV2() {
                                 {apt.dictationComplete ? (
                                   <button
                                     onClick={() => navigate(`/quick-note?dictationId=${apt.dictationId}`)}
-                                    className="px-3 py-1.5 bg-green-50 border-2 border-green-300 text-green-700 text-xs font-bold rounded-lg w-full hover:bg-green-100 transition-colors"
+                                    className="px-1 py-0.5 bg-green-50 border border-green-300 text-green-700 text-[9px] font-bold rounded w-full hover:bg-green-100"
                                   >
-                                    ✅ Dictation Done
+                                    ✅ Dict
                                   </button>
                                 ) : (
-                                  <span className="px-3 py-1.5 bg-orange-50 border-2 border-orange-300 text-orange-700 text-xs font-bold rounded-lg inline-block w-full text-center">
-                                    ⏳ Dictation
+                                  <span className="px-1 py-0.5 bg-orange-50 border border-orange-300 text-orange-700 text-[9px] font-bold rounded inline-block w-full text-center">
+                                    ⏳ Dict
                                   </span>
                                 )}
                               </div>
@@ -1062,12 +1052,12 @@ export default function SchedulePageV2() {
                               {/* Post-Visit */}
                               <div>
                                 {apt.postVisitComplete ? (
-                                  <span className="px-3 py-1.5 bg-green-50 border-2 border-green-300 text-green-700 text-xs font-bold rounded-lg inline-block w-full text-center">
-                                    ✅ Post-Visit
+                                  <span className="px-1 py-0.5 bg-green-50 border border-green-300 text-green-700 text-[9px] font-bold rounded inline-block w-full text-center">
+                                    ✅ Post
                                   </span>
                                 ) : (
-                                  <span className="px-3 py-1.5 bg-orange-50 border-2 border-orange-300 text-orange-700 text-xs font-bold rounded-lg inline-block w-full text-center">
-                                    ⏳ Post-Visit
+                                  <span className="px-1 py-0.5 bg-orange-50 border border-orange-300 text-orange-700 text-[9px] font-bold rounded inline-block w-full text-center">
+                                    ⏳ Post
                                   </span>
                                 )}
                               </div>
@@ -1075,70 +1065,68 @@ export default function SchedulePageV2() {
                               {/* Summary Sent */}
                               <div>
                                 {apt.summarySent ? (
-                                  <span className="px-3 py-1.5 bg-green-50 border-2 border-green-300 text-green-700 text-xs font-bold rounded-lg inline-block w-full text-center">
-                                    ✅ Summary Sent
+                                  <span className="px-1 py-0.5 bg-green-50 border border-green-300 text-green-700 text-[9px] font-bold rounded inline-block w-full text-center">
+                                    ✅ Sent
                                   </span>
                                 ) : (
-                                  <span className="px-3 py-1.5 bg-gray-50 border-2 border-gray-300 text-gray-600 text-xs font-bold rounded-lg inline-block w-full text-center">
-                                    📧 Summary Pending
+                                  <span className="px-1 py-0.5 bg-gray-50 border border-gray-300 text-gray-600 text-[9px] font-bold rounded inline-block w-full text-center">
+                                    📧 Pend
                                   </span>
                                 )}
                               </div>
                             </div>
 
-                            {/* Additional Info */}
-                            <div className="flex items-center gap-4 text-sm text-gray-600">
-                              {apt.dob && (
-                                <span className="flex items-center gap-1">
-                                  🎂 DOB: {new Date(apt.dob).toLocaleDateString()}
-                                </span>
-                              )}
-                            </div>
+                            {/* Additional Info - DOB & Notes */}
+                            {apt.dob && (
+                              <div className="text-[10px] text-gray-600 mb-1">
+                                DOB: {new Date(apt.dob).toLocaleDateString()}
+                              </div>
+                            )}
 
                             {apt.notes && (
-                              <div className="mt-2 text-sm text-gray-700 bg-gray-50 px-3 py-2 rounded border border-gray-200">
-                                <strong>Notes:</strong> {apt.notes}
+                              <div className="mt-1 text-[10px] text-gray-700 bg-gray-50 px-2 py-1 rounded border border-gray-200">
+                                {apt.notes}
                               </div>
                             )}
                           </div>
 
                           {/* Right: Action Buttons */}
-                          <div className="flex flex-col gap-2">
+                          <div className="flex flex-col gap-1">
                             {!apt.dictationComplete ? (
                               <button
                                 onClick={() => navigate(`/quick-note?appointmentId=${apt.id}`)}
-                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap"
+                                className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-semibold rounded whitespace-nowrap"
                               >
-                                🎤 Start Dictation
+                                🎤 Dictate
                               </button>
                             ) : (
                               <button
                                 onClick={() => navigate(`/quick-note?dictationId=${apt.dictationId}`)}
-                                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap"
+                                className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-[10px] font-semibold rounded whitespace-nowrap"
                               >
-                                📝 View Dictation
+                                📝 View
                               </button>
                             )}
                             <button
                               onClick={() => navigate(`/patient-chart`)}
-                              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap"
+                              className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-[10px] font-semibold rounded whitespace-nowrap"
                             >
-                              📋 View Chart
+                              📋 Chart
                             </button>
 
                             {/* CRUD Actions */}
-                            <div className="border-t border-gray-300 pt-2 mt-2 space-y-2">
+                            <div className="border-t border-gray-300 pt-1 mt-1 space-y-1">
                               <button
                                 onClick={() => handleEditAppointment(apt)}
-                                className="w-full px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold rounded border border-blue-300 transition-colors"
+                                className="w-full px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[9px] font-semibold rounded border border-blue-300"
                               >
                                 ✏️ Edit
                               </button>
                               <button
                                 onClick={() => handleCancelClick(apt)}
-                                className="w-full px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-orange-700 text-xs font-semibold rounded border border-orange-300 transition-colors"
+                                className="w-full px-2 py-1 bg-orange-50 hover:bg-orange-100 text-orange-700 text-[9px] font-semibold rounded border border-orange-300"
                               >
-                                ❌ Cancel Appt
+                                ❌ Cancel
                               </button>
                             </div>
                           </div>
