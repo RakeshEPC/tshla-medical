@@ -89,11 +89,22 @@ export default function DictationHistory() {
 
       const { data, error } = await query;
 
-      console.log('📊 Query result:', { count: data?.length || 0, error });
+      console.log('📊 Query result:', {
+        count: data?.length || 0,
+        error: error,
+        hasData: !!data,
+        dataType: typeof data,
+        firstRecord: data?.[0]
+      });
 
       if (error) {
         console.error('❌ Supabase error:', error);
+        console.error('❌ Error details:', JSON.stringify(error, null, 2));
         throw error;
+      }
+
+      if (!data || data.length === 0) {
+        console.warn('⚠️ No dictations found in database. Table might be empty or RLS blocking access.');
       }
 
       // Map dictations table to Dictation interface format
