@@ -263,9 +263,10 @@ function WeeklyView({ weeklyData, navigate, getStatusColor }: WeeklyViewProps) {
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        navigate(`/staff-previsit-prep?appointmentId=${apt.id}`);
+                                        window.open(`/staff-previsit-prep?appointmentId=${apt.id}`, '_blank');
                                       }}
                                       className="text-purple-600 hover:underline text-[9px]"
+                                      title="Open pre-visit prep in new tab"
                                     >
                                       Add More
                                     </button>
@@ -274,9 +275,10 @@ function WeeklyView({ weeklyData, navigate, getStatusColor }: WeeklyViewProps) {
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      navigate(`/staff-previsit-prep?appointmentId=${apt.id}`);
+                                      window.open(`/staff-previsit-prep?appointmentId=${apt.id}`, '_blank');
                                     }}
                                     className="text-purple-600 font-semibold hover:underline cursor-pointer"
+                                    title="Open pre-visit prep in new tab"
                                   >
                                     📋 Prep Pre-Visit
                                   </button>
