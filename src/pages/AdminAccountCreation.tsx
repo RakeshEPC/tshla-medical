@@ -154,32 +154,49 @@ export default function AdminAccountCreation() {
     }
   };
 
-  const handleScheduleImportSuccess = async (appointments: ParsedAthenaAppointment[]) => {
-    setScheduleImportStatus('Importing appointments to database...');
+  const handleScheduleImportSuccess = async (
+    appointments: ParsedAthenaAppointment[],
+    mode: 'merge' | 'replace',
+    scheduleDate: string
+  ) => {
+    setScheduleImportStatus(`${mode === 'replace' ? 'Clearing existing schedule and importing' : 'Importing'} appointments...`);
     try {
       // Get current user email for audit trail
       const result = await supabaseAuthService.getCurrentUser();
       const userEmail = result.user?.email || 'admin@tshla.ai';
 
-      // Get schedule date from first appointment (all should be same date)
-      const scheduleDate = appointments[0]?.date || new Date().toISOString().split('T')[0];
-
       // Call schedule service to import to Supabase
       const importResult = await scheduleService.importAthenaSchedule(
         appointments,
         scheduleDate,
-        userEmail
+        userEmail,
+        mode
       );
+
+      // Count status breakdown
+      const statusCounts = appointments.reduce((acc, apt) => {
+        acc[apt.status || 'scheduled'] = (acc[apt.status || 'scheduled'] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
 
       setMessage({
         type: 'success',
-        text: `Successfully imported ${importResult.summary.successful} appointments! ${
+        text: `Successfully imported ${importResult.summary.successful} appointments for ${scheduleDate}!
+
+Status Breakdown:
+- Scheduled: ${statusCounts.scheduled || 0}
+- Checked In: ${statusCounts['checked-in'] || 0}
+- In Progress: ${statusCounts['in-progress'] || 0}
+- Completed: ${statusCounts.completed || 0}
+- Cancelled: ${statusCounts.cancelled || 0}
+
+${mode === 'replace' ? '✓ Cleared and replaced all appointments for this date' : '✓ Merged with existing appointments'}${
           importResult.summary.duplicates > 0
-            ? `(${importResult.summary.duplicates} duplicates skipped) `
+            ? `\n(${importResult.summary.duplicates} duplicates skipped)`
             : ''
         }${
           importResult.summary.failed > 0
-            ? `(${importResult.summary.failed} failed)`
+            ? `\n(${importResult.summary.failed} failed)`
             : ''
         }`,
       });

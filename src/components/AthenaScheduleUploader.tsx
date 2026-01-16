@@ -3,7 +3,7 @@ import { athenaScheduleParserService } from '../services/athenaScheduleParser.se
 import type { ParsedAthenaAppointment, ImportError } from '../types/schedule.types';
 
 interface AthenaScheduleUploaderProps {
-  onImportSuccess: (appointments: ParsedAthenaAppointment[]) => void;
+  onImportSuccess: (appointments: ParsedAthenaAppointment[], mode: 'merge' | 'replace', scheduleDate: string) => void;
   onImportError: (errors: ImportError[]) => void;
 }
 
@@ -12,6 +12,7 @@ export function AthenaScheduleUploader({ onImportSuccess, onImportError }: Athen
   const [scheduleDate, setScheduleDate] = useState<string>(
     new Date().toISOString().split('T')[0]
   );
+  const [importMode, setImportMode] = useState<'merge' | 'replace'>('replace');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [parsedData, setParsedData] = useState<{
@@ -113,7 +114,10 @@ export function AthenaScheduleUploader({ onImportSuccess, onImportError }: Athen
   const handleImport = () => {
     if (!parsedData || parsedData.appointments.length === 0) return;
 
-    onImportSuccess(parsedData.appointments);
+    // Auto-detect date from appointments
+    const detectedDate = parsedData.appointments[0]?.date || scheduleDate;
+
+    onImportSuccess(parsedData.appointments, importMode, detectedDate);
   };
 
   // Group appointments by provider
@@ -135,6 +139,53 @@ export function AthenaScheduleUploader({ onImportSuccess, onImportError }: Athen
 
   return (
     <div className="space-y-6">
+      {/* Import Mode Selector */}
+      <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+        <label className="block text-sm font-medium text-gray-700 mb-3">
+          Import Mode
+        </label>
+        <div className="space-y-3">
+          <label className="flex items-start space-x-3 cursor-pointer">
+            <input
+              type="radio"
+              name="importMode"
+              value="replace"
+              checked={importMode === 'replace'}
+              onChange={(e) => setImportMode(e.target.value as 'merge' | 'replace')}
+              className="mt-1 text-blue-600"
+            />
+            <div className="flex-1">
+              <div className="font-medium text-blue-900">
+                Replace (Recommended for Daily Uploads)
+              </div>
+              <div className="text-xs text-gray-600 mt-1">
+                Clears existing appointments for this date and imports fresh data from Athena.
+                Use this for morning (7:30 AM) and afternoon (12:30 PM) uploads.
+              </div>
+            </div>
+          </label>
+
+          <label className="flex items-start space-x-3 cursor-pointer">
+            <input
+              type="radio"
+              name="importMode"
+              value="merge"
+              checked={importMode === 'merge'}
+              onChange={(e) => setImportMode(e.target.value as 'merge' | 'replace')}
+              className="mt-1 text-blue-600"
+            />
+            <div className="flex-1">
+              <div className="font-medium text-gray-700">
+                Merge (Add New Only)
+              </div>
+              <div className="text-xs text-gray-600 mt-1">
+                Only adds appointments that don't already exist. Use for supplemental imports.
+              </div>
+            </div>
+          </label>
+        </div>
+      </div>
+
       {/* Date Selector */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">

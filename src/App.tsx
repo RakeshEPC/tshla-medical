@@ -59,6 +59,7 @@ const DictationViewer = lazy(() => import('./pages/DictationViewer'));
 // Schedule & Calendar
 const SchedulePage = lazy(() => import('./pages/SchedulePage'));
 const SchedulePageV2 = lazy(() => import('./pages/SchedulePageV2'));
+const ScheduleUploadPage = lazy(() => import('./pages/ScheduleUploadPage'));
 
 // PumpDrive System (major feature - separate bundle)
 const PumpDriveBundle = lazy(() => import('./components/bundles/PumpDriveBundle'));
@@ -396,6 +397,16 @@ function App() {
                 element={
                   <Suspense fallback={<LoadingSpinner />}>
                     <SchedulePageV2 />
+                  </Suspense>
+                }
+              />
+
+              {/* Schedule Upload Page: Dedicated page for staff to upload Athena schedules */}
+              <Route
+                path="/upload-schedule"
+                element={
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <ScheduleUploadPage />
                   </Suspense>
                 }
               />

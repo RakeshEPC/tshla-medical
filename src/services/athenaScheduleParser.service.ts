@@ -219,8 +219,8 @@ class AthenaScheduleParserService {
       else if (normalized === 'apptstarttime' || normalized.includes('time') || normalized.includes('start')) {
         mapping['time'] = index;
       }
-      // Provider - including Athena's "rndrng prvdr"
-      else if (normalized === 'rndrng prvdr' || normalized.includes('rndrng') || normalized.includes('provider') || normalized.includes('doctor') || normalized.includes('prvdr')) {
+      // Provider - including Athena's "rndrng prvdr" and "appt schdlng prvdr"
+      else if (normalized === 'rndrng prvdr' || normalized === 'appt schdlng prvdr' || normalized.includes('schdlng prvdr') || normalized.includes('rndrng') || normalized.includes('provider') || normalized.includes('doctor') || normalized.includes('prvdr')) {
         mapping['provider'] = index;
       }
       // Patient Full Name (single column) - Athena uses this
@@ -272,13 +272,29 @@ class AthenaScheduleParserService {
       else if (normalized.includes('mrn') || (normalized.includes('patient') && normalized.includes('id'))) {
         mapping['mrn'] = index;
       }
-      // Phone
-      else if (normalized.includes('phone') && !normalized.includes('mobile')) {
+      // Phone - including "patient mobile no"
+      else if (normalized === 'patient mobile no' || normalized.includes('mobile') || (normalized.includes('phone') && !normalized.includes('home'))) {
         mapping['phone'] = index;
       }
       // Email
       else if (normalized.includes('email')) {
         mapping['email'] = index;
+      }
+      // Appointment Status - "apptstatus"
+      else if (normalized === 'apptstatus' || normalized === 'appt status') {
+        mapping['visitStatus'] = index;
+      }
+      // Appointment Type - "appttype"
+      else if (normalized === 'appttype') {
+        mapping['appointmentType'] = index;
+      }
+      // Cancelled Date
+      else if (normalized === 'apptcancelleddate' || normalized.includes('cancelled date')) {
+        mapping['cancelledDate'] = index;
+      }
+      // Cancelled Time
+      else if (normalized === 'apptcancelledtime' || normalized.includes('cancelled time')) {
+        mapping['cancelledTime'] = index;
       }
     });
 
@@ -341,7 +357,12 @@ class AthenaScheduleParserService {
       }
     }
 
-    if (!firstName || !lastName) {
+    // Handle empty slots (blocked time) - no patient info
+    const isEmptySlot = !firstName && !lastName && !getValue('mrn');
+    if (isEmptySlot) {
+      firstName = 'Blocked';
+      lastName = 'Time';
+    } else if (!firstName || !lastName) {
       errors.push('Missing patient first or last name');
     }
 
@@ -354,14 +375,57 @@ class AthenaScheduleParserService {
     // Extract other fields
     const gender = getValue('gender');
     const diagnosis = getValue('diagnosis');
-    const visitType = getValue('visitType');
+    const visitType = getValue('visitType') || getValue('appointmentType');
     const durationStr = getValue('duration');
     const duration = this.parseDuration(durationStr) || 30; // Default 30 min
-    const mrn = getValue('mrn');
+    const mrn = getValue('mrn') || (isEmptySlot ? `block-${Date.now()}-${Math.random()}` : undefined);
     const phone = getValue('phone');
     const email = getValue('email');
 
-    const isValid = errors.length === 0;
+    // Extract status fields
+    const visitStatus = getValue('visitStatus') || 'None';
+    const cancelledDate = getValue('cancelledDate');
+    const appointmentType = getValue('appointmentType') || visitType || 'office-visit';
+
+    // Determine appointment status
+    let finalStatus: 'scheduled' | 'confirmed' | 'checked-in' | 'in-progress' | 'completed' | 'cancelled' = 'scheduled';
+
+    if (cancelledDate && cancelledDate.trim() !== '') {
+      // Has cancellation date = definitely cancelled
+      finalStatus = 'cancelled';
+    } else if (visitStatus && visitStatus !== 'None') {
+      // Has a visit status (2-Intake, 3-Exam, 5-Check-Out, etc.)
+      if (visitStatus.includes('Check-Out') || visitStatus.includes('5')) {
+        finalStatus = 'completed';
+      } else if (visitStatus.includes('Exam') || visitStatus.includes('3')) {
+        finalStatus = 'in-progress';
+      } else if (visitStatus.includes('Intake') || visitStatus.includes('2')) {
+        finalStatus = 'checked-in';
+      } else {
+        finalStatus = 'confirmed';
+      }
+    }
+
+    // Map appointment type
+    let mappedType = 'office-visit';
+    const aptType = appointmentType.toLowerCase();
+
+    if (isEmptySlot) {
+      mappedType = 'block-time';
+    } else if (aptType.includes('new patient')) {
+      mappedType = 'new-patient';
+    } else if (aptType.includes('established')) {
+      mappedType = 'follow-up';
+    } else if (aptType.includes('telemedicine') || aptType.includes('virtual') || aptType.includes('privia virtual')) {
+      mappedType = 'telehealth';
+    } else if (aptType.includes('nurse')) {
+      mappedType = 'consultation';
+    } else if (aptType.includes('any')) {
+      mappedType = 'office-visit';
+    }
+
+    // Empty slots are always valid
+    const isValid = isEmptySlot || errors.length === 0;
     const confidence = this.calculateConfidence(row, columnMapping);
 
     return {
@@ -378,9 +442,10 @@ class AthenaScheduleParserService {
       patientEmail: email || undefined,
       patientMRN: mrn || undefined,
       diagnosis: diagnosis || undefined,
-      visitType: visitType || 'Office Visit',
+      visitType: mappedType,
       visitReason: diagnosis || undefined,
       duration,
+      status: finalStatus,
       isValid,
       errors,
       confidence,

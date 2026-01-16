@@ -308,7 +308,8 @@ class ScheduleService {
   async importAthenaSchedule(
     appointments: ParsedAthenaAppointment[],
     scheduleDate: string,
-    importedBy: string
+    importedBy: string,
+    mode: 'merge' | 'replace' = 'replace'
   ): Promise<ScheduleImportResult> {
     const batchId = crypto.randomUUID();
     const errors: any[] = [];
@@ -316,7 +317,21 @@ class ScheduleService {
     let duplicateCount = 0;
 
     try {
-      logInfo('scheduleService', `Starting import of ${appointments.length} appointments`, { batchId });
+      logInfo('scheduleService', `Starting ${mode} import of ${appointments.length} appointments`, { batchId });
+
+      // REPLACE MODE: Clear existing appointments for this date
+      if (mode === 'replace') {
+        const { error: deleteError } = await supabase
+          .from('provider_schedules')
+          .delete()
+          .eq('scheduled_date', scheduleDate);
+
+        if (deleteError) {
+          throw new Error(`Failed to clear existing schedule: ${deleteError.message}`);
+        }
+
+        logInfo('scheduleService', `Cleared existing appointments for ${scheduleDate}`, {});
+      }
 
       // Create import log entry
       const { error: logError } = await supabase
@@ -337,20 +352,28 @@ class ScheduleService {
       // Import each appointment
       for (const apt of appointments) {
         try {
-          // Check for duplicates
-          const { data: existing } = await supabase
-            .from('provider_schedules')
-            .select('id')
-            .eq('provider_id', apt.providerId || 'unknown')
-            .eq('scheduled_date', apt.date)
-            .eq('start_time', apt.time)
-            .eq('patient_name', `${apt.patientFirstName} ${apt.patientLastName}`)
-            .single();
+          // In MERGE mode, check for duplicates
+          if (mode === 'merge') {
+            const { data: existing } = await supabase
+              .from('provider_schedules')
+              .select('id')
+              .eq('provider_id', apt.providerId || 'unknown')
+              .eq('scheduled_date', apt.date)
+              .eq('start_time', apt.time)
+              .eq('patient_name', `${apt.patientFirstName} ${apt.patientLastName}`)
+              .single();
 
-          if (existing) {
-            duplicateCount++;
-            continue;
+            if (existing) {
+              duplicateCount++;
+              continue;
+            }
           }
+          // In REPLACE mode, we already cleared everything, so no duplicate check needed
+
+          // Determine if telehealth
+          const isTelehealth = apt.visitType?.toLowerCase().includes('telehealth') ||
+                              apt.visitType?.toLowerCase().includes('virtual') ||
+                              apt.visitType?.toLowerCase().includes('telemedicine');
 
           // Insert appointment
           const { data, error } = await supabase
@@ -367,12 +390,12 @@ class ScheduleService {
               patient_mrn: apt.patientMRN,
               chief_diagnosis: apt.diagnosis,
               visit_reason: apt.visitReason,
-              appointment_type: this.mapVisitType(apt.visitType),
+              appointment_type: apt.visitType || this.mapVisitType(apt.visitReason),
               scheduled_date: apt.date,
               start_time: apt.time,
               duration_minutes: apt.duration,
-              status: 'scheduled',
-              is_telehealth: false,
+              status: apt.status || 'scheduled',
+              is_telehealth: isTelehealth,
               athena_appointment_id: null,
               imported_by: importedBy,
               imported_at: new Date().toISOString(),

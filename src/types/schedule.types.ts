@@ -163,6 +163,7 @@ export interface ParsedAthenaAppointment {
   visitType?: string;
   visitReason?: string;
   duration: number;
+  status?: 'scheduled' | 'confirmed' | 'checked-in' | 'in-progress' | 'completed' | 'cancelled';
   isValid: boolean;
   errors: string[];
   confidence: number; // 0-1
