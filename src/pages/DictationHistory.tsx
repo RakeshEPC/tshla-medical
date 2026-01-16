@@ -188,17 +188,28 @@ export default function DictationHistory() {
     console.log('📋 [DictationHistory] Delete result:', result);
 
     if (result.success) {
+      console.log('✅ [DictationHistory] Delete successful, removing from UI');
+      console.log('📊 [DictationHistory] Before filter - dictations count:', dictations.length);
+
       // Immediately remove from UI (optimistic update)
-      setDictations(prev => prev.filter(d => d.id !== dictationToDelete.id));
+      const deletedId = dictationToDelete.id;
+      setDictations(prev => {
+        const filtered = prev.filter(d => d.id !== deletedId);
+        console.log('📊 [DictationHistory] After filter - dictations count:', filtered.length);
+        console.log('🗑️ [DictationHistory] Removed ID:', deletedId);
+        return filtered;
+      });
 
       setDeleteModalOpen(false);
       setDictationToDelete(null);
 
       // Also reload from server to ensure sync
+      console.log('🔄 [DictationHistory] Reloading from server...');
       await loadDictations();
 
       alert('Dictation deleted successfully');
     } else {
+      console.error('❌ [DictationHistory] Delete failed:', result.error);
       alert(`Failed to delete: ${result.error}`);
     }
   };
