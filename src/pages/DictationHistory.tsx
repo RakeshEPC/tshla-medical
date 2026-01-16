@@ -22,9 +22,13 @@ type DateRangeFilter = '7days' | '30days' | '90days' | 'all';
 
 export default function DictationHistory() {
   console.log('🎬 DictationHistory component mounted');
+  console.log('📍 Location:', window.location.pathname);
+  console.log('🔧 Component rendering at:', new Date().toISOString());
 
   const navigate = useNavigate();
   const { user } = useAuth();
+
+  console.log('👤 Auth user object:', user);
   const [dictations, setDictations] = useState<Dictation[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');

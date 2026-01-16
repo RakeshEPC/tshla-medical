@@ -368,7 +368,7 @@ export default function StaffPreVisitPrep() {
     setSaving(true);
     try {
       const previsitData = {
-        appointment_id: appointmentId,
+        appointment_id: parseInt(appointmentId, 10),
         previous_notes: previousNotes,
         medications_list: medications,
         lab_results: labResults,
@@ -393,9 +393,15 @@ export default function StaffPreVisitPrep() {
       if (error) throw error;
 
       alert('Draft saved successfully!');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving draft:', error);
-      alert('Failed to save draft');
+      console.error('Error details:', {
+        message: error?.message,
+        code: error?.code,
+        details: error?.details,
+        hint: error?.hint
+      });
+      alert(`Failed to save draft: ${error?.message || 'Unknown error'}`);
     } finally {
       setSaving(false);
     }

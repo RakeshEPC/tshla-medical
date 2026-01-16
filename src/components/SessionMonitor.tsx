@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { supabaseAuthService as unifiedAuthService } from '../services/supabaseAuth.service';
 import { auditLogService } from '../services/auditLog.service';
 import { sessionManagementService } from '../services/sessionManagement.service';
@@ -12,19 +12,18 @@ interface SessionMonitorProps {
 }
 
 const SESSION_TIMEOUT_MS =
-  parseInt(import.meta.env.VITE_SESSION_TIMEOUT_MINUTES || '30') * 60 * 1000;
+  parseInt(import.meta.env.VITE_SESSION_TIMEOUT_MINUTES || '120') * 60 * 1000;
 const WARNING_BEFORE_TIMEOUT_MS =
-  parseInt(import.meta.env.VITE_SESSION_WARNING_MINUTES || '2') * 60 * 1000;
+  parseInt(import.meta.env.VITE_SESSION_WARNING_MINUTES || '5') * 60 * 1000;
 const CHECK_INTERVAL_MS = 30 * 1000; // Check every 30 seconds (reduced from 10s to prevent aggressive checking)
 
 export default function SessionMonitor({ children }: SessionMonitorProps) {
   const navigate = useNavigate();
-  const location = useLocation();
   const [showWarning, setShowWarning] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState<number>(SESSION_TIMEOUT_MS);
   const [lastActivity, setLastActivity] = useState<number>(Date.now());
-  const warningTimeoutRef = useRef<NodeJS.Timeout>();
-  const logoutTimeoutRef = useRef<NodeJS.Timeout>();
+  const warningTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const logoutTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const isActivelyUsing = useRef<boolean>(false);
   const validationFailureCount = useRef<number>(0);
   const lastValidationFailure = useRef<number>(0);
