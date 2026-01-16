@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 import AppointmentFormModal from '../components/AppointmentFormModal';
 import AppointmentCancelDialog from '../components/AppointmentCancelDialog';
 
@@ -351,18 +352,79 @@ export default function SchedulePageV2() {
   console.log('🔄 SchedulePageV2 loaded - Version: DATE-CANCEL-FIX-CRUD-2026-01-07');
 
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  // Default states
   const [selectedDate, setSelectedDate] = useState(() => {
-    // Default to today, but check if we have data for today
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Reset time to midnight for consistent comparison
+    today.setHours(0, 0, 0, 0);
     return today;
   });
+
   const [providerGroups, setProviderGroups] = useState<ProviderGroup[]>([]);
   const [allProviders, setAllProviders] = useState<string[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<string>('all');
+
+  // Load saved preferences when user is available
+  useEffect(() => {
+    if (user) {
+      const userId = user.email || user.id || 'default';
+
+      // Restore saved date
+      try {
+        const savedDate = localStorage.getItem(`schedule_${userId}_selectedDate`);
+        if (savedDate) {
+          const date = new Date(savedDate);
+          date.setHours(0, 0, 0, 0);
+          setSelectedDate(date);
+          console.log('📅 Restored saved date for user:', userId, savedDate);
+        }
+      } catch (error) {
+        console.error('Error loading saved date:', error);
+      }
+
+      // Restore saved provider
+      try {
+        const savedProvider = localStorage.getItem(`schedule_${userId}_selectedProvider`);
+        if (savedProvider) {
+          setSelectedProvider(savedProvider);
+          console.log('👤 Restored saved provider for user:', userId, savedProvider);
+        }
+      } catch (error) {
+        console.error('Error loading saved provider:', error);
+      }
+    }
+  }, [user]);
+
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('daily');
   const [weeklyData, setWeeklyData] = useState<Record<string, ProviderGroup[]>>({});
+
+  // Save selections to localStorage whenever they change
+  useEffect(() => {
+    if (user) {
+      const userId = user.email || user.id || 'default';
+      try {
+        const dateStr = selectedDate.toISOString().split('T')[0];
+        localStorage.setItem(`schedule_${userId}_selectedDate`, dateStr);
+        console.log('💾 Saved date to localStorage for user:', userId, dateStr);
+      } catch (error) {
+        console.error('Error saving date:', error);
+      }
+    }
+  }, [selectedDate, user]);
+
+  useEffect(() => {
+    if (user) {
+      const userId = user.email || user.id || 'default';
+      try {
+        localStorage.setItem(`schedule_${userId}_selectedProvider`, selectedProvider);
+        console.log('💾 Saved provider to localStorage for user:', userId, selectedProvider);
+      } catch (error) {
+        console.error('Error saving provider:', error);
+      }
+    }
+  }, [selectedProvider, user]);
 
   // CRUD Modal States
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
