@@ -10,7 +10,7 @@ export default function ScheduleUploadPage() {
 
   const handleImportSuccess = async (
     appointments: ParsedAthenaAppointment[],
-    mode: 'merge' | 'replace',
+    mode: 'replace',
     scheduleDate: string
   ) => {
     setIsImporting(true);
@@ -46,7 +46,7 @@ Status Breakdown:
 - Completed: ${statusCounts.completed || 0}
 - Cancelled: ${statusCounts.cancelled || 0}
 
-${mode === 'replace' ? '✓ Cleared and replaced all appointments for this date' : '✓ Merged with existing appointments'}`,
+✓ Cleared and replaced all appointments for this date`,
       });
     } catch (error) {
       setMessage({
