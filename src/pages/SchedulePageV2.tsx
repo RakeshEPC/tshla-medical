@@ -368,8 +368,8 @@ function WeeklyView({ weeklyData, navigate, getStatusColor }: WeeklyViewProps) {
 }
 
 export default function SchedulePageV2() {
-  // VERSION CHECK - Jan 16, 2026 - New Tab Pre-Visit Prep + LocalStorage Fixes
-  console.log('🔄 SchedulePageV2 loaded - Version: NEW-TAB-PREVISIT-2026-01-16');
+  // VERSION CHECK - Jan 16, 2026 - New Tab Pre-Visit Prep (ALL BUTTONS) + LocalStorage Fixes
+  console.log('🔄 SchedulePageV2 loaded - Version: NEW-TAB-ALL-BUTTONS-2026-01-16');
 
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -1129,8 +1129,21 @@ export default function SchedulePageV2() {
                                   </span>
                                 ) : (
                                   <button
-                                    onClick={() => navigate(`/staff-previsit-prep?appointmentId=${apt.id}`)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const url = `/staff-previsit-prep?appointmentId=${apt.id}`;
+                                      console.log('🔗 [Compact Button] Opening pre-visit prep in new tab:', url);
+                                      const newWindow = window.open(url, '_blank');
+                                      if (!newWindow) {
+                                        console.error('❌ [Compact Button] Popup blocked! Falling back to same-tab navigation');
+                                        alert('Popup was blocked by browser. Please allow popups for this site, or we will open in the same tab.');
+                                        navigate(url);
+                                      } else {
+                                        console.log('✅ [Compact Button] New tab opened successfully');
+                                      }
+                                    }}
                                     className="px-1 py-0.5 bg-purple-50 border border-purple-300 text-purple-700 text-[9px] font-bold rounded w-full hover:bg-purple-100"
+                                    title="Open pre-visit prep in new tab"
                                   >
                                     📋 Pre
                                   </button>
