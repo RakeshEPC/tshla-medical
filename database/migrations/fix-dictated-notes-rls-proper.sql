@@ -29,14 +29,14 @@ USING (
   provider_id IN (
     SELECT id::text
     FROM medical_staff
-    WHERE supabase_auth_user_id = auth.uid()
+    WHERE auth_user_id = auth.uid()
   )
   OR
   -- Allow admins to see all notes
   EXISTS (
     SELECT 1
     FROM medical_staff
-    WHERE supabase_auth_user_id = auth.uid()
+    WHERE auth_user_id = auth.uid()
     AND role = 'admin'
   )
 );
@@ -54,7 +54,7 @@ WITH CHECK (
   provider_id IN (
     SELECT id::text
     FROM medical_staff
-    WHERE supabase_auth_user_id = auth.uid()
+    WHERE auth_user_id = auth.uid()
   )
 );
 
@@ -71,7 +71,7 @@ USING (
   provider_id IN (
     SELECT id::text
     FROM medical_staff
-    WHERE supabase_auth_user_id = auth.uid()
+    WHERE auth_user_id = auth.uid()
   )
   AND status NOT IN ('signed', 'final')  -- Cannot edit signed/final notes
 )
@@ -80,7 +80,7 @@ WITH CHECK (
   provider_id IN (
     SELECT id::text
     FROM medical_staff
-    WHERE supabase_auth_user_id = auth.uid()
+    WHERE auth_user_id = auth.uid()
   )
 );
 
