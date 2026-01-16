@@ -365,19 +365,25 @@ export default function SchedulePageV2() {
   const [allProviders, setAllProviders] = useState<string[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<string>('all');
 
-  // Load saved preferences when user is available
+  // Track if we've loaded preferences yet to prevent double-loading
+  const [preferencesLoaded, setPreferencesLoaded] = useState(false);
+
+  // Load saved preferences when user is available (runs ONCE)
   useEffect(() => {
-    if (user) {
+    if (user && !preferencesLoaded) {
       const userId = user.email || user.id || 'default';
 
       // Restore saved date
       try {
         const savedDate = localStorage.getItem(`schedule_${userId}_selectedDate`);
         if (savedDate) {
-          const date = new Date(savedDate);
+          // Parse date carefully to avoid timezone issues
+          // savedDate format: "2026-01-20"
+          const [year, month, day] = savedDate.split('-').map(Number);
+          const date = new Date(year, month - 1, day); // month is 0-indexed
           date.setHours(0, 0, 0, 0);
           setSelectedDate(date);
-          console.log('📅 Restored saved date for user:', userId, savedDate);
+          console.log('📅 Restored saved date for user:', userId, savedDate, '→', date);
         }
       } catch (error) {
         console.error('Error loading saved date:', error);
@@ -393,12 +399,27 @@ export default function SchedulePageV2() {
       } catch (error) {
         console.error('Error loading saved provider:', error);
       }
+
+      setPreferencesLoaded(true);
     }
-  }, [user]);
+  }, [user, preferencesLoaded]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('daily');
   const [weeklyData, setWeeklyData] = useState<Record<string, ProviderGroup[]>>({});
+
+  // Validate saved provider exists in allProviders list when it loads
+  useEffect(() => {
+    if (allProviders.length > 0 && selectedProvider !== 'all') {
+      // Check if the saved provider exists in the current provider list
+      if (!allProviders.includes(selectedProvider)) {
+        console.warn('⚠️ Saved provider not found in current schedule:', selectedProvider);
+        console.log('Available providers:', allProviders);
+        // Reset to 'all' if saved provider doesn't exist
+        setSelectedProvider('all');
+      }
+    }
+  }, [allProviders]);
 
   // Save selections to localStorage whenever they change
   useEffect(() => {
@@ -415,7 +436,8 @@ export default function SchedulePageV2() {
   }, [selectedDate, user]);
 
   useEffect(() => {
-    if (user) {
+    if (user && preferencesLoaded) {
+      // Only save after initial preferences are loaded to avoid overwriting with defaults
       const userId = user.email || user.id || 'default';
       try {
         localStorage.setItem(`schedule_${userId}_selectedProvider`, selectedProvider);
@@ -424,7 +446,7 @@ export default function SchedulePageV2() {
         console.error('Error saving provider:', error);
       }
     }
-  }, [selectedProvider, user]);
+  }, [selectedProvider, user, preferencesLoaded]);
 
   // CRUD Modal States
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
