@@ -4,7 +4,7 @@
  * Replaces Twilio phone calls with portal-based audio playback
  *
  * Created: 2026-01-13
- * HIPAA Compliant: Azure OpenAI + Azure Blob Storage
+ * HIPAA Compliant: Azure OpenAI + Azure Blob Storage + Safe Logging
  */
 
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
@@ -13,6 +13,7 @@ const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 const { BlobServiceClient } = require('@azure/storage-blob');
 const crypto = require('crypto');
+const logger = require('../logger');
 
 // =====================================================
 // CONFIGURATION
@@ -42,9 +43,9 @@ let blobServiceClient = null;
 if (AZURE_STORAGE_CONNECTION_STRING) {
   try {
     blobServiceClient = BlobServiceClient.fromConnectionString(AZURE_STORAGE_CONNECTION_STRING);
-    console.log('✅ Azure Blob Storage client initialized for patient summaries');
+    logger.info('Azure', 'Blob Storage client initialized for patient summaries');
   } catch (error) {
-    console.error('❌ Failed to initialize Azure Blob Storage:', error.message);
+    logger.error('Azure', 'Failed to initialize Blob Storage', { error: error.message });
   }
 }
 
@@ -189,7 +190,9 @@ Return JSON only (no explanation):`;
     );
 
     if (!response.ok) {
-      console.error('Azure OpenAI API error for follow-up extraction:', response.status);
+      logger.error('PatientSummary', 'Azure OpenAI API error for follow-up extraction', {
+        status: response.status
+      });
       return null;
     }
 
@@ -202,16 +205,23 @@ Return JSON only (no explanation):`;
       // Verify date format (YYYY-MM-DD)
       const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
       if (!dateRegex.test(extracted.date)) {
-        console.warn('Invalid date format from AI:', extracted.date);
+        logger.warn('PatientSummary', 'Invalid date format extracted', {
+          date: extracted.date
+        });
         return null;
       }
     }
 
-    console.log(`📅 Follow-up extracted: ${extracted.date ? extracted.date : 'None'} ${extracted.notes ? '(' + extracted.notes + ')' : ''}`);
+    logger.info('PatientSummary', 'Follow-up date extracted', {
+      date: extracted.date || 'None',
+      notes: extracted.notes || null
+    });
     return extracted.date ? extracted : null;
 
   } catch (error) {
-    console.error('Error extracting follow-up date:', error.message);
+    logger.error('PatientSummary', 'Follow-up extraction error', {
+      error: error.message
+    });
     return null; // Fail gracefully - don't block summary creation
   }
 }
@@ -220,7 +230,7 @@ Return JSON only (no explanation):`;
  * Generate audio from text using ElevenLabs
  */
 async function generateAudio(text, voiceId = DEFAULT_VOICE_ID) {
-  console.log(`🔊 Generating audio with ElevenLabs voice ID: ${voiceId}`);
+  logger.info('PatientSummary', 'Generating audio', { voiceId });
 
   const response = await fetch(
     `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
@@ -285,15 +295,20 @@ async function uploadAudioToAzure(audioBuffer, voiceId, summaryId) {
   });
 
   const audioUrl = blockBlobClient.url;
-  console.log(`✅ Audio uploaded to Azure Blob Storage: ${audioUrl}`);
+  logger.info('PatientSummary', 'Audio uploaded to Azure Blob', {
+    audioUrl: audioUrl.split('?')[0] // Remove SAS token from logs
+  });
 
   // Schedule cleanup after 7 days (updated from 24 hours)
   setTimeout(async () => {
     try {
       await blockBlobClient.delete();
-      console.log(`🗑️ Cleaned up audio file: ${blobName}`);
+      logger.info('PatientSummary', 'Audio file cleanup', { blobName });
     } catch (err) {
-      console.error(`Failed to delete audio file ${blobName}:`, err.message);
+      logger.error('PatientSummary', 'Audio cleanup failed', {
+        blobName,
+        error: err.message
+      });
     }
   }, 7 * 24 * 60 * 60 * 1000); // 7 days
 
@@ -317,10 +332,14 @@ async function logAccess(summaryId, accessType, ipAddress, userAgent, tshlaIdAtt
       });
 
     if (error) {
-      console.error('Failed to log access:', error.message);
+      logger.error('PatientSummary', 'Access log failed', {
+        error: error.message
+      });
     }
   } catch (err) {
-    console.error('Failed to log access:', err.message);
+    logger.error('PatientSummary', 'Access log exception', {
+      error: err.message
+    });
   }
 }
 
@@ -340,12 +359,18 @@ async function checkRateLimit(ipAddress) {
     .gte('accessed_at', oneHourAgo);
 
   if (error) {
-    console.error('Rate limit check failed:', error.message);
+    logger.error('PatientSummary', 'Rate limit check failed', {
+      error: error.message
+    });
     return false; // Allow on error (fail open)
   }
 
   const attemptCount = data ? data.length : 0;
-  console.log(`🔒 Rate limit check: ${attemptCount}/20 failed attempts for IP ${ipAddress} (TESTING MODE)`);
+  logger.info('PatientSummary', 'Rate limit check', {
+    attemptCount,
+    limit: 20,
+    ip: ipAddress.slice(-7) // Last 7 chars only
+  });
 
   return attemptCount >= 20; // TEMPORARY: Increased for testing (TODO: Change back to 5 for production)
 }
@@ -380,15 +405,19 @@ router.post('/patient-summaries/create', async (req, res) => {
       });
     }
 
-    console.log('📝 [Patient Summary] Creating new summary...');
-    console.log(`   Patient: ${patientName || 'Unknown'}`);
-    console.log(`   Phone: ${patientPhone}`);
-    console.log(`   Provider: ${providerName || providerId || 'Unknown'}`);
+    logger.info('PatientSummary', 'Creating new summary', {
+      patientInitial: patientName ? patientName[0] : 'U', // First initial only
+      phone: patientPhone.slice(-4), // Last 4 digits only
+      provider: providerName || providerId || 'Unknown'
+    });
 
     // Step 1: Generate AI summary
-    console.log('🤖 Generating patient-friendly summary with Azure OpenAI...');
+    logger.info('PatientSummary', 'Generating AI summary');
     const summary = await generatePatientSummary(soapNote);
-    console.log(`✅ Summary generated: ${summary.wordCount} words, ~${summary.estimatedSeconds}s`);
+    logger.info('PatientSummary', 'Summary generated', {
+      wordCount: summary.wordCount,
+      estimatedSeconds: summary.estimatedSeconds
+    });
 
     // Step 2: Extract follow-up date from SOAP note
     const followUpInfo = await extractFollowUpDate(soapNote);
@@ -414,16 +443,19 @@ router.post('/patient-summaries/create', async (req, res) => {
       .single();
 
     if (error) {
-      console.error('❌ Failed to create summary:', error.message);
+      logger.error('PatientSummary', 'Database insert failed', {
+        error: error.message
+      });
       throw new Error(`Database error: ${error.message}`);
     }
 
     const shareLinkUrl = `${process.env.VITE_APP_URL || 'https://www.tshla.ai'}/patient-summary/${data.share_link_id}`;
 
-    console.log('✅ Patient summary created successfully!');
-    console.log(`   Summary ID: ${data.id}`);
-    console.log(`   Share Link: ${shareLinkUrl}`);
-    console.log(`   Expires: ${data.expires_at}`);
+    logger.info('PatientSummary', 'Summary created successfully', {
+      summaryId: data.id,
+      shareLinkId: data.share_link_id,
+      expiresAt: data.expires_at
+    });
 
     res.json({
       success: true,
@@ -439,7 +471,9 @@ router.post('/patient-summaries/create', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ [Patient Summary Create] Error:', error.message);
+    logger.error('PatientSummary', 'Summary creation failed', {
+      error: error.message
+    });
     res.status(500).json({
       success: false,
       error: error.message
@@ -456,7 +490,10 @@ router.get('/staff/pending-summaries', async (req, res) => {
   try {
     const { startDate, endDate, providerId, status } = req.query;
 
-    console.log('📋 [Staff Dashboard] Fetching patient summaries...');
+    logger.info('PatientSummary', 'Fetching staff dashboard summaries', {
+      hasDateFilter: !!startDate,
+      hasProviderFilter: !!providerId
+    });
 
     let query = supabase
       .from('patient_audio_summaries')
@@ -504,7 +541,9 @@ router.get('/staff/pending-summaries', async (req, res) => {
       })
     );
 
-    console.log(`✅ Found ${enrichedData.length} summaries`);
+    logger.info('PatientSummary', 'Staff dashboard results', {
+      count: enrichedData.length
+    });
 
     res.json({
       success: true,
@@ -513,7 +552,9 @@ router.get('/staff/pending-summaries', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ [Staff Dashboard] Error:', error.message);
+    logger.error('PatientSummary', 'Staff dashboard error', {
+      error: error.message
+    });
     res.status(500).json({
       success: false,
       error: error.message
@@ -545,7 +586,7 @@ router.post('/staff/summaries/:id/mark-sent', async (req, res) => {
       throw new Error(`Database error: ${error.message}`);
     }
 
-    console.log(`✅ Summary ${id} marked as sent`);
+    logger.info('PatientSummary', 'Summary marked as sent', { summaryId: id });
 
     res.json({
       success: true,
@@ -553,7 +594,9 @@ router.post('/staff/summaries/:id/mark-sent', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ [Mark Sent] Error:', error.message);
+    logger.error('PatientSummary', 'Mark sent failed', {
+      error: error.message
+    });
     res.status(500).json({
       success: false,
       error: error.message
@@ -570,7 +613,10 @@ router.patch('/patient-summaries/:id/appointment-made', async (req, res) => {
     const { id } = req.params;
     const { appointmentMade, staffId } = req.body;
 
-    console.log(`📅 [Appointment Toggle] Summary ${id}, Made: ${appointmentMade}`);
+    logger.info('PatientSummary', 'Appointment toggle', {
+      summaryId: id,
+      appointmentMade
+    });
 
     const updateData = {
       appointment_made: appointmentMade,
@@ -589,7 +635,9 @@ router.patch('/patient-summaries/:id/appointment-made', async (req, res) => {
       throw new Error(`Database error: ${error.message}`);
     }
 
-    console.log(`✅ Appointment status updated for summary ${id}`);
+    logger.info('PatientSummary', 'Appointment status updated', {
+      summaryId: id
+    });
 
     res.json({
       success: true,
@@ -597,7 +645,9 @@ router.patch('/patient-summaries/:id/appointment-made', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ [Appointment Toggle] Error:', error.message);
+    logger.error('PatientSummary', 'Appointment toggle failed', {
+      error: error.message
+    });
     res.status(500).json({
       success: false,
       error: error.message
@@ -615,7 +665,10 @@ router.delete('/staff/patient-summaries/:id/delete', async (req, res) => {
     const { id } = req.params;
     const { providerId, reason } = req.body;
 
-    console.log(`🗑️  [Delete Summary] Summary ${id}, Reason: ${reason}`);
+    logger.info('PatientSummary', 'Deleting summary', {
+      summaryId: id,
+      reason
+    });
 
     // Validate reason
     const validReasons = ['wrong_chart', 'duplicate', 'test', 'other'];
@@ -663,7 +716,11 @@ router.delete('/staff/patient-summaries/:id/delete', async (req, res) => {
       throw new Error(`Database error: ${error.message}`);
     }
 
-    console.log(`✅ Summary ${id} soft deleted by provider ${providerId}`);
+    logger.info('PatientSummary', 'Summary soft deleted', {
+      summaryId: id,
+      providerId,
+      reason
+    });
 
     res.json({
       success: true,
@@ -677,7 +734,9 @@ router.delete('/staff/patient-summaries/:id/delete', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ [Delete Summary] Error:', error.message);
+    logger.error('PatientSummary', 'Delete summary failed', {
+      error: error.message
+    });
     res.status(500).json({
       success: false,
       error: error.message
@@ -694,7 +753,9 @@ router.get('/patient-summaries/:linkId', async (req, res) => {
   try {
     const { linkId } = req.params;
 
-    console.log(`🔍 [Patient Summary] Looking up link: ${linkId}`);
+    logger.info('PatientSummary', 'Looking up share link', {
+      linkId: linkId.slice(0, 8) // First 8 chars only
+    });
 
     const { data, error } = await supabase
       .from('patient_audio_summaries')
@@ -703,7 +764,9 @@ router.get('/patient-summaries/:linkId', async (req, res) => {
       .single();
 
     if (error || !data) {
-      console.warn(`⚠️ Summary not found for link: ${linkId}`);
+      logger.warn('PatientSummary', 'Summary not found', {
+        linkId: linkId.slice(0, 8)
+      });
       return res.status(404).json({
         success: false,
         error: 'Summary not found or link invalid'
@@ -712,14 +775,18 @@ router.get('/patient-summaries/:linkId', async (req, res) => {
 
     // Check if expired
     if (new Date(data.expires_at) < new Date()) {
-      console.warn(`⚠️ Summary expired: ${linkId}`);
+      logger.warn('PatientSummary', 'Summary expired', {
+        linkId: linkId.slice(0, 8)
+      });
       return res.status(410).json({
         success: false,
         error: 'This summary link has expired. Please contact your doctor\'s office.'
       });
     }
 
-    console.log(`✅ Summary found: ${data.patient_name}`);
+    logger.info('PatientSummary', 'Summary found', {
+      patientInitial: data.patient_name ? data.patient_name[0] : 'U'
+    });
 
     // Return summary info (without sensitive details)
     res.json({
@@ -735,7 +802,9 @@ router.get('/patient-summaries/:linkId', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ [Patient Summary Lookup] Error:', error.message);
+    logger.error('PatientSummary', 'Summary lookup failed', {
+      error: error.message
+    });
     res.status(500).json({
       success: false,
       error: error.message
@@ -755,12 +824,17 @@ router.post('/patient-summaries/:linkId/verify-tshla', async (req, res) => {
     const ipAddress = req.ip || req.connection.remoteAddress;
     const userAgent = req.get('user-agent');
 
-    console.log(`🔐 [TSHLA Verification] Link: ${linkId}, TSHLA ID: ${tshlaId}`);
+    logger.info('PatientSummary', 'TSHLA verification attempt', {
+      linkId: linkId.slice(0, 8),
+      tshlaId: tshlaId.slice(0, 4) + '***' // First 4 chars only
+    });
 
     // Check rate limiting
     const isRateLimited = await checkRateLimit(ipAddress);
     if (isRateLimited) {
-      console.warn(`⚠️ Rate limit exceeded for IP: ${ipAddress}`);
+      logger.warn('PatientSummary', 'Rate limit exceeded', {
+        ip: ipAddress.slice(-7)
+      });
       return res.status(429).json({
         success: false,
         error: 'Too many failed attempts. Please try again in 1 hour or contact the office.'
@@ -803,7 +877,10 @@ router.post('/patient-summaries/:linkId/verify-tshla', async (req, res) => {
     const normalizedInputTshlaId = tshlaId.replace(/[^A-Z0-9]/gi, '').toLowerCase();
 
     if (normalizedDbTshlaId !== normalizedInputTshlaId) {
-      console.warn(`❌ TSHLA ID mismatch: Expected ${patient.tshla_id} (normalized: ${normalizedDbTshlaId}), Got ${tshlaId} (normalized: ${normalizedInputTshlaId})`);
+      logger.warn('PatientSummary', 'TSHLA ID mismatch', {
+        expected: patient.tshla_id.slice(0, 4) + '***',
+        received: tshlaId.slice(0, 4) + '***'
+      });
       await logAccess(summary.id, 'failed_tshla_verification', ipAddress, userAgent, tshlaId, false);
       return res.status(403).json({
         success: false,
@@ -822,7 +899,9 @@ router.post('/patient-summaries/:linkId/verify-tshla', async (req, res) => {
       })
       .eq('id', summary.id);
 
-    console.log(`✅ TSHLA ID verified successfully for ${patient.full_name}`);
+    logger.info('PatientSummary', 'TSHLA verification successful', {
+      patientInitial: patient.full_name ? patient.full_name[0] : 'U'
+    });
 
     res.json({
       success: true,
@@ -839,7 +918,9 @@ router.post('/patient-summaries/:linkId/verify-tshla', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ [TSHLA Verification] Error:', error.message);
+    logger.error('PatientSummary', 'TSHLA verification error', {
+      error: error.message
+    });
     res.status(500).json({
       success: false,
       error: error.message
@@ -858,7 +939,9 @@ router.get('/patient-summaries/:linkId/audio', async (req, res) => {
     const ipAddress = req.ip || req.connection.remoteAddress;
     const userAgent = req.get('user-agent');
 
-    console.log(`🔊 [Audio Request] Link: ${linkId}`);
+    logger.info('PatientSummary', 'Audio request', {
+      linkId: linkId.slice(0, 8)
+    });
 
     // Get summary
     const { data: summary, error: summaryError } = await supabase
@@ -887,7 +970,7 @@ router.get('/patient-summaries/:linkId/audio', async (req, res) => {
       .limit(1);
 
     if (!recentAccess || recentAccess.length === 0) {
-      console.warn(`⚠️ Unauthorized audio request (no recent TSHLA verification)`);
+      logger.warn('PatientSummary', 'Unauthorized audio request');
       return res.status(403).json({
         success: false,
         error: 'Please verify your TSHLA ID first'
@@ -896,7 +979,7 @@ router.get('/patient-summaries/:linkId/audio', async (req, res) => {
 
     // Check if audio already exists
     if (summary.audio_blob_url) {
-      console.log(`✅ Audio already exists: ${summary.audio_blob_url}`);
+      logger.info('PatientSummary', 'Audio cache hit');
       await logAccess(summary.id, 'play_audio', ipAddress, userAgent, null, true);
 
       return res.json({
@@ -909,12 +992,14 @@ router.get('/patient-summaries/:linkId/audio', async (req, res) => {
     }
 
     // Generate audio on-demand
-    console.log('🎙️ Generating audio for first time...');
+    logger.info('PatientSummary', 'Generating audio on-demand');
     const audioBuffer = await generateAudio(summary.summary_script, summary.voice_id);
-    console.log(`✅ Audio generated: ${(audioBuffer.length / 1024).toFixed(1)} KB`);
+    logger.info('PatientSummary', 'Audio generated', {
+      sizeKB: (audioBuffer.length / 1024).toFixed(1)
+    });
 
     // Upload to Azure Blob Storage
-    console.log('☁️ Uploading to Azure Blob Storage...');
+    logger.info('PatientSummary', 'Uploading to Azure Blob');
     const audioUrl = await uploadAudioToAzure(audioBuffer, summary.voice_id, summary.id);
 
     // Save URL to database
@@ -929,7 +1014,7 @@ router.get('/patient-summaries/:linkId/audio', async (req, res) => {
 
     await logAccess(summary.id, 'play_audio', ipAddress, userAgent, null, true);
 
-    console.log(`✅ Audio generated and saved successfully`);
+    logger.info('PatientSummary', 'Audio saved successfully');
 
     res.json({
       success: true,
@@ -940,7 +1025,9 @@ router.get('/patient-summaries/:linkId/audio', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ [Audio Generation] Error:', error.message);
+    logger.error('PatientSummary', 'Audio generation failed', {
+      error: error.message
+    });
     res.status(500).json({
       success: false,
       error: error.message

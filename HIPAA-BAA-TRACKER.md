@@ -1,7 +1,7 @@
 # HIPAA Business Associate Agreement (BAA) Tracker
 
 **Project:** TSHLA Medical
-**Last Updated:** January 8, 2026
+**Last Updated:** January 17, 2026
 
 ---
 
@@ -15,9 +15,9 @@ This document tracks all Business Associate Agreements (BAAs) required for HIPAA
 
 | Vendor | Service | Status | Signed Date | Renewal Date | Storage Location |
 |--------|---------|--------|-------------|--------------|------------------|
-| **ElevenLabs** | AI Voice Agents (Diabetes Education) | ✅ **SIGNED** | [Date from PDF] | [Annual/as specified] | `/legal-compliance/baas/elevenlabs-baa-2026.pdf` |
-| **Supabase** | Database & Backend (PHI Storage) | ✅ **SIGNED** | [Check PDF] | [Annual/as specified] | `/legal-compliance/baas/supabase-baa-[date].pdf` |
-| **Deepgram** | Medical Speech-to-Text (Dictation) | ⏳ **PENDING** | - | - | TBD |
+| **ElevenLabs** | AI Voice Agents (Diabetes Education) | ✅ **SIGNED** | Verified Jan 2026 | Annual review | `/legal-compliance/baas/elevenlabs-baa-2026.pdf` |
+| **Supabase** | Database & Backend (PHI Storage) | ✅ **SIGNED** | Verified Jan 2026 | Annual review | `/legal-compliance/baas/supabase-baa-2026.pdf` |
+| **Deepgram** | Medical Speech-to-Text (Dictation) | ✅ **SIGNED** | Verified Jan 2026 | Annual review | `/legal-compliance/baas/deepgram-baa-2026.pdf` |
 | **Microsoft Azure** | Azure OpenAI + Infrastructure | ✅ **AUTOMATIC** (Product Terms/DPA) | Automatic | N/A (Azure subscription) | Microsoft Product Terms |
 | **~~OpenAI Standard API~~** | ~~Realtime API~~ | ✅ **MIGRATED TO AZURE** | N/A | N/A | No longer used |
 
@@ -48,32 +48,26 @@ This document tracks all Business Associate Agreements (BAAs) required for HIPAA
 
 ---
 
-### 2. Deepgram ⏳
+### 2. Deepgram ✅
 
 **Service:** Medical Speech-to-Text API
 **Use Case:** Real-time clinical dictation, SOAP notes
 **PHI Exposure:** Yes (clinical notes, patient names, conditions, medications)
 **BAA Required:** Yes
-**Status:** ⏳ PENDING VERIFICATION
+**Status:** ✅ SIGNED & VERIFIED
 
-**Action Required:**
-1. Check if BAA was previously signed
-2. If not signed, contact Deepgram to request BAA
-3. Review and execute agreement
-4. File signed copy
-
-**Contact Information:**
-- Website: https://deepgram.com
-- Enterprise/Healthcare: https://deepgram.com/contact
-- Email: [From their contact form]
+**Details:**
+- Signed Date: Verified January 2026
+- File Location: `/legal-compliance/baas/deepgram-baa-2026.pdf`
+- Renewal: Annual review
+- Contact: enterprise@deepgram.com
 
 **Checklist:**
-- [ ] Verify existing BAA status
-- [ ] Request BAA if not signed
-- [ ] Legal review of BAA terms
-- [ ] Execute BAA
-- [ ] File signed copy
-- [ ] Update this tracker with date and location
+- [x] Verify existing BAA status
+- [x] BAA signed and executed
+- [x] Filed in legal-compliance/baas/
+- [x] Tracker updated
+- [ ] Set calendar reminder for annual renewal (30 days before)
 
 **Services Covered:**
 - Real-time medical transcription (Nova-3 Medical model)
@@ -83,40 +77,30 @@ This document tracks all Business Associate Agreements (BAAs) required for HIPAA
 
 ---
 
-### 3. Supabase ⏳
+### 3. Supabase ✅
 
 **Service:** PostgreSQL Database + Backend Infrastructure
 **Use Case:** Primary storage for all patient data, appointments, clinical notes
 **PHI Exposure:** Yes (ALL patient data stored here)
 **BAA Required:** Yes (CRITICAL)
-**Status:** ⏳ PENDING
+**Status:** ✅ SIGNED & ACTIVE
 
-**Action Required:**
-1. Contact Supabase sales team
-2. Request Team Plan + HIPAA add-on ($350/month)
-3. Execute BAA
-4. Enable HIPAA compliance mode in dashboard
-
-**Contact Information:**
-- Email: sales@supabase.com
-- Subject: "HIPAA BAA Request for TSHLA Medical"
-- Website: https://supabase.com/contact/sales
-
-**Requirements:**
-- Minimum Plan: Team Plan (~$25/month base)
-- HIPAA Add-on: $350/month
-- Total Cost: ~$375/month
+**Details:**
+- Signed Date: Verified January 2026
+- File Location: `/legal-compliance/baas/supabase-baa-2026.pdf`
+- Renewal: Annual review
+- Contact: sales@supabase.com
 
 **Checklist:**
-- [ ] Contact Supabase sales
-- [ ] Upgrade to Team Plan
-- [ ] Request HIPAA add-on
-- [ ] Legal review BAA terms
-- [ ] Execute BAA
-- [ ] Enable HIPAA mode in Supabase dashboard
-- [ ] Configure High Compliance mode
-- [ ] File signed copy
-- [ ] Update this tracker
+- [x] Contact Supabase sales
+- [x] Upgrade to Team Plan
+- [x] HIPAA add-on activated
+- [x] Legal review BAA terms
+- [x] Execute BAA
+- [x] Enable HIPAA mode in Supabase dashboard
+- [x] Configure High Compliance mode
+- [x] File signed copy
+- [x] Update this tracker
 
 **Services Covered:**
 - PostgreSQL database hosting
@@ -138,13 +122,13 @@ This document tracks all Business Associate Agreements (BAAs) required for HIPAA
 - [x] Encryption at rest (Supabase default)
 - [x] HTTPS/TLS for all connections (default)
 
-### Legal Compliance ⏳
+### Legal Compliance ✅
 - [x] ElevenLabs BAA signed
-- [ ] Deepgram BAA verified/signed
-- [ ] Supabase BAA signed
-- [ ] HIPAA add-on enabled in Supabase
-- [ ] All BAAs filed and accessible
-- [ ] BAA renewal dates tracked
+- [x] Deepgram BAA verified/signed
+- [x] Supabase BAA signed
+- [x] HIPAA add-on enabled in Supabase
+- [x] All BAAs filed and accessible
+- [ ] BAA renewal dates tracked (set calendar reminders)
 
 ### Administrative ⏳
 - [ ] HIPAA policies documented

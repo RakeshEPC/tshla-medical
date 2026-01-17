@@ -1282,12 +1282,11 @@ process.on('SIGINT', async () => {
 // Start server (only if running directly, not when imported)
 if (require.main === module) {
   const server = app.listen(PORT, () => {
-    console.log('\n' + '='.repeat(80));
-    console.log(`🏥 TSHLA Enhanced Schedule & Notes API Server`);
-    console.log(`📍 Port: ${PORT}`);
-    console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`💾 Database: Supabase`);
-    console.log('='.repeat(80) + '\n');
+    logger.startup('Enhanced Schedule & Notes API Server Started', {
+      port: PORT,
+      environment: process.env.NODE_ENV || 'development',
+      database: 'Supabase'
+    });
     logger.info('SERVER', `Schedule API listening on port ${PORT}`);
   });
 

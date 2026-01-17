@@ -3,6 +3,8 @@
  * Prevents JSON parsing errors and data corruption
  */
 
+const logger = require('../logger');
+
 class DatabaseHelper {
   /**
    * Safely parse JSON with comprehensive error handling
@@ -19,7 +21,7 @@ class DatabaseHelper {
 
     // Handle common bad patterns
     if (value === '[object Object]') {
-      console.warn('App', 'Invalid [object Object] data detected');
+      logger.warn('DatabaseHelper', 'Invalid [object Object] data detected');
       return fallback;
     }
 
@@ -31,10 +33,10 @@ class DatabaseHelper {
     try {
       return JSON.parse(value);
     } catch (error) {
-      console.error('App', 'JSON parse failed:', {
-        value: value,
-        error: error.message,
-        fallback: fallback
+      logger.error('DatabaseHelper', 'JSON parse failed', {
+        valueType: typeof value,
+        valueLength: value?.length,
+        error: error.message
       });
       return fallback;
     }
@@ -57,7 +59,7 @@ class DatabaseHelper {
         JSON.parse(value); // Validate
         return value;
       } catch {
-        console.warn('App', 'Invalid JSON string detected');
+        logger.warn('DatabaseHelper', 'Invalid JSON string detected');
         return JSON.stringify({ invalidData: value });
       }
     }
@@ -66,7 +68,9 @@ class DatabaseHelper {
     try {
       return JSON.stringify(value);
     } catch (error) {
-      console.error('App', 'JSON stringify failed:', error);
+      logger.error('DatabaseHelper', 'JSON stringify failed', {
+        error: error.message
+      });
       return JSON.stringify({ error: 'Failed to stringify data' });
     }
   }

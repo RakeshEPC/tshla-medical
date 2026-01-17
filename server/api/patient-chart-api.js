@@ -15,6 +15,7 @@ const express = require('express');
 const router = express.Router();
 const patientMatchingService = require('../services/patientMatching.service');
 const { createClient } = require('@supabase/supabase-js');
+const logger = require('../logger');
 
 // Lazy-load Supabase client to ensure env vars are loaded
 let supabase = null;
@@ -136,7 +137,11 @@ router.post('/portal/login', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Login error:', error);
+    logger.error('PatientChart', 'Portal login failed', {
+      phone: phone?.slice(-4), // Last 4 digits only
+      error: error.message,
+      errorCode: error.code
+    });
     res.status(500).json({
       success: false,
       error: 'Login failed'
@@ -219,7 +224,10 @@ router.post('/portal/pcm-consent', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error saving PCM consent:', error);
+    logger.error('PatientChart', 'Failed to save PCM consent', {
+      error: error.message,
+      errorCode: error.code
+    });
     res.status(500).json({
       success: false,
       error: 'Failed to save PCM consent',
@@ -272,7 +280,10 @@ router.post('/portal/reset-pin', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('PIN reset error:', error);
+    logger.error('PatientChart', 'PIN reset failed', {
+      error: error.message,
+      errorCode: error.code
+    });
     res.status(500).json({
       success: false,
       error: 'Failed to reset PIN'
@@ -339,7 +350,10 @@ router.get('/search/query', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Search error:', error);
+    logger.error('PatientChart', 'Patient search failed', {
+      error: error.message,
+      errorCode: error.code
+    });
     res.status(500).json({
       success: false,
       error: 'Search failed',
@@ -372,7 +386,10 @@ router.get('/provider/:providerId/patients', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Provider patients error:', error);
+    logger.error('PatientChart', 'Failed to fetch provider patients', {
+      error: error.message,
+      errorCode: error.code
+    });
     res.status(500).json({
       success: false,
       error: 'Failed to fetch provider patients'
@@ -411,7 +428,10 @@ router.get('/stats/overview', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Stats error:', error);
+    logger.error('PatientChart', 'Failed to fetch statistics', {
+      error: error.message,
+      errorCode: error.code
+    });
     res.status(500).json({
       success: false,
       error: 'Failed to fetch statistics'
@@ -479,7 +499,10 @@ router.get('/:patientId/timeline', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Timeline error:', error);
+    logger.error('PatientChart', 'Failed to fetch timeline', {
+      error: error.message,
+      errorCode: error.code
+    });
     res.status(500).json({
       success: false,
       error: 'Failed to fetch timeline'
@@ -517,7 +540,10 @@ router.get('/:identifier', async (req, res) => {
       chart
     });
   } catch (error) {
-    console.error('Error fetching patient chart:', error);
+    logger.error('PatientChart', 'Failed to fetch patient chart', {
+      error: error.message,
+      errorCode: error.code
+    });
 
     if (error.message === 'Patient not found') {
       return res.status(404).json({
@@ -574,7 +600,10 @@ router.post('/create', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Create patient error:', error);
+    logger.error('PatientChart', 'Failed to create patient', {
+      error: error.message,
+      errorCode: error.code
+    });
 
     // Check if it's a duplicate phone error
     if (error.code === '23505' && error.message.includes('phone_primary')) {
@@ -627,7 +656,10 @@ router.post('/find-or-create', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Find or create patient error:', error);
+    logger.error('PatientChart', 'Failed to find or create patient', {
+      error: error.message,
+      errorCode: error.code
+    });
     res.status(500).json({
       success: false,
       error: 'Failed to find or create patient',
