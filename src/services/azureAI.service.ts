@@ -1025,8 +1025,16 @@ Date: ${date}
         }
         console.log('✅ [BILLING DEBUG] ICD-10 suggestions:', icd10Suggestions);
 
+        // Detect in-office procedures
+        const procedureRecommendations = cptBillingAnalyzer.detectInOfficeProcedures(
+          originalTranscript,
+          extractedInfo.plan,
+          extractedInfo.assessment
+        );
+        console.log('✅ [BILLING DEBUG] Procedure recommendations:', procedureRecommendations);
+
         // Generate billing section
-        const billingSection = cptBillingAnalyzer.generateBillingSection(cptRecommendation, icd10Suggestions);
+        const billingSection = cptBillingAnalyzer.generateBillingSection(cptRecommendation, icd10Suggestions, procedureRecommendations);
         console.log('✅ [BILLING DEBUG] Billing section generated! Preview:', billingSection.substring(0, 200));
         console.log('✅ [BILLING DEBUG] Billing section length:', billingSection.length);
 

@@ -364,8 +364,15 @@ ${template ? `Template: ${template.name}` : 'No template used'}`;
       icd10Suggestions = cptBillingAnalyzer.suggestICD10Codes(extractedInfo.assessment);
     }
 
+    // Detect in-office procedures
+    const procedureRecommendations = cptBillingAnalyzer.detectInOfficeProcedures(
+      transcript,
+      extractedInfo.plan,
+      extractedInfo.assessment
+    );
+
     // Generate formatted section
-    return cptBillingAnalyzer.generateBillingSection(cptRecommendation, icd10Suggestions);
+    return cptBillingAnalyzer.generateBillingSection(cptRecommendation, icd10Suggestions, procedureRecommendations);
   }
 
   /**
