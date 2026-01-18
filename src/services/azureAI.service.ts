@@ -610,8 +610,8 @@ class AzureAIService {
     // Validate that key numeric values from transcript are captured
     this.validateNumericExtraction(processedNote, originalTranscript);
 
-    // Update formatted note to reflect cleaned sections (pass template for dynamic sections)
-    processedNote.formatted = this.rebuildFormattedNote(processedNote, template);
+    // Update formatted note to reflect cleaned sections (pass template for dynamic sections and original transcript for billing)
+    processedNote.formatted = this.rebuildFormattedNote(processedNote, template, originalTranscript);
 
     logInfo('azureAI', 'Note validation complete');
     return processedNote;
@@ -919,8 +919,9 @@ class AzureAIService {
   /**
    * Rebuild formatted note from cleaned sections
    * Now supports dynamic template sections for custom templates
+   * NOW WITH AUTOMATIC CPT BILLING!
    */
-  private rebuildFormattedNote(processedNote: ProcessedNote, template?: DoctorTemplate): string {
+  private rebuildFormattedNote(processedNote: ProcessedNote, template?: DoctorTemplate, originalTranscript?: string): string {
     const date = new Date().toLocaleDateString();
     const sections = processedNote.sections;
 
@@ -966,6 +967,49 @@ Date: ${date}
       if (sections.assessment) formatted += `ASSESSMENT:\n${sections.assessment}\n\n`;
       if (sections.plan) formatted += `PLAN:\n${sections.plan}\n\n`;
       if (sections.ordersAndActions) formatted += `ORDERS & ACTIONS:\n${sections.ordersAndActions}\n\n`;
+    }
+
+    // ✨ NEW: Add CPT Billing Section (enabled by default for all templates)
+    const billingEnabled = template?.billingConfig?.enabled !== false; // Default to enabled
+    if (billingEnabled && originalTranscript) {
+      try {
+        // Import CPT billing analyzer
+        const { cptBillingAnalyzer } = require('./cptBillingAnalyzer.service');
+
+        // Prepare extracted info for analysis
+        const extractedInfo = {
+          assessment: sections.assessment ? [sections.assessment] : [],
+          plan: sections.plan ? [sections.plan] : [],
+          medicationChanges: sections.medications ? [sections.medications] : [],
+          vitals: {},
+          currentMedications: []
+        };
+
+        // Analyze complexity
+        const complexityAnalysis = cptBillingAnalyzer.analyzeComplexity(originalTranscript, extractedInfo);
+
+        // Get CPT recommendations
+        const cptRecommendation = cptBillingAnalyzer.suggestCPTCodes(
+          complexityAnalysis,
+          !!sections.chiefComplaint,
+          extractedInfo.assessment.length > 0,
+          extractedInfo.plan.length > 0
+        );
+
+        // Get ICD-10 suggestions if enabled
+        const includeICD10 = template?.billingConfig?.includeICD10 !== false;
+        let icd10Suggestions: any[] = [];
+        if (includeICD10 && extractedInfo.assessment.length > 0) {
+          icd10Suggestions = cptBillingAnalyzer.suggestICD10Codes(extractedInfo.assessment);
+        }
+
+        // Generate billing section
+        const billingSection = cptBillingAnalyzer.generateBillingSection(cptRecommendation, icd10Suggestions);
+        formatted += billingSection;
+      } catch (error) {
+        console.error('Failed to generate billing section:', error);
+        // Silently fail - don't break the note generation
+      }
     }
 
     return formatted;
