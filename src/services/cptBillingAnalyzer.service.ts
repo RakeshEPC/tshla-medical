@@ -1184,79 +1184,71 @@ export class CPTBillingAnalyzer {
     procedures: ProcedureRecommendation[] = []
   ): string {
     let section = `\n═══════════════════════════════════════════════════════
-BILLING INFORMATION (AI-GENERATED)
+BILLING CODES (AI-GENERATED)
 ═══════════════════════════════════════════════════════\n\n`;
 
-    section += `POSSIBLE CPT CODES FOR THIS VISIT:\n\n`;
+    // ========== SECTION 1: BILL THESE CODES ==========
+    section += `📋 BILL THESE CODES:\n`;
+    section += `───────────────────────────────────────────────────────\n`;
 
-    // Primary recommendation
-    section += `Primary Recommendation: ${cptRecommendation.primaryCode}\n`;
-    section += `  • ${cptRecommendation.primaryDescription}\n`;
-    section += `  • Time Range: ${cptRecommendation.timeRange}\n`;
-    section += `  • Complexity: ${cptRecommendation.complexity.toUpperCase()}\n`;
-    section += `  • Confidence: ${cptRecommendation.confidenceScore}%\n\n`;
-
-    // MDM Justification
-    section += `Medical Decision Making (MDM) Justification:\n`;
-    for (const point of cptRecommendation.mdmJustification) {
-      section += `  • ${point}\n`;
+    // E/M Code with modifier if procedures present
+    if (procedures.length > 0) {
+      section += `${cptRecommendation.primaryCode}-25  (E/M Visit with modifier)\n`;
+      section += `  ${cptRecommendation.primaryDescription}\n`;
+      section += `  Complexity: ${cptRecommendation.complexity.toUpperCase()} | Confidence: ${cptRecommendation.confidenceScore}%\n\n`;
+    } else {
+      section += `${cptRecommendation.primaryCode}  (E/M Visit)\n`;
+      section += `  ${cptRecommendation.primaryDescription}\n`;
+      section += `  Complexity: ${cptRecommendation.complexity.toUpperCase()} | Confidence: ${cptRecommendation.confidenceScore}%\n\n`;
     }
-    section += `\n`;
 
-    // Alternative codes
-    if (cptRecommendation.alternativeCodes.length > 0) {
-      section += `Alternative Codes to Consider:\n`;
-      for (const alt of cptRecommendation.alternativeCodes) {
-        section += `  • ${alt.code} - ${alt.description}\n`;
-        section += `    Reason: ${alt.reason}\n`;
+    // Procedures (if any)
+    if (procedures.length > 0) {
+      for (const proc of procedures) {
+        section += `${proc.cptCode}  (Procedure)\n`;
+        section += `  ${proc.description}\n`;
+        if (proc.confidence === 'medium' || proc.confidence === 'low') {
+          section += `  ⚠ Verify: ${proc.note}\n`;
+        }
+        section += `\n`;
+      }
+    }
+
+    // ICD-10 Codes
+    if (icd10Suggestions.length > 0) {
+      section += `ICD-10 Diagnosis Codes:\n`;
+      for (const icd of icd10Suggestions) {
+        section += `  ${icd.code} - ${icd.description}\n`;
       }
       section += `\n`;
     }
 
-    // Supporting evidence
-    section += `SUPPORTING DOCUMENTATION:\n`;
-    section += `${cptRecommendation.supportingEvidence.chiefComplaintPresent ? '✓' : '⚠'} Chief complaint documented\n`;
-    section += `${cptRecommendation.supportingEvidence.assessmentPresent ? '✓' : '⚠'} Assessment with diagnosis codes present\n`;
-    section += `${cptRecommendation.supportingEvidence.planPresent ? '✓' : '⚠'} Treatment plan documented\n`;
-    section += `${cptRecommendation.supportingEvidence.followUpPresent ? '✓' : '⚠'} Follow-up plan included\n`;
-    section += `${cptRecommendation.supportingEvidence.timeDocumented ? '✓' : '⚠'} Time spent documented\n`;
-
-    if (!cptRecommendation.supportingEvidence.timeDocumented) {
-      section += `\n⚠ Consider documenting: Total time spent for more accurate billing\n`;
-    }
-
-    // ICD-10 suggestions
-    if (icd10Suggestions.length > 0) {
-      section += `\nICD-10 Diagnosis Code Suggestions:\n`;
-      for (const icd of icd10Suggestions) {
-        const confidenceSymbol =
-          icd.confidence === 'high' ? '✓✓' : icd.confidence === 'medium' ? '✓' : '○';
-        section += `  ${confidenceSymbol} ${icd.code} - ${icd.description}\n`;
-      }
-    }
-
-    // In-office procedures detected
+    // ========== SECTION 2: MODIFIERS (if procedures) ==========
     if (procedures.length > 0) {
-      section += `\nIN-OFFICE PROCEDURES DETECTED:\n`;
-      for (const proc of procedures) {
-        const confidenceSymbol =
-          proc.confidence === 'high' ? '✓✓' : proc.confidence === 'medium' ? '✓' : '○';
-        section += `  ${confidenceSymbol} CPT ${proc.cptCode} - ${proc.description}\n`;
-        if (proc.modifier) {
-          section += `     Modifier: ${proc.modifier}\n`;
-        }
-        section += `     Note: ${proc.note}\n`;
-      }
-      section += `\n⚠ IMPORTANT: When billing E/M visit + procedure on same day:\n`;
-      section += `   • Add modifier -25 to E/M code (99213, 99214, etc.)\n`;
-      section += `   • Modifier -25 indicates "significant, separately identifiable E/M service"\n`;
-      section += `   • Document medical necessity for both services\n`;
+      section += `\n⚠ MODIFIER -25 REQUIRED:\n`;
+      section += `───────────────────────────────────────────────────────\n`;
+      section += `Add modifier -25 to ${cptRecommendation.primaryCode} when billing with procedure\n`;
+      section += `Modifier -25 = "Significant, separately identifiable E/M service"\n\n`;
     }
 
-    section += `\n`;
-    section += `⚠ DISCLAIMER: AI-generated billing codes for reference only.\n`;
-    section += `   Provider must verify accuracy and appropriateness before billing.\n`;
-    section += `   Ensure all documentation supports the selected code.\n`;
+    // ========== SECTION 3: JUSTIFICATION (condensed) ==========
+    section += `📊 BILLING JUSTIFICATION:\n`;
+    section += `───────────────────────────────────────────────────────\n`;
+
+    // Only show the key points, not everything
+    const keyPoints = cptRecommendation.mdmJustification.filter(point =>
+      point.includes('Problems') ||
+      point.includes('Data') ||
+      point.includes('Risk') ||
+      point.includes('Time')
+    );
+
+    for (const point of keyPoints) {
+      section += `${point}\n`;
+    }
+
+    // ========== SECTION 4: DISCLAIMER ==========
+    section += `\n⚠ Provider must verify accuracy before billing\n`;
 
     return section;
   }
