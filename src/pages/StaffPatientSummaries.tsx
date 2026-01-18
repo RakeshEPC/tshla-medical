@@ -22,9 +22,11 @@ import {
   User,
   CheckCheck,
   X,
-  Trash2
+  Trash2,
+  ArrowLeft
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import '../styles/unified-theme.css';
 
 interface PatientSummary {
   id: string;
@@ -483,27 +485,28 @@ export default function StaffPatientSummaries() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+        <div className="unified-page-header">
           <div className="flex items-center justify-between mb-4">
-            <div>
+            <div className="flex-1">
               <button
                 onClick={() => navigate('/dashboard')}
-                className="text-blue-600 hover:text-blue-800 mb-2 flex items-center gap-1 text-sm font-medium"
+                className="back-button"
               >
-                ← Back to Dashboard
+                <ArrowLeft className="w-4 h-4" />
+                Back to Dashboard
               </button>
-              <h1 className="text-2xl font-bold text-gray-900">Patient Audio Summaries</h1>
-              <p className="text-gray-600 mt-1">
+              <h1 className="unified-page-title">Patient Audio Summaries</h1>
+              <p className="unified-page-subtitle">
                 Manage and send patient visit summaries via web portal
               </p>
             </div>
             <button
               onClick={loadSummaries}
               disabled={isLoading}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              className="btn-primary flex items-center gap-2 disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
@@ -511,26 +514,26 @@ export default function StaffPatientSummaries() {
           </div>
 
           {/* Filters */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
             {/* Search */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Search className="absolute left-3 top-3.5 w-5 h-5 text-slate-400" />
               <input
                 type="text"
                 placeholder="Search patient name, phone, MRN..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="unified-input pl-10"
               />
             </div>
 
             {/* Provider Filter */}
             <div className="relative">
-              <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <User className="absolute left-3 top-3.5 w-5 h-5 text-slate-400 pointer-events-none" />
               <select
                 value={providerFilter}
                 onChange={(e) => setProviderFilter(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
+                className="unified-select pl-10"
               >
                 <option value="all">All Providers</option>
                 {getUniqueProviders().map(provider => (
@@ -543,11 +546,11 @@ export default function StaffPatientSummaries() {
 
             {/* Status Filter */}
             <div className="relative">
-              <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Filter className="absolute left-3 top-3.5 w-5 h-5 text-slate-400 pointer-events-none" />
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
+                className="unified-select pl-10"
               >
                 <option value="all">All Statuses</option>
                 <option value="pending">Pending</option>
@@ -559,11 +562,11 @@ export default function StaffPatientSummaries() {
 
             {/* Date Filter */}
             <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Calendar className="absolute left-3 top-3.5 w-5 h-5 text-slate-400 pointer-events-none" />
               <select
                 value={dateFilter}
                 onChange={(e) => setDateFilter(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
+                className="unified-select pl-10"
               >
                 <option value="24hours">Last 24 Hours</option>
                 <option value="7days">Last 7 Days</option>
@@ -575,20 +578,20 @@ export default function StaffPatientSummaries() {
 
           {/* Bulk Actions */}
           {selectedSummaries.size > 0 && (
-            <div className="mt-4 flex items-center gap-4 p-4 bg-blue-50 rounded-lg">
-              <span className="text-sm font-medium text-gray-700">
+            <div className="mt-4 flex items-center gap-4 p-4 bg-teal-50 border border-teal-200 rounded-lg">
+              <span className="text-sm font-semibold text-slate-700">
                 {selectedSummaries.size} selected
               </span>
               <button
                 onClick={bulkMarkAsSent}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                className="btn-primary flex items-center gap-2"
               >
                 <CheckCircle className="w-4 h-4" />
                 Mark as Sent
               </button>
               <button
                 onClick={() => setSelectedSummaries(new Set())}
-                className="text-sm text-gray-600 hover:text-gray-900"
+                className="text-sm text-slate-600 hover:text-slate-900 font-medium"
               >
                 Clear Selection
               </button>
@@ -598,28 +601,28 @@ export default function StaffPatientSummaries() {
 
         {/* Error State */}
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-red-600" />
-              <p className="text-red-800">{error}</p>
+          <div className="unified-card bg-red-50 border-l-4 border-red-500 mb-6">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+              <p className="text-red-800 font-medium">{error}</p>
             </div>
           </div>
         )}
 
         {/* Loading State */}
         {isLoading && (
-          <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="text-gray-600 mt-4">Loading summaries...</p>
+          <div className="unified-card text-center py-12">
+            <div className="unified-spinner mx-auto mb-4"></div>
+            <p className="text-slate-600 font-medium">Loading summaries...</p>
           </div>
         )}
 
         {/* Empty State */}
         {!isLoading && filteredSummaries.length === 0 && (
-          <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-            <AlertCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No summaries found</h3>
-            <p className="text-gray-600">
+          <div className="unified-card text-center py-12">
+            <AlertCircle className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">No summaries found</h3>
+            <p className="text-slate-600">
               {searchQuery ? 'Try adjusting your search or filters' : 'No patient summaries have been created yet'}
             </p>
           </div>
@@ -627,9 +630,9 @@ export default function StaffPatientSummaries() {
 
         {/* Summaries Table */}
         {!isLoading && filteredSummaries.length > 0 && (
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="unified-card overflow-hidden p-0">
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
+              <table className="unified-table">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left">
@@ -820,27 +823,27 @@ export default function StaffPatientSummaries() {
         {/* Summary Stats */}
         {!isLoading && filteredSummaries.length > 0 && (
           <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-white rounded-lg shadow-sm p-4">
-              <div className="text-2xl font-bold text-gray-900">{filteredSummaries.length}</div>
-              <div className="text-sm text-gray-600">Total Summaries</div>
+            <div className="stats-card">
+              <div className="stats-value">{filteredSummaries.length}</div>
+              <div className="stats-label">Total Summaries</div>
             </div>
-            <div className="bg-white rounded-lg shadow-sm p-4">
-              <div className="text-2xl font-bold text-yellow-600">
+            <div className="stats-card" style={{ borderLeftColor: '#f59e0b' }}>
+              <div className="stats-value" style={{ color: '#f59e0b' }}>
                 {filteredSummaries.filter(s => s.status === 'pending').length}
               </div>
-              <div className="text-sm text-gray-600">Pending</div>
+              <div className="stats-label">Pending</div>
             </div>
-            <div className="bg-white rounded-lg shadow-sm p-4">
-              <div className="text-2xl font-bold text-blue-600">
+            <div className="stats-card" style={{ borderLeftColor: '#6366f1' }}>
+              <div className="stats-value" style={{ color: '#6366f1' }}>
                 {filteredSummaries.filter(s => s.status === 'sent').length}
               </div>
-              <div className="text-sm text-gray-600">Sent</div>
+              <div className="stats-label">Sent</div>
             </div>
-            <div className="bg-white rounded-lg shadow-sm p-4">
-              <div className="text-2xl font-bold text-green-600">
+            <div className="stats-card" style={{ borderLeftColor: '#10b981' }}>
+              <div className="stats-value" style={{ color: '#10b981' }}>
                 {filteredSummaries.filter(s => s.status === 'accessed').length}
               </div>
-              <div className="text-sm text-gray-600">Accessed</div>
+              <div className="stats-label">Accessed</div>
             </div>
           </div>
         )}

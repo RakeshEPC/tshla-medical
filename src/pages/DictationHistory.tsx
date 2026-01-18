@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { FileText, Calendar, User, Clock, Search, Filter, Trash2 } from 'lucide-react';
+import { FileText, Calendar, User, Clock, Search, Filter, Trash2, ArrowLeft } from 'lucide-react';
 import { dictationStorageService } from '../services/dictationStorage.service';
 import ConfirmDeleteDictationModal from '../components/ConfirmDeleteDictationModal';
 import { useAuth } from '../contexts/AuthContext';
+import '../styles/unified-theme.css';
 
 interface Dictation {
   id: string;
@@ -159,15 +160,6 @@ export default function DictationHistory() {
     );
   });
 
-  const getStatusBadge = (status: string) => {
-    const styles = {
-      draft: 'bg-gray-100 text-gray-800',
-      in_progress: 'bg-yellow-100 text-yellow-800',
-      completed: 'bg-green-100 text-green-800',
-      signed: 'bg-blue-100 text-blue-800'
-    };
-    return styles[status as keyof typeof styles] || styles.draft;
-  };
 
   const handleDeleteClick = (dictation: Dictation, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -239,44 +231,42 @@ export default function DictationHistory() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="unified-page-header">
           <button
             onClick={() => navigate('/dashboard')}
-            className="text-blue-100 hover:text-white mb-2"
+            className="back-button"
           >
-            ← Back to Dashboard
+            <ArrowLeft className="w-4 h-4" />
+            Back to Dashboard
           </button>
-          <h1 className="text-3xl font-bold">Dictation History</h1>
-          <p className="text-blue-100 mt-1">View and manage all your saved dictations</p>
+          <h1 className="unified-page-title">Dictation History</h1>
+          <p className="unified-page-subtitle">View and manage all your saved dictations</p>
         </div>
-      </div>
-
-      <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Search and Filter Bar */}
-        <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+        <div className="unified-card mb-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Search */}
             <div className="relative">
-              <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+              <Search className="absolute left-3 top-3.5 w-5 h-5 text-slate-400" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search by patient name, MRN, or note content..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="unified-input pl-10"
               />
             </div>
 
             {/* Date Range Filter */}
             <div className="relative">
-              <Calendar className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+              <Calendar className="absolute left-3 top-3.5 w-5 h-5 text-slate-400 pointer-events-none" />
               <select
                 value={dateRangeFilter}
                 onChange={(e) => setDateRangeFilter(e.target.value as DateRangeFilter)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="unified-select pl-10"
               >
                 <option value="7days">Last 7 Days</option>
                 <option value="30days">Last 30 Days</option>
@@ -287,11 +277,11 @@ export default function DictationHistory() {
 
             {/* Status Filter */}
             <div className="relative">
-              <Filter className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+              <Filter className="absolute left-3 top-3.5 w-5 h-5 text-slate-400 pointer-events-none" />
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as any)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="unified-select pl-10"
               >
                 <option value="all">All Statuses</option>
                 <option value="draft">Drafts</option>
@@ -305,47 +295,47 @@ export default function DictationHistory() {
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-lg shadow-md p-4">
-            <div className="text-sm text-gray-600">Total Dictations</div>
-            <div className="text-2xl font-bold text-gray-900">{dictations.length}</div>
-            <div className="text-xs text-gray-500 mt-1">({getDateRangeLabel()})</div>
+          <div className="stats-card">
+            <div className="stats-value">{dictations.length}</div>
+            <div className="stats-label">Total Dictations</div>
+            <div className="text-xs text-slate-500 mt-1">({getDateRangeLabel()})</div>
           </div>
-          <div className="bg-white rounded-lg shadow-md p-4">
-            <div className="text-sm text-gray-600">Completed</div>
-            <div className="text-2xl font-bold text-green-600">
+          <div className="stats-card" style={{ borderLeftColor: '#10b981' }}>
+            <div className="stats-value" style={{ color: '#10b981' }}>
               {dictations.filter(d => d.status === 'completed').length}
             </div>
+            <div className="stats-label">Completed</div>
           </div>
-          <div className="bg-white rounded-lg shadow-md p-4">
-            <div className="text-sm text-gray-600">Signed</div>
-            <div className="text-2xl font-bold text-blue-600">
+          <div className="stats-card" style={{ borderLeftColor: '#6366f1' }}>
+            <div className="stats-value" style={{ color: '#6366f1' }}>
               {dictations.filter(d => d.status === 'signed').length}
             </div>
+            <div className="stats-label">Signed</div>
           </div>
-          <div className="bg-white rounded-lg shadow-md p-4">
-            <div className="text-sm text-gray-600">Drafts</div>
-            <div className="text-2xl font-bold text-yellow-600">
+          <div className="stats-card" style={{ borderLeftColor: '#f59e0b' }}>
+            <div className="stats-value" style={{ color: '#f59e0b' }}>
               {dictations.filter(d => d.status === 'draft').length}
             </div>
+            <div className="stats-label">Drafts</div>
           </div>
         </div>
 
         {/* Dictations List */}
         {loading ? (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading dictations...</p>
+          <div className="unified-card text-center py-12">
+            <div className="unified-spinner mx-auto mb-4"></div>
+            <p className="text-slate-600 font-medium">Loading dictations...</p>
           </div>
         ) : filteredDictations.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-md p-12 text-center">
-            <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No dictations found</h3>
-            <p className="text-gray-600 mb-6">
+          <div className="unified-card text-center py-12">
+            <FileText className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-slate-900 mb-2">No dictations found</h3>
+            <p className="text-slate-600 mb-6">
               {searchTerm ? 'Try adjusting your search terms' : 'Start dictating to see your notes here'}
             </p>
             <button
               onClick={() => navigate('/quick-note')}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold"
+              className="btn-primary"
             >
               Start New Dictation
             </button>
@@ -355,35 +345,35 @@ export default function DictationHistory() {
             {filteredDictations.map((dictation) => (
               <div
                 key={dictation.id}
-                className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer"
+                className="unified-card cursor-pointer"
                 onClick={() => navigate(`/dictation-viewer/${dictation.id}`)}
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-bold text-gray-900">
+                      <h3 className="text-lg font-bold text-slate-900">
                         {dictation.patient_name || 'Unknown Patient'}
                       </h3>
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusBadge(dictation.status)}`}>
+                      <span className={`status-badge status-badge-${dictation.status === 'completed' ? 'completed' : dictation.status === 'signed' ? 'accessed' : 'pending'}`}>
                         {dictation.status}
                       </span>
                     </div>
-                    <div className="flex flex-wrap gap-4 text-sm text-gray-600">
+                    <div className="flex flex-wrap gap-4 text-sm text-slate-600">
                       {dictation.patient_mrn && (
-                        <div className="flex items-center gap-1">
-                          <User className="w-4 h-4" />
-                          MRN: {dictation.patient_mrn}
+                        <div className="flex items-center gap-1.5">
+                          <User className="w-4 h-4 text-slate-400" />
+                          <span>MRN: {dictation.patient_mrn}</span>
                         </div>
                       )}
                       {dictation.visit_date && (
-                        <div className="flex items-center gap-1">
-                          <Calendar className="w-4 h-4" />
-                          {new Date(dictation.visit_date).toLocaleDateString()}
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="w-4 h-4 text-slate-400" />
+                          <span>{new Date(dictation.visit_date).toLocaleDateString()}</span>
                         </div>
                       )}
-                      <div className="flex items-center gap-1">
-                        <Clock className="w-4 h-4" />
-                        {new Date(dictation.created_at).toLocaleString()}
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="w-4 h-4 text-slate-400" />
+                        <span>{new Date(dictation.created_at).toLocaleString()}</span>
                       </div>
                     </div>
                   </div>
@@ -391,7 +381,7 @@ export default function DictationHistory() {
                     {/* Delete Button */}
                     <button
                       onClick={(e) => handleDeleteClick(dictation, e)}
-                      className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors flex items-center gap-2"
+                      className="btn-danger flex items-center gap-2"
                       title="Delete this dictation"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -402,7 +392,7 @@ export default function DictationHistory() {
                         e.stopPropagation();
                         navigate(`/dictation-viewer/${dictation.id}`);
                       }}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
+                      className="btn-primary"
                     >
                       View Note
                     </button>
@@ -410,8 +400,8 @@ export default function DictationHistory() {
                 </div>
 
                 {/* Note Preview */}
-                <div className="border-t pt-4">
-                  <p className="text-sm text-gray-700 line-clamp-3">
+                <div className="border-t border-slate-100 pt-4 mt-4">
+                  <p className="text-sm text-slate-700 line-clamp-3">
                     {dictation.final_note || dictation.transcription_text || 'No content'}
                   </p>
                 </div>

@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import MedicalDictation from '../components/MedicalDictation';
 import PreVisitSummary from '../components/PreVisitSummary';
 import { supabase } from '../lib/supabase';
+import '../styles/unified-theme.css';
 
 interface AppointmentData {
   id: number;
@@ -85,40 +86,50 @@ export default function QuickNote() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading appointment data...</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+        <div className="unified-card text-center py-12">
+          <div className="unified-spinner mx-auto mb-4"></div>
+          <p className="text-slate-600 font-medium">Loading appointment data...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 py-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Patient Info Header - shows MRN prominently */}
         {appointmentData && (
-          <div className="bg-white rounded-lg shadow-md p-4 mb-4">
+          <div className="unified-card mb-6 border-l-4 border-teal-500">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-gray-900 mb-2">{appointmentData.patient_name}</h2>
-                <div className="flex items-center gap-3">
+                <h2 className="text-2xl font-bold text-slate-900 mb-3">{appointmentData.patient_name}</h2>
+                <div className="flex items-center gap-4">
                   {appointmentData.patient_mrn && (
-                    <span className="px-3 py-1.5 bg-green-50 border-2 border-green-400 text-green-700 text-sm font-mono font-bold rounded-lg">
-                      🏥 Athena MRN: {appointmentData.patient_mrn}
+                    <span className="px-4 py-2 bg-teal-50 border-2 border-teal-400 text-teal-800 text-sm font-mono font-bold rounded-lg inline-flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Athena MRN: {appointmentData.patient_mrn}
                     </span>
                   )}
                   {appointmentData.patient_dob && (
-                    <span className="text-sm text-gray-600">
+                    <span className="text-sm text-slate-600 font-medium">
                       DOB: {new Date(appointmentData.patient_dob).toLocaleDateString()}
                     </span>
                   )}
                 </div>
               </div>
-              <div className="text-right text-sm text-gray-600">
-                <div>📅 {new Date(appointmentData.scheduled_date).toLocaleDateString()}</div>
-                <div>🕐 {appointmentData.start_time}</div>
+              <div className="text-right">
+                <div className="text-sm font-semibold text-slate-900 mb-1">
+                  {new Date(appointmentData.scheduled_date).toLocaleDateString('en-US', {
+                    weekday: 'short',
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                  })}
+                </div>
+                <div className="text-sm text-slate-600">{appointmentData.start_time}</div>
               </div>
             </div>
           </div>

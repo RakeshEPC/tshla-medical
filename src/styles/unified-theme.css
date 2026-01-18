@@ -1,0 +1,363 @@
+/**
+ * TSHLA Medical - Unified Design System
+ * Professional, friendly, and accessible medical interface
+ *
+ * Color Palette:
+ * - Primary: Teal/Medical Blue (#0891b2, #06b6d4)
+ * - Secondary: Indigo (#4f46e5, #6366f1)
+ * - Success: Green (#10b981, #059669)
+ * - Warning: Amber (#f59e0b, #d97706)
+ * - Error: Red (#ef4444, #dc2626)
+ * - Neutral: Slate grays
+ */
+
+:root {
+  /* Primary Colors - Medical Teal */
+  --color-primary-50: #f0fdfa;
+  --color-primary-100: #ccfbf1;
+  --color-primary-200: #99f6e4;
+  --color-primary-300: #5eead4;
+  --color-primary-400: #2dd4bf;
+  --color-primary-500: #14b8a6;
+  --color-primary-600: #0d9488;
+  --color-primary-700: #0f766e;
+  --color-primary-800: #115e59;
+  --color-primary-900: #134e4a;
+
+  /* Secondary Colors - Indigo */
+  --color-secondary-50: #eef2ff;
+  --color-secondary-100: #e0e7ff;
+  --color-secondary-200: #c7d2fe;
+  --color-secondary-300: #a5b4fc;
+  --color-secondary-400: #818cf8;
+  --color-secondary-500: #6366f1;
+  --color-secondary-600: #4f46e5;
+  --color-secondary-700: #4338ca;
+  --color-secondary-800: #3730a3;
+  --color-secondary-900: #312e81;
+
+  /* Spacing */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+  --spacing-2xl: 3rem;
+
+  /* Border Radius */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+
+  /* Typography */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+/* Unified Page Header */
+.unified-page-header {
+  background: linear-gradient(135deg, var(--color-primary-600) 0%, var(--color-primary-700) 100%);
+  color: white;
+  padding: var(--spacing-xl) var(--spacing-lg);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--spacing-xl);
+  box-shadow: var(--shadow-lg);
+}
+
+.unified-page-title {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: var(--spacing-sm);
+  letter-spacing: -0.025em;
+}
+
+.unified-page-subtitle {
+  font-size: 1rem;
+  opacity: 0.9;
+  font-weight: 400;
+}
+
+/* Unified Card */
+.unified-card {
+  background: white;
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  box-shadow: var(--shadow-md);
+  border: 1px solid rgb(226 232 240);
+  transition: all 0.2s ease;
+}
+
+.unified-card:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-1px);
+}
+
+/* Unified Button Styles */
+.btn-primary {
+  background: linear-gradient(135deg, var(--color-primary-600) 0%, var(--color-primary-700) 100%);
+  color: white;
+  padding: 0.625rem 1.25rem;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  border: none;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, var(--color-primary-700) 0%, var(--color-primary-800) 100%);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: linear-gradient(135deg, var(--color-secondary-600) 0%, var(--color-secondary-700) 100%);
+  color: white;
+  padding: 0.625rem 1.25rem;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  border: none;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-secondary:hover {
+  background: linear-gradient(135deg, var(--color-secondary-700) 0%, var(--color-secondary-800) 100%);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.btn-success {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  padding: 0.625rem 1.25rem;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  border: none;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-success:hover {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  padding: 0.625rem 1.25rem;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  border: none;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-danger:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--color-primary-700);
+  padding: 0.625rem 1.25rem;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  border: 2px solid var(--color-primary-600);
+  cursor: pointer;
+}
+
+.btn-outline:hover {
+  background: var(--color-primary-50);
+  border-color: var(--color-primary-700);
+}
+
+/* Unified Input Styles */
+.unified-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 2px solid rgb(226 232 240);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  background: white;
+}
+
+.unified-input:focus {
+  outline: none;
+  border-color: var(--color-primary-500);
+  box-shadow: 0 0 0 3px var(--color-primary-100);
+}
+
+/* Unified Select */
+.unified-select {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 2px solid rgb(226 232 240);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  background: white;
+  cursor: pointer;
+}
+
+.unified-select:focus {
+  outline: none;
+  border-color: var(--color-primary-500);
+  box-shadow: 0 0 0 3px var(--color-primary-100);
+}
+
+/* Status Badges */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: var(--radius-md);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+}
+
+.status-badge-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-badge-completed {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-badge-sent {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.status-badge-accessed {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-badge-expired {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* Unified Table */
+.unified-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.unified-table thead {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+.unified-table th {
+  padding: 1rem;
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #475569;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.unified-table td {
+  padding: 1rem;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.875rem;
+}
+
+.unified-table tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+.unified-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+/* Loading Spinner */
+.unified-spinner {
+  border: 3px solid var(--color-primary-100);
+  border-top-color: var(--color-primary-600);
+  border-radius: 50%;
+  width: 3rem;
+  height: 3rem;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Stats Card */
+.stats-card {
+  background: white;
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  box-shadow: var(--shadow-sm);
+  border-left: 4px solid var(--color-primary-500);
+  transition: all 0.2s ease;
+}
+
+.stats-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.stats-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: var(--spacing-xs);
+}
+
+.stats-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+/* Back Button */
+.back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-primary-100);
+  font-weight: 500;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  margin-bottom: var(--spacing-md);
+}
+
+.back-button:hover {
+  color: white;
+  transform: translateX(-4px);
+}
