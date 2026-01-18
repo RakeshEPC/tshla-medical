@@ -36,6 +36,7 @@ import { orderExtractionService, type OrderExtractionResult } from './orderExtra
 import { azureOpenAIService } from './_deprecated/azureOpenAI.service';
 import { medicalCorrections } from './medicalCorrections.service';
 import { logError, logWarn, logInfo, logDebug } from './logger.service';
+import { cptBillingAnalyzer } from './cptBillingAnalyzer.service';
 
 export interface ProcessedNote {
   formatted: string;
@@ -986,9 +987,8 @@ Date: ${date}
     if (billingEnabled && originalTranscript) {
       console.log('✅ [BILLING DEBUG] Entering billing generation block!');
       try {
-        // Import CPT billing analyzer
-        const { cptBillingAnalyzer } = require('./cptBillingAnalyzer.service');
-        console.log('✅ [BILLING DEBUG] CPT analyzer imported successfully');
+        // CPT billing analyzer is imported at top of file
+        console.log('✅ [BILLING DEBUG] CPT analyzer available');
 
         // Prepare extracted info for analysis
         const extractedInfo = {
