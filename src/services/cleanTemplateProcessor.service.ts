@@ -1,10 +1,12 @@
 /**
  * Clean Template Processor - Simple and Working
  * Processes medical dictation with custom templates without duplication
+ * NOW WITH AUTOMATIC CPT BILLING!
  */
 
 import type { Template } from '../types/template.types';
 import type { PatientData } from './patientData.service';
+import { cptBillingAnalyzer } from './cptBillingAnalyzer.service';
 
 export class CleanTemplateProcessor {
   /**
@@ -38,10 +40,20 @@ Time: ${time}
       output += this.simpleFormat(cleanTranscript);
     }
 
-    // Step 4: Add transcript at the end (once only)
+    // Step 4: Add CPT Billing Section (if enabled)
+    const billingEnabled = template?.billingConfig?.enabled !== false; // Default to enabled
+    if (billingEnabled) {
+      const billingSection = this.generateBillingSection(
+        cleanTranscript,
+        template?.billingConfig?.includeICD10 !== false
+      );
+      output += billingSection;
+    }
+
+    // Step 5: Add transcript at the end (once only)
     output += `\nTRANSCRIPT:\n────────────────\n${cleanTranscript}\n`;
 
-    // Step 5: Add footer
+    // Step 6: Add footer
     output += `\n════════════════════════════════════════════════════════
 Generated: ${date} ${time}
 ${template ? `Template: ${template.name}` : 'No template used'}`;
@@ -321,6 +333,88 @@ ${template ? `Template: ${template.name}` : 'No template used'}`;
    */
   private simpleFormat(transcript: string): string {
     return `DICTATION:\n${transcript}\n`;
+  }
+
+  /**
+   * Generate billing section with CPT analysis
+   */
+  private generateBillingSection(transcript: string, includeICD10: boolean = true): string {
+    // Extract basic info from transcript for analysis
+    const extractedInfo = {
+      assessment: this.extractSimpleAssessment(transcript),
+      plan: this.extractSimplePlan(transcript),
+      medicationChanges: this.extractMedicationChanges(transcript),
+      vitals: this.extractSimpleVitals(transcript),
+    };
+
+    // Analyze complexity
+    const complexityAnalysis = cptBillingAnalyzer.analyzeComplexity(transcript, extractedInfo);
+
+    // Get CPT recommendations
+    const cptRecommendation = cptBillingAnalyzer.suggestCPTCodes(
+      complexityAnalysis,
+      true, // Assume chief complaint present
+      extractedInfo.assessment.length > 0,
+      extractedInfo.plan.length > 0
+    );
+
+    // Get ICD-10 suggestions if enabled
+    let icd10Suggestions: any[] = [];
+    if (includeICD10) {
+      icd10Suggestions = cptBillingAnalyzer.suggestICD10Codes(extractedInfo.assessment);
+    }
+
+    // Generate formatted section
+    return cptBillingAnalyzer.generateBillingSection(cptRecommendation, icd10Suggestions);
+  }
+
+  /**
+   * Quick assessment extraction for billing analysis
+   */
+  private extractSimpleAssessment(transcript: string): string[] {
+    const assessments: string[] = [];
+
+    if (/diabetes/i.test(transcript)) {
+      if (/uncontrolled|poorly controlled/i.test(transcript)) {
+        assessments.push('Uncontrolled Type 2 Diabetes Mellitus');
+      } else {
+        assessments.push('Type 2 Diabetes Mellitus');
+      }
+    }
+    if (/hypothyroid/i.test(transcript)) assessments.push('Hypothyroidism');
+    if (/hypertension/i.test(transcript)) assessments.push('Hypertension');
+    if (/nausea.*?vomiting/i.test(transcript)) assessments.push('Nausea and vomiting');
+
+    return assessments;
+  }
+
+  /**
+   * Quick plan extraction for billing analysis
+   */
+  private extractSimplePlan(transcript: string): string[] {
+    const plan: string[] = [];
+
+    if (/cmp/i.test(transcript)) plan.push('Order CMP');
+    if (/cbc/i.test(transcript)) plan.push('Order CBC');
+    if (/a1c/i.test(transcript)) plan.push('Check A1C');
+    if (/microalbumin/i.test(transcript)) plan.push('Order microalbumin');
+
+    return plan;
+  }
+
+  /**
+   * Quick vitals extraction for billing analysis
+   */
+  private extractSimpleVitals(transcript: string): any {
+    const vitals: any = {};
+
+    const sugarMatch = transcript.match(/blood sugar.*?(\d+)/i);
+    if (sugarMatch) vitals.bloodSugar = sugarMatch[1];
+
+    const a1cMatch = transcript.match(/a1c.*?(\d+(?:\.\d+)?)/i);
+    if (a1cMatch) vitals.a1c = a1cMatch[1];
+
+    return vitals;
   }
 }
 

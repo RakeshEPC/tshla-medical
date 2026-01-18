@@ -5,6 +5,13 @@ export interface TemplateSection {
   order?: number;
 }
 
+export interface BillingConfiguration {
+  enabled: boolean; // Whether to include billing section
+  includeICD10: boolean; // Include ICD-10 suggestions
+  includeTimeTracking: boolean; // Encourage time documentation
+  customInstructions?: string; // Additional billing-specific instructions
+}
+
 export interface Template {
   id: string;
   name: string;
@@ -25,6 +32,7 @@ export interface Template {
     [key: string]: string | TemplateSection | undefined;
   };
   generalInstructions?: string;
+  billingConfig?: BillingConfiguration; // Billing configuration for this template
   is_shared?: boolean;
   is_system_template?: boolean;
   usage_count?: number;

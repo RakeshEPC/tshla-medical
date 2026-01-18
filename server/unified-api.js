@@ -63,6 +63,124 @@ app.use((req, res, next) => {
   return cors(corsOptions)(req, res, next);
 });
 
+// ====== STRIPE WEBHOOK ROUTE ======
+// IMPORTANT: This MUST be defined BEFORE express.json() middleware
+// Stripe webhooks require the raw request body for signature verification
+const stripe = require('stripe');
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+let stripeInstance = null;
+if (stripeSecretKey && stripeSecretKey !== 'sk_test_example...' && stripeSecretKey !== 'sk_test_51example...') {
+  stripeInstance = stripe(stripeSecretKey);
+}
+
+// Stripe webhook endpoint with raw body parser
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  if (!stripeInstance) {
+    logger.warn('StripeWebhook', 'Stripe not configured, webhook ignored');
+    return res.status(503).json({ error: 'Stripe not configured' });
+  }
+
+  const sig = req.headers['stripe-signature'];
+
+  try {
+    // Verify webhook signature
+    const event = stripeInstance.webhooks.constructEvent(req.body, sig, webhookSecret);
+    logger.info('StripeWebhook', 'Webhook signature verified', { type: event.type, eventId: event.id });
+
+    // Handle checkout.session.completed event
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object;
+      const metadata = session.metadata;
+
+      logger.info('StripeWebhook', 'Processing checkout.session.completed', {
+        sessionId: session.id,
+        paymentType: metadata.type,
+        paymentStatus: session.payment_status
+      });
+
+      // Import Supabase client
+      const { createClient } = require('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY
+      );
+
+      // Handle pump report payment
+      if (metadata.type === 'pump_report') {
+        const { error: paymentError } = await supabase
+          .from('payment_records')
+          .update({ status: 'succeeded' })
+          .eq('stripe_session_id', session.id);
+
+        if (paymentError) {
+          logger.error('StripeWebhook', 'Failed to update payment record', { error: paymentError });
+        }
+
+        const { error: assessmentError } = await supabase
+          .from('pump_assessments')
+          .update({ payment_status: 'paid' })
+          .eq('id', metadata.assessment_id);
+
+        if (assessmentError) {
+          logger.error('StripeWebhook', 'Failed to update assessment', { error: assessmentError });
+        }
+
+        logger.info('StripeWebhook', 'Pump report payment completed', { assessmentId: metadata.assessment_id });
+      }
+
+      // Handle office visit copay payment
+      if (metadata.type === 'office_visit_copay') {
+        const { error: paymentRequestError } = await supabase
+          .from('patient_payment_requests')
+          .update({
+            payment_status: 'paid',
+            paid_at: new Date().toISOString(),
+            stripe_payment_intent_id: session.payment_intent,
+            stripe_charge_id: session.payment_intent
+          })
+          .eq('id', metadata.payment_request_id);
+
+        if (paymentRequestError) {
+          logger.error('StripeWebhook', 'Failed to update payment request', { error: paymentRequestError });
+        }
+
+        // Get payment request to find previsit_id
+        const { data: paymentRequest } = await supabase
+          .from('patient_payment_requests')
+          .select('previsit_id')
+          .eq('id', metadata.payment_request_id)
+          .single();
+
+        // Update previsit_data if linked
+        if (paymentRequest?.previsit_id) {
+          await supabase
+            .from('previsit_data')
+            .update({
+              patient_paid: true,
+              payment_method: 'Credit Card (Stripe)',
+              billing_updated_at: new Date().toISOString()
+            })
+            .eq('id', paymentRequest.previsit_id);
+        }
+
+        logger.info('StripeWebhook', 'Office visit copay payment completed', {
+          paymentRequestId: metadata.payment_request_id,
+          tshlaId: metadata.tshla_id
+        });
+      }
+    }
+
+    res.json({ received: true });
+  } catch (error) {
+    logger.error('StripeWebhook', 'Webhook verification failed', { error: error.message });
+    return res.status(400).json({ error: 'Webhook verification failed', details: error.message });
+  }
+});
+
+logger.info('UnifiedAPI', 'Stripe webhook endpoint registered at /api/stripe/webhook (BEFORE JSON parsing)');
+
 // Parse JSON request bodies (increased limit for CCD XML files)
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));

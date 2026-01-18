@@ -3,6 +3,10 @@
 
 FROM node:18-alpine
 
+# Install build dependencies for native modules (better-sqlite3, bcrypt, etc.)
+# py3-setuptools provides distutils required by node-gyp
+RUN apk add --no-cache python3 py3-setuptools make g++
+
 # Set working directory
 WORKDIR /app
 
@@ -11,11 +15,12 @@ COPY package.json ./
 COPY package-lock.json* ./
 
 # Install dependencies first (for better layer caching)
-RUN npm install --production
+# Skip prepare scripts (husky) in production builds
+RUN npm install --production --ignore-scripts && npm rebuild better-sqlite3 bcrypt
 
 # Copy server files AFTER installing dependencies
 COPY server/ ./server/
-COPY .env ./.env
+# Note: .env not copied - Container App uses environment variables from Key Vault
 
 # Expose port 3000
 EXPOSE 3000

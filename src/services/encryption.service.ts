@@ -12,15 +12,30 @@ import { logError, logWarn } from './logger.service';
 
 /**
  * Get encryption key from environment variable
- * Falls back to a default key for development (should never be used in production)
+ * SECURITY: Fails fast if key is missing - NO DEFAULT FALLBACK
+ * HIPAA Requirement: §164.312(a)(2)(iv) - Encryption must use strong keys
  */
 const getEncryptionKey = (): string => {
   const key = import.meta.env.VITE_ENCRYPTION_KEY;
 
+  // CRITICAL SECURITY: Never use a default key - fail immediately
   if (!key) {
-    logWarn('Encryption', 'No VITE_ENCRYPTION_KEY found, using default key (NOT SECURE)');
-    // This should never be used in production - it's just a fallback for dev
-    return 'tshla-medical-default-encryption-key-not-for-production-use';
+    const errorMsg = 'FATAL SECURITY ERROR: VITE_ENCRYPTION_KEY is not configured. Cannot encrypt PHI.';
+    logError('Encryption', errorMsg);
+
+    // Show user-friendly error
+    if (typeof window !== 'undefined') {
+      alert('Application configuration error. Cannot protect sensitive data. Please contact support.');
+    }
+
+    throw new Error(errorMsg);
+  }
+
+  // Validate key strength (minimum 32 characters for AES-256)
+  if (key.length < 32) {
+    const errorMsg = `FATAL SECURITY ERROR: Encryption key too weak (${key.length} chars, minimum 32 required).`;
+    logError('Encryption', errorMsg);
+    throw new Error(errorMsg);
   }
 
   return key;

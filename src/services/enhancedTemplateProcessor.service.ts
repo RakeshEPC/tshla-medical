@@ -1,11 +1,13 @@
 /**
  * Enhanced Template Processor for Better Medical Note Extraction
  * Fixes issues with medication extraction, assessment, and plan formatting
+ * NOW WITH AUTOMATIC CPT BILLING SUGGESTIONS!
  */
 
 import type { Template } from '../types/template.types';
 import type { PatientData } from './patientData.service';
 import { logError, logWarn, logInfo, logDebug } from './logger.service';
+import { cptBillingAnalyzer } from './cptBillingAnalyzer.service';
 
 export class EnhancedTemplateProcessor {
   /**
@@ -507,10 +509,21 @@ Time: ${time}
       }
     }
     
+    // Add CPT Billing Section (if enabled in template or by default)
+    const billingEnabled = template.billingConfig?.enabled !== false; // Default to enabled
+    if (billingEnabled) {
+      const billingSection = this.generateBillingSection(
+        extracted,
+        transcript,
+        template.billingConfig?.includeICD10 !== false
+      );
+      formatted += billingSection;
+    }
+
     // Add transcript
-    formatted += `FULL TRANSCRIPT:\n────────────────\n${this.cleanTranscript(transcript)}\n\n`;
+    formatted += `\nFULL TRANSCRIPT:\n────────────────\n${this.cleanTranscript(transcript)}\n\n`;
     formatted += `═══════════════════════════════════════════════════════\nGenerated: ${date} ${time}\nTemplate: ${template.name}`;
-    
+
     return formatted;
   }
 
@@ -544,6 +557,8 @@ Changes: ${extracted.medicationChanges?.join('; ') || 'None'}
 
 FOLLOW-UP:
 ${extracted.followUp}
+
+${this.generateBillingSection(extracted, transcript, true)}
 
 ════════════════════════════════════════════════════════
 Generated: ${date} ${time}`;
@@ -777,6 +792,35 @@ Generated: ${date} ${time}`;
 
   private capitalize(text: string): string {
     return text.charAt(0).toUpperCase() + text.slice(1);
+  }
+
+  /**
+   * Generate billing section with CPT and ICD-10 suggestions
+   */
+  private generateBillingSection(
+    extracted: any,
+    transcript: string,
+    includeICD10: boolean = true
+  ): string {
+    // Analyze complexity
+    const complexityAnalysis = cptBillingAnalyzer.analyzeComplexity(transcript, extracted);
+
+    // Get CPT recommendations
+    const cptRecommendation = cptBillingAnalyzer.suggestCPTCodes(
+      complexityAnalysis,
+      extracted.chiefComplaint && extracted.chiefComplaint !== 'See transcript',
+      extracted.assessment && extracted.assessment.length > 0,
+      extracted.plan && extracted.plan.length > 0
+    );
+
+    // Get ICD-10 suggestions if enabled
+    let icd10Suggestions: any[] = [];
+    if (includeICD10 && extracted.assessment) {
+      icd10Suggestions = cptBillingAnalyzer.suggestICD10Codes(extracted.assessment);
+    }
+
+    // Generate formatted section
+    return cptBillingAnalyzer.generateBillingSection(cptRecommendation, icd10Suggestions);
   }
 }
 

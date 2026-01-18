@@ -13,25 +13,26 @@ export interface EnvironmentConfig {
   };
 
   // Azure Services (Optional - AI Features)
+  // NOTE: API keys should NOT be in frontend - only endpoints
   azureOpenAI: {
     endpoint: string;
-    apiKey: string;
     deployment: string;
     apiVersion: string;
+    // apiKey removed - server-side only
   };
   azureSpeech: {
     region: string;
     endpoint: string;
-    apiKey: string;
+    // apiKey removed - server-side only
   };
 
   // Database (Legacy - being migrated to Supabase)
+  // NOTE: Database credentials should NEVER be in frontend
   database: {
     host: string;
     port: number;
     database: string;
-    username?: string;
-    password?: string;
+    // username and password removed - server-side only
   };
 
   // Application Settings
@@ -53,10 +54,10 @@ export interface EnvironmentConfig {
   };
 
   // Legacy AWS (Being Phased Out)
+  // NOTE: AWS credentials should NEVER be in frontend
   aws?: {
     region: string;
-    accessKeyId: string;
-    secretAccessKey: string;
+    // accessKeyId and secretAccessKey removed - server-side only
     bucketName: string;
   };
 }
@@ -98,8 +99,9 @@ class EnvironmentValidator {
     // Optional external services for AI features
     const optionalVars = {
       VITE_AZURE_OPENAI_ENDPOINT: 'Azure OpenAI endpoint (optional)',
-      VITE_AZURE_OPENAI_KEY: 'Azure OpenAI API key (optional)',
+      // VITE_AZURE_OPENAI_KEY removed - must be server-side only
       VITE_AZURE_SPEECH_REGION: 'Azure Speech region (optional)',
+      // VITE_AZURE_SPEECH_KEY removed - must be server-side only
     };
 
     // NOTE: Admin passwords removed - all authentication handled by Supabase Auth
@@ -122,7 +124,8 @@ class EnvironmentValidator {
     });
 
     // Validate API key formats (security check against placeholder values)
-    const apiKeyVars = ['VITE_SUPABASE_ANON_KEY', 'VITE_AZURE_OPENAI_KEY'];
+    // Only validate PUBLIC keys that should be in frontend
+    const apiKeyVars = ['VITE_SUPABASE_ANON_KEY'];
     apiKeyVars.forEach(envVar => {
       const value = import.meta.env[envVar];
       if (value) {
@@ -156,7 +159,7 @@ class EnvironmentValidator {
       },
       azureOpenAI: {
         endpoint: import.meta.env.VITE_AZURE_OPENAI_ENDPOINT || '',
-        apiKey: import.meta.env.VITE_AZURE_OPENAI_KEY || '',
+        // apiKey removed - NEVER expose server keys to frontend
         deployment: import.meta.env.VITE_AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
         apiVersion: import.meta.env.VITE_AZURE_OPENAI_API_VERSION || '2024-02-01',
       },
@@ -167,14 +170,13 @@ class EnvironmentValidator {
           (import.meta.env.VITE_AZURE_SPEECH_REGION
             ? `https://${import.meta.env.VITE_AZURE_SPEECH_REGION}.tts.speech.microsoft.com/`
             : ''),
-        apiKey: import.meta.env.VITE_AZURE_SPEECH_KEY || '',
+        // apiKey removed - NEVER expose server keys to frontend
       },
       database: {
         host: import.meta.env.VITE_RDS_HOST || '',
         port: parseInt(import.meta.env.VITE_RDS_PORT || '3306'),
         database: import.meta.env.VITE_RDS_DATABASE || '',
-        username: import.meta.env.VITE_RDS_USERNAME,
-        password: import.meta.env.VITE_RDS_PASSWORD,
+        // username and password removed - NEVER expose database credentials to frontend
       },
       app: {
         apiUrl: import.meta.env.VITE_API_URL || (import.meta.env.MODE === 'production' ? 'https://api.tshla.ai' : 'http://localhost:3001'),
@@ -190,12 +192,12 @@ class EnvironmentValidator {
         enablePaymentFlow: import.meta.env.VITE_ENABLE_PAYMENT_FLOW === 'true',
         enableProviderDelivery: import.meta.env.VITE_ENABLE_PROVIDER_DELIVERY === 'true',
       },
-      aws: import.meta.env.VITE_AWS_ACCESS_KEY_ID
+      // AWS credentials removed - NEVER expose to frontend
+      // All AWS operations must go through backend API
+      aws: import.meta.env.VITE_AWS_REGION
         ? {
             region: import.meta.env.VITE_AWS_REGION || 'us-east-1',
-            accessKeyId: import.meta.env.VITE_AWS_ACCESS_KEY_ID,
-            secretAccessKey: import.meta.env.VITE_AWS_SECRET_ACCESS_KEY || '',
-            bucketName: import.meta.env.AWS_BUCKET_NAME || '',
+            bucketName: import.meta.env.VITE_AWS_BUCKET_NAME || '',
           }
         : undefined,
     };

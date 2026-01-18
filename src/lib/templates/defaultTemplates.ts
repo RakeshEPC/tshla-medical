@@ -10,6 +10,12 @@ export const defaultTemplates: MedicalTemplate[] = [
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     isDefault: true,
+    billingConfig: {
+      enabled: true,
+      includeICD10: true,
+      includeTimeTracking: true,
+      customInstructions: 'Track time spent on diabetes education and device training for accurate billing'
+    },
     sections: [
       {
         id: 'glycemic-control',
@@ -80,6 +86,11 @@ export const defaultTemplates: MedicalTemplate[] = [
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     isDefault: true,
+    billingConfig: {
+      enabled: true,
+      includeICD10: true,
+      includeTimeTracking: true,
+    },
     sections: [
       {
         id: 'thyroid-symptoms',
@@ -141,6 +152,11 @@ export const defaultTemplates: MedicalTemplate[] = [
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     isDefault: true,
+    billingConfig: {
+      enabled: true,
+      includeICD10: true,
+      includeTimeTracking: true,
+    },
     sections: [
       {
         id: 'hrt-symptoms',
@@ -191,6 +207,11 @@ export const defaultTemplates: MedicalTemplate[] = [
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     isDefault: true,
+    billingConfig: {
+      enabled: true,
+      includeICD10: true,
+      includeTimeTracking: true,
+    },
     sections: [
       {
         id: 'injury-history',
@@ -264,6 +285,11 @@ export const defaultTemplates: MedicalTemplate[] = [
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     isDefault: true,
+    billingConfig: {
+      enabled: true,
+      includeICD10: true,
+      includeTimeTracking: true,
+    },
     sections: [
       {
         id: 'performance-goals',
@@ -323,6 +349,11 @@ export const defaultTemplates: MedicalTemplate[] = [
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     isDefault: true,
+    billingConfig: {
+      enabled: true,
+      includeICD10: true,
+      includeTimeTracking: true,
+    },
     sections: [
       {
         id: 'concussion-acute',

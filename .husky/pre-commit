@@ -55,7 +55,8 @@ echo "✅ No deprecated auth imports detected"
 echo ""
 echo "Checking for console.log statements in server code (HIPAA)..."
 # Exclude comment lines (starting with * or //) and deprecated services
-CONSOLE_FOUND=$(git diff --cached --name-only | grep -E '^server/.*\.(js|ts)$' | grep -v '_deprecated_external_services/' | xargs grep "console\." 2>/dev/null | grep -v "^\s*\*" | grep -v "^\s*//" | cut -d: -f1 | sort -u || true)
+# Also exclude CLI debug scripts (check-*.js)
+CONSOLE_FOUND=$(git diff --cached --name-only | grep -E '^server/.*\.(js|ts)$' | grep -v '_deprecated_external_services/' | grep -v 'check-.*\.js$' | xargs grep "console\." 2>/dev/null | grep -v "^\s*\*" | grep -v "^\s*//" | cut -d: -f1 | sort -u || true)
 if [ -n "$CONSOLE_FOUND" ]; then
   echo "❌ console.log statements found in server code!"
   echo ""
