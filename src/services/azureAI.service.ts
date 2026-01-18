@@ -970,11 +970,25 @@ Date: ${date}
     }
 
     // ✨ NEW: Add CPT Billing Section (enabled by default for all templates)
+    console.log('🔍 [BILLING DEBUG] Starting billing section generation...');
+    console.log('🔍 [BILLING DEBUG] Template config:', {
+      hasTemplate: !!template,
+      hasBillingConfig: !!template?.billingConfig,
+      billingEnabled: template?.billingConfig?.enabled,
+      templateName: template?.name
+    });
+
     const billingEnabled = template?.billingConfig?.enabled !== false; // Default to enabled
+    console.log('🔍 [BILLING DEBUG] Billing enabled?', billingEnabled);
+    console.log('🔍 [BILLING DEBUG] Has originalTranscript?', !!originalTranscript);
+    console.log('🔍 [BILLING DEBUG] Transcript length:', originalTranscript?.length || 0);
+
     if (billingEnabled && originalTranscript) {
+      console.log('✅ [BILLING DEBUG] Entering billing generation block!');
       try {
         // Import CPT billing analyzer
         const { cptBillingAnalyzer } = require('./cptBillingAnalyzer.service');
+        console.log('✅ [BILLING DEBUG] CPT analyzer imported successfully');
 
         // Prepare extracted info for analysis
         const extractedInfo = {
@@ -984,9 +998,15 @@ Date: ${date}
           vitals: {},
           currentMedications: []
         };
+        console.log('✅ [BILLING DEBUG] Extracted info prepared:', {
+          assessmentCount: extractedInfo.assessment.length,
+          planCount: extractedInfo.plan.length,
+          medicationCount: extractedInfo.medicationChanges.length
+        });
 
         // Analyze complexity
         const complexityAnalysis = cptBillingAnalyzer.analyzeComplexity(originalTranscript, extractedInfo);
+        console.log('✅ [BILLING DEBUG] Complexity analysis complete:', complexityAnalysis);
 
         // Get CPT recommendations
         const cptRecommendation = cptBillingAnalyzer.suggestCPTCodes(
@@ -995,6 +1015,7 @@ Date: ${date}
           extractedInfo.assessment.length > 0,
           extractedInfo.plan.length > 0
         );
+        console.log('✅ [BILLING DEBUG] CPT recommendation:', cptRecommendation);
 
         // Get ICD-10 suggestions if enabled
         const includeICD10 = template?.billingConfig?.includeICD10 !== false;
@@ -1002,14 +1023,27 @@ Date: ${date}
         if (includeICD10 && extractedInfo.assessment.length > 0) {
           icd10Suggestions = cptBillingAnalyzer.suggestICD10Codes(extractedInfo.assessment);
         }
+        console.log('✅ [BILLING DEBUG] ICD-10 suggestions:', icd10Suggestions);
 
         // Generate billing section
         const billingSection = cptBillingAnalyzer.generateBillingSection(cptRecommendation, icd10Suggestions);
+        console.log('✅ [BILLING DEBUG] Billing section generated! Preview:', billingSection.substring(0, 200));
+        console.log('✅ [BILLING DEBUG] Billing section length:', billingSection.length);
+
         formatted += billingSection;
+        console.log('✅ [BILLING DEBUG] Billing section appended to formatted note!');
       } catch (error) {
-        console.error('Failed to generate billing section:', error);
-        // Silently fail - don't break the note generation
+        console.error('❌ [BILLING ERROR] Failed to generate billing section:', error);
+        console.error('❌ [BILLING ERROR] Error stack:', (error as Error).stack);
+        // Make error visible in the note instead of silently failing
+        formatted += `\n\n⚠️ BILLING GENERATION ERROR: ${(error as Error).message}\n`;
       }
+    } else {
+      console.log('❌ [BILLING DEBUG] Billing section skipped - condition not met');
+      console.log('❌ [BILLING DEBUG] Reason:', {
+        billingEnabled,
+        hasTranscript: !!originalTranscript
+      });
     }
 
     return formatted;
