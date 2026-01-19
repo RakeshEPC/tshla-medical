@@ -81,20 +81,48 @@ export class CPTBillingAnalyzer {
   /**
    * Count number of distinct problems/diagnoses addressed
    * Uses multiple detection methods and returns the highest count
-   * FIX: Previously only counted array length (1 big string = 1 problem)
+   * FIX: Prevents keyword overcounting by grouping related terms
    */
   countProblems(assessment: string[]): number {
     if (!assessment || assessment.length === 0) return 0;
 
     const assessmentText = assessment.join(' ');
-    let problemCount = 0;
+    const textLower = assessmentText.toLowerCase();
 
-    // METHOD 1: Count ICD-10 codes (most reliable)
+    // METHOD 1: Count ICD-10 codes (MOST RELIABLE - prioritize this)
     // Matches: E11.9, I10, E78.5, I25.2, I63.9, E13.10
     const icd10Pattern = /[A-Z]\d{2}\.?\d*/g;
     const icd10Codes = assessmentText.match(icd10Pattern) || [];
     const uniqueICD10 = [...new Set(icd10Codes)]; // Remove duplicates
-    problemCount = Math.max(problemCount, uniqueICD10.length);
+    const icd10Count = uniqueICD10.length;
+
+    // If we have ICD-10 codes, strongly prefer that count
+    if (icd10Count > 0) {
+      // Only allow other methods to increase count by max 2 (for uncoded conditions)
+      const baseCount = icd10Count;
+
+      // Check for additional conditions not captured in ICD-10 codes
+      let additionalConditions = 0;
+
+      // Look for symptom keywords that might not have ICD codes yet
+      const symptomKeywords = [
+        'shortness of breath', 'SOB', 'dyspnea',
+        'chest pain', 'throat pain', 'abdominal pain',
+        'headache', 'dizziness', 'fatigue',
+        'nausea', 'vomiting', 'diarrhea'
+      ];
+
+      for (const symptom of symptomKeywords) {
+        if (textLower.includes(symptom.toLowerCase())) {
+          additionalConditions = Math.min(additionalConditions + 1, 2);
+        }
+      }
+
+      return baseCount + additionalConditions;
+    }
+
+    // If no ICD-10 codes, use other methods
+    let problemCount = 0;
 
     // METHOD 2: Count bullet points/list items
     // Matches: •, -, 1., 2., etc.
@@ -102,67 +130,61 @@ export class CPTBillingAnalyzer {
     const bullets = assessmentText.match(bulletPattern) || [];
     problemCount = Math.max(problemCount, bullets.length);
 
-    // METHOD 3: Count distinct medical conditions by keyword
-    const conditionKeywords = [
-      // Endocrine
-      'diabetes', 'diabetic', 'hyperglycemia', 'hypoglycemia',
-      'hypothyroid', 'hyperthyroid', 'thyroid disorder',
-      'obesity', 'metabolic syndrome',
+    // METHOD 3: Count distinct CONDITION GROUPS (not individual keywords)
+    // Group related keywords to prevent overcounting
+    const conditionGroups = [
+      // Diabetes group - only count once even if multiple keywords match
+      { keywords: ['diabetes', 'diabetic', 'hyperglycemia', 'hypoglycemia', 'DKA', 'ketoacidosis'], matched: false },
 
-      // Cardiovascular
-      'hypertension', 'HTN', 'high blood pressure',
-      'hyperlipidemia', 'HLD', 'dyslipidemia', 'cholesterol',
-      'coronary disease', 'CAD', 'heart disease',
-      'myocardial infarction', 'MI', 'heart attack',
-      'heart failure', 'CHF', 'atrial fibrillation',
-      'stroke', 'CVA', 'TIA',
+      // Thyroid group - only count once
+      { keywords: ['hypothyroid', 'hyperthyroid', 'thyroid disorder', 'thyroid nodule', 'goiter'], matched: false },
 
-      // Respiratory
-      'COPD', 'emphysema', 'chronic bronchitis',
-      'asthma', 'pneumonia', 'bronchitis',
+      // Hypertension group - only count once
+      { keywords: ['hypertension', 'HTN', 'high blood pressure'], matched: false },
 
-      // Acute conditions
-      'ketoacidosis', 'DKA', 'sepsis',
-      'chest pain', 'angina', 'dyspnea',
-      'shortness of breath', 'SOB',
+      // Lipid group - only count once
+      { keywords: ['hyperlipidemia', 'HLD', 'dyslipidemia', 'cholesterol', 'triglycerides'], matched: false },
 
-      // Other chronic
-      'chronic kidney disease', 'CKD', 'renal',
-      'depression', 'anxiety', 'PTSD',
-      'arthritis', 'osteoarthritis', 'gout',
-      'neuropathy', 'retinopathy', 'nephropathy'
+      // Coronary disease group - only count once
+      { keywords: ['coronary disease', 'CAD', 'heart disease', 'myocardial infarction', 'MI', 'heart attack'], matched: false },
+
+      // Heart failure group - only count once
+      { keywords: ['heart failure', 'CHF', 'cardiomyopathy'], matched: false },
+
+      // Respiratory group - only count once
+      { keywords: ['COPD', 'emphysema', 'chronic bronchitis', 'asthma'], matched: false },
+
+      // Obesity/metabolic - only count once
+      { keywords: ['obesity', 'metabolic syndrome', 'overweight'], matched: false },
+
+      // Kidney disease - only count once
+      { keywords: ['chronic kidney disease', 'CKD', 'renal insufficiency', 'nephropathy'], matched: false },
+
+      // Mental health - only count once
+      { keywords: ['depression', 'anxiety', 'PTSD'], matched: false },
+
+      // Symptoms - count each distinct symptom
+      { keywords: ['shortness of breath', 'SOB', 'dyspnea'], matched: false },
+      { keywords: ['chest pain', 'angina'], matched: false },
+      { keywords: ['throat pain'], matched: false },
+      { keywords: ['neuropathy'], matched: false },
+      { keywords: ['retinopathy'], matched: false },
     ];
 
-    const textLower = assessmentText.toLowerCase();
-    const foundConditions = conditionKeywords.filter(keyword =>
-      textLower.includes(keyword.toLowerCase())
-    );
-    problemCount = Math.max(problemCount, foundConditions.length);
-
-    // METHOD 4: Count commas and semicolons (fallback)
-    // "Type 2 DM, HTN, HLD, hypothyroid" = 4 items
-    const items = assessmentText.split(/[,;]/).filter(item =>
-      item.trim().length > 3 // Ignore tiny fragments
-    );
-    problemCount = Math.max(problemCount, items.length);
-
-    // BONUS: Add points for complexity indicators
-    const complexityBonus = [
-      /multiple\s+chronic\s+conditions?/i,
-      /\d+\s+chronic\s+conditions?/i,
-      /complicated\s+by/i,
-      /poorly\s+controlled/i,
-      /uncontrolled/i,
-      /refractory/i,
-      /progressive/i
-    ];
-
-    for (const pattern of complexityBonus) {
-      if (pattern.test(assessmentText)) {
-        problemCount += 1; // Bonus for complexity
-        break; // Only add once
+    // Check which condition groups are present
+    let groupMatches = 0;
+    for (const group of conditionGroups) {
+      for (const keyword of group.keywords) {
+        if (textLower.includes(keyword.toLowerCase())) {
+          if (!group.matched) {
+            group.matched = true;
+            groupMatches++;
+          }
+          break; // Stop checking this group once matched
+        }
       }
     }
+    problemCount = Math.max(problemCount, groupMatches);
 
     // Use highest count from all methods, but keep array length as minimum
     problemCount = Math.max(problemCount, assessment.length);
