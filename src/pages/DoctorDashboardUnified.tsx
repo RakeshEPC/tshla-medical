@@ -238,7 +238,8 @@ export default function DoctorDashboardUnified() {
       })
     );
 
-    navigate('/quick-note');
+    // Navigate with appointmentId as URL parameter so PreVisitSummary can load data
+    navigate(`/quick-note?appointmentId=${appointment.id}`);
   };
 
   const handleAddAppointment = (timeSlot: string) => {
