@@ -83,6 +83,7 @@ export default function MedicalDictation({
   const [doctorSpecialty, setDoctorSpecialty] = useState<string>('');
   const [selectedTemplate, setSelectedTemplate] = useState<DoctorTemplate | null>(null);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
+  const [additionalNotes, setAdditionalNotes] = useState<string>(''); // Free text notes to add to dictation
   const [templates, setTemplates] = useState<DoctorTemplate[]>([]);
   const [recentTemplates, setRecentTemplates] = useState<DoctorTemplate[]>([]);
   const [favoriteTemplates, setFavoriteTemplates] = useState<DoctorTemplate[]>([]);
@@ -797,12 +798,23 @@ export default function MedicalDictation({
 
   const processWithAI = async (transcriptToProcess?: string) => {
     // Use the passed transcript or fall back to state
-    const contentToProcess = transcriptToProcess || transcript;
-    logDebug('MedicalDictation', 'Starting AI processing', { transcriptLength: contentToProcess.length });
+    let contentToProcess = transcriptToProcess || transcript;
+
+    // Combine additional notes with the transcript
+    if (additionalNotes.trim()) {
+      contentToProcess = contentToProcess.trim()
+        ? `${contentToProcess}\n\nADDITIONAL NOTES:\n${additionalNotes.trim()}`
+        : additionalNotes.trim();
+    }
+
+    logDebug('MedicalDictation', 'Starting AI processing', {
+      transcriptLength: contentToProcess.length,
+      hasAdditionalNotes: !!additionalNotes.trim()
+    });
 
     if (!contentToProcess.trim()) {
       logError('MedicalDictation', 'No content to process');
-      alert('Please record some content first');
+      alert('Please record some content or add notes first');
       return;
     }
 
@@ -825,7 +837,7 @@ Visit Date: ${patientDetails.visitDate}
       `.trim();
 
       // For dictation, include mode information
-      const combinedContent = recordingMode === 'conversation' 
+      const combinedContent = recordingMode === 'conversation'
         ? `CONVERSATION TRANSCRIPT:\n${contentToProcess}`
         : contentToProcess;
 
@@ -1572,6 +1584,24 @@ Visit Date: ${patientDetails.visitDate}
         }`}>
           {/* Left Column - Template */}
           <div className="space-y-4">
+            {/* Additional Notes Input */}
+            <div className="bg-white rounded-lg shadow-sm p-4">
+              <h2 className="text-md font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                Additional Notes
+              </h2>
+              <textarea
+                value={additionalNotes}
+                onChange={(e) => setAdditionalNotes(e.target.value)}
+                placeholder="Type additional notes here... These will be included when you click Process."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm resize-vertical min-h-[80px]"
+                rows={3}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                💡 Tip: Type notes while dictating. They'll be combined with your dictation when processing.
+              </p>
+            </div>
+
             {/* Template Selection */}
             <div className="bg-white rounded-lg shadow-sm p-4">
               <h2 className="text-md font-semibold text-gray-800 mb-2 flex items-center gap-2">
