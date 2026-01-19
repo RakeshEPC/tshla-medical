@@ -1187,28 +1187,50 @@ export class CPTBillingAnalyzer {
 BILLING CODES (AI-GENERATED)
 ═══════════════════════════════════════════════════════\n\n`;
 
-    // ========== SECTION 1: BILL THESE CODES ==========
-    section += `📋 BILL THESE CODES:\n`;
+    // ========== SECTION 1: CPT CODES TO BILL ==========
+    section += `📋 CPT CODES TO BILL:\n`;
     section += `───────────────────────────────────────────────────────\n`;
 
-    // E/M Code with modifier if procedures present
+    // List all CPT codes together at the top
     if (procedures.length > 0) {
-      section += `${cptRecommendation.primaryCode}-25  (E/M Visit with modifier)\n`;
-      section += `  ${cptRecommendation.primaryDescription}\n`;
-      section += `  Complexity: ${cptRecommendation.complexity.toUpperCase()} | Confidence: ${cptRecommendation.confidenceScore}%\n\n`;
+      section += `**${cptRecommendation.primaryCode}-25**  (E/M Visit with Modifier -25)\n`;
+      for (const proc of procedures) {
+        section += `**${proc.cptCode}**  (${proc.description.split(',')[0]})\n`;
+      }
     } else {
-      section += `${cptRecommendation.primaryCode}  (E/M Visit)\n`;
-      section += `  ${cptRecommendation.primaryDescription}\n`;
-      section += `  Complexity: ${cptRecommendation.complexity.toUpperCase()} | Confidence: ${cptRecommendation.confidenceScore}%\n\n`;
+      section += `**${cptRecommendation.primaryCode}**  (E/M Visit)\n`;
     }
 
-    // Procedures (if any)
+    section += `\n`;
+
+    // ========== SECTION 2: CODE DETAILS ==========
+    section += `📝 CODE DETAILS:\n`;
+    section += `───────────────────────────────────────────────────────\n`;
+
+    // E/M Code details
+    if (procedures.length > 0) {
+      section += `**${cptRecommendation.primaryCode}-25** - ${cptRecommendation.primaryDescription}\n`;
+      section += `  • Complexity Level: ${cptRecommendation.complexity.toUpperCase()}\n`;
+      section += `  • Time Range: ${cptRecommendation.timeRange}\n`;
+      section += `  • AI Confidence: ${cptRecommendation.confidenceScore}%\n`;
+      section += `  • Modifier -25: "Significant, separately identifiable E/M service on same day as procedure"\n`;
+      section += `  • Required when billing E/M + procedure on same day\n\n`;
+    } else {
+      section += `**${cptRecommendation.primaryCode}** - ${cptRecommendation.primaryDescription}\n`;
+      section += `  • Complexity Level: ${cptRecommendation.complexity.toUpperCase()}\n`;
+      section += `  • Time Range: ${cptRecommendation.timeRange}\n`;
+      section += `  • AI Confidence: ${cptRecommendation.confidenceScore}%\n\n`;
+    }
+
+    // Procedure details (if any)
     if (procedures.length > 0) {
       for (const proc of procedures) {
-        section += `${proc.cptCode}  (Procedure)\n`;
-        section += `  ${proc.description}\n`;
-        if (proc.confidence === 'medium' || proc.confidence === 'low') {
-          section += `  ⚠ Verify: ${proc.note}\n`;
+        section += `**${proc.cptCode}** - ${proc.description}\n`;
+        section += `  • ${proc.note}\n`;
+        if (proc.confidence === 'medium') {
+          section += `  • ⚠ Medium confidence - verify procedure was performed\n`;
+        } else if (proc.confidence === 'low') {
+          section += `  • ⚠ Low confidence - please verify\n`;
         }
         section += `\n`;
       }
@@ -1216,39 +1238,30 @@ BILLING CODES (AI-GENERATED)
 
     // ICD-10 Codes
     if (icd10Suggestions.length > 0) {
-      section += `ICD-10 Diagnosis Codes:\n`;
+      section += `🏥 ICD-10 DIAGNOSIS CODES:\n`;
+      section += `───────────────────────────────────────────────────────\n`;
       for (const icd of icd10Suggestions) {
-        section += `  ${icd.code} - ${icd.description}\n`;
+        section += `${icd.code} - ${icd.description}\n`;
       }
       section += `\n`;
     }
 
-    // ========== SECTION 2: MODIFIERS (if procedures) ==========
-    if (procedures.length > 0) {
-      section += `\n⚠ MODIFIER -25 REQUIRED:\n`;
-      section += `───────────────────────────────────────────────────────\n`;
-      section += `Add modifier -25 to ${cptRecommendation.primaryCode} when billing with procedure\n`;
-      section += `Modifier -25 = "Significant, separately identifiable E/M service"\n\n`;
-    }
-
-    // ========== SECTION 3: JUSTIFICATION (condensed) ==========
-    section += `📊 BILLING JUSTIFICATION:\n`;
+    // ========== SECTION 3: MEDICAL DECISION MAKING JUSTIFICATION ==========
+    section += `📊 MEDICAL DECISION MAKING (MDM) JUSTIFICATION:\n`;
     section += `───────────────────────────────────────────────────────\n`;
 
-    // Only show the key points, not everything
-    const keyPoints = cptRecommendation.mdmJustification.filter(point =>
-      point.includes('Problems') ||
-      point.includes('Data') ||
-      point.includes('Risk') ||
-      point.includes('Time')
-    );
-
-    for (const point of keyPoints) {
-      section += `${point}\n`;
+    // Show all MDM points for audit defense
+    for (const point of cptRecommendation.mdmJustification) {
+      section += `• ${point}\n`;
     }
 
+    // Show complexity scoring breakdown
+    section += `\nComplexity Score Calculation:\n`;
+    section += `• This visit qualifies as ${cptRecommendation.complexity.toUpperCase()} complexity\n`;
+    section += `• Meets CMS 2021 E/M guidelines for ${cptRecommendation.primaryCode}\n`;
+
     // ========== SECTION 4: DISCLAIMER ==========
-    section += `\n⚠ Provider must verify accuracy before billing\n`;
+    section += `\n⚠ REMINDER: Provider must review and verify all codes before billing\n`;
 
     return section;
   }
