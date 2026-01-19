@@ -59,25 +59,27 @@ ${questionnaire || 'Not provided'}
 
 Please provide:
 
-1. A concise SUMMARY (2-3 paragraphs) highlighting:
-   - Patient's current status
-   - Key changes since last visit
-   - Important clinical findings
-   - Any red flags or urgent concerns
+1. A SUMMARY organized by diagnosis/condition as BULLET POINTS:
+   - Group findings by each medical condition (e.g., Hypothyroidism, Diabetes, Hypertension)
+   - Each bullet should be concise (1-2 lines maximum)
+   - Focus on: current status, key labs, medication response, concerns
+   - Format: "• [Condition]: [key finding/status]"
 
-2. CHIEF COMPLAINT (1-2 sentences)
+2. CHIEF COMPLAINT (1 sentence only)
 
-3. MEDICATION CHANGES (JSON array of any new/changed/discontinued meds)
+3. MEDICATION CHANGES (JSON array - only actual changes, not current meds)
 
-4. ABNORMAL LABS (JSON array with lab name, value, and significance)
+4. ABNORMAL LABS (JSON array - ONLY abnormal values with clinical significance)
+
+5. KEY LAB SUMMARY (condensed table format, only most relevant labs)
 
 Format your response as JSON:
 {
-  "summary": "Full clinical summary here...",
-  "chiefComplaint": "Main reason for visit...",
-  "medicationChanges": [{"medication": "...", "change": "...", "reason": "..."}],
-  "abnormalLabs": [{"test": "...", "value": "...", "status": "high/low", "significance": "..."}],
-  "followUpItems": ["item 1", "item 2"]
+  "summary": "• Hypothyroidism: TSH 7.49 (elevated), on levothyroxine 150mcg - needs dose adjustment\\n• Prediabetes: A1C improved to 5.5% on Mounjaro, good response\\n• Hypertension: BP 140/78, suboptimal control",
+  "chiefComplaint": "Follow-up for multiple chronic conditions",
+  "medicationChanges": [{"medication": "Mounjaro", "change": "started", "dosage": "2.5mg weekly, titrated to 5mg", "reason": "weight/glucose management"}],
+  "abnormalLabs": [{"test": "TSH", "value": "7.49 uIU/mL", "reference": "0.5-4.5", "status": "high", "significance": "Suboptimal thyroid control"}],
+  "keyLabs": "TSH 7.49↑ | A1C 5.5% | Cholesterol 209↑ | Triglycerides 328↑ | Testosterone 40.6↓ | BP 140/78"
 }`;
 
     // Call Azure OpenAI API (HIPAA compliant)
@@ -108,12 +110,13 @@ Format your response as JSON:
       chiefComplaint: aiResponse.chiefComplaint,
       medicationChanges: aiResponse.medicationChanges || [],
       abnormalLabs: aiResponse.abnormalLabs || [],
+      keyLabs: aiResponse.keyLabs || '',
       followUpItems: aiResponse.followUpItems || [],
       tokensUsed: completion.usage.total_tokens
     });
 
   } catch (error) {
-    console.error('Error generating pre-visit summary:', error);
+    // Log error without exposing PHI
     res.status(500).json({
       error: 'Failed to generate AI summary',
       details: error.message

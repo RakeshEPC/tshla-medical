@@ -437,7 +437,7 @@ export default function StaffPreVisitPrep() {
         throw new Error(`AI processing failed: ${response.status} - ${errorText}`);
       }
 
-      const { summary, chiefComplaint, medicationChanges, abnormalLabs } = await response.json();
+      const { summary, chiefComplaint, medicationChanges, abnormalLabs, keyLabs } = await response.json();
 
       // Save all data including AI-generated summary
       const previsitData = {
@@ -460,6 +460,7 @@ export default function StaffPreVisitPrep() {
         chief_complaint: chiefComplaint,
         medication_changes: medicationChanges,
         abnormal_labs: abnormalLabs,
+        key_labs_summary: keyLabs || null,
         ai_summary_generated_at: new Date().toISOString(),
         completed: true,
         completed_at: new Date().toISOString()

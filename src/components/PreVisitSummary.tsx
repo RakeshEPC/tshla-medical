@@ -7,6 +7,7 @@ interface PreVisitData {
   chief_complaint: string;
   medication_changes: any[];
   abnormal_labs: any[];
+  key_labs_summary: string;
   previous_notes: string;
   medications_list: string;
   lab_results: string;
@@ -23,6 +24,7 @@ export default function PreVisitSummary({ appointmentId }: Props) {
   const [previsitData, setPrevisitData] = useState<PreVisitData | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(true);
+  const [showFullLabs, setShowFullLabs] = useState(false);
 
   useEffect(() => {
     loadPreVisitData();
@@ -100,26 +102,44 @@ export default function PreVisitSummary({ appointmentId }: Props) {
 
       {/* Content */}
       {expanded && (
-        <div className="p-6 space-y-6">
-          {/* AI Summary */}
-          {previsitData.ai_summary && (
-            <div className="bg-white rounded-lg p-4 shadow-sm">
-              <h3 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
-                <span>🤖</span> AI Clinical Summary
-              </h3>
-              <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap">
-                {previsitData.ai_summary}
-              </div>
-            </div>
-          )}
-
+        <div className="p-6 space-y-4">
           {/* Chief Complaint */}
           {previsitData.chief_complaint && (
             <div className="bg-white rounded-lg p-4 shadow-sm">
-              <h3 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
+              <h3 className="text-md font-bold text-gray-900 mb-2 flex items-center gap-2">
                 <span>🩺</span> Chief Complaint
               </h3>
               <p className="text-gray-700">{previsitData.chief_complaint}</p>
+            </div>
+          )}
+
+          {/* Key Labs Summary - One Line */}
+          {previsitData.key_labs_summary && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 shadow-sm">
+              <h3 className="text-sm font-bold text-blue-900 mb-1">📊 Key Labs at a Glance</h3>
+              <p className="text-sm font-mono text-gray-800">{previsitData.key_labs_summary}</p>
+            </div>
+          )}
+
+          {/* AI Summary - Bullet Points */}
+          {previsitData.ai_summary && (
+            <div className="bg-white rounded-lg p-4 shadow-sm">
+              <h3 className="text-md font-bold text-gray-900 mb-3 flex items-center gap-2">
+                <span>🤖</span> AI Clinical Summary
+              </h3>
+              <div className="text-sm text-gray-700 space-y-1 leading-relaxed">
+                {previsitData.ai_summary.split('\n').map((line, idx) => (
+                  line.trim() && (
+                    <div key={idx} className="flex gap-2">
+                      {line.trim().startsWith('•') ? (
+                        <span>{line}</span>
+                      ) : (
+                        <span>• {line}</span>
+                      )}
+                    </div>
+                  )
+                ))}
+              </div>
             </div>
           )}
 
@@ -227,15 +247,24 @@ export default function PreVisitSummary({ appointmentId }: Props) {
             </div>
           )}
 
-          {/* Lab Results (Full) */}
+          {/* Lab Results (Full) - Collapsible */}
           {previsitData.lab_results && (
             <div className="bg-white rounded-lg p-4 shadow-sm">
-              <h3 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
-                <span>🧪</span> Recent Lab Results
-              </h3>
-              <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono bg-gray-50 p-3 rounded">
-                {previsitData.lab_results}
-              </pre>
+              <div
+                className="flex items-center justify-between cursor-pointer hover:bg-gray-50 p-2 rounded transition-colors"
+                onClick={() => setShowFullLabs(!showFullLabs)}
+              >
+                <h3 className="text-md font-bold text-gray-900 flex items-center gap-2">
+                  <span>🧪</span> Full Lab Results
+                  <span className="text-xs text-gray-500 font-normal">(click to {showFullLabs ? 'hide' : 'show'})</span>
+                </h3>
+                <span className="text-xl">{showFullLabs ? '▼' : '▶'}</span>
+              </div>
+              {showFullLabs && (
+                <pre className="text-xs text-gray-700 whitespace-pre-wrap font-mono bg-gray-50 p-3 rounded mt-3 max-h-96 overflow-y-auto">
+                  {previsitData.lab_results}
+                </pre>
+              )}
             </div>
           )}
 
