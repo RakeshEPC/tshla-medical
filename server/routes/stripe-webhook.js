@@ -108,13 +108,35 @@ async function handleCheckoutCompleted(session) {
 
     // Only update if payment was successful
     if (session.payment_status === 'paid') {
+      // Retrieve payment method details to get last 4 digits of card
+      let cardLast4 = null;
+      try {
+        const paymentIntent = await stripeInstance.paymentIntents.retrieve(session.payment_intent);
+        if (paymentIntent && paymentIntent.charges && paymentIntent.charges.data.length > 0) {
+          const charge = paymentIntent.charges.data[0];
+          if (charge.payment_method_details && charge.payment_method_details.card) {
+            cardLast4 = charge.payment_method_details.card.last4;
+            logger.info('StripeWebhook', 'Retrieved card last 4 digits', {
+              paymentRequestId,
+              last4: cardLast4
+            });
+          }
+        }
+      } catch (cardError) {
+        logger.warn('StripeWebhook', 'Could not retrieve card details', {
+          error: cardError.message,
+          paymentRequestId
+        });
+      }
+
       const { data, error } = await supabase
         .from('patient_payment_requests')
         .update({
           payment_status: 'paid',
           paid_at: new Date().toISOString(),
           stripe_payment_intent_id: session.payment_intent,
-          stripe_charge_id: session.payment_intent // Stripe uses payment_intent as charge reference
+          stripe_charge_id: session.payment_intent, // Stripe uses payment_intent as charge reference
+          card_last_4: cardLast4
         })
         .eq('id', paymentRequestId)
         .select()

@@ -213,6 +213,11 @@ class ReceiptGeneratorService {
          .text(`Payment Method: ${paymentMethod}`, { align: 'center' });
 
       if (payment.stripe_payment_intent_id) {
+        // Show card last 4 if available
+        if (payment.card_last_4) {
+          doc.text(`Card ending in: ****${payment.card_last_4}`, { align: 'center' });
+        }
+
         const truncatedPI = payment.stripe_payment_intent_id.substring(0, 20) + '...';
         doc.text(`Transaction ID: ${truncatedPI}`, { align: 'center' });
       }
