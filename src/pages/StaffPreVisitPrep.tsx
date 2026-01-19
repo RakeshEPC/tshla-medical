@@ -412,9 +412,6 @@ export default function StaffPreVisitPrep() {
 
     setAiProcessing(true);
     try {
-      // First save the data
-      await handleSaveDraft();
-
       // Call AI service to generate summary via Azure Container App
       const response = await fetch(`${API_URL}/api/ai/generate-previsit-summary`, {
         method: 'POST',
@@ -433,19 +430,35 @@ export default function StaffPreVisitPrep() {
 
       const { summary, chiefComplaint, medicationChanges, abnormalLabs } = await response.json();
 
-      // Save AI-generated summary
+      // Save all data including AI-generated summary
+      const previsitData = {
+        appointment_id: parseInt(appointmentId, 10),
+        previous_notes: previousNotes,
+        medications_list: medications,
+        lab_results: labResults,
+        vitals: vitals,
+        patient_questionnaire: questionnaire,
+        insurance_notes: insuranceNotes,
+        other_documents: otherDocs,
+        em_code: billing.emCode || null,
+        copay_amount: billing.copayAmount ? parseFloat(billing.copayAmount) : null,
+        amount_charged: billing.amountCharged ? parseFloat(billing.amountCharged) : null,
+        patient_paid: billing.patientPaid,
+        payment_method: billing.paymentMethod || null,
+        billing_notes: billing.billingNotes || null,
+        billing_updated_at: new Date().toISOString(),
+        ai_summary: summary,
+        chief_complaint: chiefComplaint,
+        medication_changes: medicationChanges,
+        abnormal_labs: abnormalLabs,
+        ai_summary_generated_at: new Date().toISOString(),
+        completed: true,
+        completed_at: new Date().toISOString()
+      };
+
       const { error } = await supabase
         .from('previsit_data')
-        .update({
-          ai_summary: summary,
-          chief_complaint: chiefComplaint,
-          medication_changes: medicationChanges,
-          abnormal_labs: abnormalLabs,
-          ai_summary_generated_at: new Date().toISOString(),
-          completed: true,
-          completed_at: new Date().toISOString()
-        })
-        .eq('appointment_id', appointmentId);
+        .upsert(previsitData, { onConflict: 'appointment_id' });
 
       if (error) throw error;
 
