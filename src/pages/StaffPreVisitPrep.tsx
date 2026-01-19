@@ -412,7 +412,10 @@ export default function StaffPreVisitPrep() {
 
     setAiProcessing(true);
     try {
+      console.log('🚀 Starting AI summary generation...');
+
       // Call AI service to generate summary via Azure Container App
+      // Note: This can take 5-10 seconds, don't panic!
       const response = await fetch(`${API_URL}/api/ai/generate-previsit-summary`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -426,7 +429,13 @@ export default function StaffPreVisitPrep() {
         })
       });
 
-      if (!response.ok) throw new Error('AI processing failed');
+      console.log('✅ AI API responded with status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ AI API error:', errorText);
+        throw new Error(`AI processing failed: ${response.status} - ${errorText}`);
+      }
 
       const { summary, chiefComplaint, medicationChanges, abnormalLabs } = await response.json();
 
@@ -471,11 +480,16 @@ export default function StaffPreVisitPrep() {
         })
         .eq('id', appointmentId);
 
-      alert('Pre-visit summary generated successfully!');
+      console.log('✅ Successfully saved pre-visit data with completed=true');
+      alert('✅ Pre-visit summary generated successfully!');
       navigate('/staff-previsit-workflow');
-    } catch (error) {
-      console.error('Error generating summary:', error);
-      alert('Failed to generate AI summary. Draft has been saved.');
+    } catch (error: any) {
+      console.error('❌ Error generating summary:', error);
+      console.error('Error details:', {
+        message: error?.message,
+        stack: error?.stack
+      });
+      alert(`❌ Failed to generate AI summary: ${error?.message || 'Unknown error'}\n\nDraft has been saved. Please try again or contact support.`);
     } finally {
       setAiProcessing(false);
     }
