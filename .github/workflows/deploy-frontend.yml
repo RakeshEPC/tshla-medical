@@ -45,6 +45,41 @@ jobs:
           fi
           echo "✅ staticwebapp.config.json in correct location"
 
+      - name: Validate Azure OpenAI API Key
+        env:
+          VITE_AZURE_OPENAI_KEY: ${{ secrets.VITE_AZURE_OPENAI_KEY }}
+          VITE_AZURE_OPENAI_ENDPOINT: ${{ secrets.VITE_AZURE_OPENAI_ENDPOINT }}
+          VITE_AZURE_OPENAI_DEPLOYMENT: ${{ secrets.VITE_AZURE_OPENAI_DEPLOYMENT }}
+        run: |
+          echo "🔍 Testing Azure OpenAI API key before deployment..."
+
+          # Test the API key with a minimal request
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "${VITE_AZURE_OPENAI_ENDPOINT}/openai/deployments/${VITE_AZURE_OPENAI_DEPLOYMENT}/chat/completions?api-version=2024-02-01" \
+            -H "Content-Type: application/json" \
+            -H "api-key: ${VITE_AZURE_OPENAI_KEY}" \
+            -d '{"messages":[{"role":"user","content":"test"}],"max_tokens":1}' \
+            --max-time 10)
+
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ Azure OpenAI API key is VALID"
+          elif [ "$HTTP_CODE" = "401" ]; then
+            echo "❌ CRITICAL: Azure OpenAI API key is INVALID or EXPIRED"
+            echo "   HTTP Status: 401 Unauthorized"
+            echo "   Please update the VITE_AZURE_OPENAI_KEY GitHub Secret"
+            echo "   Command: gh secret set VITE_AZURE_OPENAI_KEY -b \"<new-key>\""
+            exit 1
+          elif [ "$HTTP_CODE" = "429" ]; then
+            echo "⚠️  WARNING: Azure OpenAI rate limit exceeded"
+            echo "   HTTP Status: 429 Too Many Requests"
+            echo "   Deployment will continue, but AI features may be slow"
+          else
+            echo "❌ CRITICAL: Unexpected response from Azure OpenAI"
+            echo "   HTTP Status: $HTTP_CODE"
+            echo "   Please verify Azure OpenAI configuration"
+            exit 1
+          fi
+
       - name: Build application
         env:
           # 🔐 SECRETS ONLY - All other config comes from .env.production
