@@ -488,7 +488,25 @@ export default function SchedulePageV2() {
       const dateStr = selectedDate.toISOString().split('T')[0];
       console.log('Loading schedule for:', dateStr);
 
-      // Query with JOIN to get patient IDs (exclude cancelled appointments)
+      // QUERY 1: Get ALL providers for this date (for dropdown - NO FILTER)
+      // This ensures dropdown always shows all available providers, not just filtered ones
+      const { data: allProvidersData } = await supabase
+        .from('provider_schedules')
+        .select('provider_id')
+        .eq('scheduled_date', dateStr)
+        .neq('status', 'cancelled');
+
+      const uniqueProviders = Array.from(
+        new Set(allProvidersData?.map(apt => apt.provider_id).filter(Boolean) || [])
+      ) as string[];
+      setAllProviders(uniqueProviders);
+
+      console.log('📋 Found', uniqueProviders.length, 'unique providers for date:', dateStr);
+      if (selectedProvider !== 'all') {
+        console.log('🔍 Filtering for provider:', selectedProvider);
+      }
+
+      // QUERY 2: Get appointments (WITH FILTER if specific provider selected)
       let query = supabase
         .from('provider_schedules')
         .select(`
@@ -506,8 +524,7 @@ export default function SchedulePageV2() {
         .order('provider_id')
         .order('start_time');
 
-      console.log('📅 Loading schedule for date:', dateStr, '(excluding cancelled appointments)');
-
+      // Apply provider filter to appointments query (NOT to allProviders query)
       if (selectedProvider !== 'all') {
         query = query.eq('provider_id', selectedProvider);
       }
@@ -539,15 +556,9 @@ export default function SchedulePageV2() {
       if (!data || data.length === 0) {
         console.warn('⚠️ No appointments found for date:', dateStr);
         setProviderGroups([]);
-        setAllProviders([]);
+        // Don't reset allProviders here - keep dropdown populated
         return;
       }
-
-      // Get unique providers for dropdown
-      const uniqueProviders = Array.from(
-        new Set(data.map(apt => apt.provider_id).filter(Boolean))
-      ) as string[];
-      setAllProviders(uniqueProviders);
 
       // Get all patient IDs to check for prior dictations
       const patientIds = data
@@ -641,10 +652,30 @@ export default function SchedulePageV2() {
 
       console.log('Loading weekly schedule starting:', weekStart.toISOString().split('T')[0]);
 
-      // Load data for Monday through Friday
+      // QUERY 1: Get ALL providers for the entire week (for dropdown - NO FILTER)
+      const allProvidersSet = new Set<string>();
+      for (let i = 0; i < 5; i++) {
+        const currentDate = new Date(weekStart);
+        currentDate.setDate(weekStart.getDate() + i);
+        const dateStr = currentDate.toISOString().split('T')[0];
+
+        const { data: providersData } = await supabase
+          .from('provider_schedules')
+          .select('provider_id')
+          .eq('scheduled_date', dateStr)
+          .neq('status', 'cancelled');
+
+        providersData?.forEach(apt => {
+          if (apt.provider_id) allProvidersSet.add(apt.provider_id);
+        });
+      }
+
+      setAllProviders(Array.from(allProvidersSet));
+      console.log('📋 Found', allProvidersSet.size, 'unique providers for the week');
+
+      // QUERY 2: Load appointments for each day (WITH FILTER if specific provider selected)
       const weekDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
       const weekData: Record<string, ProviderGroup[]> = {};
-      const allProvidersSet = new Set<string>();
 
       for (let i = 0; i < 5; i++) {
         const currentDate = new Date(weekStart);
@@ -669,6 +700,7 @@ export default function SchedulePageV2() {
           .order('provider_id')
           .order('start_time');
 
+        // Apply provider filter to appointments query (NOT to allProviders query)
         if (selectedProvider !== 'all') {
           query = query.eq('provider_id', selectedProvider);
         }
@@ -685,11 +717,6 @@ export default function SchedulePageV2() {
           weekData[dayName] = [];
           continue;
         }
-
-        // Track all providers
-        data.forEach(apt => {
-          if (apt.provider_id) allProvidersSet.add(apt.provider_id);
-        });
 
         // Get all patient IDs to check for prior dictations
         const patientIds = data
