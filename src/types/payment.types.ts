@@ -30,6 +30,7 @@ export interface PaymentRequest {
   stripe_session_id: string | null;
   stripe_payment_intent_id: string | null;
   stripe_charge_id: string | null;
+  card_last_4: string | null;
 
   // Status
   payment_status: PaymentStatus;

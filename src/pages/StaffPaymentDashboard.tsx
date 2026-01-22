@@ -317,6 +317,9 @@ export default function StaffPaymentDashboard() {
                       Type
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Last 4
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -354,6 +357,18 @@ export default function StaffPaymentDashboard() {
                         <span className="px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800 capitalize">
                           {payment.payment_type}
                         </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {payment.card_last_4 ? (
+                          <div className="flex items-center gap-1">
+                            <span className="text-gray-400">💳</span>
+                            <span className="font-mono text-sm font-semibold text-gray-900">
+                              •••• {payment.card_last_4}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-3 py-1 text-xs font-bold rounded-full capitalize ${
