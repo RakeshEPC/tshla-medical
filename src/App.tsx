@@ -111,6 +111,13 @@ const PatientPortal = lazy(() => import('./pages/PatientPortal'));
 // Patient Portal (Unified System)
 const PatientPortalLogin = lazy(() => import('./pages/PatientPortalLogin'));
 const PatientPortalDashboard = lazy(() => import('./pages/PatientPortalDashboard'));
+const PatientPortalUnified = lazy(() => import('./pages/PatientPortalUnified'));
+const PatientHPView = lazy(() => import('./pages/PatientHPView'));
+const PatientPortalPaymentSection = lazy(() => import('./pages/PatientPortalPaymentSection'));
+const PatientPortalAudioSection = lazy(() => import('./pages/PatientPortalAudioSection'));
+const PatientPortalAIChatSection = lazy(() => import('./pages/PatientPortalAIChatSection'));
+const StaffAIAnalyticsDashboard = lazy(() => import('./pages/StaffAIAnalyticsDashboard'));
+const StaffReviewQueue = lazy(() => import('./pages/StaffReviewQueue'));
 
 // Patient Audio Summaries (Web-based patient visit summaries)
 const StaffPatientSummaries = lazy(() => import('./pages/StaffPatientSummaries'));
@@ -636,6 +643,46 @@ function App() {
                   </Suspense>
                 }
               />
+              <Route
+                path="/patient-portal-unified"
+                element={
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <PatientPortalUnified />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/patient-hp-view"
+                element={
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <PatientHPView />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/patient-portal/payment"
+                element={
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <PatientPortalPaymentSection />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/patient-portal/audio"
+                element={
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <PatientPortalAudioSection />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/patient-portal/ai-chat"
+                element={
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <PatientPortalAIChatSection />
+                  </Suspense>
+                }
+              />
 
               {/* ===== PATIENT AUDIO SUMMARIES (WEB-BASED) ===== */}
               {/* Staff Dashboard - View all patient summaries */}
@@ -645,6 +692,30 @@ function App() {
                   <ProtectedRoute>
                     <Suspense fallback={<LoadingSpinner />}>
                       <StaffPatientSummaries />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Staff AI Analytics Dashboard */}
+              <Route
+                path="/staff-ai-analytics"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <StaffAIAnalyticsDashboard />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Staff Review Queue - Patient edit approvals */}
+              <Route
+                path="/staff-review-queue"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <StaffReviewQueue />
                     </Suspense>
                   </ProtectedRoute>
                 }

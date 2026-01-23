@@ -134,6 +134,12 @@ export async function extractStructuredData(
 
 IMPORTANT: Return ONLY valid JSON with no markdown formatting, no code blocks, no explanations.
 
+**CRITICAL - CONSOLIDATE AND DEDUPLICATE:**
+- If patient mentions same medication multiple times, list it ONCE with best available details
+- If patient has similar concerns (e.g., "high blood sugar" and "diabetes not controlled"), consolidate into ONE concern
+- Group related symptoms together (e.g., "nausea and vomiting" = ONE concern, not two)
+- If patient repeats same question multiple ways, list it ONCE with clearest wording
+
 Expected JSON structure:
 {
   "medications": [{"name": "...", "dosage": "...", "frequency": "...", "side_effects": "..."}],
@@ -153,7 +159,7 @@ Expected JSON structure:
   "urgent": true if urgent medical concern detected
 }
 
-RISK FLAGS to look for:
+RISK FLAGS to look for (list each flag type ONLY ONCE):
 - "new-chest-pain" - patient mentions chest pain
 - "difficulty-breathing" - breathing problems
 - "severe-pain" - pain rated 8+ or described as severe
@@ -168,7 +174,7 @@ RISK FLAGS to look for:
 TRANSCRIPT:
 ${transcript}
 
-Return only the JSON object:`;
+Return only the JSON object with DEDUPLICATED, CONSOLIDATED information:`;
 
   try {
     // Azure OpenAI deployment name

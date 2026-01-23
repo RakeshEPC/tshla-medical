@@ -2148,6 +2148,36 @@ try {
   logger.error('UnifiedAPI', 'CCD Summary API not mounted - module failed to load', { error: error.message });
 }
 
+// Patient Portal API - Unified TSH ID portal with payment, audio, and AI chat
+let patientPortalApi = null;
+try {
+  patientPortalApi = require('./routes/patient-portal-api');
+  app.use('/api/patient-portal', patientPortalApi); // Routes: /api/patient-portal/*
+  logger.info('UnifiedAPI', 'Patient Portal API mounted at /api/patient-portal');
+} catch (error) {
+  logger.error('UnifiedAPI', 'Patient Portal API not mounted - module failed to load', { error: error.message });
+}
+
+// Comprehensive H&P API - Patient medical chart generation and management
+let comprehensiveHPApi = null;
+try {
+  comprehensiveHPApi = require('./routes/comprehensive-hp-api');
+  app.use('/api/hp', comprehensiveHPApi); // Routes: /api/hp/*
+  logger.info('UnifiedAPI', 'Comprehensive H&P API mounted at /api/hp');
+} catch (error) {
+  logger.error('UnifiedAPI', 'Comprehensive H&P API not mounted - module failed to load', { error: error.message });
+}
+
+// AI Chat Educator API - Diabetes education chat with AI (voice-enabled)
+let aiChatApi = null;
+try {
+  aiChatApi = require('./routes/ai-chat-api');
+  app.use('/api/ai-chat', aiChatApi); // Routes: /api/ai-chat/*
+  logger.info('UnifiedAPI', 'AI Chat Educator API mounted at /api/ai-chat');
+} catch (error) {
+  logger.error('UnifiedAPI', 'AI Chat Educator API not mounted - module failed to load', { error: error.message });
+}
+
 // Add HTTP GET endpoint for /media-stream (for health checks)
 // Twilio might check this before attempting WebSocket upgrade
 app.get('/media-stream', (req, res) => {

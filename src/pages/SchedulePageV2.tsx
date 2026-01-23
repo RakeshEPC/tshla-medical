@@ -428,18 +428,9 @@ export default function SchedulePageV2() {
   const [viewMode, setViewMode] = useState<ViewMode>('daily');
   const [weeklyData, setWeeklyData] = useState<Record<string, ProviderGroup[]>>({});
 
-  // Validate saved provider exists in allProviders list when it loads
-  useEffect(() => {
-    if (allProviders.length > 0 && selectedProvider !== 'all') {
-      // Check if the saved provider exists in the current provider list
-      if (!allProviders.includes(selectedProvider)) {
-        console.warn('⚠️ Saved provider not found in current schedule:', selectedProvider);
-        console.log('Available providers:', allProviders);
-        // Reset to 'all' if saved provider doesn't exist
-        setSelectedProvider('all');
-      }
-    }
-  }, [allProviders]);
+  // REMOVED: Validation effect that was causing filter to reset when changing dates
+  // The provider filter should persist even if the provider has no appointments on the selected date
+  // This allows users to see an empty schedule for their selected provider
 
   // Save selections to localStorage whenever they change
   useEffect(() => {
@@ -502,8 +493,11 @@ export default function SchedulePageV2() {
       setAllProviders(uniqueProviders);
 
       console.log('📋 Found', uniqueProviders.length, 'unique providers for date:', dateStr);
+      console.log('📋 Unique provider IDs:', uniqueProviders);
+      console.log('🎯 Selected provider state:', selectedProvider);
       if (selectedProvider !== 'all') {
         console.log('🔍 Filtering for provider:', selectedProvider);
+        console.log('🔍 Does selected provider exist in list?', uniqueProviders.includes(selectedProvider));
       }
 
       // QUERY 2: Get appointments (WITH FILTER if specific provider selected)
@@ -526,7 +520,10 @@ export default function SchedulePageV2() {
 
       // Apply provider filter to appointments query (NOT to allProviders query)
       if (selectedProvider !== 'all') {
+        console.log('✅ APPLYING FILTER: provider_id = ', selectedProvider);
         query = query.eq('provider_id', selectedProvider);
+      } else {
+        console.log('ℹ️  NO FILTER: Showing all providers');
       }
 
       const { data, error } = await query;

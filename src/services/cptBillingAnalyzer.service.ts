@@ -80,7 +80,7 @@ export class CPTBillingAnalyzer {
 
   /**
    * Count number of distinct problems/diagnoses addressed
-   * Uses multiple detection methods and returns the highest count
+   * IMPROVED: Better deduplication to prevent overcounting when same condition mentioned multiple times
    * FIX: Prevents keyword overcounting by grouping related terms
    */
   countProblems(assessment: string[]): number {
@@ -98,104 +98,114 @@ export class CPTBillingAnalyzer {
 
     // If we have ICD-10 codes, strongly prefer that count
     if (icd10Count > 0) {
-      // Only allow other methods to increase count by max 2 (for uncoded conditions)
+      // Only allow other methods to increase count by max 1 (for uncoded symptoms)
       const baseCount = icd10Count;
 
-      // Check for additional conditions not captured in ICD-10 codes
+      // Check for additional ACUTE symptoms not captured in ICD-10 codes
+      // CHANGED: More restrictive - only count truly distinct acute symptoms
       let additionalConditions = 0;
+      const countedSymptoms = new Set<string>(); // Track what we've counted
 
       // Look for symptom keywords that might not have ICD codes yet
-      const symptomKeywords = [
-        'shortness of breath', 'SOB', 'dyspnea',
-        'chest pain', 'throat pain', 'abdominal pain',
-        'headache', 'dizziness', 'fatigue',
-        'nausea', 'vomiting', 'diarrhea'
+      const symptomGroups = [
+        { name: 'respiratory', keywords: ['shortness of breath', 'SOB', 'dyspnea'] },
+        { name: 'chest-pain', keywords: ['chest pain'] },
+        { name: 'throat-pain', keywords: ['throat pain'] },
+        { name: 'abdominal-pain', keywords: ['abdominal pain'] },
+        { name: 'headache', keywords: ['headache'] },
+        { name: 'dizziness', keywords: ['dizziness', 'vertigo'] },
+        { name: 'fatigue', keywords: ['fatigue', 'weakness'] },
+        { name: 'gi-symptoms', keywords: ['nausea', 'vomiting', 'diarrhea'] }
       ];
 
-      for (const symptom of symptomKeywords) {
-        if (textLower.includes(symptom.toLowerCase())) {
-          additionalConditions = Math.min(additionalConditions + 1, 2);
+      // Only count each symptom group once
+      for (const group of symptomGroups) {
+        for (const keyword of group.keywords) {
+          if (textLower.includes(keyword.toLowerCase()) && !countedSymptoms.has(group.name)) {
+            countedSymptoms.add(group.name);
+            additionalConditions = Math.min(additionalConditions + 1, 1); // Max 1 additional
+            break;
+          }
         }
       }
 
       return baseCount + additionalConditions;
     }
 
-    // If no ICD-10 codes, use other methods
-    let problemCount = 0;
+    // If no ICD-10 codes, use other methods with better deduplication
+    const countedProblems = new Set<string>(); // Track what we've counted to prevent duplicates
 
-    // METHOD 2: Count bullet points/list items
+    // METHOD 2: Count bullet points/list items (each represents a distinct problem)
     // Matches: •, -, 1., 2., etc.
     const bulletPattern = /^[\s]*[•\-\*]|\d+\./gm;
     const bullets = assessmentText.match(bulletPattern) || [];
-    problemCount = Math.max(problemCount, bullets.length);
+
+    // If we have bullet points, prefer that (doctor explicitly separated problems)
+    if (bullets.length > 0) {
+      return bullets.length;
+    }
 
     // METHOD 3: Count distinct CONDITION GROUPS (not individual keywords)
-    // Group related keywords to prevent overcounting
+    // IMPROVED: Only count each condition group ONCE even if mentioned multiple times
     const conditionGroups = [
       // Diabetes group - only count once even if multiple keywords match
-      { keywords: ['diabetes', 'diabetic', 'hyperglycemia', 'hypoglycemia', 'DKA', 'ketoacidosis'], matched: false },
+      { name: 'diabetes', keywords: ['diabetes', 'diabetic', 'hyperglycemia', 'hypoglycemia', 'DKA', 'ketoacidosis', 'poorly controlled diabetes', 'uncontrolled diabetes'] },
 
       // Thyroid group - only count once
-      { keywords: ['hypothyroid', 'hyperthyroid', 'thyroid disorder', 'thyroid nodule', 'goiter'], matched: false },
+      { name: 'thyroid', keywords: ['hypothyroid', 'hyperthyroid', 'thyroid disorder', 'thyroid nodule', 'goiter', 'hashimoto', 'graves'] },
 
       // Hypertension group - only count once
-      { keywords: ['hypertension', 'HTN', 'high blood pressure'], matched: false },
+      { name: 'hypertension', keywords: ['hypertension', 'HTN', 'high blood pressure', 'elevated blood pressure'] },
 
       // Lipid group - only count once
-      { keywords: ['hyperlipidemia', 'HLD', 'dyslipidemia', 'cholesterol', 'triglycerides'], matched: false },
+      { name: 'lipid', keywords: ['hyperlipidemia', 'HLD', 'dyslipidemia', 'cholesterol', 'high cholesterol', 'triglycerides', 'elevated ldl'] },
 
       // Coronary disease group - only count once
-      { keywords: ['coronary disease', 'CAD', 'heart disease', 'myocardial infarction', 'MI', 'heart attack'], matched: false },
+      { name: 'coronary', keywords: ['coronary disease', 'CAD', 'heart disease', 'myocardial infarction', 'MI', 'heart attack', 'acute coronary'] },
 
       // Heart failure group - only count once
-      { keywords: ['heart failure', 'CHF', 'cardiomyopathy'], matched: false },
+      { name: 'heart-failure', keywords: ['heart failure', 'CHF', 'cardiomyopathy', 'congestive heart failure'] },
 
       // Respiratory group - only count once
-      { keywords: ['COPD', 'emphysema', 'chronic bronchitis', 'asthma'], matched: false },
+      { name: 'respiratory', keywords: ['COPD', 'emphysema', 'chronic bronchitis', 'asthma', 'chronic obstructive'] },
 
       // Obesity/metabolic - only count once
-      { keywords: ['obesity', 'metabolic syndrome', 'overweight'], matched: false },
+      { name: 'obesity', keywords: ['obesity', 'metabolic syndrome', 'overweight', 'BMI elevated'] },
 
       // Kidney disease - only count once
-      { keywords: ['chronic kidney disease', 'CKD', 'renal insufficiency', 'nephropathy'], matched: false },
+      { name: 'kidney', keywords: ['chronic kidney disease', 'CKD', 'renal insufficiency', 'nephropathy', 'decreased gfr'] },
 
       // Mental health - only count once
-      { keywords: ['depression', 'anxiety', 'PTSD'], matched: false },
+      { name: 'mental-health', keywords: ['depression', 'anxiety', 'PTSD', 'depressive disorder'] },
 
-      // Symptoms - count each distinct symptom
-      { keywords: ['shortness of breath', 'SOB', 'dyspnea'], matched: false },
-      { keywords: ['chest pain', 'angina'], matched: false },
-      { keywords: ['throat pain'], matched: false },
-      { keywords: ['neuropathy'], matched: false },
-      { keywords: ['retinopathy'], matched: false },
+      // Symptoms - count each distinct symptom GROUP (not individual words)
+      { name: 'respiratory-symptoms', keywords: ['shortness of breath', 'SOB', 'dyspnea'] },
+      { name: 'chest-pain', keywords: ['chest pain', 'angina'] },
+      { name: 'throat-pain', keywords: ['throat pain'] },
+      { name: 'neuropathy', keywords: ['neuropathy', 'peripheral neuropathy'] },
+      { name: 'retinopathy', keywords: ['retinopathy', 'diabetic retinopathy'] },
     ];
 
-    // Check which condition groups are present
-    let groupMatches = 0;
+    // Check which condition groups are present - only count each group ONCE
     for (const group of conditionGroups) {
       for (const keyword of group.keywords) {
         if (textLower.includes(keyword.toLowerCase())) {
-          if (!group.matched) {
-            group.matched = true;
-            groupMatches++;
-          }
+          // Add to set - automatically prevents duplicates
+          countedProblems.add(group.name);
           break; // Stop checking this group once matched
         }
       }
     }
-    problemCount = Math.max(problemCount, groupMatches);
 
-    // Use highest count from all methods, but keep array length as minimum
-    problemCount = Math.max(problemCount, assessment.length);
-
-    return problemCount;
+    // Return the count of unique problem groups
+    // Use Math.max with assessment.length to ensure we don't undercount
+    return Math.max(countedProblems.size, Math.min(assessment.length, 1));
   }
 
   /**
    * Count data points reviewed, ordered, or analyzed
-   * Searches BOTH plan section AND original transcript
-   * FIX: Previously only searched plan, missed hospital records and provider coordination
+   * IMPROVED: Better deduplication between plan and transcript to prevent double-counting
+   * FIX: Previously counted same test twice if mentioned in both plan and transcript
    *
    * Data categories (per CMS guidelines):
    * - Each unique test/imaging = 1 point
@@ -206,7 +216,7 @@ export class CPTBillingAnalyzer {
   countDataPoints(plan: string[], transcript: string): number {
     if (!plan || plan.length === 0) return 0;
 
-    // Search BOTH plan and transcript
+    // Search BOTH plan and transcript but deduplicate
     const planText = plan.join(' ').toLowerCase();
     const transcriptLower = transcript.toLowerCase();
     const combinedText = planText + ' ' + transcriptLower;
@@ -214,59 +224,81 @@ export class CPTBillingAnalyzer {
     let dataPoints = 0;
 
     // CATEGORY 1: Laboratory Tests Ordered (+1 each, unique)
+    // IMPROVED: Use Set to automatically deduplicate if mentioned multiple times
     const labTests = [
-      // Metabolic panels
-      'cmp', 'bmp', 'comprehensive metabolic', 'basic metabolic',
+      // Metabolic panels (group related terms to prevent double counting)
+      { name: 'cmp', aliases: ['cmp', 'comprehensive metabolic panel', 'comprehensive metabolic'] },
+      { name: 'bmp', aliases: ['bmp', 'basic metabolic panel', 'basic metabolic'] },
 
       // Blood counts
-      'cbc', 'complete blood count', 'hemoglobin', 'hematocrit',
+      { name: 'cbc', aliases: ['cbc', 'complete blood count'] },
 
-      // Diabetes
-      'a1c', 'hemoglobin a1c', 'glucose', 'fructosamine',
+      // Diabetes tests
+      { name: 'a1c', aliases: ['a1c', 'hemoglobin a1c', 'hba1c', 'glycohemoglobin'] },
+      { name: 'glucose', aliases: ['glucose', 'blood glucose', 'fasting glucose'] },
 
-      // Thyroid
-      'tsh', 'free t4', 'free t3', 't4', 't3', 'thyroid panel',
+      // Thyroid tests
+      { name: 'tsh', aliases: ['tsh', 'thyroid stimulating hormone'] },
+      { name: 'thyroid-panel', aliases: ['thyroid panel', 'free t4', 'free t3', 't4', 't3'] },
 
-      // Lipids
-      'lipid panel', 'cholesterol', 'ldl', 'hdl', 'triglycerides',
+      // Lipid tests
+      { name: 'lipid-panel', aliases: ['lipid panel', 'cholesterol', 'ldl', 'hdl', 'triglycerides'] },
 
-      // Liver/kidney
-      'liver panel', 'lft', 'ast', 'alt', 'bilirubin',
-      'kidney function', 'creatinine', 'bun', 'gfr',
-      'microalbumin', 'urine albumin', 'protein/creatinine ratio',
+      // Liver function
+      { name: 'lft', aliases: ['liver panel', 'lft', 'liver function', 'ast', 'alt', 'bilirubin'] },
 
-      // Other
-      'vitamin d', 'b12', 'folate', 'iron', 'ferritin',
-      'ptt', 'pt', 'inr', 'coagulation',
-      'urinalysis', 'urine culture'
+      // Kidney function
+      { name: 'kidney-function', aliases: ['kidney function', 'creatinine', 'bun', 'gfr', 'renal function'] },
+      { name: 'urine-albumin', aliases: ['microalbumin', 'urine albumin', 'protein/creatinine ratio', 'uacr'] },
+
+      // Vitamins and minerals
+      { name: 'vitamin-d', aliases: ['vitamin d', '25-oh vitamin d'] },
+      { name: 'b12', aliases: ['b12', 'vitamin b12'] },
+      { name: 'iron', aliases: ['iron', 'ferritin', 'iron panel'] },
+
+      // Coagulation
+      { name: 'coagulation', aliases: ['ptt', 'pt', 'inr', 'coagulation'] },
+
+      // Urine tests
+      { name: 'urinalysis', aliases: ['urinalysis', 'ua', 'urine culture'] }
     ];
 
     const labsFound = new Set<string>();
-    for (const lab of labTests) {
-      if (combinedText.includes(lab)) {
-        labsFound.add(lab);
+    for (const labGroup of labTests) {
+      // Check if ANY alias from this group is mentioned
+      for (const alias of labGroup.aliases) {
+        if (combinedText.includes(alias.toLowerCase())) {
+          labsFound.add(labGroup.name); // Add the GROUP name, not the alias
+          break; // Stop checking other aliases for this group
+        }
       }
     }
     dataPoints += labsFound.size;
 
     // CATEGORY 2: Imaging Studies Ordered (+1 each, unique)
+    // IMPROVED: Group related imaging terms to prevent double counting
     const imagingTests = [
-      'x-ray', 'xray', 'chest x-ray', 'cxr',
-      'ct scan', 'ct', 'cat scan',
-      'mri', 'magnetic resonance',
-      'ultrasound', 'us', 'sonogram',
-      'dexa', 'bone density',
-      'echo', 'echocardiogram', 'cardiac echo',
-      'ekg', 'ecg', 'electrocardiogram',
-      'stress test', 'nuclear stress',
-      'doppler', 'vascular study',
-      'mammogram', 'breast imaging'
+      { name: 'chest-xray', aliases: ['chest x-ray', 'cxr', 'chest xray'] },
+      { name: 'xray', aliases: ['x-ray', 'xray', 'radiograph'] },
+      { name: 'ct', aliases: ['ct scan', 'ct', 'cat scan', 'computed tomography'] },
+      { name: 'mri', aliases: ['mri', 'magnetic resonance', 'magnetic resonance imaging'] },
+      { name: 'ultrasound', aliases: ['ultrasound', 'us', 'sonogram', 'ultrasonography'] },
+      { name: 'dexa', aliases: ['dexa', 'bone density', 'bone densitometry'] },
+      { name: 'echo', aliases: ['echo', 'echocardiogram', 'cardiac echo', 'cardiac ultrasound'] },
+      { name: 'ekg', aliases: ['ekg', 'ecg', 'electrocardiogram'] },
+      { name: 'stress-test', aliases: ['stress test', 'nuclear stress', 'exercise stress test'] },
+      { name: 'doppler', aliases: ['doppler', 'vascular study', 'vascular ultrasound'] },
+      { name: 'mammogram', aliases: ['mammogram', 'breast imaging'] }
     ];
 
     const imagingFound = new Set<string>();
-    for (const img of imagingTests) {
-      if (combinedText.includes(img)) {
-        imagingFound.add(img);
+    for (const imgGroup of imagingTests) {
+      // Check if ANY alias from this group is mentioned
+      for (const alias of imgGroup.aliases) {
+        if (combinedText.includes(alias.toLowerCase())) {
+          imagingFound.add(imgGroup.name); // Add the GROUP name, not the alias
+          break; // Stop checking other aliases for this group
+        }
       }
     }
     dataPoints += imagingFound.size;
@@ -378,7 +410,7 @@ export class CPTBillingAnalyzer {
    * - Critical lab values
    * - Post-discharge status
    *
-   * FIX: Now detects recent hospitalization, MI, DKA, and other acute events
+   * IMPROVED: Better deduplication to prevent overcounting when same event mentioned multiple times
    * Per CMS 2021 guidelines for MDM risk assessment
    */
   assessRiskLevel(
@@ -394,7 +426,10 @@ export class CPTBillingAnalyzer {
     const medicationText = medicationChanges.join(' ');
     const combinedText = `${assessmentText} ${medicationText} ${transcript}`.toLowerCase();
 
-    // CATEGORY 1: Recent Hospitalization (HIGH RISK +3)
+    // Track what we've counted to prevent double-counting
+    const countedRisks = new Set<string>();
+
+    // CATEGORY 1: Recent Hospitalization (HIGH RISK +3, COUNT ONCE)
     const hospitalizationPatterns = [
       /admitted\s+(?:to\s+)?(?:the\s+)?hospital/i,
       /recent(?:ly)?\s+(?:admitted|hospitalized|hospitalization)/i,
@@ -408,16 +443,19 @@ export class CPTBillingAnalyzer {
     ];
 
     let wasHospitalized = false;
-    for (const pattern of hospitalizationPatterns) {
-      if (pattern.test(combinedText)) {
-        wasHospitalized = true;
-        riskScore += 3; // Recent hospitalization = HIGH risk
-        break;
+    if (!countedRisks.has('hospitalization')) {
+      for (const pattern of hospitalizationPatterns) {
+        if (pattern.test(combinedText)) {
+          wasHospitalized = true;
+          riskScore += 3; // Recent hospitalization = HIGH risk
+          countedRisks.add('hospitalization');
+          break;
+        }
       }
     }
 
-    // CATEGORY 2: Post-Discharge Timing (Additional +2 if <7 days)
-    if (wasHospitalized) {
+    // CATEGORY 2: Post-Discharge Timing (Additional +2 if <7 days, COUNT ONCE)
+    if (wasHospitalized && !countedRisks.has('post-discharge-timing')) {
       const daysMatches = [
         /discharged\s+(\d+)\s+days?\s+ago/i.exec(combinedText),
         /(\d+)\s+days?\s+(?:post|status\s+post)\s+discharge/i.exec(combinedText),
@@ -429,34 +467,58 @@ export class CPTBillingAnalyzer {
           const days = match[1] === 'two' ? 2 : parseInt(match[1] || '999');
           if (days <= 7) {
             riskScore += 2; // Post-discharge within 7 days = extra HIGH risk
+            countedRisks.add('post-discharge-timing');
           }
           break;
         }
       }
     }
 
-    // CATEGORY 3: Life-Threatening Events (HIGH RISK +3 each)
-    const acuteLifeThreateningEvents = [
-      /(?:recent|new|another)\s+(?:MI|myocardial\s+infarction|heart\s+attack)/i,
-      /(?:had|with)\s+(?:another|new)\s+(?:MI|heart\s+attack)/i,
-      /(?:STEMI|NSTEMI)/i,
-      /(?:acute|unstable)\s+(?:coronary|angina)/i,
-      /(?:DKA|diabetic\s+ketoacidosis)/i,
-      /(?:HHS|hyperosmolar)/i,
-      /severe\s+hypoglycemia/i,
-      /(?:sepsis|septic\s+shock)/i,
-      /(?:recent|new)\s+stroke/i,
-      /(?:PE|pulmonary\s+embolism)/i,
-      /(?:CHF|heart\s+failure)\s+exacerbation/i,
-      /(?:COPD|asthma)\s+exacerbation/i,
-      /respiratory\s+failure/i,
-      /acute\s+kidney\s+injury/i
+    // CATEGORY 3: Life-Threatening Events (HIGH RISK +3, but cap at +6 total for this category)
+    // IMPROVED: Each EVENT TYPE is counted only once, max 2 different event types
+    const acuteLifeThreateningEventGroups = [
+      { name: 'cardiac', patterns: [
+        /(?:recent|new|another)\s+(?:MI|myocardial\s+infarction|heart\s+attack)/i,
+        /(?:had|with)\s+(?:another|new)\s+(?:MI|heart\s+attack)/i,
+        /(?:STEMI|NSTEMI)/i,
+        /(?:acute|unstable)\s+(?:coronary|angina)/i
+      ]},
+      { name: 'metabolic', patterns: [
+        /(?:DKA|diabetic\s+ketoacidosis)/i,
+        /(?:HHS|hyperosmolar)/i,
+        /severe\s+hypoglycemia/i
+      ]},
+      { name: 'infection', patterns: [
+        /(?:sepsis|septic\s+shock)/i
+      ]},
+      { name: 'neurologic', patterns: [
+        /(?:recent|new)\s+stroke/i
+      ]},
+      { name: 'pulmonary', patterns: [
+        /(?:PE|pulmonary\s+embolism)/i,
+        /(?:COPD|asthma)\s+exacerbation/i,
+        /respiratory\s+failure/i
+      ]},
+      { name: 'heart-failure', patterns: [
+        /(?:CHF|heart\s+failure)\s+exacerbation/i
+      ]},
+      { name: 'renal', patterns: [
+        /acute\s+kidney\s+injury/i
+      ]}
     ];
 
-    for (const pattern of acuteLifeThreateningEvents) {
-      if (pattern.test(combinedText)) {
-        riskScore += 3; // Life-threatening event = HIGH risk
-        // Don't break - multiple events should stack
+    let lifeThreateningEventCount = 0;
+    for (const eventGroup of acuteLifeThreateningEventGroups) {
+      // Only check if we haven't already counted this event group
+      if (!countedRisks.has(`acute-${eventGroup.name}`) && lifeThreateningEventCount < 2) {
+        for (const pattern of eventGroup.patterns) {
+          if (pattern.test(combinedText)) {
+            riskScore += 3; // Life-threatening event = HIGH risk
+            countedRisks.add(`acute-${eventGroup.name}`);
+            lifeThreateningEventCount++;
+            break; // Only count this event group once
+          }
+        }
       }
     }
 
@@ -560,6 +622,7 @@ export class CPTBillingAnalyzer {
 
   /**
    * Count medication changes from text
+   * IMPROVED: Better deduplication to prevent counting same medication multiple times
    * Fixes Bug #4: Parse actual medication actions instead of array length
    */
   countMedicationChanges(medicationTexts: string[], transcript: string): number {
@@ -570,50 +633,10 @@ export class CPTBillingAnalyzer {
     const combinedText = medicationTexts.join(' ') + ' ' + transcript;
     const textLower = combinedText.toLowerCase();
 
-    let changeCount = 0;
+    // Track unique medications that had changes - prevent double counting
+    const medicationsWithChanges = new Set<string>();
 
-    // METHOD 1: Count medication action keywords (most reliable)
-    const actionPatterns = [
-      // Starting medications
-      /start(?:ed|ing)?\s+(?:on\s+)?[\w\s]+?(?:\d+\s*(?:mg|mcg|units?|ml))/gi,
-      /initiat(?:e|ed|ing)\s+[\w\s]+?(?:\d+\s*(?:mg|mcg|units?|ml))/gi,
-      /begin(?:ning)?\s+[\w\s]+?(?:\d+\s*(?:mg|mcg|units?|ml))/gi,
-      /add(?:ed|ing)?\s+[\w\s]+?(?:\d+\s*(?:mg|mcg|units?|ml))/gi,
-      /prescrib(?:e|ed|ing)\s+[\w\s]+?(?:\d+\s*(?:mg|mcg|units?|ml))/gi,
-
-      // Increasing doses
-      /increas(?:e|ed|ing)\s+[\w\s]+?(?:to\s+)?\d+\s*(?:mg|mcg|units?|ml)/gi,
-      /up(?:ped|ping)?\s+[\w\s]+?(?:to\s+)?\d+\s*(?:mg|mcg|units?|ml)/gi,
-      /rais(?:e|ed|ing)\s+[\w\s]+?(?:to\s+)?\d+\s*(?:mg|mcg|units?|ml)/gi,
-      /titrat(?:e|ed|ing)\s+up\s+[\w\s]+?(?:to\s+)?\d+\s*(?:mg|mcg|units?|ml)/gi,
-
-      // Decreasing doses
-      /decreas(?:e|ed|ing)\s+[\w\s]+?(?:to\s+)?\d+\s*(?:mg|mcg|units?|ml)/gi,
-      /lower(?:ed|ing)?\s+[\w\s]+?(?:to\s+)?\d+\s*(?:mg|mcg|units?|ml)/gi,
-      /reduc(?:e|ed|ing)\s+[\w\s]+?(?:to\s+)?\d+\s*(?:mg|mcg|units?|ml)/gi,
-      /down(?:ped|ping)?\s+[\w\s]+?(?:to\s+)?\d+\s*(?:mg|mcg|units?|ml)/gi,
-
-      // Stopping medications
-      /stop(?:ped|ping)?\s+[\w\s]+?(?:\d+\s*(?:mg|mcg|units?|ml))?/gi,
-      /discontinu(?:e|ed|ing)\s+[\w\s]+?(?:\d+\s*(?:mg|mcg|units?|ml))?/gi,
-      /hold(?:ing)?\s+[\w\s]+?(?:\d+\s*(?:mg|mcg|units?|ml))?/gi,
-      /ceas(?:e|ed|ing)\s+[\w\s]+?(?:\d+\s*(?:mg|mcg|units?|ml))?/gi,
-
-      // Adjusting/changing
-      /adjust(?:ed|ing)?\s+[\w\s]+?(?:to\s+)?\d+\s*(?:mg|mcg|units?|ml)/gi,
-      /chang(?:e|ed|ing)\s+[\w\s]+?(?:to\s+)?\d+\s*(?:mg|mcg|units?|ml)/gi,
-      /modif(?:y|ied|ying)\s+[\w\s]+?(?:to\s+)?\d+\s*(?:mg|mcg|units?|ml)/gi,
-      /switch(?:ed|ing)?\s+(?:to\s+)?[\w\s]+?(?:\d+\s*(?:mg|mcg|units?|ml))/gi,
-    ];
-
-    let actionMatches = new Set<string>();
-    for (const pattern of actionPatterns) {
-      const matches = combinedText.match(pattern) || [];
-      matches.forEach(match => actionMatches.add(match.toLowerCase().trim()));
-    }
-    changeCount = Math.max(changeCount, actionMatches.size);
-
-    // METHOD 2: Count distinct medication names mentioned
+    // List of common medication names to extract
     const commonMedications = [
       'metformin', 'lantus', 'novolog', 'humalog', 'tresiba', 'basaglar',
       'levemir', 'toujeo', 'fiasp', 'apidra', 'insulin',
@@ -627,33 +650,62 @@ export class CPTBillingAnalyzer {
       'gabapentin', 'pregabalin', 'duloxetine',
     ];
 
-    let medicationsFound = new Set<string>();
+    // Medication action patterns that indicate a change
+    const actionVerbs = [
+      'start', 'started', 'starting', 'begin', 'beginning', 'initiated', 'initiate',
+      'stop', 'stopped', 'stopping', 'discontinue', 'discontinued', 'hold',
+      'increase', 'increased', 'increasing', 'up', 'upped', 'raise', 'raised', 'titrate',
+      'decrease', 'decreased', 'decreasing', 'lower', 'lowered', 'reduce', 'reduced', 'down',
+      'adjust', 'adjusted', 'change', 'changed', 'modify', 'modified', 'switch', 'switched'
+    ];
+
+    // METHOD 1: Extract medication names associated with action verbs
+    // This is the most reliable method - find action + medication pairs
     for (const med of commonMedications) {
-      const pattern = new RegExp(`\\b${med}\\b`, 'gi');
-      if (pattern.test(textLower)) {
-        medicationsFound.add(med);
+      for (const action of actionVerbs) {
+        // Check for "action + medication" pattern (e.g., "started Lantus", "increase Metformin")
+        const pattern1 = new RegExp(`\\b${action}\\b.*?\\b${med}\\b`, 'gi');
+        // Check for "medication + action" pattern (e.g., "Lantus was started", "Metformin increased")
+        const pattern2 = new RegExp(`\\b${med}\\b.*?\\b${action}`, 'gi');
+
+        if (pattern1.test(textLower) || pattern2.test(textLower)) {
+          medicationsWithChanges.add(med);
+          break; // Found a change for this medication, no need to check other actions
+        }
       }
     }
-    changeCount = Math.max(changeCount, medicationsFound.size);
 
-    // METHOD 3: Count dose specifications (number + unit patterns)
-    const dosePattern = /\d+\s*(?:mg|mcg|units?|ml|tabs?|capsules?)\b/gi;
-    const doses = combinedText.match(dosePattern) || [];
-    const uniqueDoses = new Set(doses.map(d => d.toLowerCase().trim()));
-    changeCount = Math.max(changeCount, uniqueDoses.size);
+    // METHOD 2: Look for dose specifications with medication names
+    // Pattern: "medication dose unit" (e.g., "Lantus 10 units", "Metformin 500 mg")
+    for (const med of commonMedications) {
+      const dosePattern = new RegExp(`\\b${med}\\b[\\s,]+\\d+\\s*(?:mg|mcg|units?|ml)`, 'gi');
+      if (dosePattern.test(combinedText)) {
+        // Only add if we found an action verb near it
+        const contextPattern = new RegExp(`(?:${actionVerbs.join('|')}).*?\\b${med}\\b|\\b${med}\\b.*?(?:${actionVerbs.join('|')})`, 'gi');
+        if (contextPattern.test(textLower)) {
+          medicationsWithChanges.add(med);
+        }
+      }
+    }
 
-    // METHOD 4: Count commas and semicolons in medication text (fallback)
-    const medicationOnlyText = medicationTexts.join(' ');
-    const items = medicationOnlyText.split(/[,;]/).filter(item => {
-      const trimmed = item.trim();
-      // Must have a number (dose) or medication action keyword
-      return trimmed.length > 10 &&
-             (/\d+/.test(trimmed) ||
-              /(?:start|stop|increas|decreas|adjust|change)/i.test(trimmed));
-    });
-    changeCount = Math.max(changeCount, items.length);
+    // METHOD 3: Fallback - extract medications from generic patterns
+    // Only use this if we haven't found many medications yet
+    if (medicationsWithChanges.size < 2) {
+      // Look for patterns like "start [medication name] [dose]"
+      const genericPattern = /(?:start|stop|increase|decrease|adjust|change)\s+(?:on\s+)?([a-z]{4,20})\s+\d+\s*(?:mg|mcg|units?|ml)/gi;
+      const genericMatches = combinedText.matchAll(genericPattern);
 
-    // BONUS: Add points for insulin regimen complexity
+      for (const match of genericMatches) {
+        const medicationName = match[1].toLowerCase().trim();
+        // Filter out common non-medication words
+        if (!['some', 'with', 'from', 'your', 'their', 'this', 'that'].includes(medicationName)) {
+          medicationsWithChanges.add(medicationName);
+        }
+      }
+    }
+
+    // BONUS: Add 1 for complex insulin regimen (MDI, pump settings, etc.)
+    // This counts as an additional medication management complexity
     const insulinPatterns = [
       /basal[\s-]bolus/i,
       /multiple\s+daily\s+injections?/i,
@@ -671,12 +723,21 @@ export class CPTBillingAnalyzer {
         break;
       }
     }
-    if (hasComplexInsulin) {
+
+    // Calculate final count
+    let changeCount = medicationsWithChanges.size;
+
+    // Add bonus for complex insulin management (only if we also have insulin changes)
+    if (hasComplexInsulin && (medicationsWithChanges.has('insulin') ||
+                               medicationsWithChanges.has('lantus') ||
+                               medicationsWithChanges.has('novolog') ||
+                               medicationsWithChanges.has('humalog'))) {
       changeCount += 1; // Bonus for complex insulin management
     }
 
-    // Ensure we count at least the array length (backward compatibility)
-    changeCount = Math.max(changeCount, medicationTexts.length);
+    // Ensure we count at least 1 if there's any medication text provided
+    // But don't use the array length anymore - that was the bug!
+    changeCount = Math.max(changeCount, medicationTexts.length > 0 ? 1 : 0);
 
     return changeCount;
   }

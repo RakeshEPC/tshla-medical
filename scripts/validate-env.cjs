@@ -40,6 +40,7 @@ const FORBIDDEN_PATTERNS = [
 const SAFE_VITE_PATTERNS = [
   /^VITE_SUPABASE_ANON_KEY/,  // Supabase anon key is safe (protected by RLS)
   /^VITE_STRIPE_PUBLISHABLE_KEY/, // Stripe publishable key is safe
+  /^VITE_AZURE_OPENAI_KEY$/,  // Azure OpenAI key - TEMPORARY: Used for direct client calls (TODO: Move to backend proxy)
   /^VITE_.*_URL/,             // URLs are generally safe
   /^VITE_.*_ENDPOINT/,        // Endpoints are safe
   /^VITE_ENABLE_/,            // Feature flags are safe

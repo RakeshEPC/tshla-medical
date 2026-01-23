@@ -1,11 +1,9 @@
-2025-09-23 07:42:11 - Starting TSHLA Medical Production Services...
-2025-09-23 07:42:11 - Timestamp: Tue Sep 23 07:42:11 CDT 2025
-2025-09-23 07:42:11 - Checking prerequisites...
-2025-09-23 07:42:11 - SUCCESS: Node.js found: v24.4.0
-2025-09-23 07:42:11 - SUCCESS: PM2 found: 6.0.13
-2025-09-23 07:42:11 - SUCCESS: PM2 ecosystem configuration found
-2025-09-23 07:42:11 - SUCCESS: Production environment configuration found
-2025-09-23 07:42:11 - Checking port 3002...
-2025-09-23 07:42:11 - WARNING: Port 3002 is in use. Killing processes...
-2025-09-23 07:42:12 - Killing process 66447 on port 3002
-2025-09-23 07:42:14 - ERROR: Failed to free port 3002
+🚀 Starting TSHLA Medical Development Environment...
+
+✅ Loading environment variables from .env
+./start-dev.sh: line 17: export: `#': not a valid identifier
+./start-dev.sh: line 17: export: `-': not a valid identifier
+./start-dev.sh: line 17: export: `HIPAA-compliant': not a valid identifier
+./start-dev.sh: line 17: export: `#': not a valid identifier
+./start-dev.sh: line 17: export: `#': not a valid identifier
+./start-dev.sh: line 17: export: `$4.99': not a valid identifier

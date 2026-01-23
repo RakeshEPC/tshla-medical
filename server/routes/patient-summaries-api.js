@@ -59,31 +59,45 @@ router.use(express.json());
 /**
  * Generate patient-friendly conversational summary from SOAP note
  * Reuses logic from echo-audio-summary-azure.js
+ * @param {string} soapNote - The SOAP note text
+ * @param {string} patientName - Patient's full name for personalized greeting
+ * @param {string} providerName - Provider's name for introduction
  */
-async function generatePatientSummary(soapNote) {
+async function generatePatientSummary(soapNote, patientName = null, providerName = null) {
+  // Extract first name only if full name provided
+  const firstName = patientName ? patientName.split(' ')[0] : null;
+
+  // Extract doctor's last name if provider name provided
+  const doctorLastName = providerName ? providerName.split(' ').pop() : null;
+
   const prompt = `You are converting a medical SOAP note into a patient-friendly phone call script.
 
+PATIENT INFORMATION:
+- Patient's first name: ${firstName || 'Unknown'}
+- Doctor's last name: ${doctorLastName || 'your doctor'}
+
 CRITICAL RULES:
-1. START with exactly: "This is a beta project from your doctor's office."
-2. Use warm, conversational, natural language (avoid clinical jargon)
-3. Say "You came in for [reason]" NOT "Chief complaint was"
-4. Include in this order:
+1. START with exactly: "Hi ${firstName || 'there'}, this is a beta project from Dr. ${doctorLastName || 'your doctor'}'s office."
+2. DO NOT use placeholders like [Patient Name] or [Doctor Name] - use the ACTUAL names provided above
+3. Use warm, conversational, natural language (avoid clinical jargon)
+4. Say "You came in for [reason]" NOT "Chief complaint was"
+5. Include in this order:
    a) Why they came in (conversational)
    b) Key findings (blood sugar, vitals, important results - plain English)
    c) Medication changes (what's new, doses clearly stated)
    d) Tests ordered (labs, imaging - explain what and why simply)
    e) Follow-up plan (when to come back)
    f) What patient should do (take meds, diet, exercise)
-5. END with exactly: "If you notice any errors in this summary, please let us know. We are still testing this feature."
-6. LENGTH: 100-150 words total (15-30 seconds when spoken)
-7. NUMBERS: Say "9 point 5" not "nine point five"
-8. MEDICATIONS: Say full name and dose clearly: "Metformin 1500 milligrams twice daily"
-9. TONE: Warm but professional
+6. END with exactly: "If you notice any errors in this summary, please let us know. We are still testing this feature."
+7. LENGTH: 100-150 words total (15-30 seconds when spoken)
+8. NUMBERS: Say "9 point 5" not "nine point five"
+9. MEDICATIONS: Say full name and dose clearly: "Metformin 1500 milligrams twice daily"
+10. TONE: Warm but professional
 
 SOAP NOTE:
 ${soapNote}
 
-Generate ONLY the conversational phone script:`;
+IMPORTANT: Your response should be ONLY the words that will be spoken to the patient. Do not include any labels, headers, explanations, or meta-commentary. Start immediately with "Hi ${firstName || 'there'}, this is a beta project from Dr. ${doctorLastName || 'your doctor'}'s office..."`;
 
   const response = await fetch(
     `${AZURE_OPENAI_ENDPOINT}/openai/deployments/${AZURE_OPENAI_DEPLOYMENT}/chat/completions?api-version=${AZURE_API_VERSION}`,
@@ -413,7 +427,7 @@ router.post('/patient-summaries/create', async (req, res) => {
 
     // Step 1: Generate AI summary
     logger.info('PatientSummary', 'Generating AI summary');
-    const summary = await generatePatientSummary(soapNote);
+    const summary = await generatePatientSummary(soapNote, patientName, providerName);
     logger.info('PatientSummary', 'Summary generated', {
       wordCount: summary.wordCount,
       estimatedSeconds: summary.estimatedSeconds

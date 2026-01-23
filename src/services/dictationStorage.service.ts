@@ -57,6 +57,10 @@ class DictationStorageService {
         orders_placed: data.orders_placed
       };
 
+      let dictationId: string;
+      let isCompleted = false;
+      const wasJustCompleted = data.status === 'completed' || data.status === 'signed';
+
       if (data.id) {
         // Update existing dictation
         console.log('🔄 [DictationStorage] Updating existing dictation:', data.id);
@@ -72,7 +76,8 @@ class DictationStorageService {
           throw error;
         }
         console.log('✅ [DictationStorage] Dictation updated successfully:', result.id);
-        return { success: true, id: result.id };
+        dictationId = result.id;
+        isCompleted = wasJustCompleted;
       } else {
         // Create new dictation
         console.log('➕ [DictationStorage] Creating new dictation in "dictations" table');
@@ -87,12 +92,74 @@ class DictationStorageService {
           throw error;
         }
         console.log('✅ [DictationStorage] Dictation created successfully in "dictations" table, ID:', result.id);
-        return { success: true, id: result.id };
+        dictationId = result.id;
+        isCompleted = wasJustCompleted;
       }
+
+      // 🤖 TRIGGER H&P GENERATION when dictation is completed/signed
+      if (isCompleted && data.patient_id) {
+        console.log('🤖 [DictationStorage] Triggering H&P auto-generation for patient:', data.patient_id);
+        this.triggerHPGeneration(data.patient_id, dictationId, data.final_note || data.transcription_text || '')
+          .catch(err => {
+            console.error('❌ [DictationStorage] H&P generation failed (non-blocking):', err);
+            // Non-blocking - don't fail the save if H&P generation fails
+          });
+      }
+
+      return { success: true, id: dictationId };
     } catch (error: any) {
       console.error('❌ [DictationStorage] Error saving dictation:', error);
       console.error('❌ [DictationStorage] Error details:', JSON.stringify(error, null, 2));
       return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Trigger H&P generation (called automatically when dictation is completed)
+   */
+  private async triggerHPGeneration(patientId: string, dictationId: string, dictationText: string): Promise<void> {
+    try {
+      // Get patient's phone number from unified_patients
+      const { data: patient } = await supabase
+        .from('unified_patients')
+        .select('phone_primary, tshla_id')
+        .eq('id', patientId)
+        .single();
+
+      if (!patient || !patient.phone_primary) {
+        console.log('⚠️ [DictationStorage] Patient not found or no phone number, skipping H&P generation');
+        return;
+      }
+
+      console.log('📞 [DictationStorage] Calling H&P generation API for patient:', patient.tshla_id);
+
+      // Call backend H&P generation API
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      const response = await fetch(`${API_BASE_URL}/api/hp/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          patientPhone: patient.phone_primary,
+          dictationId: dictationId,
+          tshlaId: patient.tshla_id,
+          dictationText: dictationText // Optional: pass text for immediate processing
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        console.log('✅ [DictationStorage] H&P generation triggered successfully');
+        console.log('   Version:', result.hp?.version);
+        console.log('   Sections:', result.hp?.sections);
+      } else {
+        console.error('❌ [DictationStorage] H&P generation API error:', result.error);
+      }
+    } catch (error) {
+      console.error('❌ [DictationStorage] H&P generation trigger error:', error);
+      throw error;
     }
   }
 

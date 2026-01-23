@@ -8,6 +8,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 const express = require('express');
 const router = express.Router();
 const twilio = require('twilio');
+const logger = require('../services/logger.service');
 
 // Middleware to parse JSON bodies
 router.use(express.json());
@@ -34,31 +35,45 @@ const CLINIC_PHONE_NUMBER = process.env.CLINIC_PHONE_NUMBER || '+18325938100';
 
 /**
  * Generate patient-friendly conversational summary from SOAP note
+ * @param {string} soapNote - The SOAP note text
+ * @param {string} patientName - Patient's full name for personalized greeting
+ * @param {string} providerName - Provider's name for introduction
  */
-async function generatePatientSummary(soapNote) {
+async function generatePatientSummary(soapNote, patientName = null, providerName = null) {
+  // Extract first name only if full name provided
+  const firstName = patientName ? patientName.split(' ')[0] : null;
+
+  // Extract doctor's last name if provider name provided
+  const doctorLastName = providerName ? providerName.split(' ').pop() : null;
+
   const prompt = `You are converting a medical SOAP note into a patient-friendly phone call script.
 
+PATIENT INFORMATION:
+- Patient's first name: ${firstName || 'Unknown'}
+- Doctor's last name: ${doctorLastName || 'your doctor'}
+
 CRITICAL RULES:
-1. START with exactly: "This is a beta project from your doctor's office."
-2. Use warm, conversational, natural language (avoid clinical jargon)
-3. Say "You came in for [reason]" NOT "Chief complaint was"
-4. Include in this order:
+1. START with exactly: "Hi ${firstName || 'there'}, this is a beta project from Dr. ${doctorLastName || 'your doctor'}'s office."
+2. DO NOT use placeholders like [Patient Name] or [Doctor Name] - use the ACTUAL names provided above
+3. Use warm, conversational, natural language (avoid clinical jargon)
+4. Say "You came in for [reason]" NOT "Chief complaint was"
+5. Include in this order:
    a) Why they came in (conversational)
    b) Key findings (blood sugar, vitals, important results - plain English)
    c) Medication changes (what's new, doses clearly stated)
    d) Tests ordered (labs, imaging - explain what and why simply)
    e) Follow-up plan (when to come back)
    f) What patient should do (take meds, diet, exercise)
-5. END with exactly: "If you notice any errors in this summary, please let us know. We are still testing this feature."
-6. LENGTH: 100-150 words total (15-30 seconds when spoken)
-7. NUMBERS: Say "9 point 5" not "nine point five"
-8. MEDICATIONS: Say full name and dose clearly: "Metformin 1500 milligrams twice daily"
-9. TONE: Warm but professional
+6. END with exactly: "If you notice any errors in this summary, please let us know. We are still testing this feature."
+7. LENGTH: 100-150 words total (15-30 seconds when spoken)
+8. NUMBERS: Say "9 point 5" not "nine point five"
+9. MEDICATIONS: Say full name and dose clearly: "Metformin 1500 milligrams twice daily"
+10. TONE: Warm but professional
 
 SOAP NOTE:
 ${soapNote}
 
-Generate ONLY the conversational phone script:`;
+IMPORTANT: Your response should be ONLY the words that will be spoken to the patient. Do not include any labels, headers, explanations, or meta-commentary. Start immediately with "Hi ${firstName || 'there'}, this is a beta project from Dr. ${doctorLastName || 'your doctor'}'s office..."`;
 
   const response = await fetch(
     `${AZURE_OPENAI_ENDPOINT}/openai/deployments/${AZURE_OPENAI_DEPLOYMENT}/chat/completions?api-version=${AZURE_API_VERSION}`,
@@ -115,7 +130,7 @@ Generate ONLY the conversational phone script:`;
 async function generateAudio(text, voiceId = null) {
   const selectedVoiceId = voiceId || ELEVENLABS_VOICE_ID;
 
-  console.log(`🔊 Generating audio with voice ID: ${selectedVoiceId}`);
+  logger.info('EchoAudio', `🔊 Generating audio with voice ID: ${selectedVoiceId}`);
 
   const response = await fetch(
     `https://api.elevenlabs.io/v1/text-to-speech/${selectedVoiceId}`,
@@ -177,10 +192,10 @@ function saveAudioTemporarily(audioBuffer) {
     try {
       if (fs.existsSync(filepath)) {
         fs.unlinkSync(filepath);
-        console.log(`🗑️ Cleaned up audio file: ${filename}`);
+        logger.info('EchoAudio', `🗑️ Cleaned up audio file: ${filename}`);
       }
     } catch (err) {
-      console.error(`Failed to delete audio file ${filename}:`, err.message);
+      logger.error('EchoAudio', `Failed to delete audio file ${filename}:`, err.message);
     }
   }, 60 * 60 * 1000); // 1 hour
 
@@ -188,8 +203,8 @@ function saveAudioTemporarily(audioBuffer) {
   const baseUrl = process.env.API_BASE_URL || 'https://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io';
   const publicUrl = `${baseUrl}/api/echo/audio/${filename}`;
 
-  console.log(`💾 Saved audio file: ${filename}`);
-  console.log(`🔗 Public URL: ${publicUrl}`);
+  logger.info('EchoAudio', `💾 Saved audio file: ${filename}`);
+  logger.info('EchoAudio', `🔗 Public URL: ${publicUrl}`);
 
   // Store mapping for replay functionality
   audioFileMap.set(filename, { filepath, scriptText: '' });
@@ -207,7 +222,7 @@ async function makePhoneCall(phoneNumber, audioBuffer, scriptText, audioUrl = nu
 
   if (audioUrl) {
     // Use ElevenLabs audio with <Play>
-    console.log(`📞 Using ElevenLabs audio from: ${audioUrl}`);
+    logger.info('EchoAudio', `📞 Using ElevenLabs audio from: ${audioUrl}`);
     twiml = `
       <Response>
         <Play>${audioUrl}</Play>
@@ -219,7 +234,7 @@ async function makePhoneCall(phoneNumber, audioBuffer, scriptText, audioUrl = nu
     `;
   } else {
     // Fallback to Twilio TTS
-    console.log('⚠️ No audio URL available, falling back to Twilio TTS');
+    logger.info('EchoAudio', '⚠️ No audio URL available, falling back to Twilio TTS');
     twiml = `
       <Response>
         <Say voice="Polly.Joanna">${scriptText}</Say>
@@ -253,24 +268,24 @@ router.post('/generate-preview', async (req, res) => {
     const { soapNote } = req.body;
 
     if (!soapNote) {
-      console.warn('⚠️ [Echo Preview] Missing SOAP note in request');
+      logger.warn('EchoAudio', '⚠️ [Echo Preview] Missing SOAP note in request');
       return res.status(400).json({
         success: false,
         error: 'Missing required field: soapNote'
       });
     }
 
-    console.log('🎙️ [Echo Preview] Generating AI summary preview...');
-    console.log('   SOAP note length:', soapNote.length, 'characters');
-    console.log('   Azure OpenAI endpoint:', AZURE_OPENAI_ENDPOINT);
-    console.log('   Azure OpenAI deployment:', AZURE_OPENAI_DEPLOYMENT);
-    console.log('   Azure OpenAI API key configured:', !!AZURE_OPENAI_KEY);
+    logger.info('EchoAudio', '🎙️ [Echo Preview] Generating AI summary preview...');
+    logger.info('EchoAudio', '   SOAP note length:', soapNote.length, 'characters');
+    logger.info('EchoAudio', '   Azure OpenAI endpoint:', AZURE_OPENAI_ENDPOINT);
+    logger.info('EchoAudio', '   Azure OpenAI deployment:', AZURE_OPENAI_DEPLOYMENT);
+    logger.info('EchoAudio', '   Azure OpenAI API key configured:', !!AZURE_OPENAI_KEY);
 
     const summary = await generatePatientSummary(soapNote);
 
-    console.log('✅ [Echo Preview] Summary generated successfully');
-    console.log('   Word count:', summary.wordCount);
-    console.log('   Estimated duration:', summary.estimatedSeconds, 'seconds');
+    logger.info('EchoAudio', '✅ [Echo Preview] Summary generated successfully');
+    logger.info('EchoAudio', '   Word count:', summary.wordCount);
+    logger.info('EchoAudio', '   Estimated duration:', summary.estimatedSeconds, 'seconds');
 
     res.json({
       success: true,
@@ -280,8 +295,8 @@ router.post('/generate-preview', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ [Echo Preview] Error:', error.message);
-    console.error('   Stack trace:', error.stack);
+    logger.error('EchoAudio', '❌ [Echo Preview] Error:', error.message);
+    logger.error('EchoAudio', '   Stack trace:', error.stack);
 
     // Provide helpful error messages
     let userMessage = error.message;
@@ -314,25 +329,25 @@ router.post('/send-audio-summary', async (req, res) => {
       });
     }
 
-    console.log('🎙️ [Echo Audio Summary] Starting process...');
-    console.log(`   Patient: ${patientName || 'Unknown'}`);
-    console.log(`   Phone: ${phoneNumber}`);
-    console.log(`   SOAP length: ${soapNote.length} chars`);
+    logger.info('EchoAudio', '🎙️ [Echo Audio Summary] Starting process...');
+    logger.info('EchoAudio', `   Patient: ${patientName || 'Unknown'}`);
+    logger.info('EchoAudio', `   Phone: ${phoneNumber}`);
+    logger.info('EchoAudio', `   SOAP length: ${soapNote.length} chars`);
 
     // Step 1: Generate AI summary
-    console.log('📝 Generating AI summary...');
-    const summary = await generatePatientSummary(soapNote);
-    console.log(`✅ Summary generated: ${summary.wordCount} words, ~${summary.estimatedSeconds}s`);
+    logger.info('EchoAudio', '📝 Generating AI summary...');
+    const summary = await generatePatientSummary(soapNote, patientName);
+    logger.info('EchoAudio', `✅ Summary generated: ${summary.wordCount} words, ~${summary.estimatedSeconds}s`);
 
     // Step 2: Generate audio (ElevenLabs)
-    console.log('🔊 Generating audio with ElevenLabs...');
+    logger.info('EchoAudio', '🔊 Generating audio with ElevenLabs...');
     const audioBuffer = await generateAudio(summary.script, voiceId);
-    console.log(`✅ Audio generated: ${(audioBuffer.length / 1024).toFixed(1)} KB`);
+    logger.info('EchoAudio', `✅ Audio generated: ${(audioBuffer.length / 1024).toFixed(1)} KB`);
 
     // Step 3: Make Twilio call
-    console.log(`📞 Calling patient at ${phoneNumber}...`);
+    logger.info('EchoAudio', `📞 Calling patient at ${phoneNumber}...`);
     const callResult = await makePhoneCall(phoneNumber, audioBuffer, summary.script);
-    console.log(`✅ Call initiated: ${callResult.callSid}`);
+    logger.info('EchoAudio', `✅ Call initiated: ${callResult.callSid}`);
 
     // Return success response
     res.json({
@@ -348,7 +363,7 @@ router.post('/send-audio-summary', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ [Echo Audio Summary] Error:', error.message);
+    logger.error('EchoAudio', '❌ [Echo Audio Summary] Error:', error.message);
     res.status(500).json({
       success: false,
       error: error.message
@@ -372,14 +387,14 @@ router.post('/send-sms-summary', async (req, res) => {
       });
     }
 
-    console.log('📱 [Echo SMS Summary] Starting process...');
-    console.log(`   Patient: ${patientName || 'Unknown'}`);
-    console.log(`   Phone: ${phoneNumber}`);
+    logger.info('EchoAudio', '📱 [Echo SMS Summary] Starting process...');
+    logger.info('EchoAudio', `   Patient: ${patientName || 'Unknown'}`);
+    logger.info('EchoAudio', `   Phone: ${phoneNumber}`);
 
     // Step 1: Generate AI summary
-    console.log('📝 Generating AI summary...');
-    const summary = await generatePatientSummary(soapNote);
-    console.log(`✅ Summary generated: ${summary.wordCount} words`);
+    logger.info('EchoAudio', '📝 Generating AI summary...');
+    const summary = await generatePatientSummary(soapNote, patientName);
+    logger.info('EchoAudio', `✅ Summary generated: ${summary.wordCount} words`);
 
     // Step 2: Format for SMS (keep under 1600 chars for multi-part SMS)
     let smsText = summary.script;
@@ -395,17 +410,17 @@ router.post('/send-sms-summary', async (req, res) => {
       smsText += '\n\n(Full summary available in patient portal)';
     }
 
-    console.log(`📱 SMS length: ${smsText.length} characters`);
+    logger.info('EchoAudio', `📱 SMS length: ${smsText.length} characters`);
 
     // Step 3: Send SMS via Twilio
-    console.log(`📤 Sending SMS to ${phoneNumber}...`);
+    logger.info('EchoAudio', `📤 Sending SMS to ${phoneNumber}...`);
     const message = await twilioClient.messages.create({
       from: TWILIO_PHONE_NUMBER,
       to: phoneNumber,
       body: smsText
     });
 
-    console.log(`✅ SMS sent: ${message.sid}`);
+    logger.info('EchoAudio', `✅ SMS sent: ${message.sid}`);
 
     // Return success response
     res.json({
@@ -420,7 +435,7 @@ router.post('/send-sms-summary', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ [Echo SMS Summary] Error:', error.message);
+    logger.error('EchoAudio', '❌ [Echo SMS Summary] Error:', error.message);
     res.status(500).json({
       success: false,
       error: error.message
@@ -443,7 +458,7 @@ router.post('/handle-call-input', (req, res) => {
     twiml += '<Redirect>/api/echo/send-audio-summary</Redirect>';
   } else if (Digits === '2') {
     // Transfer to clinic
-    console.log(`📞 Patient pressed 2 - transferring to clinic at ${CLINIC_PHONE_NUMBER}`);
+    logger.info('EchoAudio', `📞 Patient pressed 2 - transferring to clinic at ${CLINIC_PHONE_NUMBER}`);
     twiml += '<Say>Connecting you to the clinic now. Please hold.</Say>';
     twiml += `<Dial timeout="30" callerId="${TWILIO_PHONE_NUMBER}">`;
     twiml += `<Number>${CLINIC_PHONE_NUMBER}</Number>`;

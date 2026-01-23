@@ -54,6 +54,24 @@ Important:
 5. If information for a section is not provided, leave the section header with no content
 6. Pay special attention to endocrinology-related terms and values
 
+**CRITICAL - PREVENT OVERCODING:**
+7. **Consolidate duplicate information**: If the doctor mentions the same condition, medication, or test multiple times in different ways, list it ONLY ONCE
+8. **Group related diagnoses**: "Diabetes" and "poorly controlled diabetes" and "hyperglycemia" should be ONE diagnosis (e.g., "Type 2 Diabetes Mellitus, uncontrolled")
+9. **Deduplicate medications**: If "Lantus" is mentioned 3 times with different dosing discussions, list it ONCE with the final agreed dose
+10. **Consolidate lab orders**: If "CMP" and "comprehensive metabolic panel" are both mentioned, list as ONE test
+11. **Distinguish new vs. chronic**: In ASSESSMENT, clearly separate NEW problems from CHRONIC conditions being managed
+12. **Avoid repetition in PLAN**: If doctor says "order A1C" multiple times, list it ONCE in the plan
+
+Example of GOOD consolidation:
+ASSESSMENT:
+1. Type 2 Diabetes Mellitus, uncontrolled (A1C 10.2%)
+2. Hypertension, well-controlled
+
+PLAN:
+1. Increase Lantus to 20 units at bedtime
+2. Order: Hemoglobin A1C, CMP
+3. Follow-up in 3 months
+
 The dictation to process is:`,
 
   // Note Header Template (LOCKED)
