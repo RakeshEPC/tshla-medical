@@ -35,18 +35,36 @@ router.post('/message', async (req, res) => {
       });
     }
 
-    // Get patient phone from TSH ID
+    // Get patient phone from TSH ID (try both normalized and formatted versions)
     const { createClient } = require('@supabase/supabase-js');
     const supabase = createClient(
       process.env.VITE_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY
     );
 
-    const { data: patient } = await supabase
+    const normalizedTshId = tshlaId.replace(/[\s-]/g, '').toUpperCase();
+    let patient = null;
+
+    // Try normalized format first (TSH123001)
+    const result1 = await supabase
       .from('unified_patients')
       .select('phone_primary')
-      .eq('tshla_id', tshlaId)
-      .single();
+      .eq('tshla_id', normalizedTshId)
+      .maybeSingle();
+
+    if (result1.data) {
+      patient = result1.data;
+    } else {
+      // Try formatted version (TSH 123-001)
+      const formatted = normalizedTshId.replace(/^TSH(\d{3})(\d{3})$/, 'TSH $1-$2');
+      const result2 = await supabase
+        .from('unified_patients')
+        .select('phone_primary')
+        .eq('tshla_id', formatted)
+        .maybeSingle();
+
+      patient = result2.data;
+    }
 
     if (!patient) {
       return res.status(404).json({
@@ -123,18 +141,36 @@ router.get('/stats', async (req, res) => {
       });
     }
 
-    // Get patient phone from TSH ID
+    // Get patient phone from TSH ID (try both normalized and formatted versions)
     const { createClient } = require('@supabase/supabase-js');
     const supabase = createClient(
       process.env.VITE_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY
     );
 
-    const { data: patient } = await supabase
+    const normalizedTshId = tshlaId.replace(/[\s-]/g, '').toUpperCase();
+    let patient = null;
+
+    // Try normalized format first (TSH123001)
+    const result1 = await supabase
       .from('unified_patients')
       .select('phone_primary')
-      .eq('tshla_id', tshlaId)
-      .single();
+      .eq('tshla_id', normalizedTshId)
+      .maybeSingle();
+
+    if (result1.data) {
+      patient = result1.data;
+    } else {
+      // Try formatted version (TSH 123-001)
+      const formatted = normalizedTshId.replace(/^TSH(\d{3})(\d{3})$/, 'TSH $1-$2');
+      const result2 = await supabase
+        .from('unified_patients')
+        .select('phone_primary')
+        .eq('tshla_id', formatted)
+        .maybeSingle();
+
+      patient = result2.data;
+    }
 
     if (!patient) {
       return res.status(404).json({
