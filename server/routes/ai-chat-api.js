@@ -409,7 +409,7 @@ router.get('/analytics', async (req, res) => {
       .gte('created_at', `${startDate}T00:00:00Z`)
       .lte('created_at', `${endDate}T23:59:59Z`);
 
-    const topicCounts: { [key: string]: number } = {};
+    const topicCounts = {};
     (conversations || []).forEach((c) => {
       topicCounts[c.topic_category] = (topicCounts[c.topic_category] || 0) + 1;
     });
@@ -466,7 +466,7 @@ router.get('/conversations', async (req, res) => {
       .from('patient_ai_conversations')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(parseInt(limit as string) || 50);
+      .limit(parseInt(limit) || 50);
 
     if (topic && topic !== 'all') {
       query = query.eq('topic_category', topic);

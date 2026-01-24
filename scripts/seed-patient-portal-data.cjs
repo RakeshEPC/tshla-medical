@@ -24,7 +24,7 @@ const supabase = createClient(
 const SAMPLE_PATIENTS = [
   {
     phone: '+18325551001',
-    tshla_id: 'TSH123-001',
+    tshla_id: 'TSH 123-001',
     first_name: 'John',
     last_name: 'Diabetes',
     email: 'john.diabetes@test.com',
@@ -194,7 +194,7 @@ const SAMPLE_PATIENTS = [
   },
   {
     phone: '+18325551002',
-    tshla_id: 'TSH123-002',
+    tshla_id: 'TSH 123-002',
     first_name: 'Maria',
     last_name: 'Garcia',
     email: 'maria.garcia@test.com',
@@ -282,7 +282,7 @@ const SAMPLE_PATIENTS = [
   },
   {
     phone: '+18325551003',
-    tshla_id: 'TSH123-003',
+    tshla_id: 'TSH 123-003',
     first_name: 'Robert',
     last_name: 'Chen',
     email: 'robert.chen@test.com',
@@ -477,6 +477,7 @@ async function seedPatientData() {
             last_name: patient.last_name,
             email: patient.email,
             date_of_birth: patient.date_of_birth,
+            created_from: 'patient-portal-seed',
             created_at: new Date().toISOString()
           })
           .select()
