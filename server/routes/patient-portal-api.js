@@ -198,14 +198,31 @@ router.get('/dashboard', async (req, res) => {
 
     logger.info('PatientPortal', 'Loading dashboard', { tshlaId: normalizedTshId });
 
-    // Get patient
-    const { data: patient, error: patientError } = await supabase
+    // Get patient (try both normalized and formatted versions)
+    let patient = null;
+
+    // Try normalized format first (TSH123001)
+    const result1 = await supabase
       .from('unified_patients')
       .select('id, phone_primary, tshla_id')
       .eq('tshla_id', normalizedTshId)
-      .single();
+      .maybeSingle();
 
-    if (patientError || !patient) {
+    if (result1.data) {
+      patient = result1.data;
+    } else {
+      // Try formatted version (TSH 123-001)
+      const formatted = normalizedTshId.replace(/^TSH(\d{3})(\d{3})$/, 'TSH $1-$2');
+      const result2 = await supabase
+        .from('unified_patients')
+        .select('id, phone_primary, tshla_id')
+        .eq('tshla_id', formatted)
+        .maybeSingle();
+
+      patient = result2.data;
+    }
+
+    if (!patient) {
       return res.status(404).json({ success: false, error: 'Patient not found' });
     }
 
