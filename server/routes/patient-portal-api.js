@@ -7,9 +7,18 @@
 
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
 const { createClient } = require('@supabase/supabase-js');
 const { v4: uuidv4 } = require('uuid');
 const logger = require('../logger');
+
+// Configure multer for handling file uploads
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  }
+});
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -351,7 +360,7 @@ router.post('/track-view', async (req, res) => {
  * POST /api/patient-portal/upload-document
  * Upload medical documents (files, text, or audio) and extract information with AI
  */
-router.post('/upload-document', async (req, res) => {
+router.post('/upload-document', upload.any(), async (req, res) => {
   try {
     const { tshlaId, patientId, sessionId, uploadMethod, textContent } = req.body;
 
