@@ -2155,7 +2155,7 @@ try {
   app.use('/api/patient-portal', patientPortalApi); // Routes: /api/patient-portal/*
   logger.info('UnifiedAPI', 'Patient Portal API mounted at /api/patient-portal');
 } catch (error) {
-  logger.error('UnifiedAPI', 'Patient Portal API not mounted - module failed to load', { error: error.message });
+  logger.error('UnifiedAPI', 'Patient Portal API not mounted - module failed to load', { error: error.message, stack: error.stack });
 }
 
 // Comprehensive H&P API - Patient medical chart generation and management
@@ -2165,7 +2165,7 @@ try {
   app.use('/api/hp', comprehensiveHPApi); // Routes: /api/hp/*
   logger.info('UnifiedAPI', 'Comprehensive H&P API mounted at /api/hp');
 } catch (error) {
-  logger.error('UnifiedAPI', 'Comprehensive H&P API not mounted - module failed to load', { error: error.message });
+  logger.error('UnifiedAPI', 'Comprehensive H&P API not mounted - module failed to load', { error: error.message, stack: error.stack });
 }
 
 // AI Chat Educator API - Diabetes education chat with AI (voice-enabled)
@@ -2175,7 +2175,7 @@ try {
   app.use('/api/ai-chat', aiChatApi); // Routes: /api/ai-chat/*
   logger.info('UnifiedAPI', 'AI Chat Educator API mounted at /api/ai-chat');
 } catch (error) {
-  logger.error('UnifiedAPI', 'AI Chat Educator API not mounted - module failed to load', { error: error.message });
+  logger.error('UnifiedAPI', 'AI Chat Educator API not mounted - module failed to load', { error: error.message, stack: error.stack });
 }
 
 // Add HTTP GET endpoint for /media-stream (for health checks)
