@@ -305,7 +305,7 @@ export default function PatientHPView() {
           </h2>
           <p className="text-gray-600 text-center mb-6">{error}</p>
           <button
-            onClick={() => navigate('/patient-portal-dashboard')}
+            onClick={() => navigate('/patient-portal-unified', { state: { session } })}
             className="w-full py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700"
           >
             Back to Dashboard
@@ -333,7 +333,7 @@ export default function PatientHPView() {
               </div>
             </div>
             <button
-              onClick={() => navigate('/patient-portal-dashboard')}
+              onClick={() => navigate('/patient-portal-unified', { state: { session } })}
               className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
             >
               Back to Dashboard
