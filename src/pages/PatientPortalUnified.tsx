@@ -9,7 +9,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   CreditCard,
   Volume2,
@@ -43,6 +43,7 @@ interface DashboardStats {
 
 export default function PatientPortalUnified() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Session state
   const [session, setSession] = useState<SessionData | null>(null);
@@ -55,11 +56,21 @@ export default function PatientPortalUnified() {
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
   /**
-   * Check for existing session on mount
+   * Check for existing session on mount or from navigation state
    */
   useEffect(() => {
-    checkExistingSession();
-  }, []);
+    // First check if session was passed via navigation state
+    if (location.state?.session) {
+      const incomingSession = location.state.session;
+      setSession(incomingSession);
+      // Also save to sessionStorage
+      sessionStorage.setItem('patient_portal_session', JSON.stringify(incomingSession));
+      setIsLoading(false);
+    } else {
+      // Otherwise check sessionStorage
+      checkExistingSession();
+    }
+  }, [location.state]);
 
   /**
    * Load dashboard data after login

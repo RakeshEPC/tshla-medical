@@ -117,14 +117,16 @@ async function chatWithEducator(patientPhone, userMessage, sessionId) {
     const tokensUsed = completion.usage.total_tokens;
     const responseTime = Date.now() - startTime;
 
-    // 7. Classify topic
-    const topic = await classifyTopic(userMessage, assistantMessage);
-
-    // 8. Calculate cost (Azure OpenAI pricing: ~$0.03 per 1K tokens for GPT-4)
+    // 7. Calculate cost (Azure OpenAI pricing: ~$0.03 per 1K tokens for GPT-4)
     const costCents = Math.ceil((tokensUsed / 1000) * 3); // 3 cents per 1K tokens
 
-    // 9. Save conversation to database
-    const conversationId = await saveConversation({
+    // 8. Classify topic (do this async, don't wait for it - it's not critical for response)
+    const topic = classifyTopicQuick(userMessage);
+
+    // 9. Save conversation to database (async in background)
+    const conversationId = uuidv4();
+    saveConversation({
+      conversationId,
       patientPhone,
       sessionId,
       userMessage,
@@ -133,7 +135,7 @@ async function chatWithEducator(patientPhone, userMessage, sessionId) {
       tokensUsed,
       costCents,
       responseTime
-    });
+    }).catch(error => logger.error('AIChat', 'Background save conversation error', { error: error.message }));
 
     // 10. Return response (audio text same as message for ElevenLabs)
     return {
@@ -293,7 +295,31 @@ async function createUrgentAlert(patientPhone, symptoms, message) {
 }
 
 /**
- * Classify conversation topic
+ * Classify topic quickly (keyword-based, instant)
+ */
+function classifyTopicQuick(userMessage) {
+  const message = userMessage.toLowerCase();
+
+  // Simple keyword-based classification (instant)
+  if (message.includes('insulin') || message.includes('medication') || message.includes('drug')) {
+    return 'medications';
+  } else if (message.includes('eat') || message.includes('food') || message.includes('diet') || message.includes('carb') || message.includes('meal')) {
+    return 'diet';
+  } else if (message.includes('exercise') || message.includes('activity') || message.includes('walk') || message.includes('gym')) {
+    return 'exercise';
+  } else if (message.includes('blood sugar') || message.includes('glucose') || message.includes('a1c') || message.includes('monitor')) {
+    return 'monitoring';
+  } else if (message.includes('symptom') || message.includes('side effect') || message.includes('feel')) {
+    return 'symptoms';
+  } else if (message.includes('lab') || message.includes('test') || message.includes('result')) {
+    return 'lab_results';
+  } else {
+    return 'general';
+  }
+}
+
+/**
+ * Classify conversation topic (DEPRECATED - use classifyTopicQuick instead)
  */
 async function classifyTopic(userMessage, assistantMessage) {
   const combined = `${userMessage} ${assistantMessage}`.toLowerCase();
@@ -321,6 +347,7 @@ async function classifyTopic(userMessage, assistantMessage) {
  * @returns {Promise<string>} assistantMessageId - ID of assistant message for audio URL update
  */
 async function saveConversation({
+  conversationId,
   patientPhone,
   sessionId,
   userMessage,
@@ -344,10 +371,9 @@ async function saveConversation({
       created_at: new Date().toISOString()
     });
 
-    // 2. Save assistant message
-    const assistantMessageId = uuidv4();
+    // 2. Save assistant message (use provided conversationId)
     await supabase.from('patient_ai_conversations').insert({
-      id: assistantMessageId,
+      id: conversationId,
       patient_phone: patientPhone,
       session_id: sessionId,
       message_role: 'assistant',
@@ -395,7 +421,7 @@ async function saveConversation({
       });
     }
 
-    return assistantMessageId;
+    return conversationId;
 
   } catch (error) {
     logger.error('AIChat', 'Save conversation error:', error);
