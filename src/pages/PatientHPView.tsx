@@ -42,16 +42,16 @@ interface ComprehensiveHP {
   demographics: any;
   medications: Array<{
     name: string;
-    dose: string;
+    dosage: string;  // Changed from 'dose' to match API
     frequency: string;
-    start_date: string;
-    status: string;
+    started: string;  // Changed from 'start_date' to match API
+    indication: string;  // Added to match API
   }>;
   diagnoses: Array<{
-    diagnosis: string;
+    condition: string;  // Changed from 'diagnosis' to match API
     icd10: string;
     status: string;
-    onset_date?: string;
+    diagnosed?: string;  // Changed from 'onset_date' to match API
   }>;
   allergies: Array<{
     allergen: string;
@@ -59,8 +59,9 @@ interface ComprehensiveHP {
     severity: string;
   }>;
   family_history: Array<{
-    relationship: string;
+    relation: string;  // Changed from 'relationship' to match API
     condition: string;
+    age_of_onset?: number;  // Added to match API
   }>;
   social_history: {
     smoking?: string;
@@ -377,7 +378,6 @@ export default function PatientHPView() {
               ) : (
                 <div className="space-y-3">
                   {hp.medications
-                    .filter((med) => med.status === 'active')
                     .map((med, idx) => (
                       <div
                         key={idx}
@@ -387,16 +387,19 @@ export default function PatientHPView() {
                           <div>
                             <h4 className="font-semibold text-gray-900">{med.name}</h4>
                             <p className="text-sm text-gray-600 mt-1">
-                              {med.dose} • {med.frequency}
+                              {med.dosage} • {med.frequency}
                             </p>
+                            {med.indication && (
+                              <p className="text-xs text-gray-500 mt-1">For: {med.indication}</p>
+                            )}
                           </div>
                           <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
                             Active
                           </span>
                         </div>
-                        {med.start_date && (
+                        {med.started && (
                           <p className="text-xs text-gray-500 mt-2">
-                            Started: {new Date(med.start_date).toLocaleDateString()}
+                            Started: {new Date(med.started).toLocaleDateString()}
                           </p>
                         )}
                       </div>
@@ -425,7 +428,7 @@ export default function PatientHPView() {
                       >
                         <div className="flex items-start justify-between">
                           <div>
-                            <h4 className="font-semibold text-gray-900">{dx.diagnosis}</h4>
+                            <h4 className="font-semibold text-gray-900">{dx.condition}</h4>
                             {dx.icd10 && (
                               <p className="text-xs text-gray-500 mt-1">ICD-10: {dx.icd10}</p>
                             )}
@@ -434,9 +437,9 @@ export default function PatientHPView() {
                             Active
                           </span>
                         </div>
-                        {dx.onset_date && (
+                        {dx.diagnosed && (
                           <p className="text-xs text-gray-500 mt-2">
-                            Since: {new Date(dx.onset_date).toLocaleDateString()}
+                            Since: {new Date(dx.diagnosed).toLocaleDateString()}
                           </p>
                         )}
                       </div>
