@@ -13,7 +13,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const azureOpenAIService = require('./azureOpenAI.service');
-const logger = require('./logger.service');
+const logger = require('../logger');
 
 // Initialize Supabase client
 const supabase = createClient(
