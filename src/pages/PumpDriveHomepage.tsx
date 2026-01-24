@@ -274,7 +274,7 @@ export default function PumpDriveHomepage() {
               <a href="/terms" className="text-gray-600 hover:text-gray-900 text-sm">
                 Terms of Service
               </a>
-              <a href="/patient-portal-login" className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+              <a href="/patient-portal-unified" className="text-blue-600 hover:text-blue-700 text-sm font-medium">
                 Patient Portal
               </a>
               <button
