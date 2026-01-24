@@ -378,14 +378,34 @@ router.post('/upload-document', upload.any(), async (req, res) => {
       method: uploadMethod
     });
 
-    // Verify patient exists
-    const { data: patient, error: patientError } = await supabase
+    // Verify patient exists (try both normalized and formatted versions)
+    let patient = null;
+
+    // Try normalized format first (TSH123001)
+    const result1 = await supabase
       .from('unified_patients')
       .select('id, phone_primary, first_name, last_name')
       .eq('tshla_id', normalizedTshId)
       .maybeSingle();
 
+    if (result1.data) {
+      patient = result1.data;
+    } else {
+      // Try formatted version (TSH 123-001)
+      const formatted = normalizedTshId.replace(/^TSH(\d{3})(\d{3})$/, 'TSH $1-$2');
+      const result2 = await supabase
+        .from('unified_patients')
+        .select('id, phone_primary, first_name, last_name')
+        .eq('tshla_id', formatted)
+        .maybeSingle();
+
+      patient = result2.data;
+    }
+
     if (!patient) {
+      logger.warn('PatientPortal', 'Patient not found for upload', {
+        tshlaId: normalizedTshId
+      });
       return res.status(404).json({
         success: false,
         error: 'Patient not found'
