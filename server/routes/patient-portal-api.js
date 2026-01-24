@@ -348,6 +348,152 @@ router.post('/track-view', async (req, res) => {
 });
 
 /**
+ * POST /api/patient-portal/upload-document
+ * Upload medical documents (files, text, or audio) and extract information with AI
+ */
+router.post('/upload-document', async (req, res) => {
+  try {
+    const { tshlaId, patientId, sessionId, uploadMethod, textContent } = req.body;
+
+    if (!tshlaId || !sessionId || !uploadMethod) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields'
+      });
+    }
+
+    const normalizedTshId = tshlaId.replace(/[\s-]/g, '').toUpperCase();
+
+    logger.info('PatientPortal', 'Document upload started', {
+      tshlaId: normalizedTshId,
+      method: uploadMethod
+    });
+
+    // Verify patient exists
+    const { data: patient, error: patientError } = await supabase
+      .from('unified_patients')
+      .select('id, phone_primary, first_name, last_name')
+      .eq('tshla_id', normalizedTshId)
+      .maybeSingle();
+
+    if (!patient) {
+      return res.status(404).json({
+        success: false,
+        error: 'Patient not found'
+      });
+    }
+
+    let extractedData = {
+      diagnoses: [],
+      medications: [],
+      allergies: [],
+      labs: [],
+      procedures: [],
+      vitals: {},
+      raw_content: ''
+    };
+
+    // Process based on upload method
+    if (uploadMethod === 'text') {
+      // Process text content with AI
+      extractedData.raw_content = textContent;
+
+      // TODO: Integrate with OpenAI/Azure AI to extract medical information
+      // For now, store the raw text
+      logger.info('PatientPortal', 'Processing text upload', {
+        tshlaId: normalizedTshId,
+        length: textContent?.length
+      });
+
+    } else if (uploadMethod === 'file') {
+      // TODO: Process file uploads
+      // - Extract text from PDFs
+      // - OCR images
+      // - Parse XML/CCD files
+      // - Process with AI
+      logger.info('PatientPortal', 'Processing file upload', {
+        tshlaId: normalizedTshId
+      });
+
+      return res.status(501).json({
+        success: false,
+        error: 'File upload processing coming soon. Please use text or voice input for now.'
+      });
+
+    } else if (uploadMethod === 'voice') {
+      // TODO: Process audio recording
+      // - Transcribe with Deepgram/Azure Speech
+      // - Extract medical information with AI
+      logger.info('PatientPortal', 'Processing voice upload', {
+        tshlaId: normalizedTshId
+      });
+
+      return res.status(501).json({
+        success: false,
+        error: 'Voice upload processing coming soon. Please use text input for now.'
+      });
+    }
+
+    // Store upload record
+    const { data: uploadRecord, error: uploadError } = await supabase
+      .from('patient_document_uploads')
+      .insert({
+        patient_id: patient.id,
+        tshla_id: normalizedTshId,
+        upload_method: uploadMethod,
+        raw_content: extractedData.raw_content,
+        extracted_data: extractedData,
+        uploaded_at: new Date().toISOString(),
+        session_id: sessionId
+      })
+      .select()
+      .single();
+
+    if (uploadError) {
+      logger.error('PatientPortal', 'Failed to store upload', {
+        error: uploadError.message
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to save upload'
+      });
+    }
+
+    // Log access for HIPAA compliance
+    await supabase
+      .from('access_logs')
+      .insert({
+        user_type: 'patient',
+        user_id: patient.id,
+        action: 'document_upload',
+        resource_type: 'patient_document',
+        resource_id: uploadRecord.id,
+        ip_address: req.ip || req.connection.remoteAddress,
+        user_agent: req.headers['user-agent'],
+        details: { upload_method: uploadMethod, tshla_id: normalizedTshId }
+      });
+
+    logger.info('PatientPortal', 'Document upload completed', {
+      tshlaId: normalizedTshId,
+      uploadId: uploadRecord.id
+    });
+
+    res.json({
+      success: true,
+      uploadId: uploadRecord.id,
+      message: 'Document uploaded successfully. Our team will review and add information to your chart.'
+    });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Upload error', { error: error.message, stack: error.stack });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to process upload. Please try again.'
+    });
+  }
+});
+
+/**
  * Helper: Get device type from user agent
  */
 function getDeviceType(userAgent) {
