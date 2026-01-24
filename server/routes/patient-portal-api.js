@@ -509,17 +509,24 @@ router.post('/upload-document', upload.any(), async (req, res) => {
             const observationMatches = xmlContent.match(/<observation[\s\S]*?<\/observation>/g);
             if (observationMatches) {
               observationMatches.forEach(obs => {
-                // Look for result observations (labs typically have values)
+                // Look for result observations with numeric values (PQ = Physical Quantity)
                 const codeMatch = obs.match(/<code[\s\S]*?displayName="([^"]*)"/);
-                const valueMatch = obs.match(/<value[\s\S]*?value="([^"]*)"[\s\S]*?unit="([^"]*)"/);
+
+                // Match both formats: unit="x" value="y" OR value="y" unit="x"
+                const valueMatch1 = obs.match(/<value[\s\S]*?value="([^"]*)"[\s\S]*?unit="([^"]*)"/);
+                const valueMatch2 = obs.match(/<value[\s\S]*?unit="([^"]*)"[\s\S]*?value="([^"]*)"/);
+                const valueMatch = valueMatch1 || valueMatch2;
 
                 if (codeMatch && valueMatch) {
                   const labName = codeMatch[1];
-                  const labValue = valueMatch[1];
-                  const labUnit = valueMatch[2];
+                  // Handle both match orders
+                  const labValue = valueMatch1 ? valueMatch[1] : valueMatch[2];
+                  const labUnit = valueMatch1 ? valueMatch[2] : valueMatch[1];
 
-                  // Filter out non-lab observations
-                  if (labName && !labName.includes('Instruction') && !labName.includes('Order')) {
+                  // Filter out non-lab observations and ensure we have valid data
+                  if (labName && labValue && !labName.includes('Instruction') &&
+                      !labName.includes('Order') && !labName.includes('Sex') &&
+                      !labName.includes('Birth')) {
                     extractedData.labs.push({
                       name: labName,
                       value: labValue,
