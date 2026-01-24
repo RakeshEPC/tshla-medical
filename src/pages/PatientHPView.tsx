@@ -318,7 +318,7 @@ export default function PatientHPView() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 p-4 pb-20">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-[1600px] mx-auto">
         {/* Header */}
         <div className="bg-white rounded-2xl shadow-xl p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
@@ -362,9 +362,9 @@ export default function PatientHPView() {
         </div>
 
         {/* 2x2 Grid Dashboard */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* Row 1, Col 1: Lab Results */}
-          <div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          {/* Row 1, Col 1-2: Lab Results (takes 2/3 width) */}
+          <div className="lg:col-span-2">
             <div className="h-full bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all overflow-hidden">
               <div className="flex items-center justify-between bg-gradient-to-r from-blue-50 to-green-50 p-4 border-b border-gray-200">
                 <div className="flex items-center space-x-3">
@@ -378,8 +378,8 @@ export default function PatientHPView() {
             </div>
           </div>
 
-          {/* Row 1, Col 2: Current Medications */}
-          <div>
+          {/* Row 1, Col 3: Current Medications (takes 1/3 width) */}
+          <div className="lg:col-span-1">
             <div className="h-full bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all overflow-hidden">
               <div className="flex items-center justify-between bg-gradient-to-r from-green-50 to-emerald-50 p-4 border-b border-gray-200">
                 <div className="flex items-center space-x-3">
@@ -426,8 +426,8 @@ export default function PatientHPView() {
             </div>
           </div>
 
-          {/* Row 2, Col 1: Tasks & Goals */}
-          <div>
+          {/* Row 2, Col 1-2: Tasks & Goals (takes 2/3 width) */}
+          <div className="lg:col-span-2">
             <div className="h-full bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl shadow-lg hover:shadow-xl transition-all overflow-hidden">
               <CurrentlyWorkingOn
                 goals={hp.current_goals}
@@ -437,8 +437,8 @@ export default function PatientHPView() {
             </div>
           </div>
 
-          {/* Row 2, Col 2: Vital Signs */}
-          <div>
+          {/* Row 2, Col 3: Vital Signs (takes 1/3 width) */}
+          <div className="lg:col-span-1">
             <div className="h-full bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all overflow-hidden">
               <div className="flex items-center justify-between bg-gradient-to-r from-red-50 to-orange-50 p-4 border-b border-gray-200">
                 <div className="flex items-center space-x-3">
