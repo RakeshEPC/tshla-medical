@@ -74,6 +74,8 @@ export default function PatientDocumentUpload() {
    * Check session on mount
    */
   useEffect(() => {
+    console.log('🔍 [Upload] Page loaded, default method:', selectedMethod);
+
     // Check location state first
     if (location.state?.session) {
       setSession(location.state.session);
@@ -241,6 +243,10 @@ export default function PatientDocumentUpload() {
 
     setIsProcessing(true);
     setError(null);
+
+    console.log('🔍 [Upload] Starting upload with method:', selectedMethod);
+    console.log('🔍 [Upload] Text content length:', textContent.length);
+    console.log('🔍 [Upload] Selected files count:', selectedFiles.length);
 
     try {
       const formData = new FormData();

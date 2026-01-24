@@ -435,19 +435,105 @@ router.post('/upload-document', upload.any(), async (req, res) => {
       });
 
     } else if (uploadMethod === 'file') {
-      // TODO: Process file uploads
-      // - Extract text from PDFs
-      // - OCR images
-      // - Parse XML/CCD files
-      // - Process with AI
+      // Process file uploads
       logger.info('PatientPortal', 'Processing file upload', {
-        tshlaId: normalizedTshId
+        tshlaId: normalizedTshId,
+        fileCount: req.files?.length
       });
 
-      return res.status(501).json({
-        success: false,
-        error: 'File upload processing coming soon. Please use text or voice input for now.'
-      });
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'No files uploaded'
+        });
+      }
+
+      // Process each uploaded file
+      for (const file of req.files) {
+        const fileName = file.originalname;
+        const fileType = file.mimetype;
+        const fileSize = file.size;
+
+        logger.info('PatientPortal', 'Processing file', {
+          fileName,
+          fileType,
+          fileSize
+        });
+
+        // Convert buffer to string for XML/CCD files
+        if (fileName.toLowerCase().endsWith('.xml') ||
+            fileName.toLowerCase().endsWith('.ccd') ||
+            fileType === 'text/xml' ||
+            fileType === 'application/xml') {
+
+          const xmlContent = file.buffer.toString('utf-8');
+          extractedData.raw_content = xmlContent;
+
+          // Basic CCD parsing - extract key sections
+          // This is a simplified parser - CCD/C-CDA files are complex
+          try {
+            // Extract diagnoses/problems
+            const problemMatches = xmlContent.match(/<code code="([^"]*)" displayName="([^"]*)"/g);
+            if (problemMatches) {
+              problemMatches.forEach(match => {
+                const displayMatch = match.match(/displayName="([^"]*)"/);
+                if (displayMatch) {
+                  extractedData.diagnoses.push(displayMatch[1]);
+                }
+              });
+            }
+
+            // Extract medications
+            const medMatches = xmlContent.match(/<manufacturedMaterial>[\s\S]*?<name>([^<]*)<\/name>/g);
+            if (medMatches) {
+              medMatches.forEach(match => {
+                const nameMatch = match.match(/<name>([^<]*)<\/name>/);
+                if (nameMatch) {
+                  extractedData.medications.push(nameMatch[1]);
+                }
+              });
+            }
+
+            // Extract allergies
+            const allergyMatches = xmlContent.match(/<participant typeCode="CSM">[\s\S]*?<name>([^<]*)<\/name>/g);
+            if (allergyMatches) {
+              allergyMatches.forEach(match => {
+                const nameMatch = match.match(/<name>([^<]*)<\/name>/);
+                if (nameMatch) {
+                  extractedData.allergies.push(nameMatch[1]);
+                }
+              });
+            }
+
+            logger.info('PatientPortal', 'Extracted CCD data', {
+              diagnoses: extractedData.diagnoses.length,
+              medications: extractedData.medications.length,
+              allergies: extractedData.allergies.length
+            });
+
+          } catch (parseError) {
+            logger.error('PatientPortal', 'CCD parsing error', {
+              error: parseError.message
+            });
+          }
+
+        } else if (fileName.toLowerCase().endsWith('.pdf')) {
+          // TODO: Parse PDF files
+          extractedData.raw_content = `[PDF file: ${fileName}]`;
+
+        } else if (fileName.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/)) {
+          // TODO: OCR image files
+          extractedData.raw_content = `[Image file: ${fileName}]`;
+
+        } else {
+          // For other file types, just store the text content if possible
+          try {
+            extractedData.raw_content = file.buffer.toString('utf-8');
+          } catch (e) {
+            extractedData.raw_content = `[Binary file: ${fileName}]`;
+          }
+        }
+      }
 
     } else if (uploadMethod === 'voice') {
       // TODO: Process audio recording
