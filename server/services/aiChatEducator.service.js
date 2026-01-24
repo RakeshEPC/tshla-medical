@@ -20,9 +20,9 @@ const supabase = createClient(
 
 // Initialize Azure OpenAI (HIPAA-compliant)
 const azureClient = new AzureOpenAI({
-  apiKey: process.env.AZURE_OPENAI_API_KEY,
-  endpoint: process.env.AZURE_OPENAI_ENDPOINT,
-  apiVersion: '2024-02-01'
+  apiKey: process.env.AZURE_OPENAI_KEY || process.env.AZURE_OPENAI_API_KEY || process.env.VITE_AZURE_OPENAI_KEY,
+  endpoint: process.env.AZURE_OPENAI_ENDPOINT || process.env.VITE_AZURE_OPENAI_ENDPOINT,
+  apiVersion: process.env.AZURE_OPENAI_API_VERSION || process.env.VITE_AZURE_OPENAI_API_VERSION || '2024-02-01'
 });
 
 // Rate limiting storage (in-memory for now, consider Redis for production)
