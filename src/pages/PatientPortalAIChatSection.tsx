@@ -390,7 +390,7 @@ export default function PatientPortalAIChatSection() {
                 </button>
                 <button
                   onClick={() =>
-                    setInputMessage('Tell me about my insulin medication')
+                    setInputMessage('Tell me about my medications')
                   }
                   className="p-4 bg-white rounded-xl border-2 border-gray-200 hover:border-purple-500 hover:bg-purple-50 text-left transition-colors"
                 >
