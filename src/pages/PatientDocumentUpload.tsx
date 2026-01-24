@@ -314,7 +314,7 @@ export default function PatientDocumentUpload() {
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Upload Medical Records</h1>
                 <p className="text-sm text-gray-600">
-                  AI will extract information and add it to your medical chart
+                  Upload documents, CCD/XML files, or record notes - AI will extract and add to your chart
                 </p>
               </div>
             </div>
@@ -404,13 +404,13 @@ export default function PatientDocumentUpload() {
                   Drag and drop files here, or click to browse
                 </p>
                 <p className="text-sm text-gray-600 mb-4">
-                  Supported: PDF, JPG, PNG, DOCX, TXT (Max 10MB each)
+                  Supported: PDF, JPG, PNG, DOCX, TXT, XML, CCD (Max 10MB each)
                 </p>
                 <input
                   ref={fileInputRef}
                   type="file"
                   multiple
-                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.txt"
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.txt,.xml,.ccd"
                   onChange={handleFileSelect}
                   className="hidden"
                 />
