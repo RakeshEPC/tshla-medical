@@ -178,13 +178,13 @@ export default function CurrentlyWorkingOn({
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl mb-6 overflow-hidden">
+    <div className="bg-white rounded-2xl overflow-hidden h-full flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between bg-gradient-to-r from-purple-50 to-indigo-50 p-4 border-b border-gray-200">
         <div className="flex items-center space-x-3">
-          <Target className="w-5 h-5 text-purple-600" />
-          <h3 className="text-lg font-semibold text-gray-900">
-            Currently Working On
+          <Target className="w-6 h-6 text-purple-600" />
+          <h3 className="text-xl font-bold text-gray-900">
+            Tasks & Goals
           </h3>
         </div>
         <span className="text-xs text-gray-600 bg-white px-3 py-1 rounded-full">
@@ -193,7 +193,7 @@ export default function CurrentlyWorkingOn({
       </div>
 
       {/* Content */}
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-6 overflow-y-auto max-h-[600px] flex-1">
         {CATEGORIES.map((category) => {
           const categoryGoals = getGoalsByCategory(category.value);
           const colors = getCategoryColor(category.color);

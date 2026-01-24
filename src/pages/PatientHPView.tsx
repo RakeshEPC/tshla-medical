@@ -361,41 +361,68 @@ export default function PatientHPView() {
           </div>
         </div>
 
-        {/* Currently Working On Section */}
-        <CurrentlyWorkingOn
-          goals={hp.current_goals}
-          session={session}
-          onUpdate={() => window.location.reload()}
-        />
+        {/* 3-Box Grid Dashboard */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          {/* Box 1: Currently Working On */}
+          <div className="lg:col-span-1">
+            <div className="h-full bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl shadow-lg hover:shadow-xl transition-all overflow-hidden">
+              <CurrentlyWorkingOn
+                goals={hp.current_goals}
+                session={session}
+                onUpdate={() => window.location.reload()}
+              />
+            </div>
+          </div>
 
-        {/* Medications Section */}
-        <div className="bg-white rounded-2xl shadow-xl mb-6 overflow-hidden">
-          {renderSectionHeader('medications', 'Current Medications', Heart, false)}
-          {expandedSections.has('medications') && (
-            <div className="p-6">
-              {hp.medications.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">No medications recorded</p>
-              ) : (
-                <div className="space-y-3">
-                  {hp.medications
-                    .map((med, idx) => (
+          {/* Box 2: Lab Results */}
+          <div className="lg:col-span-1">
+            <div className="h-full bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all overflow-hidden">
+              <div className="flex items-center justify-between bg-gradient-to-r from-blue-50 to-green-50 p-4 border-b border-gray-200">
+                <div className="flex items-center space-x-3">
+                  <TrendingUp className="w-6 h-6 text-blue-600" />
+                  <h3 className="text-xl font-bold text-gray-900">Lab Results</h3>
+                </div>
+              </div>
+              <div className="p-6 max-h-[600px] overflow-y-auto">
+                <LabTrendTable labs={hp.labs} />
+              </div>
+            </div>
+          </div>
+
+          {/* Box 3: Current Medications */}
+          <div className="lg:col-span-1">
+            <div className="h-full bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all overflow-hidden">
+              <div className="flex items-center justify-between bg-gradient-to-r from-green-50 to-emerald-50 p-4 border-b border-gray-200">
+                <div className="flex items-center space-x-3">
+                  <Heart className="w-6 h-6 text-green-600" />
+                  <h3 className="text-xl font-bold text-gray-900">Medications</h3>
+                </div>
+                <span className="text-xs text-gray-600 bg-white px-3 py-1 rounded-full">
+                  {hp.medications.length} active
+                </span>
+              </div>
+              <div className="p-6 max-h-[600px] overflow-y-auto">
+                {hp.medications.length === 0 ? (
+                  <p className="text-gray-500 text-center py-8">No medications recorded</p>
+                ) : (
+                  <div className="space-y-3">
+                    {hp.medications.map((med, idx) => (
                       <div
                         key={idx}
-                        className="border border-gray-200 rounded-xl p-4 hover:bg-gray-50"
+                        className="border border-gray-200 rounded-xl p-4 hover:bg-green-50 transition-colors"
                       >
                         <div className="flex items-start justify-between">
-                          <div>
+                          <div className="flex-1">
                             <h4 className="font-semibold text-gray-900">{med.name}</h4>
                             <p className="text-sm text-gray-600 mt-1">
                               {med.dosage} • {med.frequency}
                             </p>
                             {med.indication && (
-                              <p className="text-xs text-gray-500 mt-1">For: {med.indication}</p>
+                              <p className="text-xs text-green-700 mt-1 bg-green-50 px-2 py-0.5 rounded inline-block">
+                                For: {med.indication}
+                              </p>
                             )}
                           </div>
-                          <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                            Active
-                          </span>
                         </div>
                         {med.started && (
                           <p className="text-xs text-gray-500 mt-2">
@@ -404,75 +431,68 @@ export default function PatientHPView() {
                         )}
                       </div>
                     ))}
-                </div>
-              )}
+                  </div>
+                )}
+              </div>
             </div>
-          )}
+          </div>
         </div>
 
-        {/* Diagnoses Section */}
-        <div className="bg-white rounded-2xl shadow-xl mb-6 overflow-hidden">
-          {renderSectionHeader('diagnoses', 'Active Diagnoses', Activity, false)}
-          {expandedSections.has('diagnoses') && (
-            <div className="p-6">
-              {hp.diagnoses.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">No diagnoses recorded</p>
-              ) : (
-                <div className="space-y-3">
-                  {hp.diagnoses
-                    .filter((dx) => dx.status === 'active')
-                    .map((dx, idx) => (
-                      <div
-                        key={idx}
-                        className="border border-gray-200 rounded-xl p-4 hover:bg-gray-50"
-                      >
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h4 className="font-semibold text-gray-900">{dx.condition}</h4>
-                            {dx.icd10 && (
-                              <p className="text-xs text-gray-500 mt-1">ICD-10: {dx.icd10}</p>
-                            )}
+        {/* Additional Sections (Collapsible) */}
+        <div className="space-y-6">
+          {/* Diagnoses Section */}
+          <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+            {renderSectionHeader('diagnoses', 'Active Diagnoses', Activity, false)}
+            {expandedSections.has('diagnoses') && (
+              <div className="p-6">
+                {hp.diagnoses.length === 0 ? (
+                  <p className="text-gray-500 text-center py-8">No diagnoses recorded</p>
+                ) : (
+                  <div className="space-y-3">
+                    {hp.diagnoses
+                      .filter((dx) => dx.status === 'active')
+                      .map((dx, idx) => (
+                        <div
+                          key={idx}
+                          className="border border-gray-200 rounded-xl p-4 hover:bg-gray-50"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <h4 className="font-semibold text-gray-900">{dx.condition}</h4>
+                              {dx.icd10 && (
+                                <p className="text-xs text-gray-500 mt-1">ICD-10: {dx.icd10}</p>
+                              )}
+                            </div>
+                            <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+                              Active
+                            </span>
                           </div>
-                          <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
-                            Active
-                          </span>
+                          {dx.diagnosed && (
+                            <p className="text-xs text-gray-500 mt-2">
+                              Since: {new Date(dx.diagnosed).toLocaleDateString()}
+                            </p>
+                          )}
                         </div>
-                        {dx.diagnosed && (
-                          <p className="text-xs text-gray-500 mt-2">
-                            Since: {new Date(dx.diagnosed).toLocaleDateString()}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
-        {/* Lab Results Section */}
-        <div className="bg-white rounded-2xl shadow-xl mb-6 overflow-hidden">
-          {renderSectionHeader('labs', 'Lab Results & Trends', TrendingUp, false)}
-          {expandedSections.has('labs') && (
-            <div className="p-6">
-              <LabTrendTable labs={hp.labs} />
-            </div>
-          )}
-        </div>
+          {/* Vital Signs Section */}
+          <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+            {renderSectionHeader('vitals', 'Vital Signs Trends', Heart, false)}
+            {expandedSections.has('vitals') && (
+              <div className="p-6">
+                <VitalSignsTrends vitals={hp.vitals} />
+              </div>
+            )}
+          </div>
 
-        {/* Vital Signs Section */}
-        <div className="bg-white rounded-2xl shadow-xl mb-6 overflow-hidden">
-          {renderSectionHeader('vitals', 'Vital Signs Trends', Heart, false)}
-          {expandedSections.has('vitals') && (
-            <div className="p-6">
-              <VitalSignsTrends vitals={hp.vitals} />
-            </div>
-          )}
-        </div>
-
-        {/* Allergies Section (Patient Editable) */}
-        <div className="bg-white rounded-2xl shadow-xl mb-6 overflow-hidden">
-          {renderSectionHeader('allergies', 'Allergies', AlertCircle, true)}
+          {/* Allergies Section (Patient Editable) */}
+          <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+            {renderSectionHeader('allergies', 'Allergies', AlertCircle, true)}
           {expandedSections.has('allergies') && (
             <div className="p-6">
               {editingSection === 'allergies' ? (
@@ -582,11 +602,11 @@ export default function PatientHPView() {
               )}
             </div>
           )}
-        </div>
+          </div>
 
-        {/* External Documents Section */}
-        <div className="bg-white rounded-2xl shadow-xl mb-6 overflow-hidden">
-          {renderSectionHeader('documents', 'Documents & Records', Upload, false)}
+          {/* External Documents Section */}
+          <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+            {renderSectionHeader('documents', 'Documents & Records', Upload, false)}
           {expandedSections.has('documents') && (
             <div className="p-6">
               {hp.external_documents.length === 0 ? (
@@ -619,6 +639,7 @@ export default function PatientHPView() {
               )}
             </div>
           )}
+          </div>
         </div>
       </div>
     </div>
