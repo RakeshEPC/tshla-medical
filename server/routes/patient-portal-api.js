@@ -505,10 +505,54 @@ router.post('/upload-document', upload.any(), async (req, res) => {
               });
             }
 
+            // Extract lab results from observations
+            const observationMatches = xmlContent.match(/<observation[\s\S]*?<\/observation>/g);
+            if (observationMatches) {
+              observationMatches.forEach(obs => {
+                // Look for result observations (labs typically have values)
+                const codeMatch = obs.match(/<code[\s\S]*?displayName="([^"]*)"/);
+                const valueMatch = obs.match(/<value[\s\S]*?value="([^"]*)"[\s\S]*?unit="([^"]*)"/);
+
+                if (codeMatch && valueMatch) {
+                  const labName = codeMatch[1];
+                  const labValue = valueMatch[1];
+                  const labUnit = valueMatch[2];
+
+                  // Filter out non-lab observations
+                  if (labName && !labName.includes('Instruction') && !labName.includes('Order')) {
+                    extractedData.labs.push({
+                      name: labName,
+                      value: labValue,
+                      unit: labUnit
+                    });
+                  }
+                }
+              });
+            }
+
+            // Extract vitals
+            const vitalMatches = xmlContent.match(/<vital-sign[\s\S]*?<\/vital-sign>|<organizer[\s\S]*?templateId root="2\.16\.840\.1\.113883\.10\.20\.22\.4\.26"[\s\S]*?<\/organizer>/g);
+            if (vitalMatches) {
+              vitalMatches.forEach(vital => {
+                const codeMatch = vital.match(/<code[\s\S]*?displayName="([^"]*)"/);
+                const valueMatch = vital.match(/<value[\s\S]*?value="([^"]*)"[\s\S]*?unit="([^"]*)"/);
+
+                if (codeMatch && valueMatch) {
+                  const vitalName = codeMatch[1];
+                  extractedData.vitals[vitalName] = {
+                    value: valueMatch[1],
+                    unit: valueMatch[2]
+                  };
+                }
+              });
+            }
+
             logger.info('PatientPortal', 'Extracted CCD data', {
               diagnoses: extractedData.diagnoses.length,
               medications: extractedData.medications.length,
-              allergies: extractedData.allergies.length
+              allergies: extractedData.allergies.length,
+              labs: extractedData.labs.length,
+              vitals: Object.keys(extractedData.vitals).length
             });
 
           } catch (parseError) {
