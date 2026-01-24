@@ -48,8 +48,8 @@ export default function PatientDocumentUpload() {
   const [session, setSession] = useState<SessionData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Upload method
-  const [selectedMethod, setSelectedMethod] = useState<UploadMethod>('file');
+  // Upload method (default to text since file/voice need additional implementation)
+  const [selectedMethod, setSelectedMethod] = useState<UploadMethod>('text');
 
   // File upload
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
