@@ -137,7 +137,7 @@ export default function PatientHPView() {
   }, [navigate]);
 
   /**
-   * Load H&P data
+   * Load H&P data and merge with uploaded medical records
    */
   useEffect(() => {
     if (!session) return;
@@ -147,7 +147,8 @@ export default function PatientHPView() {
       setError(null);
 
       try {
-        const response = await fetch(
+        // Load main H&P data
+        const hpResponse = await fetch(
           `${API_BASE_URL}/api/hp/patient/${session.tshlaId}`,
           {
             headers: {
@@ -156,13 +157,36 @@ export default function PatientHPView() {
           }
         );
 
-        const data = await response.json();
+        const hpData = await hpResponse.json();
 
-        if (!response.ok || !data.success) {
-          throw new Error(data.error || 'Failed to load medical chart');
+        if (!hpResponse.ok || !hpData.success) {
+          throw new Error(hpData.error || 'Failed to load medical chart');
         }
 
-        setHp(data.hp);
+        // Load uploaded medical records (labs from CCD uploads)
+        const recordsResponse = await fetch(
+          `${API_BASE_URL}/api/patient-portal/medical-records?tshlaId=${encodeURIComponent(session.tshlaId)}&sessionId=${encodeURIComponent(session.sessionId)}`
+        );
+
+        const recordsData = await recordsResponse.json();
+
+        // Merge uploaded labs with existing labs
+        let mergedHP = hpData.hp;
+
+        if (recordsResponse.ok && recordsData.success && recordsData.labs) {
+          console.log('📊 [PatientHPView] Merging uploaded labs:', recordsData.total_labs);
+
+          // Merge labs - combine existing and uploaded
+          mergedHP = {
+            ...hpData.hp,
+            labs: {
+              ...hpData.hp.labs,
+              ...recordsData.labs
+            }
+          };
+        }
+
+        setHp(mergedHP);
       } catch (err: any) {
         console.error('Load H&P error:', err);
         setError(err.message || 'Unable to load medical chart');
