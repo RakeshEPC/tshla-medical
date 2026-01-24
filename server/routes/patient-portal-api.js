@@ -9,7 +9,7 @@ const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 const { v4: uuidv4 } = require('uuid');
-const logger = require('../services/logger.service');
+const logger = require('../logger');
 
 // Initialize Supabase client
 const supabase = createClient(

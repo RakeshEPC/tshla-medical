@@ -9,7 +9,7 @@ const express = require('express');
 const router = express.Router();
 const aiChatService = require('../services/aiChatEducator.service');
 const axios = require('axios');
-const logger = require('../services/logger.service');
+const logger = require('../logger');
 
 // ElevenLabs configuration
 const ELEVENLABS_API_KEY = process.env.DEEPGRAM_API_KEY || process.env.VITE_DEEPGRAM_API_KEY;
