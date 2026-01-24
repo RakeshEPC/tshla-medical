@@ -463,7 +463,7 @@ export default function PatientPortalUnified() {
             </button>
 
             <button
-              onClick={() => alert('Upload feature coming soon!')}
+              onClick={() => navigate('/patient-portal/upload', { state: { session } })}
               className="flex items-center space-x-3 p-4 border-2 border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition"
             >
               <FileText className="w-5 h-5 text-green-600" />

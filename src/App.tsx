@@ -116,6 +116,7 @@ const PatientHPView = lazy(() => import('./pages/PatientHPView'));
 const PatientPortalPaymentSection = lazy(() => import('./pages/PatientPortalPaymentSection'));
 const PatientPortalAudioSection = lazy(() => import('./pages/PatientPortalAudioSection'));
 const PatientPortalAIChatSection = lazy(() => import('./pages/PatientPortalAIChatSection'));
+const PatientDocumentUpload = lazy(() => import('./pages/PatientDocumentUpload'));
 const StaffAIAnalyticsDashboard = lazy(() => import('./pages/StaffAIAnalyticsDashboard'));
 const StaffReviewQueue = lazy(() => import('./pages/StaffReviewQueue'));
 
@@ -680,6 +681,14 @@ function App() {
                 element={
                   <Suspense fallback={<LoadingSpinner />}>
                     <PatientPortalAIChatSection />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/patient-portal/upload"
+                element={
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <PatientDocumentUpload />
                   </Suspense>
                 }
               />
