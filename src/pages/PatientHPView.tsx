@@ -361,21 +361,10 @@ export default function PatientHPView() {
           </div>
         </div>
 
-        {/* 3-Box Grid Dashboard */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {/* Box 1: Currently Working On */}
-          <div className="lg:col-span-1">
-            <div className="h-full bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl shadow-lg hover:shadow-xl transition-all overflow-hidden">
-              <CurrentlyWorkingOn
-                goals={hp.current_goals}
-                session={session}
-                onUpdate={() => window.location.reload()}
-              />
-            </div>
-          </div>
-
-          {/* Box 2: Lab Results */}
-          <div className="lg:col-span-1">
+        {/* 2x2 Grid Dashboard */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* Row 1, Col 1: Lab Results */}
+          <div>
             <div className="h-full bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all overflow-hidden">
               <div className="flex items-center justify-between bg-gradient-to-r from-blue-50 to-green-50 p-4 border-b border-gray-200">
                 <div className="flex items-center space-x-3">
@@ -389,8 +378,8 @@ export default function PatientHPView() {
             </div>
           </div>
 
-          {/* Box 3: Current Medications */}
-          <div className="lg:col-span-1">
+          {/* Row 1, Col 2: Current Medications */}
+          <div>
             <div className="h-full bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all overflow-hidden">
               <div className="flex items-center justify-between bg-gradient-to-r from-green-50 to-emerald-50 p-4 border-b border-gray-200">
                 <div className="flex items-center space-x-3">
@@ -436,6 +425,32 @@ export default function PatientHPView() {
               </div>
             </div>
           </div>
+
+          {/* Row 2, Col 1: Tasks & Goals */}
+          <div>
+            <div className="h-full bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl shadow-lg hover:shadow-xl transition-all overflow-hidden">
+              <CurrentlyWorkingOn
+                goals={hp.current_goals}
+                session={session}
+                onUpdate={() => window.location.reload()}
+              />
+            </div>
+          </div>
+
+          {/* Row 2, Col 2: Vital Signs */}
+          <div>
+            <div className="h-full bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all overflow-hidden">
+              <div className="flex items-center justify-between bg-gradient-to-r from-red-50 to-orange-50 p-4 border-b border-gray-200">
+                <div className="flex items-center space-x-3">
+                  <Heart className="w-6 h-6 text-red-600" />
+                  <h3 className="text-xl font-bold text-gray-900">Vital Signs</h3>
+                </div>
+              </div>
+              <div className="p-6 max-h-[600px] overflow-y-auto">
+                <VitalSignsTrends vitals={hp.vitals} />
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Additional Sections (Collapsible) */}
@@ -476,16 +491,6 @@ export default function PatientHPView() {
                       ))}
                   </div>
                 )}
-              </div>
-            )}
-          </div>
-
-          {/* Vital Signs Section */}
-          <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-            {renderSectionHeader('vitals', 'Vital Signs Trends', Heart, false)}
-            {expandedSections.has('vitals') && (
-              <div className="p-6">
-                <VitalSignsTrends vitals={hp.vitals} />
               </div>
             )}
           </div>
