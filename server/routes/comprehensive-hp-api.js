@@ -88,14 +88,31 @@ router.get('/patient/:tshlaId', async (req, res) => {
 
     logger.info('HP-API', 'Fetching H&P', { tshlaId: normalizedTshId });
 
-    // Get patient phone from TSH ID
-    const { data: patient, error: patientError } = await supabase
+    // Get patient phone from TSH ID (try both normalized and formatted versions)
+    let patient = null;
+
+    // Try normalized format first (TSH123001)
+    const result1 = await supabase
       .from('unified_patients')
       .select('phone_primary, first_name, last_name')
       .eq('tshla_id', normalizedTshId)
-      .single();
+      .maybeSingle();
 
-    if (patientError || !patient) {
+    if (result1.data) {
+      patient = result1.data;
+    } else {
+      // Try formatted version (TSH 123-001)
+      const formatted = normalizedTshId.replace(/^TSH(\d{3})(\d{3})$/, 'TSH $1-$2');
+      const result2 = await supabase
+        .from('unified_patients')
+        .select('phone_primary, first_name, last_name')
+        .eq('tshla_id', formatted)
+        .maybeSingle();
+
+      patient = result2.data;
+    }
+
+    if (!patient) {
       return res.status(404).json({
         success: false,
         error: 'Patient not found'
@@ -158,14 +175,29 @@ router.post('/patient/:tshlaId/edit', async (req, res) => {
       });
     }
 
-    // Get patient
-    const { data: patient, error: patientError } = await supabase
+    // Get patient (try both normalized and formatted versions)
+    let patient = null;
+
+    const result1 = await supabase
       .from('unified_patients')
       .select('phone_primary, first_name, last_name')
       .eq('tshla_id', normalizedTshId)
-      .single();
+      .maybeSingle();
 
-    if (patientError || !patient) {
+    if (result1.data) {
+      patient = result1.data;
+    } else {
+      const formatted = normalizedTshId.replace(/^TSH(\d{3})(\d{3})$/, 'TSH $1-$2');
+      const result2 = await supabase
+        .from('unified_patients')
+        .select('phone_primary, first_name, last_name')
+        .eq('tshla_id', formatted)
+        .maybeSingle();
+
+      patient = result2.data;
+    }
+
+    if (!patient) {
       return res.status(404).json({
         success: false,
         error: 'Patient not found'
@@ -260,18 +292,32 @@ router.post('/regenerate', async (req, res) => {
       });
     }
 
-    // If TSH ID provided, get phone
+    // If TSH ID provided, get phone (try both normalized and formatted versions)
     let phone = patientPhone;
     if (!phone && tshlaId) {
       const normalizedTshId = tshlaId.replace(/[\s-]/g, '').toUpperCase();
-      const { data: patient } = await supabase
+
+      // Try normalized format first
+      const result1 = await supabase
         .from('unified_patients')
         .select('phone_primary')
         .eq('tshla_id', normalizedTshId)
-        .single();
+        .maybeSingle();
 
-      if (patient) {
-        phone = patient.phone_primary;
+      if (result1.data) {
+        phone = result1.data.phone_primary;
+      } else {
+        // Try formatted version
+        const formatted = normalizedTshId.replace(/^TSH(\d{3})(\d{3})$/, 'TSH $1-$2');
+        const result2 = await supabase
+          .from('unified_patients')
+          .select('phone_primary')
+          .eq('tshla_id', formatted)
+          .maybeSingle();
+
+        if (result2.data) {
+          phone = result2.data.phone_primary;
+        }
       }
     }
 
