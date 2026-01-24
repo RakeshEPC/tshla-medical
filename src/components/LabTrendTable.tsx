@@ -131,17 +131,6 @@ export default function LabTrendTable({ labs }: LabTrendTableProps) {
 
   return (
     <div className="space-y-6">
-      {/* Info banner */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start space-x-3">
-        <TrendingUp className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-        <div>
-          <p className="text-sm text-blue-800 font-medium">Click any test name to see trend graph</p>
-          <p className="text-xs text-blue-700 mt-1">
-            Showing your most recent 5 results. View graph for full history.
-          </p>
-        </div>
-      </div>
-
       {/* Lab Results Table */}
       <div className="overflow-x-auto">
         <table className="w-full border-collapse">
@@ -196,11 +185,6 @@ export default function LabTrendTable({ labs }: LabTrendTableProps) {
                       </span>
                       <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-blue-600" />
                     </button>
-                    {isPriority && (
-                      <span className="text-xs text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full mt-1 inline-block">
-                        Priority
-                      </span>
-                    )}
                   </td>
 
                   {/* Values for each date */}

@@ -398,26 +398,18 @@ export default function PatientHPView() {
                     {hp.medications.map((med, idx) => (
                       <div
                         key={idx}
-                        className="border border-gray-200 rounded-xl p-4 hover:bg-green-50 transition-colors"
+                        className="border border-gray-200 rounded-xl p-3 hover:bg-green-50 transition-colors"
                       >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <h4 className="font-semibold text-gray-900">{med.name}</h4>
-                            <p className="text-sm text-gray-600 mt-1">
-                              {med.dosage} • {med.frequency}
-                            </p>
-                            {med.indication && (
-                              <p className="text-xs text-green-700 mt-1 bg-green-50 px-2 py-0.5 rounded inline-block">
-                                For: {med.indication}
-                              </p>
-                            )}
-                          </div>
+                        <div className="flex items-center flex-wrap gap-x-2 gap-y-1">
+                          <h4 className="font-semibold text-gray-900">{med.name}</h4>
+                          <span className="text-sm text-gray-600">{med.dosage}</span>
+                          <span className="text-sm text-gray-600">{med.frequency}</span>
+                          {med.indication && (
+                            <span className="text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded">
+                              {med.indication}
+                            </span>
+                          )}
                         </div>
-                        {med.started && (
-                          <p className="text-xs text-gray-500 mt-2">
-                            Started: {new Date(med.started).toLocaleDateString()}
-                          </p>
-                        )}
                       </div>
                     ))}
                   </div>
