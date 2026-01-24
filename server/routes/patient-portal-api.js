@@ -55,11 +55,30 @@ router.post('/login', async (req, res) => {
     }
 
     // 1. Find patient by TSH ID
-    const { data: patient, error: findError } = await supabase
+    // Try exact match first, then try with space format (TSH XXX-XXX)
+    let patient, findError;
+
+    // Try normalized format (TSH123001)
+    const result1 = await supabase
       .from('unified_patients')
       .select('id, phone_primary, phone_display, first_name, last_name, tshla_id, is_active')
       .eq('tshla_id', normalizedTshId)
-      .single();
+      .maybeSingle();
+
+    if (result1.data) {
+      patient = result1.data;
+    } else {
+      // Try formatted version (TSH 123-001)
+      const formatted = normalizedTshId.replace(/^TSH(\d{3})(\d{3})$/, 'TSH $1-$2');
+      const result2 = await supabase
+        .from('unified_patients')
+        .select('id, phone_primary, phone_display, first_name, last_name, tshla_id, is_active')
+        .eq('tshla_id', formatted)
+        .maybeSingle();
+
+      patient = result2.data;
+      findError = result2.error;
+    }
 
     if (findError || !patient) {
       // Increment failed attempts
