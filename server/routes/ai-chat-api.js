@@ -12,8 +12,8 @@ const axios = require('axios');
 const logger = require('../logger');
 
 // ElevenLabs configuration
-const ELEVENLABS_API_KEY = process.env.DEEPGRAM_API_KEY || process.env.VITE_DEEPGRAM_API_KEY;
-const ELEVENLABS_VOICE_ID = 'rachel'; // Rachel voice ID (calm, empathetic)
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || process.env.VITE_ELEVENLABS_API_KEY;
+const ELEVENLABS_VOICE_ID = process.env.VITE_ELEVENLABS_DEFAULT_VOICE_ID || 'cgSgspJ2msm6clMCkdW9'; // Rachel voice
 
 /**
  * POST /api/ai-chat/message
