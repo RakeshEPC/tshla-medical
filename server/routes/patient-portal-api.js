@@ -660,6 +660,166 @@ router.post('/upload-document', upload.any(), async (req, res) => {
 });
 
 /**
+ * GET /api/patient-portal/medical-records
+ * Get patient's uploaded documents and extracted lab data
+ */
+router.get('/medical-records', async (req, res) => {
+  try {
+    const { tshlaId, sessionId } = req.query;
+
+    if (!tshlaId || !sessionId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required parameters'
+      });
+    }
+
+    const normalizedTshId = tshlaId.replace(/[\s-]/g, '').toUpperCase();
+
+    logger.info('PatientPortal', 'Fetching medical records', {
+      tshlaId: normalizedTshId
+    });
+
+    // Verify patient exists (try both formats)
+    let patient = null;
+    const result1 = await supabase
+      .from('unified_patients')
+      .select('id, first_name, last_name, tshla_id')
+      .eq('tshla_id', normalizedTshId)
+      .maybeSingle();
+
+    if (result1.data) {
+      patient = result1.data;
+    } else {
+      const formatted = normalizedTshId.replace(/^TSH(\d{3})(\d{3})$/, 'TSH $1-$2');
+      const result2 = await supabase
+        .from('unified_patients')
+        .select('id, first_name, last_name, tshla_id')
+        .eq('tshla_id', formatted)
+        .maybeSingle();
+      patient = result2.data;
+    }
+
+    if (!patient) {
+      return res.status(404).json({
+        success: false,
+        error: 'Patient not found'
+      });
+    }
+
+    // Get all uploaded documents for this patient
+    const { data: uploads, error: uploadsError } = await supabase
+      .from('patient_document_uploads')
+      .select('*')
+      .eq('patient_id', patient.id)
+      .order('uploaded_at', { ascending: false });
+
+    if (uploadsError) {
+      logger.error('PatientPortal', 'Error fetching uploads', {
+        error: uploadsError.message
+      });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch medical records'
+      });
+    }
+
+    // Aggregate all labs from uploads
+    const allLabs = [];
+    const allMedications = new Set();
+    const allAllergies = new Set();
+
+    uploads.forEach(upload => {
+      if (upload.extracted_data) {
+        const e = upload.extracted_data;
+
+        // Collect labs
+        if (e.labs && Array.isArray(e.labs)) {
+          e.labs.forEach(lab => {
+            allLabs.push({
+              ...lab,
+              upload_date: upload.uploaded_at,
+              upload_id: upload.id
+            });
+          });
+        }
+
+        // Collect medications
+        if (e.medications && Array.isArray(e.medications)) {
+          e.medications.forEach(med => {
+            if (med !== 'AthenaHealth') {
+              allMedications.add(med);
+            }
+          });
+        }
+
+        // Collect allergies
+        if (e.allergies && Array.isArray(e.allergies)) {
+          e.allergies.forEach(allergy => allAllergies.add(allergy));
+        }
+      }
+    });
+
+    // Organize labs by name
+    const labsByName = {};
+    allLabs.forEach(lab => {
+      if (!labsByName[lab.name]) {
+        labsByName[lab.name] = [];
+      }
+      labsByName[lab.name].push({
+        value: lab.value,
+        unit: lab.unit,
+        date: lab.upload_date
+      });
+    });
+
+    // Log access
+    await supabase
+      .from('access_logs')
+      .insert({
+        user_type: 'patient',
+        user_id: patient.id,
+        action: 'view_medical_records',
+        resource_type: 'patient_documents',
+        ip_address: req.ip || req.connection.remoteAddress,
+        user_agent: req.headers['user-agent'],
+        details: { tshla_id: normalizedTshId, upload_count: uploads.length }
+      });
+
+    res.json({
+      success: true,
+      patient: {
+        name: `${patient.first_name} ${patient.last_name}`,
+        tshla_id: patient.tshla_id
+      },
+      uploads: uploads.map(u => ({
+        id: u.id,
+        upload_method: u.upload_method,
+        uploaded_at: u.uploaded_at,
+        lab_count: u.extracted_data?.labs?.length || 0,
+        medication_count: u.extracted_data?.medications?.length || 0,
+        allergy_count: u.extracted_data?.allergies?.length || 0
+      })),
+      labs: labsByName,
+      medications: Array.from(allMedications),
+      allergies: Array.from(allAllergies),
+      total_uploads: uploads.length,
+      total_labs: allLabs.length
+    });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Medical records error', {
+      error: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch medical records'
+    });
+  }
+});
+
+/**
  * Helper: Get device type from user agent
  */
 function getDeviceType(userAgent) {
