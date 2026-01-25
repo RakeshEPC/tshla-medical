@@ -1068,11 +1068,12 @@ router.post('/medications/:tshlaId/update-status', async (req, res) => {
     }
 
     // Update medication
+    // Note: We only need to filter by medication ID since it's unique
+    // No need to filter by tshla_id which can have format inconsistencies
     const { data, error } = await supabase
       .from('patient_medications')
       .update(updateData)
       .eq('id', medicationId)
-      .eq('tshla_id', normalizedTshId)
       .select()
       .single();
 
@@ -1136,11 +1137,12 @@ router.post('/medications/:tshlaId/update-flags', async (req, res) => {
     }
 
     // Update medication
+    // Note: We only need to filter by medication ID since it's unique
+    // No need to filter by tshla_id which can have format inconsistencies
     const { data, error } = await supabase
       .from('patient_medications')
       .update(updateData)
       .eq('id', medicationId)
-      .eq('tshla_id', normalizedTshId)
       .select()
       .single();
 
