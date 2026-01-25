@@ -77,6 +77,17 @@ export default function PatientPortalUnified() {
    */
   useEffect(() => {
     if (session) {
+      // Immediately validate session hasn't expired
+      const sessionAge = Date.now() - new Date(session.sessionStart).getTime();
+      const twoHours = 2 * 60 * 60 * 1000;
+
+      if (sessionAge >= twoHours) {
+        // Session has expired
+        sessionStorage.removeItem('patient_portal_session');
+        setSession(null);
+        return;
+      }
+
       loadDashboardData();
       // Start session timeout timer (2 hours)
       startSessionTimer();
@@ -91,18 +102,29 @@ export default function PatientPortalUnified() {
     if (savedSession) {
       try {
         const sessionData = JSON.parse(savedSession);
-        // Check if session is still valid (within 2 hours)
-        const sessionAge = Date.now() - new Date(sessionData.sessionStart).getTime();
-        const twoHours = 2 * 60 * 60 * 1000;
 
-        if (sessionAge < twoHours) {
+        // Validate session has required fields
+        if (!sessionData.sessionStart || !sessionData.sessionId || !sessionData.tshlaId) {
+          sessionStorage.removeItem('patient_portal_session');
+          setIsLoading(false);
+          return;
+        }
+
+        // Check if session is still valid (within 2 hours)
+        const sessionStartTime = new Date(sessionData.sessionStart).getTime();
+        const currentTime = Date.now();
+        const sessionAge = currentTime - sessionStartTime;
+        const twoHours = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
+
+        if (sessionAge < twoHours && sessionAge > 0) {
+          // Valid session
           setSession(sessionData);
         } else {
-          // Session expired
+          // Session expired or invalid timestamp
           sessionStorage.removeItem('patient_portal_session');
         }
       } catch (error) {
-        console.error('Error parsing saved session:', error);
+        // Invalid session data
         sessionStorage.removeItem('patient_portal_session');
       }
     }
@@ -180,13 +202,50 @@ export default function PatientPortalUnified() {
 
   /**
    * Start session timeout timer
+   * Checks every minute if session has expired
    */
   const startSessionTimer = () => {
-    const twoHours = 2 * 60 * 60 * 1000;
-    setTimeout(() => {
-      handleLogout();
-      alert('Your session has expired for security. Please log in again.');
-    }, twoHours);
+    // Check session validity every minute
+    const intervalId = setInterval(() => {
+      const savedSession = sessionStorage.getItem('patient_portal_session');
+      if (!savedSession) {
+        clearInterval(intervalId);
+        handleLogout();
+        return;
+      }
+
+      try {
+        const sessionData = JSON.parse(savedSession);
+        const sessionAge = Date.now() - new Date(sessionData.sessionStart).getTime();
+        const twoHours = 2 * 60 * 60 * 1000;
+
+        if (sessionAge >= twoHours) {
+          clearInterval(intervalId);
+          handleLogout();
+          alert('Your session has expired for security. Please log in again.');
+        }
+      } catch (error) {
+        clearInterval(intervalId);
+        handleLogout();
+      }
+    }, 60000); // Check every minute
+
+    // Also set a timeout for exactly 2 hours from session start
+    if (session?.sessionStart) {
+      const sessionAge = Date.now() - new Date(session.sessionStart).getTime();
+      const twoHours = 2 * 60 * 60 * 1000;
+      const timeRemaining = twoHours - sessionAge;
+
+      if (timeRemaining > 0) {
+        setTimeout(() => {
+          handleLogout();
+          alert('Your session has expired for security. Please log in again.');
+        }, timeRemaining);
+      } else {
+        // Session already expired
+        handleLogout();
+      }
+    }
   };
 
   /**
