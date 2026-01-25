@@ -84,25 +84,34 @@ export default function MedicationManagement({
 
   const importMedications = async () => {
     try {
+      console.log('🔄 Starting medication import...', { tshlaId, sessionId });
       setImporting(true);
-      const response = await fetch(
-        `${API_BASE_URL}/api/patient-portal/medications/${encodeURIComponent(tshlaId)}/import-from-uploads`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-session-id': sessionId,
-          },
-        }
-      );
 
+      const url = `${API_BASE_URL}/api/patient-portal/medications/${encodeURIComponent(tshlaId)}/import-from-uploads`;
+      console.log('📡 Import URL:', url);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-session-id': sessionId,
+        },
+      });
+
+      console.log('📥 Import response status:', response.status);
       const data = await response.json();
+      console.log('📦 Import response data:', data);
 
       if (response.ok && data.success) {
+        console.log('✅ Import successful, reloading medications...');
         await loadMedications(); // Reload
+      } else {
+        console.error('❌ Import failed:', data.error || 'Unknown error');
+        setError(data.error || 'Failed to import medications');
       }
     } catch (err) {
-      console.error('Import medications error:', err);
+      console.error('❌ Import medications error:', err);
+      setError('Failed to import medications');
     } finally {
       setImporting(false);
     }
