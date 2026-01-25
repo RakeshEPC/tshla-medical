@@ -46,21 +46,27 @@ export default function MedicationManagement({
 
   const loadMedications = async () => {
     try {
+      console.log('📥 Loading medications...', { tshlaId });
       setIsLoading(true);
-      const response = await fetch(
-        `${API_BASE_URL}/api/patient-portal/medications/${encodeURIComponent(tshlaId)}`,
-        {
-          headers: {
-            'x-session-id': sessionId,
-          },
-        }
-      );
 
+      const url = `${API_BASE_URL}/api/patient-portal/medications/${encodeURIComponent(tshlaId)}`;
+      console.log('📡 Load URL:', url);
+
+      const response = await fetch(url, {
+        headers: {
+          'x-session-id': sessionId,
+        },
+      });
+
+      console.log('📥 Load response status:', response.status);
       const data = await response.json();
+      console.log('📦 Load response data:', data);
 
       if (response.ok && data.success) {
+        console.log('✅ Setting medications:', data.medications.length, 'medications');
         setMedications(data.medications);
       } else {
+        console.log('⚠️ No medications in table, using initial medications');
         // If no medications in table, show initial medications
         const formatted = initialMedications.map(med => ({
           medication_name: med.name || med.medication_name,
@@ -75,7 +81,7 @@ export default function MedicationManagement({
         setMedications(formatted);
       }
     } catch (err) {
-      console.error('Load medications error:', err);
+      console.error('❌ Load medications error:', err);
       setError('Failed to load medications');
     } finally {
       setIsLoading(false);
