@@ -820,6 +820,61 @@ router.get('/medical-records', async (req, res) => {
 });
 
 /**
+ * POST /api/patient-portal/admin/clear-rate-limit
+ * Clear rate limiting for a specific TSH ID or IP (admin only)
+ */
+router.post('/admin/clear-rate-limit', async (req, res) => {
+  try {
+    const { tshlaId, clearAll } = req.body;
+
+    if (clearAll === true) {
+      // Clear all rate limits
+      loginAttempts.clear();
+      logger.info('PatientPortal', 'Cleared all rate limits');
+      return res.json({
+        success: true,
+        message: 'All rate limits cleared'
+      });
+    }
+
+    if (tshlaId) {
+      // Clear rate limits for specific TSH ID
+      const normalizedTshId = tshlaId.replace(/[\s-]/g, '').toUpperCase();
+      let cleared = 0;
+
+      // Remove all entries that contain this TSH ID
+      for (const [key, value] of loginAttempts.entries()) {
+        if (key.includes(normalizedTshId)) {
+          loginAttempts.delete(key);
+          cleared++;
+        }
+      }
+
+      logger.info('PatientPortal', 'Cleared rate limits', { tshlaId: normalizedTshId, count: cleared });
+      return res.json({
+        success: true,
+        message: `Cleared ${cleared} rate limit(s) for TSH ID ${normalizedTshId}`
+      });
+    }
+
+    return res.status(400).json({
+      success: false,
+      error: 'Must provide tshlaId or clearAll=true'
+    });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Clear rate limit error', {
+      error: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to clear rate limit'
+    });
+  }
+});
+
+/**
  * Helper: Get device type from user agent
  */
 function getDeviceType(userAgent) {
