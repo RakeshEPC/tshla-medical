@@ -987,10 +987,18 @@ router.get('/medications/:tshlaId', async (req, res) => {
     const { tshlaId } = req.params;
     const normalizedTshId = tshlaId.replace(/[\s-]/g, '').toUpperCase();
 
-    logger.info('PatientPortal', 'Fetching medications', { tshlaId: normalizedTshId });
+    logger.info('PatientPortal', 'Fetching medications', {
+      tshlaId: normalizedTshId,
+      originalParam: tshlaId
+    });
 
     // Try both formats (TSH123001 and TSH 123-001)
     const formatted = normalizedTshId.replace(/^TSH(\d{3})(\d{3})$/, 'TSH $1-$2');
+
+    logger.info('PatientPortal', 'Searching for medications with TSH IDs', {
+      normalized: normalizedTshId,
+      formatted: formatted
+    });
 
     // Get medications from patient_medications table
     const { data: medications, error } = await supabase
@@ -1001,8 +1009,16 @@ router.get('/medications/:tshlaId', async (req, res) => {
       .order('medication_name', { ascending: true});
 
     if (error) {
+      logger.error('PatientPortal', 'Get medications query error', {
+        error: error.message,
+        code: error.code
+      });
       throw error;
     }
+
+    logger.info('PatientPortal', 'Found medications', {
+      count: medications?.length || 0
+    });
 
     res.json({
       success: true,
@@ -1239,42 +1255,87 @@ router.post('/medications/:tshlaId/import-from-uploads', async (req, res) => {
 
     // 4. Insert medications (upsert to avoid duplicates)
     let imported = 0;
+    const errors = [];
+    const skipped = [];
+
+    logger.info('PatientPortal', 'Starting import of medications', {
+      count: medicationsToImport.length,
+      sampleMed: medicationsToImport[0]
+    });
+
     for (const med of medicationsToImport) {
       // Check if medication already exists (check both TSH ID formats)
-      const { data: existing } = await supabase
+      const { data: existing, error: checkError } = await supabase
         .from('patient_medications')
         .select('id')
         .or(`tshla_id.eq.${normalizedTshId},tshla_id.eq.${formatted}`)
         .eq('medication_name', med.medication_name)
         .maybeSingle();
 
-      if (!existing) {
-        const { error: insertError } = await supabase
-          .from('patient_medications')
-          .insert(med);
+      if (checkError) {
+        logger.error('PatientPortal', 'Check existing medication error', {
+          med: med.medication_name,
+          error: checkError.message,
+          code: checkError.code
+        });
+        errors.push({
+          medication: med.medication_name,
+          error: checkError.message,
+          step: 'check'
+        });
+        continue;
+      }
 
-        if (!insertError) {
-          imported++;
-        } else {
-          logger.error('PatientPortal', 'Insert medication error', {
-            med: med.medication_name,
-            error: insertError.message
-          });
-        }
+      if (existing) {
+        skipped.push(med.medication_name);
+        continue;
+      }
+
+      // Insert medication
+      const { data: inserted, error: insertError } = await supabase
+        .from('patient_medications')
+        .insert(med)
+        .select();
+
+      if (insertError) {
+        logger.error('PatientPortal', 'Insert medication error', {
+          med: med.medication_name,
+          error: insertError.message,
+          code: insertError.code,
+          details: insertError.details,
+          hint: insertError.hint
+        });
+        errors.push({
+          medication: med.medication_name,
+          error: insertError.message,
+          code: insertError.code,
+          details: insertError.details,
+          step: 'insert'
+        });
+      } else {
+        imported++;
+        logger.info('PatientPortal', 'Medication inserted', {
+          id: inserted[0]?.id,
+          name: med.medication_name
+        });
       }
     }
 
-    logger.info('PatientPortal', 'Medications imported', {
+    logger.info('PatientPortal', 'Medications import complete', {
       tshlaId: normalizedTshId,
       total: medicationsToImport.length,
-      imported
+      imported,
+      skipped: skipped.length,
+      errors: errors.length
     });
 
     res.json({
       success: true,
       total: medicationsToImport.length,
       imported,
-      message: `Imported ${imported} new medications from uploaded documents`
+      skipped: skipped.length,
+      errors: errors.length > 0 ? errors : undefined,
+      message: `Imported ${imported} new medications from uploaded documents${skipped.length > 0 ? ` (${skipped.length} already existed)` : ''}${errors.length > 0 ? ` (${errors.length} errors)` : ''}`
     });
 
   } catch (error) {
