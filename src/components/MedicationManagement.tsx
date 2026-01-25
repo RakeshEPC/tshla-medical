@@ -64,6 +64,10 @@ export default function MedicationManagement({
 
       if (response.ok && data.success) {
         console.log('✅ Setting medications:', data.medications.length, 'medications');
+        if (data.medications.length > 0) {
+          console.log('📋 Sample medication:', data.medications[0]);
+          console.log('🆔 First med has ID?', !!data.medications[0]?.id);
+        }
         setMedications(data.medications);
       } else {
         console.log('⚠️ No medications in table, using initial medications');
