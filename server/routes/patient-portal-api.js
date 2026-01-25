@@ -760,17 +760,30 @@ router.get('/medical-records', async (req, res) => {
       }
     });
 
-    // Organize labs by name
+    // Organize labs by name and deduplicate by date+value
     const labsByName = {};
     allLabs.forEach(lab => {
       if (!labsByName[lab.name]) {
         labsByName[lab.name] = [];
       }
-      labsByName[lab.name].push({
-        value: lab.value,
-        unit: lab.unit,
-        date: lab.upload_date
+
+      // Check if this exact lab (same date and value) already exists
+      const dateStr = new Date(lab.upload_date).toISOString().split('T')[0]; // Just the date part
+      const isDuplicate = labsByName[lab.name].some(existing => {
+        const existingDateStr = new Date(existing.date).toISOString().split('T')[0];
+        return existingDateStr === dateStr &&
+               existing.value === lab.value &&
+               existing.unit === lab.unit;
       });
+
+      // Only add if not a duplicate
+      if (!isDuplicate) {
+        labsByName[lab.name].push({
+          value: lab.value,
+          unit: lab.unit,
+          date: lab.upload_date
+        });
+      }
     });
 
     // Log access
