@@ -29,15 +29,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Skip staff auth checks on patient portal routes
-    const isPatientPortalRoute = window.location.pathname.startsWith('/patient-portal') ||
-                                  window.location.pathname.startsWith('/patient-hp-view');
+    // Skip ALL staff auth on patient portal routes
+    const pathname = window.location.pathname;
+    const isPatientPortalRoute = pathname.startsWith('/patient-portal') ||
+                                  pathname.startsWith('/patient-hp-view');
 
     if (isPatientPortalRoute) {
-      // Patient portal has its own auth system, skip staff auth
+      // Patient portal has its own auth system, skip staff auth completely
+      console.log('🚫 [AuthContext] Skipping staff auth on patient portal route:', pathname);
       setLoading(false);
-      return;
+      setUser(null); // Ensure no staff user is set
+      return; // Exit early - don't run any auth checks
     }
+
+    // Only run staff auth checks on non-patient routes
+    console.log('✅ [AuthContext] Running staff auth check on route:', pathname);
 
     // Check if user is already authenticated
     const checkAuth = async () => {
@@ -73,35 +79,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkAuth();
 
     // Listen for auth state changes (registration, login, logout)
-    // Skip this on patient portal routes
-    if (!isPatientPortalRoute) {
-      const { data: authListener } = supabaseAuthService.onAuthStateChange(async (event, session) => {
-        logInfo('AuthContext', `Auth state changed: ${event}`);
+    const { data: authListener } = supabaseAuthService.onAuthStateChange(async (event, session) => {
+      logInfo('AuthContext', `Auth state changed: ${event}`);
 
-        if (event === 'SIGNED_IN' && session) {
-          // User signed in or registered - fetch their profile
-          const result = await supabaseAuthService.getCurrentUser();
-          if (result.success && result.user) {
-            setUser({
-              id: result.user.id,
-              email: result.user.email,
-              name: result.user.name,
-              role: result.user.role,
-              specialty: result.user.specialty,
-              practiceId: result.user.id,
-              accessType: result.user.accessType,
-            });
-          }
-        } else if (event === 'SIGNED_OUT') {
-          setUser(null);
+      if (event === 'SIGNED_IN' && session) {
+        // User signed in or registered - fetch their profile
+        const result = await supabaseAuthService.getCurrentUser();
+        if (result.success && result.user) {
+          setUser({
+            id: result.user.id,
+            email: result.user.email,
+            name: result.user.name,
+            role: result.user.role,
+            specialty: result.user.specialty,
+            practiceId: result.user.id,
+            accessType: result.user.accessType,
+          });
         }
-      });
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+      }
+    });
 
-      // Cleanup listener on unmount
-      return () => {
-        authListener?.subscription?.unsubscribe();
-      };
-    }
+    // Cleanup listener on unmount
+    return () => {
+      authListener?.subscription?.unsubscribe();
+    };
   }, []);
 
   const login = async (email: string, password: string) => {
