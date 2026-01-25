@@ -168,7 +168,7 @@ export default function LabGraphModal({ testName, labValues, onClose }: LabGraph
       ctx.textAlign = 'center';
       ctx.fillText(String(lv.value), x, y - 12);
     });
-  }, [sortedValues, numericValues, minValue, maxValue, yMin, yMax]);
+  }, [sortedValues, numericValues, minValue, maxValue]);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
