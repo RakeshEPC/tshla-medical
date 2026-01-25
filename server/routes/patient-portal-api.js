@@ -1211,15 +1211,20 @@ router.post('/medications/:tshlaId/import-from-uploads', async (req, res) => {
     });
 
     // 2. Get all uploaded medications (use actual TSH ID from database)
+    // Don't filter by ai_processing_status - if medications are in extracted_data, use them
     const { data: uploads, error: uploadsError } = await supabase
       .from('patient_document_uploads')
-      .select('id, extracted_data, uploaded_at')
-      .eq('tshla_id', patient.tshla_id)
-      .eq('ai_processing_status', 'completed');
+      .select('id, extracted_data, uploaded_at, ai_processing_status')
+      .eq('tshla_id', patient.tshla_id);
 
     if (uploadsError) {
       throw uploadsError;
     }
+
+    logger.info('PatientPortal', 'Found uploads', {
+      count: uploads?.length || 0,
+      tshlaId: patient.tshla_id
+    });
 
     // 3. Collect all unique medications
     const medicationsToImport = [];
