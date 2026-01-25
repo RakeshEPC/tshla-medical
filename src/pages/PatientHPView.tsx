@@ -192,16 +192,25 @@ export default function PatientHPView() {
           const allMeds = [...existingMeds];
 
           // Add uploaded medications that don't already exist
-          uploadedMeds.forEach(medName => {
+          uploadedMeds.forEach(uploadedMed => {
+            // Handle both string and object formats
+            const medName = typeof uploadedMed === 'string' ? uploadedMed : uploadedMed.name;
+            const medDosage = typeof uploadedMed === 'object' ? uploadedMed.dosage : '';
+            const medFrequency = typeof uploadedMed === 'object' ? uploadedMed.frequency : '';
+            const medRoute = typeof uploadedMed === 'object' ? uploadedMed.route : '';
+            const medSig = typeof uploadedMed === 'object' ? uploadedMed.sig : '';
+
             const exists = existingMeds.some(existing =>
-              existing.name?.toLowerCase() === medName.toLowerCase()
+              existing.name?.toLowerCase() === medName?.toLowerCase()
             );
-            if (!exists && medName !== 'AthenaHealth') {
+
+            if (!exists && medName && medName !== 'AthenaHealth') {
               allMeds.push({
                 name: medName,
-                dosage: '',
-                frequency: '',
-                indication: 'From uploaded records'
+                dosage: medDosage,
+                frequency: medFrequency,
+                indication: medSig || 'From uploaded records',
+                route: medRoute
               });
             }
           });

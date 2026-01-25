@@ -483,15 +483,77 @@ router.post('/upload-document', upload.any(), async (req, res) => {
               });
             }
 
-            // Extract medications
-            const medMatches = xmlContent.match(/<manufacturedMaterial>[\s\S]*?<name>([^<]*)<\/name>/g);
-            if (medMatches) {
-              medMatches.forEach(match => {
-                const nameMatch = match.match(/<name>([^<]*)<\/name>/);
-                if (nameMatch) {
-                  extractedData.medications.push(nameMatch[1]);
+            // Extract medications with detailed information
+            // CCD medications are in substanceAdministration sections
+            const medSectionMatches = xmlContent.match(/<substanceAdministration[\s\S]*?<\/substanceAdministration>/g);
+            if (medSectionMatches) {
+              medSectionMatches.forEach(medSection => {
+                // Medication name
+                const nameMatch = medSection.match(/<name>([^<]*)<\/name>/);
+
+                // Dosage/strength - look for doseQuantity
+                const doseMatch = medSection.match(/<doseQuantity[\s\S]*?value="([^"]*)"[\s\S]*?unit="([^"]*)"/);
+
+                // Frequency - look for frequency text or period
+                let frequency = '';
+                const freqPeriodMatch = medSection.match(/<period[\s\S]*?value="([^"]*)"[\s\S]*?unit="([^"]*)"/);
+                if (freqPeriodMatch) {
+                  const value = freqPeriodMatch[1];
+                  const unit = freqPeriodMatch[2];
+                  if (value === '1' && unit === 'd') frequency = 'Daily';
+                  else if (value === '12' && unit === 'h') frequency = 'BID (twice daily)';
+                  else if (value === '8' && unit === 'h') frequency = 'TID (three times daily)';
+                  else if (value === '6' && unit === 'h') frequency = 'QID (four times daily)';
+                  else frequency = `Every ${value} ${unit}`;
+                }
+
+                // Route of administration
+                const routeMatch = medSection.match(/<routeCode[\s\S]*?displayName="([^"]*)"/);
+
+                // Sig/Instructions - look for text in instructions
+                let sig = '';
+                const sigMatch = medSection.match(/<text>([^<]*)<\/text>/);
+                if (sigMatch && sigMatch[1] && !sigMatch[1].includes('xml')) {
+                  sig = sigMatch[1].trim();
+                }
+
+                // Status - active or not
+                const statusMatch = medSection.match(/<statusCode code="([^"]*)"/);
+                const isActive = !statusMatch || statusMatch[1] === 'active' || statusMatch[1] === 'completed';
+
+                if (nameMatch && nameMatch[1] && nameMatch[1] !== 'AthenaHealth') {
+                  const medObj = {
+                    name: nameMatch[1],
+                    dosage: doseMatch ? `${doseMatch[1]} ${doseMatch[2]}` : '',
+                    frequency: frequency,
+                    route: routeMatch ? routeMatch[1] : '',
+                    sig: sig,
+                    status: isActive ? 'active' : 'inactive'
+                  };
+
+                  extractedData.medications.push(medObj);
                 }
               });
+            }
+
+            // Fallback: if no substanceAdministration found, try simpler pattern
+            if (extractedData.medications.length === 0) {
+              const simpleMedMatches = xmlContent.match(/<manufacturedMaterial>[\s\S]*?<name>([^<]*)<\/name>/g);
+              if (simpleMedMatches) {
+                simpleMedMatches.forEach(match => {
+                  const nameMatch = match.match(/<name>([^<]*)<\/name>/);
+                  if (nameMatch && nameMatch[1] !== 'AthenaHealth') {
+                    extractedData.medications.push({
+                      name: nameMatch[1],
+                      dosage: '',
+                      frequency: '',
+                      route: '',
+                      sig: '',
+                      status: 'active'
+                    });
+                  }
+                });
+              }
             }
 
             // Extract allergies
@@ -724,9 +786,10 @@ router.get('/medical-records', async (req, res) => {
       });
     }
 
-    // Aggregate all labs from uploads
+    // Aggregate all labs and medications from uploads
     const allLabs = [];
-    const allMedications = new Set();
+    const allMedications = [];
+    const medicationNames = new Set(); // Track unique names
     const allAllergies = new Set();
 
     uploads.forEach(upload => {
@@ -744,11 +807,38 @@ router.get('/medical-records', async (req, res) => {
           });
         }
 
-        // Collect medications
+        // Collect medications (handle both old string format and new object format)
         if (e.medications && Array.isArray(e.medications)) {
           e.medications.forEach(med => {
-            if (med !== 'AthenaHealth') {
-              allMedications.add(med);
+            // Handle new object format {name, dosage, frequency, etc}
+            if (typeof med === 'object' && med.name) {
+              const medName = med.name.toLowerCase();
+              if (!medicationNames.has(medName) && med.name !== 'AthenaHealth') {
+                medicationNames.add(medName);
+                allMedications.push({
+                  name: med.name,
+                  dosage: med.dosage || '',
+                  frequency: med.frequency || '',
+                  route: med.route || '',
+                  sig: med.sig || '',
+                  status: med.status || 'active'
+                });
+              }
+            }
+            // Handle old string format (for backwards compatibility)
+            else if (typeof med === 'string') {
+              const medName = med.toLowerCase();
+              if (!medicationNames.has(medName) && med !== 'AthenaHealth') {
+                medicationNames.add(medName);
+                allMedications.push({
+                  name: med,
+                  dosage: '',
+                  frequency: '',
+                  route: '',
+                  sig: '',
+                  status: 'active'
+                });
+              }
             }
           });
         }
@@ -814,10 +904,11 @@ router.get('/medical-records', async (req, res) => {
         allergy_count: u.extracted_data?.allergies?.length || 0
       })),
       labs: labsByName,
-      medications: Array.from(allMedications),
+      medications: allMedications, // Already an array
       allergies: Array.from(allAllergies),
       total_uploads: uploads.length,
-      total_labs: allLabs.length
+      total_labs: allLabs.length,
+      total_medications: allMedications.length
     });
 
   } catch (error) {
