@@ -29,6 +29,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Skip staff auth checks on patient portal routes
+    const isPatientPortalRoute = window.location.pathname.startsWith('/patient-portal') ||
+                                  window.location.pathname.startsWith('/patient-hp-view');
+
+    if (isPatientPortalRoute) {
+      // Patient portal has its own auth system, skip staff auth
+      setLoading(false);
+      return;
+    }
+
     // Check if user is already authenticated
     const checkAuth = async () => {
       logInfo('AuthContext', 'Starting auth check');
@@ -63,32 +73,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkAuth();
 
     // Listen for auth state changes (registration, login, logout)
-    const { data: authListener } = supabaseAuthService.onAuthStateChange(async (event, session) => {
-      logInfo('AuthContext', `Auth state changed: ${event}`);
+    // Skip this on patient portal routes
+    if (!isPatientPortalRoute) {
+      const { data: authListener } = supabaseAuthService.onAuthStateChange(async (event, session) => {
+        logInfo('AuthContext', `Auth state changed: ${event}`);
 
-      if (event === 'SIGNED_IN' && session) {
-        // User signed in or registered - fetch their profile
-        const result = await supabaseAuthService.getCurrentUser();
-        if (result.success && result.user) {
-          setUser({
-            id: result.user.id,
-            email: result.user.email,
-            name: result.user.name,
-            role: result.user.role,
-            specialty: result.user.specialty,
-            practiceId: result.user.id,
-            accessType: result.user.accessType,
-          });
+        if (event === 'SIGNED_IN' && session) {
+          // User signed in or registered - fetch their profile
+          const result = await supabaseAuthService.getCurrentUser();
+          if (result.success && result.user) {
+            setUser({
+              id: result.user.id,
+              email: result.user.email,
+              name: result.user.name,
+              role: result.user.role,
+              specialty: result.user.specialty,
+              practiceId: result.user.id,
+              accessType: result.user.accessType,
+            });
+          }
+        } else if (event === 'SIGNED_OUT') {
+          setUser(null);
         }
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-      }
-    });
+      });
 
-    // Cleanup listener on unmount
-    return () => {
-      authListener?.subscription?.unsubscribe();
-    };
+      // Cleanup listener on unmount
+      return () => {
+        authListener?.subscription?.unsubscribe();
+      };
+    }
   }, []);
 
   const login = async (email: string, password: string) => {
