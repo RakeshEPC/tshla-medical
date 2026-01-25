@@ -129,6 +129,11 @@ export default function MedicationManagement({
 
   const updateMedicationStatus = async (medicationId: string, newStatus: string) => {
     try {
+      // Optimistically update local state immediately
+      setMedications(prev =>
+        prev.map(m => m.id === medicationId ? { ...m, status: newStatus } : m)
+      );
+
       const response = await fetch(
         `${API_BASE_URL}/api/patient-portal/medications/${encodeURIComponent(tshlaId)}/update-status`,
         {
@@ -145,10 +150,16 @@ export default function MedicationManagement({
       );
 
       if (response.ok) {
-        await loadMedications(); // Reload
+        // Reload to get server-confirmed state
+        await loadMedications();
+      } else {
+        // If failed, reload to revert optimistic update
+        await loadMedications();
       }
     } catch (err) {
       console.error('Update medication status error:', err);
+      // Reload to revert optimistic update
+      await loadMedications();
     }
   };
 
@@ -158,6 +169,19 @@ export default function MedicationManagement({
     sendToPharmacy?: boolean
   ) => {
     try {
+      // Optimistically update local state immediately
+      setMedications(prev =>
+        prev.map(m => {
+          if (m.id === medicationId) {
+            const updated = { ...m };
+            if (needRefill !== undefined) updated.need_refill = needRefill;
+            if (sendToPharmacy !== undefined) updated.send_to_pharmacy = sendToPharmacy;
+            return updated;
+          }
+          return m;
+        })
+      );
+
       const response = await fetch(
         `${API_BASE_URL}/api/patient-portal/medications/${encodeURIComponent(tshlaId)}/update-flags`,
         {
@@ -175,15 +199,22 @@ export default function MedicationManagement({
       );
 
       if (response.ok) {
-        await loadMedications(); // Reload
+        // Reload to get server-confirmed state
+        await loadMedications();
+      } else {
+        // If failed, reload to revert optimistic update
+        await loadMedications();
       }
     } catch (err) {
       console.error('Update medication flags error:', err);
+      // Reload to revert optimistic update
+      await loadMedications();
     }
   };
 
   const activeMedications = medications.filter(m => m.status === 'active');
   const priorMedications = medications.filter(m => m.status === 'prior' || m.status === 'discontinued');
+  const pharmacyMedications = medications.filter(m => m.status === 'active' && m.send_to_pharmacy === true);
 
   if (isLoading) {
     return (
@@ -341,6 +372,69 @@ export default function MedicationManagement({
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Send to Pharmacy Section */}
+      {pharmacyMedications.length > 0 && (
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <Package className="w-5 h-5 text-blue-600" />
+            <h4 className="font-bold text-blue-900">💊 Send to Pharmacy</h4>
+            <span className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded-full">
+              {pharmacyMedications.length}
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            {pharmacyMedications.map((med, idx) => (
+              <div
+                key={med.id || idx}
+                className="border border-blue-200 rounded-xl p-4 bg-blue-50 hover:bg-blue-100 transition-colors"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <h5 className="font-semibold text-blue-900 mb-1">
+                      {med.medication_name || med.name}
+                    </h5>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-blue-700 mb-2">
+                      {med.dosage && <span>{med.dosage}</span>}
+                      {med.frequency && <span>{med.frequency}</span>}
+                      {med.route && <span className="text-xs bg-blue-100 px-2 py-0.5 rounded">{med.route}</span>}
+                    </div>
+                    {(med.sig || med.indication) && (
+                      <p className="text-xs text-blue-600 italic">{med.sig || med.indication}</p>
+                    )}
+                    {med.need_refill && (
+                      <div className="mt-2 flex items-center gap-1 text-xs text-green-700">
+                        <Check className="w-3 h-3" />
+                        <span>📝 Refill Requested</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {med.id && (
+                    <div className="flex flex-col gap-2">
+                      <button
+                        onClick={() => updateMedicationFlags(med.id!, undefined, false)}
+                        className="flex items-center gap-1 px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors"
+                        title="Remove from pharmacy queue"
+                      >
+                        <X className="w-3 h-3" />
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 p-3 bg-blue-100 border border-blue-300 rounded-lg">
+            <p className="text-xs text-blue-800">
+              ℹ️ These medications have been marked to send to the pharmacy. Staff will process these requests.
+            </p>
           </div>
         </div>
       )}
