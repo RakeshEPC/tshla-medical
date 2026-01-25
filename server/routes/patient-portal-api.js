@@ -989,13 +989,16 @@ router.get('/medications/:tshlaId', async (req, res) => {
 
     logger.info('PatientPortal', 'Fetching medications', { tshlaId: normalizedTshId });
 
+    // Try both formats (TSH123001 and TSH 123-001)
+    const formatted = normalizedTshId.replace(/^TSH(\d{3})(\d{3})$/, 'TSH $1-$2');
+
     // Get medications from patient_medications table
     const { data: medications, error } = await supabase
       .from('patient_medications')
       .select('*')
-      .eq('tshla_id', normalizedTshId)
+      .or(`tshla_id.eq.${normalizedTshId},tshla_id.eq.${formatted}`)
       .order('status', { ascending: true }) // 'active' comes before 'prior'
-      .order('medication_name', { ascending: true });
+      .order('medication_name', { ascending: true});
 
     if (error) {
       throw error;
@@ -1154,25 +1157,48 @@ router.post('/medications/:tshlaId/import-from-uploads', async (req, res) => {
   try {
     const { tshlaId } = req.params;
     const normalizedTshId = tshlaId.replace(/[\s-]/g, '').toUpperCase();
+    const formatted = normalizedTshId.replace(/^TSH(\d{3})(\d{3})$/, 'TSH $1-$2');
 
     logger.info('PatientPortal', 'Importing medications from uploads', { tshlaId: normalizedTshId });
 
-    // 1. Get patient ID
-    const { data: patient, error: patientError } = await supabase
+    // 1. Get patient ID (try both normalized and formatted versions)
+    let patient, patientError;
+
+    // Try normalized format first (TSH123001)
+    const result1 = await supabase
       .from('unified_patients')
-      .select('id')
+      .select('id, tshla_id')
       .eq('tshla_id', normalizedTshId)
-      .single();
+      .maybeSingle();
+
+    if (result1.data) {
+      patient = result1.data;
+    } else {
+      // Try formatted version (TSH 123-001)
+      const result2 = await supabase
+        .from('unified_patients')
+        .select('id, tshla_id')
+        .eq('tshla_id', formatted)
+        .maybeSingle();
+
+      patient = result2.data;
+      patientError = result2.error;
+    }
 
     if (patientError || !patient) {
       throw new Error('Patient not found');
     }
 
-    // 2. Get all uploaded medications
+    logger.info('PatientPortal', 'Found patient', {
+      tshlaId: patient.tshla_id,
+      patientId: patient.id
+    });
+
+    // 2. Get all uploaded medications (use actual TSH ID from database)
     const { data: uploads, error: uploadsError } = await supabase
       .from('patient_document_uploads')
       .select('id, extracted_data, uploaded_at')
-      .eq('tshla_id', normalizedTshId)
+      .eq('tshla_id', patient.tshla_id)
       .eq('ai_processing_status', 'completed');
 
     if (uploadsError) {
@@ -1195,7 +1221,7 @@ router.post('/medications/:tshlaId/import-from-uploads', async (req, res) => {
 
           medicationsToImport.push({
             patient_id: patient.id,
-            tshla_id: normalizedTshId,
+            tshla_id: patient.tshla_id, // Use actual TSH ID from database
             medication_name: medName,
             dosage: typeof med === 'object' ? med.dosage || '' : '',
             frequency: typeof med === 'object' ? med.frequency || '' : '',
@@ -1214,11 +1240,11 @@ router.post('/medications/:tshlaId/import-from-uploads', async (req, res) => {
     // 4. Insert medications (upsert to avoid duplicates)
     let imported = 0;
     for (const med of medicationsToImport) {
-      // Check if medication already exists
+      // Check if medication already exists (check both TSH ID formats)
       const { data: existing } = await supabase
         .from('patient_medications')
         .select('id')
-        .eq('tshla_id', normalizedTshId)
+        .or(`tshla_id.eq.${normalizedTshId},tshla_id.eq.${formatted}`)
         .eq('medication_name', med.medication_name)
         .maybeSingle();
 
@@ -1229,6 +1255,11 @@ router.post('/medications/:tshlaId/import-from-uploads', async (req, res) => {
 
         if (!insertError) {
           imported++;
+        } else {
+          logger.error('PatientPortal', 'Insert medication error', {
+            med: med.medication_name,
+            error: insertError.message
+          });
         }
       }
     }
