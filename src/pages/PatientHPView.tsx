@@ -170,19 +170,65 @@ export default function PatientHPView() {
 
         const recordsData = await recordsResponse.json();
 
-        // Merge uploaded labs with existing labs
+        // Merge uploaded data with existing H&P
         let mergedHP = hpData.hp;
 
-        if (recordsResponse.ok && recordsData.success && recordsData.labs) {
-          console.log('📊 [PatientHPView] Merging uploaded labs:', recordsData.total_labs);
+        if (recordsResponse.ok && recordsData.success) {
+          console.log('📊 [PatientHPView] Merging uploaded medical records:', {
+            labs: recordsData.total_labs,
+            medications: recordsData.medications?.length || 0,
+            allergies: recordsData.allergies?.length || 0
+          });
 
           // Merge labs - combine existing and uploaded
+          const mergedLabs = recordsData.labs ? {
+            ...hpData.hp.labs,
+            ...recordsData.labs
+          } : hpData.hp.labs;
+
+          // Merge medications - combine existing and uploaded, deduplicate
+          const existingMeds = hpData.hp.medications || [];
+          const uploadedMeds = recordsData.medications || [];
+          const allMeds = [...existingMeds];
+
+          // Add uploaded medications that don't already exist
+          uploadedMeds.forEach(medName => {
+            const exists = existingMeds.some(existing =>
+              existing.name?.toLowerCase() === medName.toLowerCase()
+            );
+            if (!exists && medName !== 'AthenaHealth') {
+              allMeds.push({
+                name: medName,
+                dosage: '',
+                frequency: '',
+                indication: 'From uploaded records'
+              });
+            }
+          });
+
+          // Merge allergies - combine and deduplicate
+          const existingAllergies = hpData.hp.allergies || [];
+          const uploadedAllergies = recordsData.allergies || [];
+          const allAllergies = [...existingAllergies];
+
+          uploadedAllergies.forEach(allergyName => {
+            const exists = existingAllergies.some(existing =>
+              existing.allergen?.toLowerCase() === allergyName.toLowerCase()
+            );
+            if (!exists) {
+              allAllergies.push({
+                allergen: allergyName,
+                reaction: 'From uploaded records',
+                severity: 'unknown'
+              });
+            }
+          });
+
           mergedHP = {
             ...hpData.hp,
-            labs: {
-              ...hpData.hp.labs,
-              ...recordsData.labs
-            }
+            labs: mergedLabs,
+            medications: allMeds,
+            allergies: allAllergies
           };
         }
 
