@@ -47,6 +47,16 @@ export const handleAuthError = (error: any, isRetry = false): Promise<never> => 
     // Determine which auth system we're using based on current path
     const currentPath = window.location.pathname;
     const isPumpDrive = currentPath.startsWith('/pumpdrive');
+    const isPatientPortal = currentPath.startsWith('/patient-portal') ||
+                            currentPath.startsWith('/patient-hp-view');
+
+    // IMPORTANT: Patient portal has its own auth system - don't interfere
+    if (isPatientPortal) {
+      console.log('⚠️ Auth error on patient portal - NOT intercepting, has own auth system');
+      console.log('   Path:', currentPath);
+      // Patient portal handles its own authentication, don't intercept
+      return Promise.reject(error);
+    }
 
     // IMPORTANT: Don't clear tokens on results/assessment/dictation pages
     // Let the page handle auth errors gracefully without losing user's work
