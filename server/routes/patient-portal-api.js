@@ -979,6 +979,286 @@ router.post('/admin/clear-rate-limit', async (req, res) => {
 });
 
 /**
+ * GET /api/patient-portal/medications/:tshlaId
+ * Get medications for a patient with full management data
+ */
+router.get('/medications/:tshlaId', async (req, res) => {
+  try {
+    const { tshlaId } = req.params;
+    const normalizedTshId = tshlaId.replace(/[\s-]/g, '').toUpperCase();
+
+    logger.info('PatientPortal', 'Fetching medications', { tshlaId: normalizedTshId });
+
+    // Get medications from patient_medications table
+    const { data: medications, error } = await supabase
+      .from('patient_medications')
+      .select('*')
+      .eq('tshla_id', normalizedTshId)
+      .order('status', { ascending: true }) // 'active' comes before 'prior'
+      .order('medication_name', { ascending: true });
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      success: true,
+      medications: medications || []
+    });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Get medications error', {
+      error: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch medications'
+    });
+  }
+});
+
+/**
+ * POST /api/patient-portal/medications/:tshlaId/update-status
+ * Update medication status (active <-> prior)
+ */
+router.post('/medications/:tshlaId/update-status', async (req, res) => {
+  try {
+    const { tshlaId } = req.params;
+    const { medicationId, newStatus, staffId, reason } = req.body;
+
+    const normalizedTshId = tshlaId.replace(/[\s-]/g, '').toUpperCase();
+
+    logger.info('PatientPortal', 'Updating medication status', {
+      tshlaId: normalizedTshId,
+      medicationId,
+      newStatus
+    });
+
+    // Prepare update data
+    const updateData = {
+      status: newStatus,
+      updated_at: new Date().toISOString()
+    };
+
+    // If discontinuing, add tracking
+    if (newStatus === 'prior' || newStatus === 'discontinued') {
+      updateData.discontinued_at = new Date().toISOString();
+      if (staffId) updateData.discontinued_by = staffId;
+      if (reason) updateData.discontinue_reason = reason;
+    }
+
+    // Update medication
+    const { data, error } = await supabase
+      .from('patient_medications')
+      .update(updateData)
+      .eq('id', medicationId)
+      .eq('tshla_id', normalizedTshId)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      success: true,
+      medication: data
+    });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Update medication status error', {
+      error: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update medication status'
+    });
+  }
+});
+
+/**
+ * POST /api/patient-portal/medications/:tshlaId/update-flags
+ * Update medication flags (need_refill, send_to_pharmacy)
+ */
+router.post('/medications/:tshlaId/update-flags', async (req, res) => {
+  try {
+    const { tshlaId } = req.params;
+    const { medicationId, needRefill, sendToPharmacy, staffId } = req.body;
+
+    const normalizedTshId = tshlaId.replace(/[\s-]/g, '').toUpperCase();
+
+    logger.info('PatientPortal', 'Updating medication flags', {
+      tshlaId: normalizedTshId,
+      medicationId,
+      needRefill,
+      sendToPharmacy
+    });
+
+    // Prepare update data
+    const updateData = {
+      updated_at: new Date().toISOString()
+    };
+
+    if (typeof needRefill === 'boolean') {
+      updateData.need_refill = needRefill;
+      if (needRefill) {
+        updateData.refill_requested_at = new Date().toISOString();
+      }
+    }
+
+    if (typeof sendToPharmacy === 'boolean') {
+      updateData.send_to_pharmacy = sendToPharmacy;
+      if (sendToPharmacy) {
+        updateData.sent_to_pharmacy_at = new Date().toISOString();
+        if (staffId) updateData.sent_to_pharmacy_by = staffId;
+      }
+    }
+
+    // Update medication
+    const { data, error } = await supabase
+      .from('patient_medications')
+      .update(updateData)
+      .eq('id', medicationId)
+      .eq('tshla_id', normalizedTshId)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      success: true,
+      medication: data
+    });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Update medication flags error', {
+      error: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update medication flags'
+    });
+  }
+});
+
+/**
+ * POST /api/patient-portal/medications/:tshlaId/import-from-uploads
+ * Import medications from uploaded documents into patient_medications table
+ */
+router.post('/medications/:tshlaId/import-from-uploads', async (req, res) => {
+  try {
+    const { tshlaId } = req.params;
+    const normalizedTshId = tshlaId.replace(/[\s-]/g, '').toUpperCase();
+
+    logger.info('PatientPortal', 'Importing medications from uploads', { tshlaId: normalizedTshId });
+
+    // 1. Get patient ID
+    const { data: patient, error: patientError } = await supabase
+      .from('unified_patients')
+      .select('id')
+      .eq('tshla_id', normalizedTshId)
+      .single();
+
+    if (patientError || !patient) {
+      throw new Error('Patient not found');
+    }
+
+    // 2. Get all uploaded medications
+    const { data: uploads, error: uploadsError } = await supabase
+      .from('patient_document_uploads')
+      .select('id, extracted_data, uploaded_at')
+      .eq('tshla_id', normalizedTshId)
+      .eq('ai_processing_status', 'completed');
+
+    if (uploadsError) {
+      throw uploadsError;
+    }
+
+    // 3. Collect all unique medications
+    const medicationsToImport = [];
+    const seenMeds = new Set();
+
+    for (const upload of uploads || []) {
+      const meds = upload.extracted_data?.medications || [];
+
+      for (const med of meds) {
+        const medName = typeof med === 'string' ? med : med.name;
+        const medKey = medName.toLowerCase();
+
+        if (!seenMeds.has(medKey) && medName && medName !== 'AthenaHealth') {
+          seenMeds.add(medKey);
+
+          medicationsToImport.push({
+            patient_id: patient.id,
+            tshla_id: normalizedTshId,
+            medication_name: medName,
+            dosage: typeof med === 'object' ? med.dosage || '' : '',
+            frequency: typeof med === 'object' ? med.frequency || '' : '',
+            route: typeof med === 'object' ? med.route || '' : '',
+            sig: typeof med === 'object' ? med.sig || '' : '',
+            status: typeof med === 'object' && med.status ? med.status : 'active',
+            source: 'ccd_upload',
+            source_upload_id: upload.id,
+            need_refill: false,
+            send_to_pharmacy: false
+          });
+        }
+      }
+    }
+
+    // 4. Insert medications (upsert to avoid duplicates)
+    let imported = 0;
+    for (const med of medicationsToImport) {
+      // Check if medication already exists
+      const { data: existing } = await supabase
+        .from('patient_medications')
+        .select('id')
+        .eq('tshla_id', normalizedTshId)
+        .eq('medication_name', med.medication_name)
+        .maybeSingle();
+
+      if (!existing) {
+        const { error: insertError } = await supabase
+          .from('patient_medications')
+          .insert(med);
+
+        if (!insertError) {
+          imported++;
+        }
+      }
+    }
+
+    logger.info('PatientPortal', 'Medications imported', {
+      tshlaId: normalizedTshId,
+      total: medicationsToImport.length,
+      imported
+    });
+
+    res.json({
+      success: true,
+      total: medicationsToImport.length,
+      imported,
+      message: `Imported ${imported} new medications from uploaded documents`
+    });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Import medications error', {
+      error: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to import medications'
+    });
+  }
+});
+
+/**
  * Helper: Get device type from user agent
  */
 function getDeviceType(userAgent) {

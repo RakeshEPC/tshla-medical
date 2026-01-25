@@ -26,6 +26,7 @@ import {
 import LabTrendTable from '../components/LabTrendTable';
 import VitalSignsTrends from '../components/VitalSignsTrends';
 import CurrentlyWorkingOn from '../components/CurrentlyWorkingOn';
+import MedicationManagement from '../components/MedicationManagement';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
@@ -465,35 +466,12 @@ export default function PatientHPView() {
                   <Heart className="w-6 h-6 text-green-600" />
                   <h3 className="text-xl font-bold text-gray-900">Medications</h3>
                 </div>
-                <span className="text-xs text-gray-600 bg-white px-3 py-1 rounded-full">
-                  {hp.medications.length} active
-                </span>
               </div>
-              <div className="p-6 max-h-[600px] overflow-y-auto">
-                {hp.medications.length === 0 ? (
-                  <p className="text-gray-500 text-center py-8">No medications recorded</p>
-                ) : (
-                  <div className="space-y-3">
-                    {hp.medications.map((med, idx) => (
-                      <div
-                        key={idx}
-                        className="border border-gray-200 rounded-xl p-3 hover:bg-green-50 transition-colors"
-                      >
-                        <div className="flex items-center flex-wrap gap-x-2 gap-y-1">
-                          <h4 className="font-semibold text-gray-900">{med.name}</h4>
-                          <span className="text-sm text-gray-600">{med.dosage}</span>
-                          <span className="text-sm text-gray-600">{med.frequency}</span>
-                          {med.indication && (
-                            <span className="text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded">
-                              {med.indication}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <MedicationManagement
+                tshlaId={session.tshlaId}
+                sessionId={session.sessionId}
+                initialMedications={hp.medications}
+              />
             </div>
           </div>
 
