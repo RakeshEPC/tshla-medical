@@ -1,8 +1,9 @@
 /**
  * Patient Portal Audio Section
- * Integrated audio summaries view within unified patient portal
- * Shows all visit audio summaries for logged-in patient
+ * Displays dictations with TTS audio and text summaries
+ * Allows patients to play audio and delete recordings
  * Created: 2026-01-23
+ * Updated: 2026-01-26 - Switched to dictations API
  */
 
 import { useState, useEffect, useRef } from 'react';
@@ -19,7 +20,8 @@ import {
   Clock,
   ChevronDown,
   ChevronUp,
-  FileText
+  FileText,
+  Trash2
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
@@ -31,16 +33,17 @@ interface PatientSession {
   sessionId: string;
 }
 
-interface AudioSummary {
+interface Dictation {
   id: string;
-  patient_phone: string;
   provider_name: string;
+  patient_name: string;
+  visit_date: string;
   summary_text: string;
   audio_url: string | null;
+  audio_deleted: boolean;
+  audio_deleted_at: string | null;
   created_at: string;
-  expires_at: string;
-  access_count: number;
-  visit_date?: string;
+  has_audio: boolean;
 }
 
 export default function PatientPortalAudioSection() {
@@ -50,8 +53,8 @@ export default function PatientPortalAudioSection() {
   // Session from navigation state
   const [session, setSession] = useState<PatientSession | null>(null);
 
-  // Audio data
-  const [audioSummaries, setAudioSummaries] = useState<AudioSummary[]>([]);
+  // Dictation data
+  const [dictations, setDictations] = useState<Dictation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,6 +65,10 @@ export default function PatientPortalAudioSection() {
 
   // Expanded summaries
   const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set());
+
+  // Delete confirmation modal
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   /**
    * Load session from storage or navigation state
@@ -86,17 +93,17 @@ export default function PatientPortalAudioSection() {
   }, [navigate, location.state]);
 
   /**
-   * Load audio summaries
+   * Load dictations
    */
   useEffect(() => {
     if (!session) return;
-    loadAudioSummaries();
+    loadDictations();
   }, [session]);
 
   /**
-   * Load all audio summaries for patient
+   * Load all dictations for patient
    */
-  const loadAudioSummaries = async () => {
+  const loadDictations = async () => {
     if (!session) return;
 
     setIsLoading(true);
@@ -104,7 +111,7 @@ export default function PatientPortalAudioSection() {
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/patient-summaries/patient/${session.patientPhone}`,
+        `${API_BASE_URL}/api/patient-portal/dictations/${session.tshlaId}`,
         {
           headers: {
             'x-session-id': session.sessionId,
@@ -115,18 +122,13 @@ export default function PatientPortalAudioSection() {
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to load audio summaries');
+        throw new Error(data.error || 'Failed to load dictations');
       }
 
-      // Sort by created date (newest first)
-      const sortedSummaries = (data.summaries || []).sort((a: AudioSummary, b: AudioSummary) => {
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      });
-
-      setAudioSummaries(sortedSummaries);
+      setDictations(data.dictations || []);
     } catch (err: any) {
-      console.error('Load audio summaries error:', err);
-      setError(err.message || 'Unable to load audio summaries');
+      console.error('Load dictations error:', err);
+      setError(err.message || 'Unable to load dictations');
     } finally {
       setIsLoading(false);
     }
@@ -190,10 +192,57 @@ export default function PatientPortalAudioSection() {
   };
 
   /**
-   * Check if summary is expired
+   * Delete audio file
    */
-  const isExpired = (expiresAt: string): boolean => {
-    return new Date(expiresAt) < new Date();
+  const handleDeleteAudio = async (dictationId: string) => {
+    if (!session) return;
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/patient-portal/dictations/${dictationId}/audio`,
+        {
+          method: 'DELETE',
+          headers: {
+            'x-session-id': session.sessionId,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to delete audio');
+      }
+
+      // Update local state
+      setDictations(prevDictations =>
+        prevDictations.map(d =>
+          d.id === dictationId
+            ? { ...d, audio_url: null, audio_deleted: true, has_audio: false }
+            : d
+        )
+      );
+
+      // Stop playing if currently playing
+      if (playingId === dictationId) {
+        audioRefs.current[dictationId]?.pause();
+        setPlayingId(null);
+      }
+
+      setShowDeleteModal(false);
+      setDeletingId(null);
+    } catch (err: any) {
+      console.error('Delete audio error:', err);
+      alert(err.message || 'Failed to delete audio. Please try again.');
+    }
+  };
+
+  /**
+   * Show delete confirmation
+   */
+  const confirmDelete = (dictationId: string) => {
+    setDeletingId(dictationId);
+    setShowDeleteModal(true);
   };
 
   if (isLoading) {
@@ -242,7 +291,7 @@ export default function PatientPortalAudioSection() {
           <div className="flex items-center space-x-3">
             <Volume2 className="w-8 h-8 text-blue-600" />
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Audio Summaries</h1>
+              <h1 className="text-2xl font-bold text-gray-900">Visit Dictations</h1>
               <p className="text-sm text-gray-600">
                 {session?.patientName} • TSH ID: {session?.tshlaId}
               </p>
@@ -250,13 +299,13 @@ export default function PatientPortalAudioSection() {
           </div>
         </div>
 
-        {/* No Summaries */}
-        {audioSummaries.length === 0 && (
+        {/* No Dictations */}
+        {dictations.length === 0 && (
           <div className="bg-white rounded-2xl shadow-xl p-12 text-center">
             <Volume2 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">No Summaries Yet</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">No Dictations Yet</h2>
             <p className="text-gray-600 mb-6">
-              Your visit summaries will appear here after your appointments.
+              Your visit dictations will appear here after your appointments.
             </p>
             <button
               onClick={() => navigate('/patient-portal-unified', { state: { session } })}
@@ -267,34 +316,31 @@ export default function PatientPortalAudioSection() {
           </div>
         )}
 
-        {/* Audio Summaries List */}
-        {audioSummaries.length > 0 && (
+        {/* Dictations List */}
+        {dictations.length > 0 && (
           <div className="space-y-4">
-            {audioSummaries.map((summary) => {
-              const expired = isExpired(summary.expires_at);
-              const isExpanded = expandedSummaries.has(summary.id);
-              const isPlaying = playingId === summary.id;
-              const isLoadingAudio = loadingAudioId === summary.id;
+            {dictations.map((dictation) => {
+              const isExpanded = expandedSummaries.has(dictation.id);
+              const isPlaying = playingId === dictation.id;
+              const isLoadingAudio = loadingAudioId === dictation.id;
 
               return (
                 <div
-                  key={summary.id}
-                  className={`bg-white rounded-2xl shadow-xl overflow-hidden ${
-                    expired ? 'opacity-75' : ''
-                  }`}
+                  key={dictation.id}
+                  className="bg-white rounded-2xl shadow-xl overflow-hidden"
                 >
-                  {/* Summary Header */}
+                  {/* Dictation Header */}
                   <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 border-b border-gray-200">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center space-x-3 mb-2">
                           <User className="w-5 h-5 text-gray-600" />
                           <p className="font-semibold text-gray-900">
-                            {summary.provider_name}
+                            {dictation.provider_name}
                           </p>
-                          {expired && (
-                            <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full">
-                              Expired
+                          {dictation.audio_deleted && (
+                            <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
+                              Audio Deleted
                             </span>
                           )}
                         </div>
@@ -302,52 +348,55 @@ export default function PatientPortalAudioSection() {
                           <div className="flex items-center space-x-2">
                             <Calendar className="w-4 h-4" />
                             <span>
-                              {summary.visit_date
-                                ? new Date(summary.visit_date).toLocaleDateString()
-                                : new Date(summary.created_at).toLocaleDateString()}
+                              {new Date(dictation.visit_date).toLocaleDateString()}
                             </span>
                           </div>
-                          {!expired && (
-                            <div className="flex items-center space-x-2">
-                              <Clock className="w-4 h-4" />
-                              <span>
-                                Expires:{' '}
-                                {new Date(summary.expires_at).toLocaleDateString()}
-                              </span>
-                            </div>
-                          )}
                         </div>
                       </div>
 
-                      {/* Audio Player Button */}
-                      {!expired && summary.audio_url && (
-                        <button
-                          onClick={() => toggleAudio(summary.id, summary.audio_url!)}
-                          disabled={isLoadingAudio}
-                          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50"
-                        >
-                          {isLoadingAudio ? (
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                          ) : isPlaying ? (
-                            <Pause className="w-5 h-5" />
-                          ) : (
-                            <Play className="w-5 h-5" />
-                          )}
-                          <span>{isPlaying ? 'Pause' : 'Play'} Audio</span>
-                        </button>
-                      )}
+                      {/* Audio Controls */}
+                      <div className="flex items-center space-x-2">
+                        {dictation.has_audio && dictation.audio_url && (
+                          <>
+                            <button
+                              onClick={() => toggleAudio(dictation.id, dictation.audio_url!)}
+                              disabled={isLoadingAudio}
+                              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50"
+                            >
+                              {isLoadingAudio ? (
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                              ) : isPlaying ? (
+                                <Pause className="w-5 h-5" />
+                              ) : (
+                                <Play className="w-5 h-5" />
+                              )}
+                              <span>{isPlaying ? 'Pause' : 'Play'}</span>
+                            </button>
+                            <button
+                              onClick={() => confirmDelete(dictation.id)}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-xl"
+                              title="Delete audio"
+                            >
+                              <Trash2 className="w-5 h-5" />
+                            </button>
+                          </>
+                        )}
+                        {!dictation.has_audio && !dictation.audio_deleted && (
+                          <span className="text-sm text-gray-500 italic">No audio available</span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Summary Text (Expandable) */}
+                  {/* Dictation Text (Expandable) */}
                   <div className="p-6">
                     <button
-                      onClick={() => toggleExpanded(summary.id)}
+                      onClick={() => toggleExpanded(dictation.id)}
                       className="w-full flex items-center justify-between text-left mb-4"
                     >
                       <div className="flex items-center space-x-2">
                         <FileText className="w-5 h-5 text-gray-600" />
-                        <h3 className="font-semibold text-gray-900">Visit Summary</h3>
+                        <h3 className="font-semibold text-gray-900">Visit Dictation</h3>
                       </div>
                       {isExpanded ? (
                         <ChevronUp className="w-5 h-5 text-gray-400" />
@@ -358,22 +407,21 @@ export default function PatientPortalAudioSection() {
 
                     {isExpanded ? (
                       <div className="prose prose-sm max-w-none">
-                        <div
-                          className="text-gray-700 whitespace-pre-wrap"
-                          dangerouslySetInnerHTML={{ __html: summary.summary_text }}
-                        />
+                        <div className="text-gray-700 whitespace-pre-wrap">
+                          {dictation.summary_text}
+                        </div>
                       </div>
                     ) : (
                       <p className="text-gray-600 text-sm line-clamp-3">
-                        {summary.summary_text.substring(0, 200)}...
+                        {dictation.summary_text.substring(0, 200)}...
                       </p>
                     )}
 
-                    {expired && (
-                      <div className="mt-4 bg-red-50 border border-red-200 rounded-xl p-4">
-                        <p className="text-sm text-red-700">
-                          This summary has expired. Please contact your doctor's office
-                          if you need access to this information.
+                    {dictation.audio_deleted && (
+                      <div className="mt-4 bg-gray-50 border border-gray-200 rounded-xl p-4">
+                        <p className="text-sm text-gray-700">
+                          You deleted the audio recording for this visit. The text summary
+                          remains available above.
                         </p>
                       </div>
                     )}
@@ -381,6 +429,39 @@ export default function PatientPortalAudioSection() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <AlertCircle className="w-8 h-8 text-red-600" />
+                <h2 className="text-xl font-bold text-gray-900">Delete Audio Recording?</h2>
+              </div>
+              <p className="text-gray-600 mb-6">
+                This will permanently delete the audio recording for this visit. The
+                text summary will remain available.
+              </p>
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => {
+                    setShowDeleteModal(false);
+                    setDeletingId(null);
+                  }}
+                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-900 rounded-xl hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => deletingId && handleDeleteAudio(deletingId)}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700"
+                >
+                  Delete Audio
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

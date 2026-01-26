@@ -51,10 +51,10 @@ interface ComprehensiveHP {
     indication: string;  // Added to match API
   }>;
   diagnoses: Array<{
-    condition: string;  // Changed from 'diagnosis' to match API
+    diagnosis: string;  // Field from database
     icd10: string;
     status: string;
-    diagnosed?: string;  // Changed from 'onset_date' to match API
+    diagnosed?: string;
   }>;
   allergies: Array<{
     allergen: string;
@@ -565,7 +565,7 @@ export default function PatientHPView() {
                         >
                           <div className="flex items-start justify-between">
                             <div>
-                              <h4 className="font-semibold text-gray-900">{dx.condition}</h4>
+                              <h4 className="font-semibold text-gray-900">{dx.diagnosis}</h4>
                               {dx.icd10 && (
                                 <p className="text-xs text-gray-500 mt-1">ICD-10: {dx.icd10}</p>
                               )}

@@ -1881,6 +1881,204 @@ router.post('/patients/:tshlaId/pharmacy', async (req, res) => {
 });
 
 /**
+ * GET /api/patient-portal/dictations/:tshlaId
+ * Get all dictations (with audio) for a patient
+ */
+router.get('/dictations/:tshlaId', async (req, res) => {
+  try {
+    const { tshlaId } = req.params;
+    const sessionId = req.headers['x-session-id'];
+
+    // Normalize TSH ID
+    const normalizedTshId = tshlaId.replace(/[\s-]/g, '').toUpperCase();
+
+    logger.info('PatientPortal', 'Load dictations request', {
+      tshlaId: normalizedTshId,
+      sessionId
+    });
+
+    // Verify session ownership
+    const session = activeSessions.get(sessionId);
+    if (!session || session.tshlaId !== normalizedTshId) {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied'
+      });
+    }
+
+    // Get patient to find phone number
+    const { data: patient, error: patientError } = await supabase
+      .from('unified_patients')
+      .select('phone_primary, phone_display')
+      .or(`tshla_id.eq.${normalizedTshId},tshla_id.eq.${normalizedTshId.replace(/^TSH(\d{3})(\d{3})$/, 'TSH $1-$2')}`)
+      .maybeSingle();
+
+    if (patientError || !patient) {
+      return res.status(404).json({
+        success: false,
+        error: 'Patient not found'
+      });
+    }
+
+    // Fetch all dictations for this patient by phone
+    // Need to handle phone format variations: "2813847779" vs "(281) 384-7779" vs "+12813847779"
+    const phoneVariations = [
+      patient.phone_primary, // Original format
+      patient.phone_display, // Display format
+      patient.phone_primary?.replace(/\D/g, ''), // Digits only
+      `(${patient.phone_primary?.substring(0,3)}) ${patient.phone_primary?.substring(3,6)}-${patient.phone_primary?.substring(6)}`, // Formatted
+      `+1${patient.phone_primary?.replace(/\D/g, '')}` // E.164 format
+    ].filter(Boolean);
+
+    // Query with OR condition for all phone variations
+    let query = supabase
+      .from('dictated_notes')
+      .select('id, provider_name, patient_name, visit_date, raw_transcript, processed_note, audio_url, audio_deleted, audio_deleted_at, audio_generated_at, created_at, dictated_at');
+
+    // Build OR condition for all phone variations
+    const phoneConditions = phoneVariations.map(phone => `patient_phone.eq.${phone}`).join(',');
+    query = query.or(phoneConditions);
+
+    const { data: dictations, error: dictError } = await query.order('created_at', { ascending: false });
+
+    if (dictError) {
+      throw dictError;
+    }
+
+    // Format dictations for frontend
+    const formattedDictations = (dictations || []).map(d => ({
+      id: d.id,
+      provider_name: d.provider_name || 'Dr. Unknown',
+      patient_name: d.patient_name,
+      visit_date: d.visit_date || d.dictated_at || d.created_at,
+      summary_text: d.processed_note || d.raw_transcript || '',
+      audio_url: d.audio_deleted ? null : d.audio_url, // Hide URL if deleted
+      audio_deleted: d.audio_deleted || false,
+      audio_deleted_at: d.audio_deleted_at,
+      created_at: d.created_at,
+      has_audio: !!(d.audio_url && !d.audio_deleted)
+    }));
+
+    logger.info('PatientPortal', 'Dictations loaded', {
+      tshlaId: normalizedTshId,
+      count: formattedDictations.length
+    });
+
+    res.json({
+      success: true,
+      dictations: formattedDictations,
+      count: formattedDictations.length
+    });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Load dictations error', {
+      error: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to load dictations'
+    });
+  }
+});
+
+/**
+ * DELETE /api/patient-portal/dictations/:dictationId/audio
+ * Patient-initiated audio file deletion (soft delete)
+ */
+router.delete('/dictations/:dictationId/audio', async (req, res) => {
+  try {
+    const { dictationId } = req.params;
+    const sessionId = req.headers['x-session-id'];
+
+    logger.info('PatientPortal', 'Delete dictation audio request', {
+      dictationId,
+      sessionId
+    });
+
+    // Verify session exists
+    const session = activeSessions.get(sessionId);
+    if (!session) {
+      return res.status(403).json({
+        success: false,
+        error: 'Session expired. Please log in again.'
+      });
+    }
+
+    // Get dictation to verify ownership
+    const { data: dictation, error: fetchError } = await supabase
+      .from('dictated_notes')
+      .select('id, patient_phone, audio_url, audio_deleted')
+      .eq('id', dictationId)
+      .maybeSingle();
+
+    if (fetchError || !dictation) {
+      return res.status(404).json({
+        success: false,
+        error: 'Dictation not found'
+      });
+    }
+
+    // Verify patient ownership via phone number
+    const { data: patient } = await supabase
+      .from('unified_patients')
+      .select('phone_primary')
+      .eq('tshla_id', session.tshlaId)
+      .maybeSingle();
+
+    if (!patient || patient.phone_primary !== dictation.patient_phone) {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied'
+      });
+    }
+
+    // Already deleted?
+    if (dictation.audio_deleted) {
+      return res.json({
+        success: true,
+        message: 'Audio already deleted',
+        already_deleted: true
+      });
+    }
+
+    // Soft delete: Mark as deleted but keep URL for potential recovery
+    const { error: updateError } = await supabase
+      .from('dictated_notes')
+      .update({
+        audio_deleted: true,
+        audio_deleted_at: new Date().toISOString()
+      })
+      .eq('id', dictationId);
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    logger.info('PatientPortal', 'Dictation audio deleted', {
+      dictationId,
+      tshlaId: session.tshlaId
+    });
+
+    res.json({
+      success: true,
+      message: 'Audio deleted successfully',
+      dictation_id: dictationId
+    });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Delete dictation audio error', {
+      error: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete audio'
+    });
+  }
+});
+
+/**
  * Helper: Get device type from user agent
  */
 function getDeviceType(userAgent) {
