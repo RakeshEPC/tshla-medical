@@ -1987,14 +1987,20 @@ router.get('/dictations/:tshlaId', async (req, res) => {
     }
 
     // Fetch all dictations for this patient by phone
-    // Need to handle phone format variations: "2813847779" vs "(281) 384-7779" vs "+12813847779"
+    // Need to handle phone format variations: "8324492930" vs "(832) 449-2930" vs "+18324492930"
+    const digitsOnly = patient.phone_primary?.replace(/\D/g, '');
     const phoneVariations = [
-      patient.phone_primary, // Original format
-      patient.phone_display, // Display format
-      patient.phone_primary?.replace(/\D/g, ''), // Digits only
-      `(${patient.phone_primary?.substring(0,3)}) ${patient.phone_primary?.substring(3,6)}-${patient.phone_primary?.substring(6)}`, // Formatted
-      `+1${patient.phone_primary?.replace(/\D/g, '')}` // E.164 format
+      patient.phone_primary, // Original format (e.g., "8324492930")
+      patient.phone_display, // Display format (e.g., "(832) 449-2930")
+      digitsOnly, // Digits only
+      digitsOnly ? `(${digitsOnly.substring(0,3)}) ${digitsOnly.substring(3,6)}-${digitsOnly.substring(6)}` : null, // Formatted
+      digitsOnly ? `+1${digitsOnly}` : null // E.164 format
     ].filter(Boolean);
+
+    logger.info('PatientPortal', 'Searching for dictations with phone variations', {
+      tshlaId: normalizedTshId,
+      phoneVariations
+    });
 
     // Query with OR condition for all phone variations
     let query = supabase
