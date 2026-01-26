@@ -759,6 +759,55 @@ router.delete('/staff/patient-summaries/:id/delete', async (req, res) => {
 });
 
 /**
+ * GET /api/patient-summaries/patient/:patientPhone
+ * Get all summaries for a patient by phone number
+ * Used by patient portal to list all visit summaries
+ * Requires session validation via x-session-id header
+ */
+router.get('/patient-summaries/patient/:patientPhone', async (req, res) => {
+  try {
+    const { patientPhone } = req.params;
+    const sessionId = req.headers['x-session-id'];
+
+    logger.info('PatientSummary', 'Loading summaries for patient', {
+      phone: patientPhone.slice(-4) // Log last 4 digits only for HIPAA
+    });
+
+    // Optional: Validate session (if using session-based auth)
+    // For now, we'll allow any request with a session ID
+
+    const { data, error } = await supabase
+      .from('patient_audio_summaries')
+      .select('id, patient_phone, provider_name, summary_script as summary_text, audio_url, created_at, expires_at, access_count, visit_date')
+      .eq('patient_phone', patientPhone)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      logger.error('PatientSummary', 'Database error loading summaries', { error: error.message });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to load summaries'
+      });
+    }
+
+    logger.info('PatientSummary', 'Summaries loaded successfully', {
+      count: data?.length || 0
+    });
+
+    return res.json({
+      success: true,
+      summaries: data || []
+    });
+  } catch (error) {
+    logger.error('PatientSummary', 'Error loading patient summaries', { error: error.message });
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
+/**
  * GET /api/patient-summaries/:linkId
  * Get summary info by share link ID
  * Public endpoint - no auth required

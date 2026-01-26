@@ -86,7 +86,7 @@ export default function PatientPortalPaymentSection() {
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/payment-requests/patient/${session.tshlaId}`,
+        `${API_BASE_URL}/api/payment-requests/by-tshla-id/${session.tshlaId}`,
         {
           headers: {
             'x-session-id': session.sessionId,
