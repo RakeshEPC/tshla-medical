@@ -769,8 +769,9 @@ router.get('/patient-summaries/patient/:patientPhone', async (req, res) => {
     const { patientPhone } = req.params;
     const sessionId = req.headers['x-session-id'];
 
-    logger.info('PatientSummary', 'Loading summaries for patient', {
-      phone: patientPhone.slice(-4) // Log last 4 digits only for HIPAA
+    logger.info('PatientSummary', 'Loading summaries for patient via patient/:phone endpoint', {
+      phone: patientPhone.slice(-4), // Log last 4 digits only for HIPAA
+      endpoint: '/patient-summaries/patient/:patientPhone'
     });
 
     // Optional: Validate session (if using session-based auth)
