@@ -1924,16 +1924,38 @@ router.get('/dictations/:tshlaId', async (req, res) => {
     if (!session) {
       logger.info('PatientPortal', 'Session not in memory, checking database', { sessionId });
 
-      const { data: dbSession, error: dbError } = await supabase
+      // Try to find by session ID first
+      let dbSession = null;
+      const { data: sessionById, error: byIdError } = await supabase
         .from('patient_portal_sessions')
         .select('tshla_id, patient_phone')
         .eq('id', sessionId)
-        .gte('session_start', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()) // Within 2 hours
+        .gte('session_start', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString())
         .maybeSingle();
+
+      if (sessionById) {
+        dbSession = sessionById;
+      } else {
+        // Fallback: Check for any recent session for this TSH ID (for backward compatibility)
+        logger.info('PatientPortal', 'Session ID not found, checking by TSH ID', { tshlaId: normalizedTshId });
+        const formatted = normalizedTshId.replace(/^TSH(\d{3})(\d{3})$/, 'TSH $1-$2');
+        const { data: sessionByTshId } = await supabase
+          .from('patient_portal_sessions')
+          .select('tshla_id, patient_phone')
+          .or(`tshla_id.eq.${normalizedTshId},tshla_id.eq.${formatted}`)
+          .gte('session_start', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString())
+          .order('session_start', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (sessionByTshId) {
+          dbSession = sessionByTshId;
+          logger.info('PatientPortal', 'Session found by TSH ID', { tshlaId: sessionByTshId.tshla_id });
+        }
+      }
 
       if (dbSession) {
         session = { tshlaId: dbSession.tshla_id };
-        logger.info('PatientPortal', 'Session validated from database', { tshlaId: dbSession.tshla_id });
       }
     }
 
@@ -1941,11 +1963,12 @@ router.get('/dictations/:tshlaId', async (req, res) => {
       logger.warn('PatientPortal', 'Session validation failed', {
         hasSession: !!session,
         sessionTshId: session?.tshlaId,
-        requestedTshId: normalizedTshId
+        requestedTshId: normalizedTshId,
+        sessionId
       });
       return res.status(403).json({
         success: false,
-        error: 'Access denied'
+        error: 'Access denied - Session expired. Please log in again.'
       });
     }
 
@@ -2047,16 +2070,36 @@ router.delete('/dictations/:dictationId/audio', async (req, res) => {
     if (!session) {
       logger.info('PatientPortal', 'Session not in memory for delete, checking database', { sessionId });
 
-      const { data: dbSession, error: dbError } = await supabase
+      // Try to find by session ID first
+      let dbSession = null;
+      const { data: sessionById } = await supabase
         .from('patient_portal_sessions')
         .select('tshla_id, patient_phone')
         .eq('id', sessionId)
-        .gte('session_start', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()) // Within 2 hours
+        .gte('session_start', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString())
         .maybeSingle();
+
+      if (sessionById) {
+        dbSession = sessionById;
+      } else {
+        // Fallback: Check for any recent session (for backward compatibility)
+        logger.info('PatientPortal', 'Session ID not found for delete, checking recent sessions');
+        const { data: recentSession } = await supabase
+          .from('patient_portal_sessions')
+          .select('tshla_id, patient_phone')
+          .gte('session_start', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString())
+          .order('session_start', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (recentSession) {
+          dbSession = recentSession;
+          logger.info('PatientPortal', 'Session found by recent activity', { tshlaId: recentSession.tshla_id });
+        }
+      }
 
       if (dbSession) {
         session = { tshlaId: dbSession.tshla_id };
-        logger.info('PatientPortal', 'Session validated from database for delete', { tshlaId: dbSession.tshla_id });
       }
     }
 
