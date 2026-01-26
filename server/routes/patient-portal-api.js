@@ -1084,7 +1084,7 @@ router.get('/medications/refill-queue', async (req, res) => {
       });
     }
 
-    // Get patient information including pharmacy details
+    // Get patient information
     const { data: patients, error: patientsError } = await supabase
       .from('unified_patients')
       .select(`
@@ -1093,11 +1093,7 @@ router.get('/medications/refill-queue', async (req, res) => {
         first_name,
         last_name,
         phone_primary,
-        phone_display,
-        preferred_pharmacy_name,
-        preferred_pharmacy_phone,
-        preferred_pharmacy_address,
-        preferred_pharmacy_fax
+        phone_display
       `)
       .in('id', patientIds);
 
@@ -1123,13 +1119,7 @@ router.get('/medications/refill-queue', async (req, res) => {
             id: patient.id,
             tshla_id: patient.tshla_id,
             name: `${patient.first_name || ''} ${patient.last_name || ''}`.trim(),
-            phone: patient.phone_display || patient.phone_primary,
-            pharmacy: {
-              name: patient.preferred_pharmacy_name,
-              phone: patient.preferred_pharmacy_phone,
-              address: patient.preferred_pharmacy_address,
-              fax: patient.preferred_pharmacy_fax
-            }
+            phone: patient.phone_display || patient.phone_primary
           },
           medications: [],
           totalPending: 0,
