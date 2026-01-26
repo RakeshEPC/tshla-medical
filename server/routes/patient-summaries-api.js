@@ -778,7 +778,7 @@ router.get('/patient-summaries/patient/:patientPhone', async (req, res) => {
 
     const { data, error } = await supabase
       .from('patient_audio_summaries')
-      .select('id, patient_phone, provider_name, summary_script as summary_text, audio_url, created_at, expires_at, access_count, visit_date')
+      .select('id, patient_phone, provider_name, summary_script as summary_text, audio_blob_url as audio_url, created_at, expires_at, access_count')
       .eq('patient_phone', patientPhone)
       .order('created_at', { ascending: false });
 
