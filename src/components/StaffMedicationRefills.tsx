@@ -89,10 +89,12 @@ export default function StaffMedicationRefills() {
         throw new Error(data.error || 'Failed to load refill queue');
       }
 
-      setQueue(data.queue);
+      // Ensure queue is always an array
+      setQueue(Array.isArray(data.queue) ? data.queue : []);
     } catch (err: any) {
       console.error('Error loading refill queue:', err);
       setError(err.message || 'Failed to load refill queue');
+      setQueue([]); // Set empty array on error
     } finally {
       setIsLoading(false);
     }

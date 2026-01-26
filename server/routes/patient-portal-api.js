@@ -1576,11 +1576,56 @@ router.get('/medications/refill-queue', async (req, res) => {
       .order('refill_requested_at', { ascending: true, nullsFirst: false });
 
     if (medsError) {
+      // If columns don't exist yet (migration not run), return empty queue
+      if (medsError.message && medsError.message.includes('column') && medsError.message.includes('does not exist')) {
+        logger.warn('PatientPortal', 'Refill tracking columns not yet added - migration needed', {
+          error: medsError.message
+        });
+        return res.json({
+          success: true,
+          queue: [],
+          summary: {
+            totalPatients: 0,
+            totalMedications: 0,
+            totalPending: 0,
+            totalSent: 0
+          },
+          message: 'Database migration pending - pharmacy fields not yet available'
+        });
+      }
       throw medsError;
+    }
+
+    // Handle no medications case
+    if (!medications || medications.length === 0) {
+      return res.json({
+        success: true,
+        queue: [],
+        summary: {
+          totalPatients: 0,
+          totalMedications: 0,
+          totalPending: 0,
+          totalSent: 0
+        }
+      });
     }
 
     // Get unique patient IDs
     const patientIds = [...new Set(medications.map(m => m.patient_id))];
+
+    // Handle no patient IDs case
+    if (patientIds.length === 0) {
+      return res.json({
+        success: true,
+        queue: [],
+        summary: {
+          totalPatients: 0,
+          totalMedications: 0,
+          totalPending: 0,
+          totalSent: 0
+        }
+      });
+    }
 
     // Get patient information including pharmacy details
     const { data: patients, error: patientsError } = await supabase
