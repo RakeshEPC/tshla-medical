@@ -759,6 +759,35 @@ router.delete('/staff/patient-summaries/:id/delete', async (req, res) => {
 });
 
 /**
+ * GET /api/patient-summaries/test-connection
+ * Test Supabase connection and table access
+ * DEBUG ENDPOINT
+ */
+router.get('/patient-summaries/test-connection', async (req, res) => {
+  try {
+    const envCheck = {
+      supabaseUrl: SUPABASE_URL || 'NOT SET',
+      supabaseKeySet: SUPABASE_SERVICE_KEY ? 'YES' : 'NO'
+    };
+
+    const { data, error, count } = await supabase
+      .from('patient_audio_summaries')
+      .select('id', { count: 'exact', head: true });
+
+    return res.json({
+      success: !error,
+      env: envCheck,
+      test: {
+        error: error ? { message: error.message, code: error.code, details: error.details } : null,
+        count: count
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
  * GET /api/patient-summaries/patient/:patientPhone
  * Get all summaries for a patient by phone number
  * Used by patient portal to list all visit summaries
