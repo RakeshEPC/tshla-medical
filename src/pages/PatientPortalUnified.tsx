@@ -309,9 +309,21 @@ export default function PatientPortalUnified() {
     }
   };
 
-  // Show login if no session
+  // Show login if no session (but check sessionStorage first to avoid flash)
   if (!session) {
-    return <PatientPortalLogin onSuccess={handleLoginSuccess} />;
+    const savedSession = sessionStorage.getItem('patient_portal_session');
+    if (!savedSession && !location.state?.session) {
+      return <PatientPortalLogin onSuccess={handleLoginSuccess} />;
+    }
+    // Session exists in storage or navigation state, show loading while useEffect processes it
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading your portal...</p>
+        </div>
+      </div>
+    );
   }
 
   // Loading state
