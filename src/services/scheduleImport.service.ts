@@ -103,11 +103,19 @@ class ScheduleImportService {
   parseScheduleFile(content: string): ImportedAppointment[] {
     const lines = content.trim().split('\n');
     const appointments: ImportedAppointment[] = [];
-    
+
     if (lines.length < 2) return appointments;
-    
+
+    // Skip first line if it's a report name header (e.g., "REPORT NAME : ...")
+    let headerLineIndex = 0;
+    if (lines[0].toUpperCase().startsWith('REPORT NAME')) {
+      headerLineIndex = 1;
+    }
+
+    if (lines.length < headerLineIndex + 2) return appointments;
+
     // Parse header to determine column positions
-    const headerLine = lines[0];
+    const headerLine = lines[headerLineIndex];
     const delimiter = headerLine.includes('\t') ? '\t' : ',';
     const headers = headerLine.split(delimiter).map(h => h.trim().toLowerCase().replace(/\s+/g, ''));
     
@@ -152,9 +160,9 @@ class ScheduleImportService {
     // Debug log the column mapping
     logDebug('scheduleImport', 'Debug message', {});
     logDebug('scheduleImport', 'Debug message', {});
-    
-    // Process data rows
-    for (let i = 1; i < lines.length; i++) {
+
+    // Process data rows (start after header)
+    for (let i = headerLineIndex + 1; i < lines.length; i++) {
       const line = lines[i].trim();
       if (!line) continue;
       
