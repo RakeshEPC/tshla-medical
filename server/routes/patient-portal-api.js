@@ -998,6 +998,188 @@ router.post('/admin/clear-rate-limit', async (req, res) => {
 });
 
 /**
+ * GET /api/patient-portal/medications/refill-queue
+ * Get all medications that need refill processing (staff view)
+ * Grouped by patient with their pharmacy information
+ */
+router.get('/medications/refill-queue', async (req, res) => {
+  try {
+    logger.info('PatientPortal', 'Loading medication refill queue for staff', {});
+
+    // Get all medications flagged for refill or pharmacy send
+    const { data: medications, error: medsError } = await supabase
+      .from('patient_medications')
+      .select(`
+        id,
+        patient_id,
+        tshla_id,
+        medication_name,
+        dosage,
+        frequency,
+        route,
+        sig,
+        status,
+        need_refill,
+        refill_requested_at,
+        send_to_pharmacy,
+        sent_to_pharmacy_at,
+        sent_to_pharmacy_by,
+        pharmacy_name,
+        created_at,
+        updated_at
+      `)
+      .or('need_refill.eq.true,send_to_pharmacy.eq.true')
+      .eq('status', 'active')
+      .order('refill_requested_at', { ascending: true, nullsFirst: false });
+
+    if (medsError) {
+      // If columns don't exist yet (migration not run), return empty queue
+      if (medsError.message && medsError.message.includes('column') && medsError.message.includes('does not exist')) {
+        logger.warn('PatientPortal', 'Refill tracking columns not yet added - migration needed', {
+          error: medsError.message
+        });
+        return res.json({
+          success: true,
+          queue: [],
+          summary: {
+            totalPatients: 0,
+            totalMedications: 0,
+            totalPending: 0,
+            totalSent: 0
+          },
+          message: 'Database migration pending - pharmacy fields not yet available'
+        });
+      }
+      throw medsError;
+    }
+
+    // Handle no medications case
+    if (!medications || medications.length === 0) {
+      return res.json({
+        success: true,
+        queue: [],
+        summary: {
+          totalPatients: 0,
+          totalMedications: 0,
+          totalPending: 0,
+          totalSent: 0
+        }
+      });
+    }
+
+    // Get unique patient IDs
+    const patientIds = [...new Set(medications.map(m => m.patient_id))];
+
+    // Handle no patient IDs case
+    if (patientIds.length === 0) {
+      return res.json({
+        success: true,
+        queue: [],
+        summary: {
+          totalPatients: 0,
+          totalMedications: 0,
+          totalPending: 0,
+          totalSent: 0
+        }
+      });
+    }
+
+    // Get patient information including pharmacy details
+    const { data: patients, error: patientsError } = await supabase
+      .from('unified_patients')
+      .select(`
+        id,
+        tshla_id,
+        first_name,
+        last_name,
+        phone_primary,
+        phone_display,
+        preferred_pharmacy_name,
+        preferred_pharmacy_phone,
+        preferred_pharmacy_address,
+        preferred_pharmacy_fax
+      `)
+      .in('id', patientIds);
+
+    if (patientsError) {
+      throw patientsError;
+    }
+
+    // Create patient lookup map
+    const patientMap = new Map(patients.map(p => [p.id, p]));
+
+    // Group medications by patient
+    const patientGroups = {};
+
+    medications.forEach(med => {
+      const patient = patientMap.get(med.patient_id);
+      if (!patient) return;
+
+      const patientKey = patient.id;
+
+      if (!patientGroups[patientKey]) {
+        patientGroups[patientKey] = {
+          patient: {
+            id: patient.id,
+            tshla_id: patient.tshla_id,
+            name: `${patient.first_name || ''} ${patient.last_name || ''}`.trim(),
+            phone: patient.phone_display || patient.phone_primary,
+            pharmacy: {
+              name: patient.preferred_pharmacy_name,
+              phone: patient.preferred_pharmacy_phone,
+              address: patient.preferred_pharmacy_address,
+              fax: patient.preferred_pharmacy_fax
+            }
+          },
+          medications: [],
+          totalPending: 0,
+          totalSent: 0
+        };
+      }
+
+      patientGroups[patientKey].medications.push(med);
+
+      // Count pending vs sent
+      if (med.send_to_pharmacy && !med.sent_to_pharmacy_at) {
+        patientGroups[patientKey].totalPending++;
+      } else if (med.sent_to_pharmacy_at) {
+        patientGroups[patientKey].totalSent++;
+      }
+    });
+
+    // Convert to array and sort by most pending
+    const refillQueue = Object.values(patientGroups).sort((a, b) => {
+      return b.totalPending - a.totalPending;
+    });
+
+    logger.info('PatientPortal', 'Refill queue loaded', {
+      totalPatients: refillQueue.length,
+      totalMedications: medications.length
+    });
+
+    res.json({
+      success: true,
+      queue: refillQueue,
+      summary: {
+        totalPatients: refillQueue.length,
+        totalMedications: medications.length,
+        totalPending: refillQueue.reduce((sum, g) => sum + g.totalPending, 0),
+        totalSent: refillQueue.reduce((sum, g) => sum + g.totalSent, 0)
+      }
+    });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Refill queue error', {
+      error: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to load refill queue'
+    });
+  }
+});
+/**
  * GET /api/patient-portal/medications/:tshlaId
  * Get medications for a patient with full management data
  */
@@ -1548,188 +1730,6 @@ router.post('/medications/:tshlaId/import-from-hp', async (req, res) => {
   }
 });
 
-/**
- * GET /api/patient-portal/medications/refill-queue
- * Get all medications that need refill processing (staff view)
- * Grouped by patient with their pharmacy information
- */
-router.get('/medications/refill-queue', async (req, res) => {
-  try {
-    logger.info('PatientPortal', 'Loading medication refill queue for staff', {});
-
-    // Get all medications flagged for refill or pharmacy send
-    const { data: medications, error: medsError } = await supabase
-      .from('patient_medications')
-      .select(`
-        id,
-        patient_id,
-        tshla_id,
-        medication_name,
-        dosage,
-        frequency,
-        route,
-        sig,
-        status,
-        need_refill,
-        refill_requested_at,
-        send_to_pharmacy,
-        sent_to_pharmacy_at,
-        sent_to_pharmacy_by,
-        pharmacy_name,
-        created_at,
-        updated_at
-      `)
-      .or('need_refill.eq.true,send_to_pharmacy.eq.true')
-      .eq('status', 'active')
-      .order('refill_requested_at', { ascending: true, nullsFirst: false });
-
-    if (medsError) {
-      // If columns don't exist yet (migration not run), return empty queue
-      if (medsError.message && medsError.message.includes('column') && medsError.message.includes('does not exist')) {
-        logger.warn('PatientPortal', 'Refill tracking columns not yet added - migration needed', {
-          error: medsError.message
-        });
-        return res.json({
-          success: true,
-          queue: [],
-          summary: {
-            totalPatients: 0,
-            totalMedications: 0,
-            totalPending: 0,
-            totalSent: 0
-          },
-          message: 'Database migration pending - pharmacy fields not yet available'
-        });
-      }
-      throw medsError;
-    }
-
-    // Handle no medications case
-    if (!medications || medications.length === 0) {
-      return res.json({
-        success: true,
-        queue: [],
-        summary: {
-          totalPatients: 0,
-          totalMedications: 0,
-          totalPending: 0,
-          totalSent: 0
-        }
-      });
-    }
-
-    // Get unique patient IDs
-    const patientIds = [...new Set(medications.map(m => m.patient_id))];
-
-    // Handle no patient IDs case
-    if (patientIds.length === 0) {
-      return res.json({
-        success: true,
-        queue: [],
-        summary: {
-          totalPatients: 0,
-          totalMedications: 0,
-          totalPending: 0,
-          totalSent: 0
-        }
-      });
-    }
-
-    // Get patient information including pharmacy details
-    const { data: patients, error: patientsError } = await supabase
-      .from('unified_patients')
-      .select(`
-        id,
-        tshla_id,
-        first_name,
-        last_name,
-        phone_primary,
-        phone_display,
-        preferred_pharmacy_name,
-        preferred_pharmacy_phone,
-        preferred_pharmacy_address,
-        preferred_pharmacy_fax
-      `)
-      .in('id', patientIds);
-
-    if (patientsError) {
-      throw patientsError;
-    }
-
-    // Create patient lookup map
-    const patientMap = new Map(patients.map(p => [p.id, p]));
-
-    // Group medications by patient
-    const patientGroups = {};
-
-    medications.forEach(med => {
-      const patient = patientMap.get(med.patient_id);
-      if (!patient) return;
-
-      const patientKey = patient.id;
-
-      if (!patientGroups[patientKey]) {
-        patientGroups[patientKey] = {
-          patient: {
-            id: patient.id,
-            tshla_id: patient.tshla_id,
-            name: `${patient.first_name || ''} ${patient.last_name || ''}`.trim(),
-            phone: patient.phone_display || patient.phone_primary,
-            pharmacy: {
-              name: patient.preferred_pharmacy_name,
-              phone: patient.preferred_pharmacy_phone,
-              address: patient.preferred_pharmacy_address,
-              fax: patient.preferred_pharmacy_fax
-            }
-          },
-          medications: [],
-          totalPending: 0,
-          totalSent: 0
-        };
-      }
-
-      patientGroups[patientKey].medications.push(med);
-
-      // Count pending vs sent
-      if (med.send_to_pharmacy && !med.sent_to_pharmacy_at) {
-        patientGroups[patientKey].totalPending++;
-      } else if (med.sent_to_pharmacy_at) {
-        patientGroups[patientKey].totalSent++;
-      }
-    });
-
-    // Convert to array and sort by most pending
-    const refillQueue = Object.values(patientGroups).sort((a, b) => {
-      return b.totalPending - a.totalPending;
-    });
-
-    logger.info('PatientPortal', 'Refill queue loaded', {
-      totalPatients: refillQueue.length,
-      totalMedications: medications.length
-    });
-
-    res.json({
-      success: true,
-      queue: refillQueue,
-      summary: {
-        totalPatients: refillQueue.length,
-        totalMedications: medications.length,
-        totalPending: refillQueue.reduce((sum, g) => sum + g.totalPending, 0),
-        totalSent: refillQueue.reduce((sum, g) => sum + g.totalSent, 0)
-      }
-    });
-
-  } catch (error) {
-    logger.error('PatientPortal', 'Refill queue error', {
-      error: error.message,
-      stack: error.stack
-    });
-    res.status(500).json({
-      success: false,
-      error: 'Failed to load refill queue'
-    });
-  }
-});
 
 /**
  * POST /api/patient-portal/medications/:medicationId/process-refill
