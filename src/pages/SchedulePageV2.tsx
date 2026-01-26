@@ -206,7 +206,7 @@ function WeeklyView({ weeklyData, navigate, getStatusColor }: WeeklyViewProps) {
                             <div className="font-semibold text-gray-900 mb-1 text-sm">{apt.patient}</div>
 
                             {/* IDs */}
-                            {(apt.internalId || apt.tshId || apt.mrn) && (
+                            {(apt.internalId || apt.tshId || apt.mrn || apt.phone) && (
                               <div className="space-y-1 mb-2">
                                 {apt.mrn && (
                                   <div className="px-1.5 py-0.5 bg-green-50 border border-green-400 text-green-700 font-mono font-bold rounded text-[10px]">
@@ -221,6 +221,11 @@ function WeeklyView({ weeklyData, navigate, getStatusColor }: WeeklyViewProps) {
                                 {apt.tshId && (
                                   <div className="px-1.5 py-0.5 bg-purple-50 border border-purple-300 text-purple-700 font-mono font-bold rounded text-[10px]">
                                     {apt.tshId}
+                                  </div>
+                                )}
+                                {apt.phone && (
+                                  <div className="px-1.5 py-0.5 bg-orange-50 border border-orange-400 text-orange-700 font-mono font-bold rounded text-[10px]" title="Patient phone (for portal login)">
+                                    📞 {apt.phone}
                                   </div>
                                 )}
                               </div>
@@ -1123,7 +1128,7 @@ export default function SchedulePageV2() {
                             </div>
 
                             {/* Patient IDs - COMPACT */}
-                            {(apt.internalId || apt.tshId || apt.mrn) && (
+                            {(apt.internalId || apt.tshId || apt.mrn || apt.phone) && (
                               <div className="flex flex-wrap items-center gap-1 mb-2">
                                 {apt.mrn && (
                                   <span className="px-1.5 py-0.5 bg-green-50 border border-green-400 text-green-700 text-[10px] font-mono font-bold rounded">
@@ -1138,6 +1143,11 @@ export default function SchedulePageV2() {
                                 {apt.tshId && (
                                   <span className="px-1.5 py-0.5 bg-purple-50 border border-purple-300 text-purple-700 text-[10px] font-mono font-bold rounded">
                                     {apt.tshId}
+                                  </span>
+                                )}
+                                {apt.phone && (
+                                  <span className="px-1.5 py-0.5 bg-orange-50 border border-orange-400 text-orange-700 text-[10px] font-mono font-bold rounded" title="Patient phone (for portal login)">
+                                    📞 {apt.phone}
                                   </span>
                                 )}
                               </div>
