@@ -2010,7 +2010,7 @@ router.get('/dictations/:tshlaId', async (req, res) => {
     // Query with IN operator for all phone variations (more reliable than OR with special chars)
     const { data: dictations, error: dictError } = await supabase
       .from('dictated_notes')
-      .select('id, provider_name, patient_name, visit_date, raw_transcript, processed_note, audio_url, audio_deleted, audio_deleted_at, audio_generated_at, created_at, dictated_at')
+      .select('id, provider_name, patient_name, visit_date, raw_transcript, processed_note, ai_summary, audio_url, audio_deleted, audio_deleted_at, audio_generated_at, created_at, dictated_at')
       .in('patient_phone', phoneVariations)
       .order('created_at', { ascending: false });
 
@@ -2024,7 +2024,7 @@ router.get('/dictations/:tshlaId', async (req, res) => {
       provider_name: d.provider_name || 'Dr. Unknown',
       patient_name: d.patient_name,
       visit_date: d.visit_date || d.dictated_at || d.created_at,
-      summary_text: d.processed_note || d.raw_transcript || '',
+      summary_text: d.ai_summary || d.processed_note || d.raw_transcript || '', // Patient-friendly summary first
       audio_url: d.audio_deleted ? null : d.audio_url, // Hide URL if deleted
       audio_deleted: d.audio_deleted || false,
       audio_deleted_at: d.audio_deleted_at,
