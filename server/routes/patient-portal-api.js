@@ -1576,13 +1576,6 @@ router.get('/medications/refill-queue', async (req, res) => {
         sent_to_pharmacy_at,
         sent_to_pharmacy_by,
         pharmacy_name,
-        refill_duration_days,
-        refill_quantity,
-        last_refill_date,
-        next_refill_due_date,
-        refill_count,
-        refill_notes,
-        sent_to_pharmacy_confirmation,
         created_at,
         updated_at
       `)
