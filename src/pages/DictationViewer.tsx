@@ -40,7 +40,7 @@ export default function DictationViewer() {
       console.log('🔍 [DictationViewer] Loading dictation ID:', dictationId);
 
       const { data, error } = await supabase
-        .from('dictated_notes')  // Fixed: Query dictated_notes instead of dictations
+        .from('dictations')
         .select('*')
         .eq('id', dictationId)
         .single();

@@ -239,10 +239,11 @@ async function loadPatientHP(patientPhone) {
 
 /**
  * Load dictation from database
+ * UPDATED 2026-01-25: Now reads from unified 'dictations' table
  */
 async function loadDictation(dictationId) {
   const { data, error } = await supabase
-    .from('dictated_notes')
+    .from('dictations')
     .select('*')
     .eq('id', dictationId)
     .single();
@@ -251,7 +252,13 @@ async function loadDictation(dictationId) {
     throw new Error(`Failed to load dictation: ${error.message}`);
   }
 
-  return data;
+  // Map new schema columns to expected format
+  // dictations table uses: transcription_text, final_note
+  // Old code expects: dictation_text
+  return {
+    ...data,
+    dictation_text: data.transcription_text || data.final_note || ''
+  };
 }
 
 /**

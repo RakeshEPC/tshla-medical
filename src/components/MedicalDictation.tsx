@@ -10,7 +10,6 @@ import { getPatientData, type PatientData } from '../services/patientData.servic
 import { specialtyService, type DoctorSpecialty } from '../services/specialty.service';
 import { doctorProfileService, type DoctorTemplate } from '../services/doctorProfile.service';
 import { supabaseAuthService as unifiedAuthService } from '../services/supabaseAuth.service';
-import { dictatedNotesService } from '../services/dictatedNotesService';
 import { scheduleService } from '../services/scheduleService';
 import { scheduleDatabaseService } from '../services/scheduleDatabase.service';
 import { azureAIService } from '../services/azureAI.service';

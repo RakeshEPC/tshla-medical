@@ -308,7 +308,7 @@ class DictationStorageService {
 
       // First, verify the dictation exists and is not already deleted
       const { data: existing, error: checkError } = await supabase
-        .from('dictated_notes')  // Fixed: Use dictated_notes table
+        .from('dictations')
         .select('id, status, patient_name, deleted_at')
         .eq('id', dictationId)
         .single();
@@ -325,7 +325,7 @@ class DictationStorageService {
 
       // Soft delete: Mark as deleted
       const { data: updateResult, error: deleteError, count } = await supabase
-        .from('dictated_notes')  // Fixed: Use dictated_notes table
+        .from('dictations')
         .update({
           deleted_at: new Date().toISOString(),
           deleted_by_provider_id: providerId,
@@ -372,7 +372,7 @@ class DictationStorageService {
   } | null> {
     try {
       const { data, error } = await supabase
-        .from('dictated_notes')  // Fixed: Use dictated_notes table
+        .from('dictations')
         .select('id, patient_name, patient_mrn, visit_date, status, deleted_at')
         .eq('id', dictationId)
         .is('deleted_at', null)  // Only return if not already deleted

@@ -9,7 +9,7 @@ import { Heart, X, Check, RefreshCw, Package, AlertCircle } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
-interface Medication {
+export interface Medication {
   id?: string;
   medication_name?: string;
   name?: string; // From H&P data
@@ -27,12 +27,14 @@ interface MedicationManagementProps {
   tshlaId: string;
   sessionId: string;
   initialMedications?: Medication[]; // From H&P data
+  onMedicationsChange?: (medications: Medication[]) => void; // Callback to notify parent
 }
 
 export default function MedicationManagement({
   tshlaId,
   sessionId,
-  initialMedications = []
+  initialMedications = [],
+  onMedicationsChange
 }: MedicationManagementProps) {
   const [medications, setMedications] = useState<Medication[]>([]);
   const [isLoading, setIsLoading] = useState(true);
