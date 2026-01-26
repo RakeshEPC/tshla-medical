@@ -783,10 +783,18 @@ router.get('/patient-summaries/patient/:patientPhone', async (req, res) => {
       .order('created_at', { ascending: false });
 
     if (error) {
-      logger.error('PatientSummary', 'Database error loading summaries', { error: error.message });
+      logger.error('PatientSummary', 'Database error loading summaries', {
+        error: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+        supabaseUrl: SUPABASE_URL ? 'set' : 'NOT SET',
+        supabaseKey: SUPABASE_SERVICE_KEY ? 'set' : 'NOT SET'
+      });
       return res.status(500).json({
         success: false,
-        error: 'Failed to load summaries'
+        error: 'Failed to load summaries',
+        debug: process.env.NODE_ENV !== 'production' ? error.message : undefined
       });
     }
 
