@@ -21,7 +21,9 @@ import {
   Heart,
   Target,
   Upload,
-  Download
+  Download,
+  MapPin,
+  Phone
 } from 'lucide-react';
 import LabTrendTable from '../components/LabTrendTable';
 import VitalSignsTrends from '../components/VitalSignsTrends';
@@ -321,6 +323,47 @@ export default function PatientHPView() {
     } catch (err: any) {
       console.error('Save edit error:', err);
       alert(err.message || 'Failed to save changes');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  /**
+   * Save pharmacy information
+   */
+  const savePharmacyInfo = async () => {
+    if (!session) return;
+
+    setIsSaving(true);
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/patient-portal/patients/${session.tshlaId}/pharmacy`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            pharmacyName: editData.pharmacyName,
+            pharmacyPhone: editData.pharmacyPhone,
+            pharmacyAddress: editData.pharmacyAddress,
+            pharmacyFax: editData.pharmacyFax,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to save pharmacy information');
+      }
+
+      // Reload H&P to show updated pharmacy info
+      window.location.reload();
+    } catch (err: any) {
+      console.error('Save pharmacy error:', err);
+      alert(err.message || 'Failed to save pharmacy information');
     } finally {
       setIsSaving(false);
     }
@@ -652,6 +695,124 @@ export default function PatientHPView() {
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          )}
+          </div>
+
+          {/* Pharmacy Information Section (Patient Editable) */}
+          <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+            {renderSectionHeader('pharmacy', 'Preferred Pharmacy', MapPin, true)}
+          {expandedSections.has('pharmacy') && (
+            <div className="p-6">
+              {editingSection === 'pharmacy' ? (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Pharmacy Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={editData.pharmacyName || ''}
+                      onChange={(e) => setEditData({ ...editData, pharmacyName: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                      placeholder="e.g., CVS Pharmacy"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Phone Number *
+                    </label>
+                    <input
+                      type="tel"
+                      value={editData.pharmacyPhone || ''}
+                      onChange={(e) => setEditData({ ...editData, pharmacyPhone: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                      placeholder="e.g., (555) 123-4567"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Address *
+                    </label>
+                    <textarea
+                      value={editData.pharmacyAddress || ''}
+                      onChange={(e) => setEditData({ ...editData, pharmacyAddress: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                      placeholder="e.g., 123 Main St, Houston, TX 77001"
+                      rows={2}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Fax Number (Optional)
+                    </label>
+                    <input
+                      type="tel"
+                      value={editData.pharmacyFax || ''}
+                      onChange={(e) => setEditData({ ...editData, pharmacyFax: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                      placeholder="e.g., (555) 123-4568"
+                    />
+                  </div>
+                  <div className="flex space-x-3">
+                    <button
+                      onClick={savePharmacyInfo}
+                      disabled={isSaving || !editData.pharmacyName || !editData.pharmacyPhone || !editData.pharmacyAddress}
+                      className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center space-x-2"
+                    >
+                      {isSaving ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Saving...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-4 h-4" />
+                          <span>Save</span>
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setEditingSection(null)}
+                      disabled={isSaving}
+                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  {session && hp.demographics?.pharmacy_name ? (
+                    <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
+                      <h4 className="font-semibold text-gray-900 mb-3">{hp.demographics.pharmacy_name}</h4>
+                      {hp.demographics.pharmacy_phone && (
+                        <p className="text-sm text-gray-700 flex items-center gap-2 mb-1">
+                          <Phone className="w-4 h-4 text-gray-500" />
+                          {hp.demographics.pharmacy_phone}
+                        </p>
+                      )}
+                      {hp.demographics.pharmacy_address && (
+                        <p className="text-sm text-gray-700 flex items-start gap-2 mb-1">
+                          <MapPin className="w-4 h-4 text-gray-500 mt-0.5" />
+                          <span>{hp.demographics.pharmacy_address}</span>
+                        </p>
+                      )}
+                      {hp.demographics.pharmacy_fax && (
+                        <p className="text-xs text-gray-600 mt-2">
+                          Fax: {hp.demographics.pharmacy_fax}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <MapPin className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                      <p className="font-medium">No pharmacy on file</p>
+                      <p className="text-sm mt-1">Add your preferred pharmacy for easier refills</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

@@ -1534,6 +1534,308 @@ router.post('/medications/:tshlaId/import-from-hp', async (req, res) => {
 });
 
 /**
+ * GET /api/patient-portal/medications/refill-queue
+ * Get all medications that need refill processing (staff view)
+ * Grouped by patient with their pharmacy information
+ */
+router.get('/medications/refill-queue', async (req, res) => {
+  try {
+    logger.info('PatientPortal', 'Loading medication refill queue for staff', {});
+
+    // Get all medications flagged for refill or pharmacy send
+    const { data: medications, error: medsError } = await supabase
+      .from('patient_medications')
+      .select(`
+        id,
+        patient_id,
+        tshla_id,
+        medication_name,
+        dosage,
+        frequency,
+        route,
+        sig,
+        status,
+        need_refill,
+        refill_requested_at,
+        send_to_pharmacy,
+        sent_to_pharmacy_at,
+        sent_to_pharmacy_by,
+        pharmacy_name,
+        refill_duration_days,
+        refill_quantity,
+        last_refill_date,
+        next_refill_due_date,
+        refill_count,
+        refill_notes,
+        sent_to_pharmacy_confirmation,
+        created_at,
+        updated_at
+      `)
+      .or('need_refill.eq.true,send_to_pharmacy.eq.true')
+      .eq('status', 'active')
+      .order('refill_requested_at', { ascending: true, nullsFirst: false });
+
+    if (medsError) {
+      throw medsError;
+    }
+
+    // Get unique patient IDs
+    const patientIds = [...new Set(medications.map(m => m.patient_id))];
+
+    // Get patient information including pharmacy details
+    const { data: patients, error: patientsError } = await supabase
+      .from('unified_patients')
+      .select(`
+        id,
+        tshla_id,
+        first_name,
+        last_name,
+        phone_primary,
+        phone_display,
+        preferred_pharmacy_name,
+        preferred_pharmacy_phone,
+        preferred_pharmacy_address,
+        preferred_pharmacy_fax
+      `)
+      .in('id', patientIds);
+
+    if (patientsError) {
+      throw patientsError;
+    }
+
+    // Create patient lookup map
+    const patientMap = new Map(patients.map(p => [p.id, p]));
+
+    // Group medications by patient
+    const patientGroups = {};
+
+    medications.forEach(med => {
+      const patient = patientMap.get(med.patient_id);
+      if (!patient) return;
+
+      const patientKey = patient.id;
+
+      if (!patientGroups[patientKey]) {
+        patientGroups[patientKey] = {
+          patient: {
+            id: patient.id,
+            tshla_id: patient.tshla_id,
+            name: `${patient.first_name || ''} ${patient.last_name || ''}`.trim(),
+            phone: patient.phone_display || patient.phone_primary,
+            pharmacy: {
+              name: patient.preferred_pharmacy_name,
+              phone: patient.preferred_pharmacy_phone,
+              address: patient.preferred_pharmacy_address,
+              fax: patient.preferred_pharmacy_fax
+            }
+          },
+          medications: [],
+          totalPending: 0,
+          totalSent: 0
+        };
+      }
+
+      patientGroups[patientKey].medications.push(med);
+
+      // Count pending vs sent
+      if (med.send_to_pharmacy && !med.sent_to_pharmacy_at) {
+        patientGroups[patientKey].totalPending++;
+      } else if (med.sent_to_pharmacy_at) {
+        patientGroups[patientKey].totalSent++;
+      }
+    });
+
+    // Convert to array and sort by most pending
+    const refillQueue = Object.values(patientGroups).sort((a, b) => {
+      return b.totalPending - a.totalPending;
+    });
+
+    logger.info('PatientPortal', 'Refill queue loaded', {
+      totalPatients: refillQueue.length,
+      totalMedications: medications.length
+    });
+
+    res.json({
+      success: true,
+      queue: refillQueue,
+      summary: {
+        totalPatients: refillQueue.length,
+        totalMedications: medications.length,
+        totalPending: refillQueue.reduce((sum, g) => sum + g.totalPending, 0),
+        totalSent: refillQueue.reduce((sum, g) => sum + g.totalSent, 0)
+      }
+    });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Refill queue error', {
+      error: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to load refill queue'
+    });
+  }
+});
+
+/**
+ * POST /api/patient-portal/medications/:medicationId/process-refill
+ * Mark medication as sent to pharmacy (staff action)
+ */
+router.post('/medications/:medicationId/process-refill', async (req, res) => {
+  try {
+    const { medicationId } = req.params;
+    const {
+      staffId,
+      staffName,
+      pharmacyName,
+      refillDurationDays,
+      refillQuantity,
+      confirmationNumber,
+      notes
+    } = req.body;
+
+    logger.info('PatientPortal', 'Processing medication refill', {
+      medicationId,
+      staffId,
+      refillDurationDays
+    });
+
+    const now = new Date().toISOString();
+
+    // Calculate next refill due date
+    let nextRefillDueDate = null;
+    if (refillDurationDays) {
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + refillDurationDays);
+      nextRefillDueDate = dueDate.toISOString();
+    }
+
+    // Update medication record
+    const { data, error } = await supabase
+      .from('patient_medications')
+      .update({
+        send_to_pharmacy: true,
+        sent_to_pharmacy_at: now,
+        sent_to_pharmacy_by: staffId,
+        pharmacy_name: pharmacyName,
+        refill_duration_days: refillDurationDays,
+        refill_quantity: refillQuantity,
+        last_refill_date: now,
+        next_refill_due_date: nextRefillDueDate,
+        refill_count: supabase.sql`COALESCE(refill_count, 0) + 1`,
+        refill_notes: notes,
+        sent_to_pharmacy_confirmation: confirmationNumber,
+        need_refill: false, // Clear the patient flag
+        updated_at: now
+      })
+      .eq('id', medicationId)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    // Log the action
+    await supabase
+      .from('access_logs')
+      .insert({
+        user_type: 'staff',
+        user_id: staffId,
+        action: 'process_medication_refill',
+        resource_type: 'patient_medication',
+        resource_id: medicationId,
+        details: {
+          medication_id: medicationId,
+          pharmacy_name: pharmacyName,
+          refill_duration_days: refillDurationDays,
+          staff_name: staffName,
+          confirmation: confirmationNumber
+        }
+      });
+
+    logger.info('PatientPortal', 'Medication refill processed', {
+      medicationId,
+      pharmacyName,
+      refillDurationDays
+    });
+
+    res.json({
+      success: true,
+      medication: data,
+      message: 'Refill processed and sent to pharmacy successfully'
+    });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Process refill error', {
+      error: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to process refill'
+    });
+  }
+});
+
+/**
+ * POST /api/patient-portal/patients/:tshlaId/pharmacy
+ * Update patient's preferred pharmacy information
+ */
+router.post('/patients/:tshlaId/pharmacy', async (req, res) => {
+  try {
+    const { tshlaId } = req.params;
+    const { pharmacyName, pharmacyPhone, pharmacyAddress, pharmacyFax } = req.body;
+
+    const normalizedTshId = tshlaId.replace(/[\s-]/g, '').toUpperCase();
+
+    logger.info('PatientPortal', 'Updating pharmacy information', {
+      tshlaId: normalizedTshId
+    });
+
+    // Update patient pharmacy info (try both TSH ID formats)
+    const { data, error } = await supabase
+      .from('unified_patients')
+      .update({
+        preferred_pharmacy_name: pharmacyName,
+        preferred_pharmacy_phone: pharmacyPhone,
+        preferred_pharmacy_address: pharmacyAddress,
+        preferred_pharmacy_fax: pharmacyFax,
+        updated_at: new Date().toISOString()
+      })
+      .or(`tshla_id.eq.${normalizedTshId},tshla_id.eq.${normalizedTshId.replace(/^TSH(\d{3})(\d{3})$/, 'TSH $1-$2')}`)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    logger.info('PatientPortal', 'Pharmacy information updated', {
+      tshlaId: normalizedTshId,
+      pharmacyName
+    });
+
+    res.json({
+      success: true,
+      patient: data,
+      message: 'Pharmacy information updated successfully'
+    });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Update pharmacy error', {
+      error: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update pharmacy information'
+    });
+  }
+});
+
+/**
  * Helper: Get device type from user agent
  */
 function getDeviceType(userAgent) {

@@ -127,6 +127,7 @@ const UnifiedPatientChart = lazy(() => import('./pages/UnifiedPatientChart'));
 
 // Patient Payment System
 const StaffPaymentDashboard = lazy(() => import('./pages/StaffPaymentDashboard'));
+const StaffMedicationRefillsPage = lazy(() => import('./pages/StaffMedicationRefillsPage'));
 const PatientPaymentReports = lazy(() => import('./pages/PatientPaymentReports'));
 const PatientPaymentPortal = lazy(() => import('./pages/PatientPaymentPortal'));
 
@@ -781,6 +782,19 @@ function App() {
                   <ProtectedRoute>
                     <Suspense fallback={<LoadingSpinner />}>
                       <PatientPaymentReports />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* ===== MEDICATION REFILLS MANAGEMENT ===== */}
+              {/* Staff Medication Refills Queue */}
+              <Route
+                path="/staff/medication-refills"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <StaffMedicationRefillsPage />
                     </Suspense>
                   </ProtectedRoute>
                 }

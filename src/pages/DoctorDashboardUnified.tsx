@@ -8,7 +8,7 @@ import DoctorNavBar from '../components/layout/DoctorNavBar';
 import ScheduleNavigation from '../components/doctor/ScheduleNavigation';
 import DailyPatientList from '../components/doctor/DailyPatientList';
 import ProviderFilter, { type Provider } from '../components/doctor/ProviderFilter';
-import { Plus, Calendar, FileText, Phone, Upload, BarChart3, MessageSquare, Users, Heart, CreditCard } from 'lucide-react';
+import { Plus, Calendar, FileText, Phone, Upload, BarChart3, MessageSquare, Users, Heart, CreditCard, Pill } from 'lucide-react';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
 
 export default function DoctorDashboardUnified() {
@@ -639,6 +639,21 @@ export default function DoctorDashboardUnified() {
                 <div className="text-left">
                   <div className="font-semibold text-gray-900">Patient Payments</div>
                   <div className="text-xs text-gray-500">Track online payments</div>
+                </div>
+              </div>
+            </button>
+
+            <button
+              onClick={() => navigate('/staff/medication-refills')}
+              className="bg-white border border-gray-200 rounded-lg p-4 hover:border-orange-500 hover:shadow-md transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-orange-100 rounded-lg group-hover:bg-orange-200 transition">
+                  <Pill className="w-5 h-5 text-orange-600" />
+                </div>
+                <div className="text-left">
+                  <div className="font-semibold text-gray-900">Med Refills</div>
+                  <div className="text-xs text-gray-500">Process patient refills</div>
                 </div>
               </div>
             </button>
