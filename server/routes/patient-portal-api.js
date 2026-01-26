@@ -2007,16 +2007,12 @@ router.get('/dictations/:tshlaId', async (req, res) => {
       phoneVariations
     });
 
-    // Query with OR condition for all phone variations
-    let query = supabase
+    // Query with IN operator for all phone variations (more reliable than OR with special chars)
+    const { data: dictations, error: dictError } = await supabase
       .from('dictated_notes')
-      .select('id, provider_name, patient_name, visit_date, raw_transcript, processed_note, audio_url, audio_deleted, audio_deleted_at, audio_generated_at, created_at, dictated_at');
-
-    // Build OR condition for all phone variations
-    const phoneConditions = phoneVariations.map(phone => `patient_phone.eq.${phone}`).join(',');
-    query = query.or(phoneConditions);
-
-    const { data: dictations, error: dictError } = await query.order('created_at', { ascending: false });
+      .select('id, provider_name, patient_name, visit_date, raw_transcript, processed_note, audio_url, audio_deleted, audio_deleted_at, audio_generated_at, created_at, dictated_at')
+      .in('patient_phone', phoneVariations)
+      .order('created_at', { ascending: false });
 
     if (dictError) {
       throw dictError;
