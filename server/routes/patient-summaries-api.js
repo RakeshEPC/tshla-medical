@@ -808,9 +808,16 @@ router.get('/patient-summaries/patient/:patientPhone', async (req, res) => {
 
     const { data, error } = await supabase
       .from('patient_audio_summaries')
-      .select('id, patient_phone, provider_name, summary_script as summary_text, audio_blob_url as audio_url, created_at, expires_at, access_count')
+      .select('id, patient_phone, provider_name, summary_script, audio_blob_url, created_at, expires_at, access_count')
       .eq('patient_phone', patientPhone)
       .order('created_at', { ascending: false });
+
+    // Map column names to match frontend expectations
+    const mappedData = data ? data.map(item => ({
+      ...item,
+      summary_text: item.summary_script,
+      audio_url: item.audio_blob_url
+    })) : [];
 
     if (error) {
       logger.error('PatientSummary', 'Database error loading summaries', {
@@ -829,12 +836,12 @@ router.get('/patient-summaries/patient/:patientPhone', async (req, res) => {
     }
 
     logger.info('PatientSummary', 'Summaries loaded successfully', {
-      count: data?.length || 0
+      count: mappedData.length
     });
 
     return res.json({
       success: true,
-      summaries: data || []
+      summaries: mappedData
     });
   } catch (error) {
     logger.error('PatientSummary', 'Error loading patient summaries', { error: error.message });
