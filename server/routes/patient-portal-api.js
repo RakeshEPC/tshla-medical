@@ -1481,22 +1481,17 @@ router.post('/medications/:tshlaId/import-from-hp', async (req, res) => {
       // Map H&P fields to patient_medications fields
       const medToInsert = {
         patient_id: patient.id,
+        tshla_id: patient.tshla_id,
         medication_name: hpMed.name || '',
         dosage: hpMed.dose || '',
         frequency: hpMed.frequency || '',
         route: hpMed.route || null,
-        prescribing_provider: hpMed.prescribedBy || null,
+        sig: hpMed.indication || null,
+        prescribed_by: hpMed.prescribedBy || null,
         status: (hpMed.active === false || hpMed.status === 'discontinued') ? 'prior' : 'active',
-        source: 'hp_ai_extraction',
-        notes: hpMed.notes || null,
-        start_date: hpMed.startDate || null,
-        last_filled_date: null,
-        pharmacy_name: null,
-        pharmacy_phone: null,
-        refills_remaining: null,
-        auto_refill_enabled: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        source: 'hp_import',
+        need_refill: false,
+        send_to_pharmacy: false
       };
 
       medsToImport.push(medToInsert);
