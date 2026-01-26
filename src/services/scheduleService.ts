@@ -370,12 +370,89 @@ class ScheduleService {
           }
           // In REPLACE mode, we already cleared everything, so no duplicate check needed
 
+          // 🆕 FIND OR CREATE UNIFIED PATIENT
+          // This ensures every appointment has a linked patient with TSH ID
+          let unifiedPatientId: string | null = null;
+
+          if (apt.patientPhone) {
+            // Normalize phone number (remove non-digits, remove leading 1)
+            const normalizedPhone = apt.patientPhone.replace(/\D/g, '').replace(/^1/, '');
+
+            // Try to find existing patient by phone
+            const { data: existingPatient } = await supabase
+              .from('unified_patients')
+              .select('id, tshla_id')
+              .eq('phone_primary', normalizedPhone)
+              .maybeSingle();
+
+            if (existingPatient) {
+              // Patient exists - use their ID
+              unifiedPatientId = existingPatient.id;
+              logDebug('scheduleService', 'Found existing patient', { tshlaId: existingPatient.tshla_id });
+            } else if (apt.patientMRN) {
+              // Try to find by MRN if phone didn't match
+              const { data: patientByMRN } = await supabase
+                .from('unified_patients')
+                .select('id, tshla_id')
+                .eq('mrn', apt.patientMRN)
+                .maybeSingle();
+
+              if (patientByMRN) {
+                unifiedPatientId = patientByMRN.id;
+                // Update phone if missing
+                if (normalizedPhone) {
+                  await supabase
+                    .from('unified_patients')
+                    .update({ phone_primary: normalizedPhone })
+                    .eq('id', patientByMRN.id);
+                }
+              }
+            }
+
+            // If patient doesn't exist, create new patient via backend API
+            if (!unifiedPatientId) {
+              try {
+                const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+                const response = await fetch(`${apiUrl}/api/patients/find-or-create`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    phone: apt.patientPhone,
+                    patientData: {
+                      firstName: apt.patientFirstName,
+                      lastName: apt.patientLastName,
+                      dob: apt.patientDOB,
+                      gender: apt.patientGender,
+                      email: apt.patientEmail,
+                      mrn: apt.patientMRN,
+                      provider_id: apt.providerId,
+                      provider_name: apt.providerName
+                    },
+                    source: 'schedule'
+                  })
+                });
+
+                if (response.ok) {
+                  const result = await response.json();
+                  unifiedPatientId = result.patient?.id;
+                  logInfo('scheduleService', 'Created new unified patient', {
+                    patientId: result.patient?.patient_id,
+                    tshlaId: result.patient?.tshla_id
+                  });
+                }
+              } catch (apiError) {
+                logWarn('scheduleService', 'Failed to create unified patient via API', { error: apiError });
+                // Continue without linking - appointment will still be created
+              }
+            }
+          }
+
           // Determine if telehealth
           const isTelehealth = apt.visitType?.toLowerCase().includes('telehealth') ||
                               apt.visitType?.toLowerCase().includes('virtual') ||
                               apt.visitType?.toLowerCase().includes('telemedicine');
 
-          // Insert appointment
+          // Insert appointment (now with unified_patient_id if found/created)
           const { data, error } = await supabase
             .from('provider_schedules')
             .insert({
@@ -388,6 +465,7 @@ class ScheduleService {
               patient_phone: apt.patientPhone,
               patient_email: apt.patientEmail,
               patient_mrn: apt.patientMRN,
+              unified_patient_id: unifiedPatientId, // 🆕 Link to unified patient
               chief_diagnosis: apt.diagnosis,
               visit_reason: apt.visitReason,
               appointment_type: apt.visitType || this.mapVisitType(apt.visitReason),

@@ -2178,6 +2178,49 @@ try {
   logger.error('UnifiedAPI', 'AI Chat Educator API not mounted - module failed to load', { error: error.message, stack: error.stack });
 }
 
+// ====== PATIENT MANAGEMENT API ======
+// Endpoint for finding or creating unified patients
+app.post('/api/patients/find-or-create', async (req, res) => {
+  try {
+    const { phone, patientData, source } = req.body;
+
+    if (!phone) {
+      return res.status(400).json({
+        success: false,
+        error: 'Phone number is required'
+      });
+    }
+
+    logger.info('PatientAPI', 'Find or create patient request', { phone, source });
+
+    // Use patientMatching service to find or create patient
+    const patient = await patientMatchingService.findOrCreatePatient(
+      phone,
+      patientData || {},
+      source || 'api'
+    );
+
+    res.json({
+      success: true,
+      patient: {
+        id: patient.id,
+        patient_id: patient.patient_id,
+        tshla_id: patient.tshla_id,
+        phone_primary: patient.phone_primary,
+        first_name: patient.first_name,
+        last_name: patient.last_name
+      }
+    });
+  } catch (error) {
+    logger.error('PatientAPI', 'Error in find-or-create', { error: error.message });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to process patient'
+    });
+  }
+});
+logger.info('UnifiedAPI', 'Patient Management API mounted at /api/patients/*');
+
 // Add HTTP GET endpoint for /media-stream (for health checks)
 // Twilio might check this before attempting WebSocket upgrade
 app.get('/media-stream', (req, res) => {
