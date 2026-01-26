@@ -285,19 +285,19 @@ async function extractStructuredData(sources) {
   // Call Azure OpenAI
   const prompt = EXTRACTION_PROMPT + contextText;
 
-  const response = await azureOpenAIService.generateChatCompletion([
-    { role: 'system', content: 'You are a medical data extraction specialist.' },
-    { role: 'user', content: prompt }
-  ], {
+  const response = await azureOpenAIService.generateCompletion({
+    messages: [
+      { role: 'system', content: 'You are a medical data extraction specialist.' },
+      { role: 'user', content: prompt }
+    ],
     temperature: 0.3,
-    maxTokens: 2000,
-    responseFormat: { type: 'json_object' }
+    maxTokens: 2000
   });
 
   // Parse JSON response
   let extractedData;
   try {
-    extractedData = JSON.parse(response.choices[0].message.content);
+    extractedData = JSON.parse(response.content);
   } catch (error) {
     logger.error('HPGenerator', 'Failed to parse AI extraction response', { error: error.message });
     throw new Error('AI extraction returned invalid JSON');
@@ -414,15 +414,16 @@ async function mergeHPData(currentHP, extractedData) {
 async function generateNarrativeHP(hp) {
   const prompt = NARRATIVE_PROMPT + JSON.stringify(hp, null, 2);
 
-  const response = await azureOpenAIService.generateChatCompletion([
-    { role: 'system', content: 'You are a medical documentation specialist.' },
-    { role: 'user', content: prompt }
-  ], {
+  const response = await azureOpenAIService.generateCompletion({
+    messages: [
+      { role: 'system', content: 'You are a medical documentation specialist.' },
+      { role: 'user', content: prompt }
+    ],
     temperature: 0.5,
     maxTokens: 1500
   });
 
-  return response.choices[0].message.content;
+  return response.content;
 }
 
 /**
