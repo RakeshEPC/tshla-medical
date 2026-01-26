@@ -96,13 +96,14 @@ export default function MedicationManagement({
 
   const importMedications = async () => {
     try {
-      console.log('🔄 Starting medication import...', { tshlaId, sessionId });
+      console.log('🔄 Starting medication import from H&P...', { tshlaId, sessionId });
       setImporting(true);
 
-      const url = `${API_BASE_URL}/api/patient-portal/medications/${encodeURIComponent(tshlaId)}/import-from-uploads`;
-      console.log('📡 Import URL:', url);
+      // Try importing from H&P first (AI-extracted from dictations)
+      const hpUrl = `${API_BASE_URL}/api/patient-portal/medications/${encodeURIComponent(tshlaId)}/import-from-hp`;
+      console.log('📡 H&P Import URL:', hpUrl);
 
-      const response = await fetch(url, {
+      const hpResponse = await fetch(hpUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -110,16 +111,38 @@ export default function MedicationManagement({
         },
       });
 
-      console.log('📥 Import response status:', response.status);
-      const data = await response.json();
-      console.log('📦 Import response data:', data);
+      console.log('📥 H&P Import response status:', hpResponse.status);
+      const hpData = await hpResponse.json();
+      console.log('📦 H&P Import response data:', hpData);
 
-      if (response.ok && data.success) {
-        console.log('✅ Import successful, reloading medications...');
-        await loadMedications(); // Reload
+      if (hpResponse.ok && hpData.success) {
+        console.log(`✅ H&P Import successful: ${hpData.imported} imported, ${hpData.skipped} skipped`);
+
+        // If H&P didn't find any, also try uploads
+        if (hpData.imported === 0) {
+          console.log('🔄 No meds from H&P, trying uploads...');
+          const uploadsUrl = `${API_BASE_URL}/api/patient-portal/medications/${encodeURIComponent(tshlaId)}/import-from-uploads`;
+
+          const uploadsResponse = await fetch(uploadsUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-session-id': sessionId,
+            },
+          });
+
+          const uploadsData = await uploadsResponse.json();
+          console.log('📦 Uploads Import response data:', uploadsData);
+
+          if (uploadsResponse.ok && uploadsData.success && uploadsData.imported > 0) {
+            console.log(`✅ Uploads Import successful: ${uploadsData.imported} imported`);
+          }
+        }
+
+        await loadMedications(); // Reload medications
       } else {
-        console.error('❌ Import failed:', data.error || 'Unknown error');
-        setError(data.error || 'Failed to import medications');
+        console.error('❌ Import failed:', hpData.error || 'Unknown error');
+        setError(hpData.error || 'Failed to import medications');
       }
     } catch (err) {
       console.error('❌ Import medications error:', err);

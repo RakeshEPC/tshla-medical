@@ -1360,6 +1360,180 @@ router.post('/medications/:tshlaId/import-from-uploads', async (req, res) => {
 });
 
 /**
+ * POST /api/patient-portal/medications/:tshlaId/import-from-hp
+ * Import medications from H&P comprehensive chart into patient_medications table
+ * This syncs AI-extracted medications from dictations to the patient portal
+ */
+router.post('/medications/:tshlaId/import-from-hp', async (req, res) => {
+  const { tshlaId } = req.params;
+
+  logger.info('PatientPortal', 'Import medications from H&P', {
+    tshlaId,
+    ip: req.ip,
+    userAgent: req.get('user-agent')
+  });
+
+  try {
+    // 1. Get patient by TSH ID (normalize with/without space)
+    const normalizedId = tshlaId.replace(/\s+/g, '').toUpperCase();
+    const { data: patient, error: patientError } = await supabase
+      .from('unified_patients')
+      .select('id, tshla_id, phone_primary, first_name, last_name')
+      .or(`tshla_id.eq.${tshlaId},tshla_id.eq.${normalizedId}`)
+      .maybeSingle();
+
+    if (patientError) {
+      logger.error('PatientPortal', 'Patient lookup error', { error: patientError.message, tshlaId });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to find patient'
+      });
+    }
+
+    if (!patient) {
+      logger.warn('PatientPortal', 'Patient not found for H&P import', { tshlaId });
+      return res.status(404).json({
+        success: false,
+        error: 'Patient not found'
+      });
+    }
+
+    // 2. Get H&P medications from comprehensive chart
+    const { data: hpChart, error: hpError } = await supabase
+      .from('patient_comprehensive_chart')
+      .select('medications, last_updated, version')
+      .eq('patient_phone', patient.phone_primary)
+      .maybeSingle();
+
+    if (hpError) {
+      logger.error('PatientPortal', 'H&P chart lookup error', { error: hpError.message, patientPhone: patient.phone_primary });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to load H&P chart'
+      });
+    }
+
+    if (!hpChart || !hpChart.medications || hpChart.medications.length === 0) {
+      logger.info('PatientPortal', 'No medications in H&P chart', { tshlaId, patientPhone: patient.phone_primary });
+      return res.json({
+        success: true,
+        message: 'No medications found in H&P chart',
+        imported: 0,
+        skipped: 0
+      });
+    }
+
+    // 3. Get existing medications in patient_medications table
+    const { data: existingMeds, error: existingError } = await supabase
+      .from('patient_medications')
+      .select('medication_name, dosage, frequency')
+      .eq('patient_id', patient.id);
+
+    if (existingError) {
+      logger.error('PatientPortal', 'Existing medications lookup error', { error: existingError.message });
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to load existing medications'
+      });
+    }
+
+    // Create lookup set for duplicates
+    const existingMedSet = new Set(
+      (existingMeds || []).map(m =>
+        `${m.medication_name?.toLowerCase()}-${m.dosage?.toLowerCase()}-${m.frequency?.toLowerCase()}`
+      )
+    );
+
+    // 4. Transform H&P medications to patient_medications format
+    const medsToImport = [];
+    const skippedMeds = [];
+
+    for (const hpMed of hpChart.medications) {
+      // Create lookup key
+      const lookupKey = `${hpMed.name?.toLowerCase() || ''}-${hpMed.dose?.toLowerCase() || ''}-${hpMed.frequency?.toLowerCase() || ''}`;
+
+      // Skip if already exists
+      if (existingMedSet.has(lookupKey)) {
+        skippedMeds.push(hpMed.name);
+        continue;
+      }
+
+      // Map H&P fields to patient_medications fields
+      const medToInsert = {
+        patient_id: patient.id,
+        medication_name: hpMed.name || '',
+        dosage: hpMed.dose || '',
+        frequency: hpMed.frequency || '',
+        route: hpMed.route || null,
+        prescribing_provider: hpMed.prescribedBy || null,
+        status: (hpMed.active === false || hpMed.status === 'discontinued') ? 'prior' : 'active',
+        source: 'hp_ai_extraction',
+        notes: hpMed.notes || null,
+        start_date: hpMed.startDate || null,
+        last_filled_date: null,
+        pharmacy_name: null,
+        pharmacy_phone: null,
+        refills_remaining: null,
+        auto_refill_enabled: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      medsToImport.push(medToInsert);
+    }
+
+    // 5. Insert new medications
+    let importedCount = 0;
+    if (medsToImport.length > 0) {
+      const { data: inserted, error: insertError } = await supabase
+        .from('patient_medications')
+        .insert(medsToImport)
+        .select('id');
+
+      if (insertError) {
+        logger.error('PatientPortal', 'Medication insert error', {
+          error: insertError.message,
+          count: medsToImport.length
+        });
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to import medications'
+        });
+      }
+
+      importedCount = inserted?.length || 0;
+    }
+
+    logger.info('PatientPortal', 'H&P medications imported', {
+      tshlaId,
+      patientName: `${patient.first_name} ${patient.last_name}`,
+      imported: importedCount,
+      skipped: skippedMeds.length,
+      hpVersion: hpChart.version
+    });
+
+    res.json({
+      success: true,
+      message: `Imported ${importedCount} medication(s) from H&P chart`,
+      imported: importedCount,
+      skipped: skippedMeds.length,
+      skippedMedications: skippedMeds
+    });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Import from H&P error', {
+      error: error.message,
+      stack: error.stack,
+      tshlaId
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to import medications from H&P'
+    });
+  }
+});
+
+/**
  * Helper: Get device type from user agent
  */
 function getDeviceType(userAgent) {
