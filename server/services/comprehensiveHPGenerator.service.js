@@ -295,9 +295,17 @@ async function extractStructuredData(sources) {
   });
 
   // Parse JSON response
+  // Strip markdown code blocks if present (```json ... ```)
   let extractedData;
   try {
-    extractedData = JSON.parse(response.content);
+    let content = response.content;
+
+    // Remove markdown code blocks
+    if (content.includes('```')) {
+      content = content.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+    }
+
+    extractedData = JSON.parse(content.trim());
   } catch (error) {
     logger.error('HPGenerator', 'Failed to parse AI extraction response', { error: error.message });
     throw new Error('AI extraction returned invalid JSON');
