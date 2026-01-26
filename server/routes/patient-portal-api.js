@@ -1393,12 +1393,13 @@ router.post('/medications/:tshlaId/import-from-hp', async (req, res) => {
   });
 
   try {
-    // 1. Get patient by TSH ID (normalize with/without space)
-    const normalizedId = tshlaId.replace(/\s+/g, '').toUpperCase();
+    // 1. Get patient by TSH ID (normalize with/without space and dash)
+    const normalizedId = tshlaId.replace(/[\s-]/g, '').toUpperCase();
+    const formattedId = normalizedId.replace(/^TSH(\d{3})(\d{3})$/, 'TSH $1-$2');
     const { data: patient, error: patientError } = await supabase
       .from('unified_patients')
       .select('id, tshla_id, phone_primary, first_name, last_name')
-      .or(`tshla_id.eq.${tshlaId},tshla_id.eq.${normalizedId}`)
+      .or(`tshla_id.eq.${tshlaId},tshla_id.eq.${normalizedId},tshla_id.eq.${formattedId}`)
       .maybeSingle();
 
     if (patientError) {
@@ -1959,10 +1960,14 @@ router.get('/dictations/:tshlaId', async (req, res) => {
       }
     }
 
-    if (!session || session.tshlaId !== normalizedTshId) {
+    // Normalize session TSH ID for comparison (handle both formats)
+    const sessionTshIdNormalized = session?.tshlaId?.replace(/[\s-]/g, '').toUpperCase();
+
+    if (!session || sessionTshIdNormalized !== normalizedTshId) {
       logger.warn('PatientPortal', 'Session validation failed', {
         hasSession: !!session,
         sessionTshId: session?.tshlaId,
+        sessionTshIdNormalized,
         requestedTshId: normalizedTshId,
         sessionId
       });
