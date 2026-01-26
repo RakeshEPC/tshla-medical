@@ -29,6 +29,10 @@ const supabase = createClient(
 // Rate limiting map (in-memory, for MVP - move to Redis for production)
 const loginAttempts = new Map();
 
+// Active sessions map (in-memory, for MVP - move to Redis for production)
+// This tracks active patient portal sessions for validation
+const activeSessions = new Map();
+
 /**
  * POST /api/patient-portal/login
  * Authenticate with TSH ID + last 4 digits of phone
@@ -136,10 +140,25 @@ router.post('/login', async (req, res) => {
     // Clear failed attempts
     loginAttempts.delete(attemptKey);
 
+    // Store active session (expires in 2 hours)
+    activeSessions.set(sessionId, {
+      tshlaId: normalizedTshId,
+      patientPhone: patient.phone_primary,
+      patientName,
+      createdAt: Date.now()
+    });
+
+    // Auto-expire sessions after 2 hours
+    setTimeout(() => {
+      activeSessions.delete(sessionId);
+      logger.info('PatientPortal', 'Session expired', { sessionId, tshlaId: normalizedTshId });
+    }, 2 * 60 * 60 * 1000);
+
     // 4. Create session record in database
     const { error: sessionError } = await supabase
       .from('patient_portal_sessions')
       .insert({
+        id: sessionId, // Store the session ID for validation
         patient_phone: patient.phone_primary,
         tshla_id: normalizedTshId,
         session_start: new Date().toISOString(),
@@ -1898,8 +1917,32 @@ router.get('/dictations/:tshlaId', async (req, res) => {
     });
 
     // Verify session ownership
-    const session = activeSessions.get(sessionId);
+    // First check in-memory sessions (fast path)
+    let session = activeSessions.get(sessionId);
+
+    // If not in memory (server restart), validate against database
+    if (!session) {
+      logger.info('PatientPortal', 'Session not in memory, checking database', { sessionId });
+
+      const { data: dbSession, error: dbError } = await supabase
+        .from('patient_portal_sessions')
+        .select('tshla_id, patient_phone')
+        .eq('id', sessionId)
+        .gte('session_start', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()) // Within 2 hours
+        .maybeSingle();
+
+      if (dbSession) {
+        session = { tshlaId: dbSession.tshla_id };
+        logger.info('PatientPortal', 'Session validated from database', { tshlaId: dbSession.tshla_id });
+      }
+    }
+
     if (!session || session.tshlaId !== normalizedTshId) {
+      logger.warn('PatientPortal', 'Session validation failed', {
+        hasSession: !!session,
+        sessionTshId: session?.tshlaId,
+        requestedTshId: normalizedTshId
+      });
       return res.status(403).json({
         success: false,
         error: 'Access denied'
@@ -1997,7 +2040,26 @@ router.delete('/dictations/:dictationId/audio', async (req, res) => {
     });
 
     // Verify session exists
-    const session = activeSessions.get(sessionId);
+    // First check in-memory sessions (fast path)
+    let session = activeSessions.get(sessionId);
+
+    // If not in memory (server restart), validate against database
+    if (!session) {
+      logger.info('PatientPortal', 'Session not in memory for delete, checking database', { sessionId });
+
+      const { data: dbSession, error: dbError } = await supabase
+        .from('patient_portal_sessions')
+        .select('tshla_id, patient_phone')
+        .eq('id', sessionId)
+        .gte('session_start', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()) // Within 2 hours
+        .maybeSingle();
+
+      if (dbSession) {
+        session = { tshlaId: dbSession.tshla_id };
+        logger.info('PatientPortal', 'Session validated from database for delete', { tshlaId: dbSession.tshla_id });
+      }
+    }
+
     if (!session) {
       return res.status(403).json({
         success: false,
