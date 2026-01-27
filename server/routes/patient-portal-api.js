@@ -1170,13 +1170,12 @@ router.post('/upload-document', upload.any(), async (req, res) => {
 
       const audioFile = req.files[0];
       const fileName = audioFile.originalname || 'recording.webm';
-      // Use audio/webm for WebM files, fallback to audio/mpeg for compatibility
-      const originalFileType = audioFile.mimetype || 'audio/webm';
+      const fileType = audioFile.mimetype || 'audio/webm';
       const fileSize = audioFile.size;
 
       logger.info('PatientPortal', 'Processing audio file', {
         fileName,
-        fileType: originalFileType,
+        fileType,
         fileSize
       });
 
@@ -1188,11 +1187,10 @@ router.post('/upload-document', upload.any(), async (req, res) => {
 
         logger.info('PatientPortal', 'Uploading audio to storage', { storagePath });
 
-        // Use application/octet-stream to bypass MIME type restrictions in Supabase
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('patient-audio')
           .upload(storagePath, audioFile.buffer, {
-            contentType: 'application/octet-stream',
+            contentType: fileType,
             cacheControl: '3600',
             upsert: false
           });
@@ -1211,7 +1209,7 @@ router.post('/upload-document', upload.any(), async (req, res) => {
 
         extractedData.file_url = urlData.publicUrl;
         extractedData.file_name = fileName;
-        extractedData.file_type = originalFileType;
+        extractedData.file_type = fileType;
         extractedData.file_size_bytes = fileSize;
 
         logger.info('PatientPortal', 'Audio uploaded successfully', {
