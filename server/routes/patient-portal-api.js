@@ -11,6 +11,7 @@ const multer = require('multer');
 const { createClient } = require('@supabase/supabase-js');
 const { v4: uuidv4 } = require('uuid');
 const logger = require('../logger');
+const pdf = require('pdf-parse');
 
 // Configure multer for handling file uploads
 const upload = multer({
@@ -32,6 +33,173 @@ const loginAttempts = new Map();
 // Active sessions map (in-memory, for MVP - move to Redis for production)
 // This tracks active patient portal sessions for validation
 const activeSessions = new Map();
+
+/**
+ * Parse athenaCollector PDF files for medical data
+ * Extracts diagnoses, medications, procedures, and billing codes
+ */
+function parseAthenaCollectorPDF(text) {
+  logger.info('PatientPortal', 'Parsing athenaCollector PDF');
+
+  const extractedData = {
+    diagnoses: [],
+    medications: [],
+    procedures: [],
+    labs: [],
+    allergies: [],
+    vitals: {},
+    billing_codes: [],
+    raw_content: text
+  };
+
+  const lines = text.split('\n');
+  let currentSection = null;
+
+  // Extract date from document (e.g., "Date: 01/27/2026" or "1/27/2026")
+  let documentDate = null;
+  const dateMatch = text.match(/(?:Date:|DOS:)?\s*(\d{1,2}\/\d{1,2}\/\d{4})/);
+  if (dateMatch) {
+    const parts = dateMatch[1].split('/');
+    documentDate = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+
+    // Identify sections
+    if (line.match(/diagnosis|icd-?10/i)) {
+      currentSection = 'diagnoses';
+    } else if (line.match(/medication|prescri|drug/i)) {
+      currentSection = 'medications';
+    } else if (line.match(/procedure|cpt/i)) {
+      currentSection = 'procedures';
+    } else if (line.match(/allerg/i)) {
+      currentSection = 'allergies';
+    }
+
+    // Extract ICD-10 codes and diagnoses
+    // Format: "E11.9 Type 2 diabetes mellitus without complications"
+    const icdMatch = line.match(/([A-Z]\d{2}(?:\.\d{1,3})?)\s+(.+)/);
+    if (icdMatch && icdMatch[2].length > 5) {
+      extractedData.diagnoses.push({
+        icd_code: icdMatch[1],
+        name: icdMatch[2].trim(),
+        status: 'active'
+      });
+    }
+
+    // Extract CPT codes and procedures
+    // Format: "99213 Office visit, established patient"
+    const cptMatch = line.match(/(\d{5})\s+(.+)/);
+    if (cptMatch && cptMatch[2].length > 5 && !line.match(/\d{5}\s+\d/)) {
+      extractedData.procedures.push({
+        cpt_code: cptMatch[1],
+        name: cptMatch[2].trim(),
+        date: documentDate || new Date().toISOString().split('T')[0]
+      });
+    }
+
+    // Extract medications
+    // Format: "atorvastatin 40 mg tablet" or "Mounjaro 2.5 mg/0.5 mL"
+    const medMatch = line.match(/^([A-Za-z][A-Za-z\s]+?)\s+([\d\.\/]+\s*mg(?:\/[\d\.]+\s*m[Ll])?)\s*(tablet|capsule|injection|subcutaneous|oral)?/i);
+    if (medMatch) {
+      const medObj = {
+        name: medMatch[1].trim(),
+        dosage: medMatch[2].trim(),
+        route: medMatch[3] ? medMatch[3].toLowerCase() : '',
+        frequency: '',
+        sig: line,
+        status: 'active'
+      };
+
+      // Look for frequency in the same line or next line
+      const freqMatch = line.match(/\b(once daily|twice daily|three times daily|bid|tid|qid|q\d+h)\b/i);
+      if (freqMatch) {
+        medObj.frequency = freqMatch[1];
+      }
+
+      extractedData.medications.push(medObj);
+    }
+
+    // Extract allergies
+    if (currentSection === 'allergies' && line.length > 3 && !line.match(/allerg|none|nkda/i)) {
+      const allergyMatch = line.match(/^([A-Za-z\s]+?)(?:\s*-\s*(.+))?$/);
+      if (allergyMatch) {
+        extractedData.allergies.push({
+          allergen: allergyMatch[1].trim(),
+          reaction: allergyMatch[2] ? allergyMatch[2].trim() : ''
+        });
+      }
+    }
+
+    // Extract vitals
+    // Format: "BP: 120/80" or "Weight: 180 lbs" or "A1C: 6.9%"
+    const bpMatch = line.match(/\b(?:BP|Blood Pressure):\s*(\d{2,3})\/(\d{2,3})/i);
+    if (bpMatch) {
+      extractedData.vitals.systolic_bp = { value: bpMatch[1], unit: 'mmHg' };
+      extractedData.vitals.diastolic_bp = { value: bpMatch[2], unit: 'mmHg' };
+    }
+
+    const weightMatch = line.match(/\b(?:Weight|Wt):\s*([\d\.]+)\s*(lbs?|kg)/i);
+    if (weightMatch) {
+      extractedData.vitals.weight = { value: weightMatch[1], unit: weightMatch[2] };
+    }
+
+    const heightMatch = line.match(/\b(?:Height|Ht):\s*([\d'"\s]+)/i);
+    if (heightMatch) {
+      extractedData.vitals.height = { value: heightMatch[1].trim(), unit: '' };
+    }
+
+    const tempMatch = line.match(/\b(?:Temp|Temperature):\s*([\d\.]+)\s*°?F?/i);
+    if (tempMatch) {
+      extractedData.vitals.temperature = { value: tempMatch[1], unit: '°F' };
+    }
+
+    const pulseMatch = line.match(/\b(?:Pulse|HR|Heart Rate):\s*(\d+)/i);
+    if (pulseMatch) {
+      extractedData.vitals.pulse = { value: pulseMatch[1], unit: 'bpm' };
+    }
+
+    // Extract lab orders or results
+    // Format: "A1C: 6.9%" or "Glucose: 209 mg/dL"
+    const labMatch = line.match(/^([A-Za-z][A-Za-z\d\s]+?):\s*([\d\.]+)\s*([%A-Za-z\/]+)?/);
+    if (labMatch && !line.match(/date|time|patient|doctor|provider|dob|weight|temperature|pulse|bp|blood/i)) {
+      const testName = labMatch[1].trim();
+      // Only include if it looks like a lab test (has unit or is a known lab)
+      const hasUnit = labMatch[3] && labMatch[3].length > 0;
+      const isKnownLab = testName.match(/a1c|glucose|cholesterol|triglyceride|hdl|ldl|creatinine|egfr|tsh|psa|testosterone|hemoglobin|sodium|potassium/i);
+
+      if (testName.length > 2 && testName.length < 50 && (hasUnit || isKnownLab)) {
+        extractedData.labs.push({
+          name: testName,
+          value: labMatch[2],
+          unit: labMatch[3] ? labMatch[3].trim() : '',
+          date: documentDate || new Date().toISOString().split('T')[0]
+        });
+      }
+    }
+  }
+
+  // Remove duplicates
+  extractedData.diagnoses = extractedData.diagnoses.filter((dx, index, self) =>
+    index === self.findIndex(d => d.icd_code === dx.icd_code)
+  );
+
+  extractedData.medications = extractedData.medications.filter((med, index, self) =>
+    index === self.findIndex(m => m.name.toLowerCase() === med.name.toLowerCase())
+  );
+
+  logger.info('PatientPortal', 'Parsed athenaCollector PDF', {
+    diagnoses: extractedData.diagnoses.length,
+    medications: extractedData.medications.length,
+    procedures: extractedData.procedures.length,
+    labs: extractedData.labs.length,
+    allergies: extractedData.allergies.length,
+    vitals: Object.keys(extractedData.vitals).length
+  });
+
+  return extractedData;
+}
 
 /**
  * POST /api/patient-portal/login
@@ -650,8 +818,92 @@ router.post('/upload-document', upload.any(), async (req, res) => {
           }
 
         } else if (fileName.toLowerCase().endsWith('.pdf')) {
-          // TODO: Parse PDF files
-          extractedData.raw_content = `[PDF file: ${fileName}]`;
+          // Process PDF files
+          logger.info('PatientPortal', 'Processing PDF file', { fileName });
+
+          try {
+            // Extract text from PDF
+            const pdfData = await pdf(file.buffer);
+            const pdfText = pdfData.text;
+
+            logger.info('PatientPortal', 'PDF text extracted', {
+              pages: pdfData.numpages,
+              textLength: pdfText.length
+            });
+
+            // Store raw content
+            extractedData.raw_content = pdfText;
+
+            // Upload PDF to Supabase Storage
+            const timestamp = Date.now();
+            const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+            const storagePath = `${normalizedTshId}/${timestamp}_${sanitizedFileName}`;
+
+            logger.info('PatientPortal', 'Uploading PDF to storage', { storagePath });
+
+            const { data: uploadData, error: uploadError } = await supabase.storage
+              .from('patient-documents')
+              .upload(storagePath, file.buffer, {
+                contentType: fileType,
+                cacheControl: '3600',
+                upsert: false
+              });
+
+            if (uploadError) {
+              logger.error('PatientPortal', 'Failed to upload PDF to storage', {
+                error: uploadError.message
+              });
+              throw new Error(`Storage upload failed: ${uploadError.message}`);
+            }
+
+            // Get public URL (bucket is private, so this is a signed URL approach)
+            const { data: urlData } = supabase.storage
+              .from('patient-documents')
+              .getPublicUrl(storagePath);
+
+            // Store file metadata
+            extractedData.file_url = urlData.publicUrl;
+            extractedData.file_name = fileName;
+            extractedData.file_type = fileType;
+            extractedData.file_size_bytes = fileSize;
+
+            logger.info('PatientPortal', 'PDF uploaded successfully', {
+              url: urlData.publicUrl
+            });
+
+            // Parse athenaCollector PDF for medical data
+            if (fileName.toLowerCase().includes('athenacollector') ||
+                fileName.toLowerCase().includes('athena')) {
+
+              logger.info('PatientPortal', 'Parsing as athenaCollector PDF');
+              const parsedData = parseAthenaCollectorPDF(pdfText);
+
+              // Merge parsed data with extractedData
+              extractedData.diagnoses = parsedData.diagnoses;
+              extractedData.medications = parsedData.medications;
+              extractedData.procedures = parsedData.procedures;
+              extractedData.labs = parsedData.labs;
+              extractedData.allergies = parsedData.allergies;
+              extractedData.vitals = parsedData.vitals;
+
+              logger.info('PatientPortal', 'Extracted medical data from PDF', {
+                diagnoses: extractedData.diagnoses.length,
+                medications: extractedData.medications.length,
+                procedures: extractedData.procedures.length,
+                labs: extractedData.labs.length
+              });
+            }
+
+          } catch (pdfError) {
+            logger.error('PatientPortal', 'PDF processing error', {
+              error: pdfError.message,
+              stack: pdfError.stack
+            });
+
+            // Store error but don't fail the upload
+            extractedData.raw_content = `[PDF processing failed: ${pdfError.message}]`;
+            extractedData.processing_error = pdfError.message;
+          }
 
         } else if (fileName.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/)) {
           // TODO: OCR image files
@@ -682,17 +934,40 @@ router.post('/upload-document', upload.any(), async (req, res) => {
     }
 
     // Store upload record
+    const uploadData = {
+      patient_id: patient.id,
+      tshla_id: normalizedTshId,
+      upload_method: uploadMethod,
+      raw_content: extractedData.raw_content,
+      extracted_data: extractedData,
+      uploaded_at: new Date().toISOString(),
+      session_id: sessionId
+    };
+
+    // Add file metadata if available (from PDF or other file uploads)
+    if (extractedData.file_url) {
+      uploadData.file_url = extractedData.file_url;
+      uploadData.file_name = extractedData.file_name;
+      uploadData.file_type = extractedData.file_type;
+      uploadData.file_size_bytes = extractedData.file_size_bytes;
+    }
+
+    // Set processing status
+    if (extractedData.processing_error) {
+      uploadData.ai_processing_status = 'failed';
+      uploadData.ai_processing_error = extractedData.processing_error;
+    } else if (extractedData.diagnoses?.length > 0 ||
+               extractedData.medications?.length > 0 ||
+               extractedData.labs?.length > 0) {
+      uploadData.ai_processing_status = 'completed';
+      uploadData.processed_at = new Date().toISOString();
+    } else {
+      uploadData.ai_processing_status = 'pending';
+    }
+
     const { data: uploadRecord, error: uploadError } = await supabase
       .from('patient_document_uploads')
-      .insert({
-        patient_id: patient.id,
-        tshla_id: normalizedTshId,
-        upload_method: uploadMethod,
-        raw_content: extractedData.raw_content,
-        extracted_data: extractedData,
-        uploaded_at: new Date().toISOString(),
-        session_id: sessionId
-      })
+      .insert(uploadData)
       .select()
       .single();
 
@@ -2377,5 +2652,93 @@ function getDeviceType(userAgent) {
   }
   return 'desktop';
 }
+
+/**
+ * GET /api/patient-portal/staff/dictations
+ * Get all dictations for staff (dictation history page)
+ * Includes filtering by status, date range, and search
+ */
+router.get('/staff/dictations', async (req, res) => {
+  try {
+    const { status, dateRange, search, limit = 100 } = req.query;
+
+    logger.info('PatientPortal', 'Staff loading dictations', {
+      status,
+      dateRange,
+      hasSearch: !!search,
+      limit
+    });
+
+    // Build query
+    let query = supabase
+      .from('dictations')
+      .select('*', { count: 'exact' })
+      .is('deleted_at', null) // Only non-deleted dictations
+      .order('created_at', { ascending: false })
+      .limit(parseInt(limit));
+
+    // Apply status filter
+    if (status && status !== 'all') {
+      query = query.eq('status', status);
+    }
+
+    // Apply date range filter
+    if (dateRange && dateRange !== 'all') {
+      const now = new Date();
+      const daysAgo = {
+        '7days': 7,
+        '30days': 30,
+        '90days': 90
+      }[dateRange];
+
+      if (daysAgo) {
+        const thresholdDate = new Date(now);
+        thresholdDate.setDate(thresholdDate.getDate() - daysAgo);
+        query = query.gte('created_at', thresholdDate.toISOString());
+      }
+    }
+
+    const { data, error, count } = await query;
+
+    if (error) {
+      throw error;
+    }
+
+    // Apply search filter (client-side for now, can be optimized with full-text search)
+    let filteredData = data || [];
+    if (search && search.trim()) {
+      const searchLower = search.toLowerCase().trim();
+      filteredData = filteredData.filter(d =>
+        (d.patient_name && d.patient_name.toLowerCase().includes(searchLower)) ||
+        (d.patient_mrn && d.patient_mrn.toLowerCase().includes(searchLower)) ||
+        (d.raw_transcript && d.raw_transcript.toLowerCase().includes(searchLower)) ||
+        (d.processed_note && d.processed_note.toLowerCase().includes(searchLower))
+      );
+    }
+
+    logger.info('PatientPortal', 'Staff dictations loaded', {
+      total: count,
+      filtered: filteredData.length,
+      hasSearch: !!search
+    });
+
+    res.json({
+      success: true,
+      dictations: filteredData,
+      total: count,
+      filtered: filteredData.length
+    });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Staff dictations error', {
+      error: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to load dictations'
+    });
+  }
+});
 
 module.exports = router;
