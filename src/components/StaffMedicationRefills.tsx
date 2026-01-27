@@ -10,7 +10,6 @@ import {
   Pill,
   Check,
   Phone,
-  MapPin,
   FileText,
   AlertCircle,
   Loader2,
@@ -46,12 +45,6 @@ interface PatientGroup {
     tshla_id: string;
     name: string;
     phone: string;
-    pharmacy: {
-      name: string | null;
-      phone: string | null;
-      address: string | null;
-      fax: string | null;
-    };
   };
   medications: Medication[];
   totalPending: number;
@@ -154,7 +147,7 @@ export default function StaffMedicationRefills() {
           body: JSON.stringify({
             staffId,
             staffName,
-            pharmacyName: patientGroup.patient.pharmacy.name || 'Unknown Pharmacy',
+            pharmacyName: 'Pharmacy', // Pharmacy info not available in current schema
             refillDurationDays: formData.refillDurationDays,
             refillQuantity: formData.refillQuantity,
             confirmationNumber: formData.confirmationNumber,
@@ -304,36 +297,6 @@ export default function StaffMedicationRefills() {
             {/* Expanded Patient Details */}
             {expandedPatient === group.patient.id && (
               <div className="mt-4 ml-14 space-y-4">
-                {/* Pharmacy Information */}
-                {group.patient.pharmacy.name && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <h5 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
-                      <MapPin className="w-4 h-4" />
-                      Preferred Pharmacy
-                    </h5>
-                    <div className="text-sm text-blue-800 space-y-1">
-                      <p className="font-medium">{group.patient.pharmacy.name}</p>
-                      {group.patient.pharmacy.phone && (
-                        <p className="flex items-center gap-2">
-                          <Phone className="w-3 h-3" />
-                          {group.patient.pharmacy.phone}
-                        </p>
-                      )}
-                      {group.patient.pharmacy.address && (
-                        <p className="flex items-center gap-2">
-                          <MapPin className="w-3 h-3" />
-                          {group.patient.pharmacy.address}
-                        </p>
-                      )}
-                      {group.patient.pharmacy.fax && (
-                        <p className="text-xs text-blue-600">
-                          Fax: {group.patient.pharmacy.fax}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-
                 {/* Medications */}
                 <div className="space-y-3">
                   {group.medications.map((med) => {
