@@ -1084,8 +1084,12 @@ router.get('/medications/refill-queue', async (req, res) => {
       });
     }
 
-    // Get patient information including pharmacy
-    const { data: patients, error: patientsError } = await supabase
+    // Get patient information including pharmacy (if columns exist)
+    let patients;
+    let patientsError;
+
+    // Try to fetch with pharmacy columns first
+    const pharmacyQuery = await supabase
       .from('unified_patients')
       .select(`
         id,
@@ -1100,6 +1104,31 @@ router.get('/medications/refill-queue', async (req, res) => {
         preferred_pharmacy_fax
       `)
       .in('id', patientIds);
+
+    // If pharmacy columns don't exist (column not found error), fall back to basic query
+    if (pharmacyQuery.error && pharmacyQuery.error.message && pharmacyQuery.error.message.includes('column')) {
+      logger.warn('PatientPortal', 'Pharmacy columns not found, using basic patient query', {
+        error: pharmacyQuery.error.message
+      });
+
+      const basicQuery = await supabase
+        .from('unified_patients')
+        .select(`
+          id,
+          tshla_id,
+          first_name,
+          last_name,
+          phone_primary,
+          phone_display
+        `)
+        .in('id', patientIds);
+
+      patients = basicQuery.data;
+      patientsError = basicQuery.error;
+    } else {
+      patients = pharmacyQuery.data;
+      patientsError = pharmacyQuery.error;
+    }
 
     if (patientsError) {
       throw patientsError;
@@ -1125,10 +1154,10 @@ router.get('/medications/refill-queue', async (req, res) => {
             name: `${patient.first_name || ''} ${patient.last_name || ''}`.trim(),
             phone: patient.phone_display || patient.phone_primary,
             pharmacy: {
-              name: patient.preferred_pharmacy_name,
-              phone: patient.preferred_pharmacy_phone,
-              address: patient.preferred_pharmacy_address,
-              fax: patient.preferred_pharmacy_fax
+              name: patient.preferred_pharmacy_name || null,
+              phone: patient.preferred_pharmacy_phone || null,
+              address: patient.preferred_pharmacy_address || null,
+              fax: patient.preferred_pharmacy_fax || null
             }
           },
           medications: [],
@@ -1898,7 +1927,10 @@ router.get('/patients/:tshlaId', async (req, res) => {
     // Try both formats (TSH123001 and TSH 123-001)
     const formatted = normalizedTshId.replace(/^TSH(\d{3})(\d{3})$/, 'TSH $1-$2');
 
-    const { data, error } = await supabase
+    // Try to fetch with pharmacy columns first
+    let data, error;
+
+    const pharmacyQuery = await supabase
       .from('unified_patients')
       .select(`
         id,
@@ -1915,6 +1947,41 @@ router.get('/patients/:tshlaId', async (req, res) => {
       `)
       .or(`tshla_id.eq.${normalizedTshId},tshla_id.eq.${formatted}`)
       .single();
+
+    // If pharmacy columns don't exist, fall back to basic query
+    if (pharmacyQuery.error && pharmacyQuery.error.message && pharmacyQuery.error.message.includes('column')) {
+      logger.warn('PatientPortal', 'Pharmacy columns not found, using basic patient query', {
+        error: pharmacyQuery.error.message
+      });
+
+      const basicQuery = await supabase
+        .from('unified_patients')
+        .select(`
+          id,
+          tshla_id,
+          first_name,
+          last_name,
+          phone_primary,
+          phone_display,
+          email
+        `)
+        .or(`tshla_id.eq.${normalizedTshId},tshla_id.eq.${formatted}`)
+        .single();
+
+      data = basicQuery.data;
+      error = basicQuery.error;
+
+      // Add null pharmacy fields for consistency
+      if (data) {
+        data.preferred_pharmacy_name = null;
+        data.preferred_pharmacy_phone = null;
+        data.preferred_pharmacy_address = null;
+        data.preferred_pharmacy_fax = null;
+      }
+    } else {
+      data = pharmacyQuery.data;
+      error = pharmacyQuery.error;
+    }
 
     if (error) {
       throw error;
