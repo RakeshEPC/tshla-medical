@@ -1180,41 +1180,46 @@ router.post('/upload-document', upload.any(), async (req, res) => {
       });
 
       try {
-        // 1. Upload audio to Supabase Storage
+        // 1. Try to upload audio to Supabase Storage (optional - continue even if fails)
         const timestamp = Date.now();
         const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
         const storagePath = `${normalizedTshId}/${timestamp}_${sanitizedFileName}`;
 
-        logger.info('PatientPortal', 'Uploading audio to storage', { storagePath });
+        logger.info('PatientPortal', 'Attempting to upload audio to storage', { storagePath });
 
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('patient-audio')
-          .upload(storagePath, audioFile.buffer, {
-            contentType: fileType,
-            cacheControl: '3600',
-            upsert: false
-          });
+        try {
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('patient-audio')
+            .upload(storagePath, audioFile.buffer, {
+              contentType: fileType,
+              cacheControl: '3600',
+              upsert: false
+            });
 
-        if (uploadError) {
-          logger.error('PatientPortal', 'Failed to upload audio to storage', {
-            error: uploadError.message
+          if (uploadError) {
+            logger.warn('PatientPortal', 'Storage upload failed, continuing without storage', {
+              error: uploadError.message
+            });
+          } else {
+            // Get public URL
+            const { data: urlData } = supabase.storage
+              .from('patient-audio')
+              .getPublicUrl(storagePath);
+
+            extractedData.file_url = urlData.publicUrl;
+            logger.info('PatientPortal', 'Audio uploaded successfully', {
+              url: urlData.publicUrl
+            });
+          }
+        } catch (storageError) {
+          logger.warn('PatientPortal', 'Storage upload exception, continuing without storage', {
+            error: storageError.message
           });
-          throw new Error(`Storage upload failed: ${uploadError.message}`);
         }
 
-        // Get public URL
-        const { data: urlData } = supabase.storage
-          .from('patient-audio')
-          .getPublicUrl(storagePath);
-
-        extractedData.file_url = urlData.publicUrl;
         extractedData.file_name = fileName;
         extractedData.file_type = fileType;
         extractedData.file_size_bytes = fileSize;
-
-        logger.info('PatientPortal', 'Audio uploaded successfully', {
-          url: urlData.publicUrl
-        });
 
         // 2. Transcribe audio with Deepgram
         logger.info('PatientPortal', 'Transcribing audio with Deepgram');
