@@ -433,7 +433,9 @@ Rules:
       medications: extractedData.medications.length,
       allergies: extractedData.allergies.length,
       symptoms: extractedData.symptoms.length,
-      hasChiefComplaint: !!extractedData.chief_complaint
+      labs: extractedData.labs.length,
+      hasChiefComplaint: !!extractedData.chief_complaint,
+      rawExtracted: JSON.stringify(extracted).substring(0, 500)
     });
 
     return extractedData;
