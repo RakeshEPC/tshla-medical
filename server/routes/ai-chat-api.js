@@ -13,7 +13,7 @@ const logger = require('../logger');
 
 // ElevenLabs configuration
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || process.env.VITE_ELEVENLABS_API_KEY;
-const ELEVENLABS_VOICE_ID = process.env.VITE_ELEVENLABS_DEFAULT_VOICE_ID || 'cgSgspJ2msm6clMCkdW9'; // Rachel voice
+const ELEVENLABS_VOICE_ID = process.env.VITE_ELEVENLABS_DEFAULT_VOICE_ID || 'f6qhiUOSRVGsfwvD4oSU'; // Custom voice for patient portal
 
 /**
  * POST /api/ai-chat/message
