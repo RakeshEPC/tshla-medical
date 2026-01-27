@@ -15,7 +15,8 @@ import {
   Loader2,
   Calendar,
   User,
-  RefreshCw
+  RefreshCw,
+  Trash2
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
@@ -64,6 +65,7 @@ export default function StaffMedicationRefills() {
   const [error, setError] = useState<string | null>(null);
   const [expandedPatient, setExpandedPatient] = useState<string | null>(null);
   const [processingMed, setProcessingMed] = useState<string | null>(null);
+  const [deletingMed, setDeletingMed] = useState<string | null>(null);
   const [refillForms, setRefillForms] = useState<Record<string, RefillFormData>>({});
 
   useEffect(() => {
@@ -177,6 +179,42 @@ export default function StaffMedicationRefills() {
       alert(`Error: ${err.message || 'Failed to process refill'}`);
     } finally {
       setProcessingMed(null);
+    }
+  };
+
+  const deleteMedication = async (medication: Medication) => {
+    if (!confirm(`Are you sure you want to remove ${medication.medication_name} from the refill queue?`)) {
+      return;
+    }
+
+    try {
+      setDeletingMed(medication.id);
+
+      // Clear the send_to_pharmacy flag
+      const response = await fetch(
+        `${API_BASE_URL}/api/patient-portal/medications/${medication.id}/clear-refill-flag`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to remove medication from queue');
+      }
+
+      // Reload queue
+      await loadRefillQueue();
+
+    } catch (err: any) {
+      console.error('Error deleting medication:', err);
+      alert(`Error: ${err.message || 'Failed to remove medication from queue'}`);
+    } finally {
+      setDeletingMed(null);
     }
   };
 
@@ -327,12 +365,26 @@ export default function StaffMedicationRefills() {
                             )}
                           </div>
 
-                          {isSent && (
-                            <div className="flex items-center gap-2 text-green-700 bg-green-100 px-3 py-1 rounded-full text-sm">
-                              <Check className="w-4 h-4" />
-                              Sent
-                            </div>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {isSent && (
+                              <div className="flex items-center gap-2 text-green-700 bg-green-100 px-3 py-1 rounded-full text-sm">
+                                <Check className="w-4 h-4" />
+                                Sent
+                              </div>
+                            )}
+                            <button
+                              onClick={() => deleteMedication(med)}
+                              disabled={deletingMed === med.id}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                              title="Remove from refill queue"
+                            >
+                              {deletingMed === med.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-4 h-4" />
+                              )}
+                            </button>
+                          </div>
                         </div>
 
                         {/* Refill Info */}

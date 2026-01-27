@@ -1823,6 +1823,56 @@ router.post('/medications/:medicationId/process-refill', async (req, res) => {
 });
 
 /**
+ * POST /api/patient-portal/medications/:medicationId/clear-refill-flag
+ * Remove medication from refill queue by clearing send_to_pharmacy flag
+ */
+router.post('/medications/:medicationId/clear-refill-flag', async (req, res) => {
+  try {
+    const { medicationId } = req.params;
+
+    logger.info('PatientPortal', 'Clearing refill flag for medication', {
+      medicationId
+    });
+
+    // Update medication record to clear flags
+    const { data, error } = await supabase
+      .from('patient_medications')
+      .update({
+        send_to_pharmacy: false,
+        need_refill: false,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', medicationId)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    logger.info('PatientPortal', 'Refill flag cleared', {
+      medicationId
+    });
+
+    res.json({
+      success: true,
+      medication: data,
+      message: 'Medication removed from refill queue'
+    });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Clear refill flag error', {
+      error: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to remove medication from refill queue'
+    });
+  }
+});
+
+/**
  * POST /api/patient-portal/patients/:tshlaId/pharmacy
  * Update patient's preferred pharmacy information
  */
