@@ -1084,7 +1084,7 @@ router.get('/medications/refill-queue', async (req, res) => {
       });
     }
 
-    // Get patient information
+    // Get patient information including pharmacy
     const { data: patients, error: patientsError } = await supabase
       .from('unified_patients')
       .select(`
@@ -1093,7 +1093,11 @@ router.get('/medications/refill-queue', async (req, res) => {
         first_name,
         last_name,
         phone_primary,
-        phone_display
+        phone_display,
+        preferred_pharmacy_name,
+        preferred_pharmacy_phone,
+        preferred_pharmacy_address,
+        preferred_pharmacy_fax
       `)
       .in('id', patientIds);
 
@@ -1119,7 +1123,13 @@ router.get('/medications/refill-queue', async (req, res) => {
             id: patient.id,
             tshla_id: patient.tshla_id,
             name: `${patient.first_name || ''} ${patient.last_name || ''}`.trim(),
-            phone: patient.phone_display || patient.phone_primary
+            phone: patient.phone_display || patient.phone_primary,
+            pharmacy: {
+              name: patient.preferred_pharmacy_name,
+              phone: patient.preferred_pharmacy_phone,
+              address: patient.preferred_pharmacy_address,
+              fax: patient.preferred_pharmacy_fax
+            }
           },
           medications: [],
           totalPending: 0,
@@ -1868,6 +1878,72 @@ router.post('/medications/:medicationId/clear-refill-flag', async (req, res) => 
     res.status(500).json({
       success: false,
       error: 'Failed to remove medication from refill queue'
+    });
+  }
+});
+
+/**
+ * GET /api/patient-portal/patients/:tshlaId
+ * Get patient information including pharmacy details
+ */
+router.get('/patients/:tshlaId', async (req, res) => {
+  try {
+    const { tshlaId } = req.params;
+    const normalizedTshId = tshlaId.replace(/[\s-]/g, '').toUpperCase();
+
+    logger.info('PatientPortal', 'Fetching patient information', {
+      tshlaId: normalizedTshId
+    });
+
+    // Try both formats (TSH123001 and TSH 123-001)
+    const formatted = normalizedTshId.replace(/^TSH(\d{3})(\d{3})$/, 'TSH $1-$2');
+
+    const { data, error } = await supabase
+      .from('unified_patients')
+      .select(`
+        id,
+        tshla_id,
+        first_name,
+        last_name,
+        phone_primary,
+        phone_display,
+        email,
+        preferred_pharmacy_name,
+        preferred_pharmacy_phone,
+        preferred_pharmacy_address,
+        preferred_pharmacy_fax
+      `)
+      .or(`tshla_id.eq.${normalizedTshId},tshla_id.eq.${formatted}`)
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data) {
+      return res.status(404).json({
+        success: false,
+        error: 'Patient not found'
+      });
+    }
+
+    logger.info('PatientPortal', 'Patient information retrieved', {
+      tshlaId: normalizedTshId
+    });
+
+    res.json({
+      success: true,
+      patient: data
+    });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Get patient error', {
+      error: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve patient information'
     });
   }
 });

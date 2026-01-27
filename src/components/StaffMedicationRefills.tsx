@@ -16,7 +16,8 @@ import {
   Calendar,
   User,
   RefreshCw,
-  Trash2
+  Trash2,
+  MapPin
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
@@ -46,6 +47,12 @@ interface PatientGroup {
     tshla_id: string;
     name: string;
     phone: string;
+    pharmacy: {
+      name: string | null;
+      phone: string | null;
+      address: string | null;
+      fax: string | null;
+    };
   };
   medications: Medication[];
   totalPending: number;
@@ -149,7 +156,7 @@ export default function StaffMedicationRefills() {
           body: JSON.stringify({
             staffId,
             staffName,
-            pharmacyName: 'Pharmacy', // Pharmacy info not available in current schema
+            pharmacyName: patientGroup.patient.pharmacy.name || 'Pharmacy not specified',
             refillDurationDays: formData.refillDurationDays,
             refillQuantity: formData.refillQuantity,
             confirmationNumber: formData.confirmationNumber,
@@ -310,6 +317,12 @@ export default function StaffMedicationRefills() {
                       <Phone className="w-3 h-3" />
                       {group.patient.phone}
                     </span>
+                    {group.patient.pharmacy.name && (
+                      <span className="flex items-center gap-1 text-orange-600">
+                        <MapPin className="w-3 h-3" />
+                        {group.patient.pharmacy.name}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

@@ -1,131 +1,69 @@
 /**
- * Test medication import
+ * Test medication import for MIKLYN
  */
 
 const { createClient } = require('@supabase/supabase-js');
+const supabase = createClient(
+  process.env.VITE_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://minvvjdflezibmgkplqb.supabase.co';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const tshlaId = 'TSH123001';
+async function testMedImport() {
+  console.log('🧪 Testing medication import for MIKLYN\n');
 
-if (!supabaseKey) {
-  console.error('❌ SUPABASE_SERVICE_ROLE_KEY environment variable is required');
-  process.exit(1);
-}
+  const tshlaId = 'TSH692273';
+  const normalizedId = tshlaId.replace(/[\s-]/g, '').toUpperCase();
+  const formattedId = normalizedId.replace(/^TSH(\d{3})(\d{3})$/, 'TSH $1-$2');
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+  console.log('1️⃣  PATIENT LOOKUP');
+  console.log('   Searching for:', tshlaId, 'OR', normalizedId, 'OR', formattedId);
 
-async function testImport() {
-  try {
-    console.log('🔍 Testing medication import for:', tshlaId, '\n');
+  const { data: patient, error: patientError } = await supabase
+    .from('unified_patients')
+    .select('id, tshla_id, phone_primary, first_name, last_name')
+    .or(`tshla_id.eq.${tshlaId},tshla_id.eq.${normalizedId},tshla_id.eq.${formattedId}`)
+    .maybeSingle();
 
-    // 1. Get patient ID
-    console.log('Step 1: Getting patient ID...');
-    const { data: patient, error: patientError } = await supabase
-      .from('unified_patients')
-      .select('id')
-      .eq('tshla_id', tshlaId)
-      .single();
-
-    if (patientError || !patient) {
-      console.error('❌ Patient not found:', patientError?.message);
-      return;
-    }
-    console.log('✅ Patient ID:', patient.id);
-
-    // 2. Get uploads
-    console.log('\nStep 2: Getting uploaded documents...');
-    const { data: uploads, error: uploadsError } = await supabase
-      .from('patient_document_uploads')
-      .select('id, extracted_data, uploaded_at')
-      .eq('tshla_id', tshlaId)
-      .eq('ai_processing_status', 'completed');
-
-    if (uploadsError) {
-      console.error('❌ Upload error:', uploadsError.message);
-      return;
-    }
-    console.log('✅ Found', uploads?.length || 0, 'uploads');
-
-    // 3. Extract medications
-    console.log('\nStep 3: Extracting medications...');
-    const medicationsToImport = [];
-    const seenMeds = new Set();
-
-    for (const upload of uploads || []) {
-      const meds = upload.extracted_data?.medications || [];
-      console.log('  - Upload', upload.id, 'has', meds.length, 'medications');
-
-      for (const med of meds) {
-        const medName = typeof med === 'string' ? med : med.name;
-        const medKey = medName?.toLowerCase();
-
-        if (medKey && !seenMeds.has(medKey) && medName !== 'AthenaHealth') {
-          seenMeds.add(medKey);
-
-          medicationsToImport.push({
-            patient_id: patient.id,
-            tshla_id: tshlaId,
-            medication_name: medName,
-            dosage: typeof med === 'object' ? med.dosage || '' : '',
-            frequency: typeof med === 'object' ? med.frequency || '' : '',
-            route: typeof med === 'object' ? med.route || '' : '',
-            sig: typeof med === 'object' ? med.sig || '' : '',
-            status: typeof med === 'object' && med.status ? med.status : 'active',
-            source: 'ccd_upload',
-            source_upload_id: upload.id,
-            need_refill: false,
-            send_to_pharmacy: false
-          });
-        }
-      }
-    }
-
-    console.log('✅ Extracted', medicationsToImport.length, 'unique medications');
-
-    if (medicationsToImport.length > 0) {
-      console.log('\nSample medication:');
-      console.log(JSON.stringify(medicationsToImport[0], null, 2));
-    }
-
-    // 4. Try inserting ONE medication
-    console.log('\nStep 4: Testing insert of first medication...');
-    if (medicationsToImport.length > 0) {
-      const testMed = medicationsToImport[0];
-
-      // Check if exists
-      const { data: existing } = await supabase
-        .from('patient_medications')
-        .select('id')
-        .eq('tshla_id', tshlaId)
-        .eq('medication_name', testMed.medication_name)
-        .maybeSingle();
-
-      if (existing) {
-        console.log('⚠️  Medication already exists:', testMed.medication_name);
-      } else {
-        const { data: inserted, error: insertError } = await supabase
-          .from('patient_medications')
-          .insert(testMed)
-          .select();
-
-        if (insertError) {
-          console.error('❌ Insert error:', insertError);
-          console.error('   Code:', insertError.code);
-          console.error('   Message:', insertError.message);
-          console.error('   Details:', insertError.details);
-          console.error('   Hint:', insertError.hint);
-        } else {
-          console.log('✅ Successfully inserted:', testMed.medication_name);
-          console.log('   ID:', inserted[0]?.id);
-        }
-      }
-    }
-
-  } catch (error) {
-    console.error('❌ Test error:', error.message);
-    console.error('Stack:', error.stack);
+  if (patientError || !patient) {
+    console.log('   ❌ Patient not found');
+    return;
   }
+
+  console.log('   ✅ Found:', patient.first_name, patient.last_name);
+  console.log('   Patient ID:', patient.id);
+  console.log('   Phone:', patient.phone_primary);
+  console.log('');
+
+  console.log('2️⃣  H&P CHART LOOKUP');
+  const { data: hpChart } = await supabase
+    .from('patient_comprehensive_chart')
+    .select('medications, patient_phone')
+    .eq('patient_phone', patient.phone_primary)
+    .maybeSingle();
+
+  if (!hpChart) {
+    console.log('   ❌ No chart for phone:', patient.phone_primary);
+    const { data: hpChart2 } = await supabase
+      .from('patient_comprehensive_chart')
+      .select('medications, patient_phone')
+      .eq('unified_patient_id', patient.id)
+      .maybeSingle();
+
+    if (hpChart2) {
+      console.log('   ✅ Found by unified_patient_id');
+      console.log('   Medications:', hpChart2.medications?.length || 0);
+      hpChart2.medications?.forEach((m, i) => {
+        console.log(`     ${i+1}. ${m.name}`);
+      });
+    }
+    return;
+  }
+
+  console.log('   ✅ Chart found');
+  console.log('   Medications:', hpChart.medications?.length || 0);
+  hpChart.medications?.forEach((m, i) => {
+    console.log(`     ${i+1}. ${m.name}`);
+  });
 }
 
-testImport();
+testMedImport().then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); });
