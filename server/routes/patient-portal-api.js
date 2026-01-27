@@ -12,6 +12,8 @@ const { createClient } = require('@supabase/supabase-js');
 const { v4: uuidv4 } = require('uuid');
 const logger = require('../logger');
 const pdf = require('pdf-parse');
+const { createClient: createDeepgramClient } = require('@deepgram/sdk');
+const OpenAI = require('openai');
 
 // Configure multer for handling file uploads
 const upload = multer({
@@ -26,6 +28,14 @@ const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
+
+// Initialize Deepgram client for transcription
+const deepgram = createDeepgramClient(process.env.DEEPGRAM_API_KEY);
+
+// Initialize OpenAI client for medical extraction
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
 
 // Rate limiting map (in-memory, for MVP - move to Redis for production)
 const loginAttempts = new Map();
@@ -323,6 +333,108 @@ function parseAthenaCollectorPDF(text) {
   });
 
   return extractedData;
+}
+
+/**
+ * Extract medical information from voice transcript using OpenAI
+ * Analyzes patient voice recordings for symptoms, medications, etc.
+ */
+async function extractMedicalInfoFromTranscript(transcript) {
+  logger.info('PatientPortal', 'Extracting medical info from transcript');
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4',
+      temperature: 0.3, // Lower temperature for more consistent extraction
+      messages: [
+        {
+          role: 'system',
+          content: `You are a medical information extraction assistant. Extract structured medical information from patient voice recordings.
+
+Extract and return ONLY valid JSON in this exact format:
+{
+  "chief_complaint": "Brief description of main concern",
+  "symptoms": [{"description": "symptom name", "severity": "mild|moderate|severe", "duration": "timeframe"}],
+  "medications": [{"name": "medication name", "dosage": "amount", "frequency": "how often", "route": "oral|topical|etc"}],
+  "allergies": [{"allergen": "substance", "reaction": "reaction type"}],
+  "vitals": {"bp": "120/80", "weight": "180 lbs", "temperature": "98.6 F"},
+  "diagnoses": [{"name": "condition name", "icd_code": "code if mentioned"}],
+  "family_history": ["conditions in family"],
+  "notes": "Any other relevant information"
+}
+
+Rules:
+- Only extract information explicitly stated by the patient
+- Leave arrays empty [] if no relevant information
+- Leave vitals empty {} if not mentioned
+- Use "unknown" for unclear information
+- Standardize medication names (e.g., "Tylenol" → "acetaminophen")
+- Infer severity from patient's description if not explicitly stated`
+        },
+        {
+          role: 'user',
+          content: `Extract medical information from this patient recording:\n\n"${transcript}"`
+        }
+      ]
+    });
+
+    const responseText = completion.choices[0].message.content.trim();
+
+    // Parse JSON response
+    let extracted;
+    try {
+      extracted = JSON.parse(responseText);
+    } catch (parseError) {
+      // Try to extract JSON from markdown code blocks
+      const jsonMatch = responseText.match(/```json\n([\s\S]*?)\n```/);
+      if (jsonMatch) {
+        extracted = JSON.parse(jsonMatch[1]);
+      } else {
+        throw new Error('Failed to parse AI response as JSON');
+      }
+    }
+
+    // Convert to our database format
+    const extractedData = {
+      diagnoses: (extracted.diagnoses || []).map(dx => ({
+        icd_code: dx.icd_code || '',
+        name: dx.name,
+        status: 'active'
+      })),
+      medications: (extracted.medications || []).map(med => ({
+        name: med.name,
+        dosage: med.dosage || '',
+        frequency: med.frequency || '',
+        route: med.route || '',
+        sig: `${med.name} ${med.dosage} ${med.frequency}`.trim(),
+        status: 'active'
+      })),
+      allergies: extracted.allergies || [],
+      symptoms: extracted.symptoms || [],
+      vitals: extracted.vitals || {},
+      chief_complaint: extracted.chief_complaint || '',
+      family_history: extracted.family_history || [],
+      notes: extracted.notes || '',
+      labs: [], // Voice recordings don't typically include lab values
+      procedures: []
+    };
+
+    logger.info('PatientPortal', 'Extracted medical info from transcript', {
+      diagnoses: extractedData.diagnoses.length,
+      medications: extractedData.medications.length,
+      allergies: extractedData.allergies.length,
+      symptoms: extractedData.symptoms.length,
+      hasChiefComplaint: !!extractedData.chief_complaint
+    });
+
+    return extractedData;
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Failed to extract medical info from transcript', {
+      error: error.message
+    });
+    throw error;
+  }
 }
 
 /**
@@ -1044,17 +1156,129 @@ router.post('/upload-document', upload.any(), async (req, res) => {
       }
 
     } else if (uploadMethod === 'voice') {
-      // TODO: Process audio recording
-      // - Transcribe with Deepgram/Azure Speech
-      // - Extract medical information with AI
+      // Process voice recording
       logger.info('PatientPortal', 'Processing voice upload', {
         tshlaId: normalizedTshId
       });
 
-      return res.status(501).json({
-        success: false,
-        error: 'Voice upload processing coming soon. Please use text input for now.'
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'No audio file uploaded'
+        });
+      }
+
+      const audioFile = req.files[0];
+      const fileName = audioFile.originalname || 'recording.webm';
+      const fileType = audioFile.mimetype || 'audio/webm';
+      const fileSize = audioFile.size;
+
+      logger.info('PatientPortal', 'Processing audio file', {
+        fileName,
+        fileType,
+        fileSize
       });
+
+      try {
+        // 1. Upload audio to Supabase Storage
+        const timestamp = Date.now();
+        const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const storagePath = `${normalizedTshId}/${timestamp}_${sanitizedFileName}`;
+
+        logger.info('PatientPortal', 'Uploading audio to storage', { storagePath });
+
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('patient-audio')
+          .upload(storagePath, audioFile.buffer, {
+            contentType: fileType,
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (uploadError) {
+          logger.error('PatientPortal', 'Failed to upload audio to storage', {
+            error: uploadError.message
+          });
+          throw new Error(`Storage upload failed: ${uploadError.message}`);
+        }
+
+        // Get public URL
+        const { data: urlData } = supabase.storage
+          .from('patient-audio')
+          .getPublicUrl(storagePath);
+
+        extractedData.file_url = urlData.publicUrl;
+        extractedData.file_name = fileName;
+        extractedData.file_type = fileType;
+        extractedData.file_size_bytes = fileSize;
+
+        logger.info('PatientPortal', 'Audio uploaded successfully', {
+          url: urlData.publicUrl
+        });
+
+        // 2. Transcribe audio with Deepgram
+        logger.info('PatientPortal', 'Transcribing audio with Deepgram');
+
+        const { result, error: transcribeError } = await deepgram.listen.prerecorded.transcribeFile(
+          audioFile.buffer,
+          {
+            model: 'nova-2-medical',
+            smart_format: true,
+            diarize: false,
+            punctuate: true,
+            paragraphs: true
+          }
+        );
+
+        if (transcribeError) {
+          throw new Error(`Transcription failed: ${transcribeError.message}`);
+        }
+
+        const transcript = result.results.channels[0].alternatives[0].transcript;
+
+        if (!transcript || transcript.length === 0) {
+          throw new Error('No speech detected in audio');
+        }
+
+        extractedData.raw_content = transcript;
+
+        logger.info('PatientPortal', 'Audio transcribed successfully', {
+          transcriptLength: transcript.length,
+          confidence: result.results.channels[0].alternatives[0].confidence
+        });
+
+        // 3. Extract medical information with OpenAI
+        logger.info('PatientPortal', 'Extracting medical information from transcript');
+
+        const medicalInfo = await extractMedicalInfoFromTranscript(transcript);
+
+        // Merge extracted medical information
+        extractedData.diagnoses = medicalInfo.diagnoses;
+        extractedData.medications = medicalInfo.medications;
+        extractedData.allergies = medicalInfo.allergies;
+        extractedData.symptoms = medicalInfo.symptoms;
+        extractedData.vitals = medicalInfo.vitals;
+        extractedData.chief_complaint = medicalInfo.chief_complaint;
+        extractedData.family_history = medicalInfo.family_history;
+        extractedData.notes = medicalInfo.notes;
+
+        logger.info('PatientPortal', 'Voice upload processed successfully', {
+          transcriptLength: transcript.length,
+          diagnoses: extractedData.diagnoses.length,
+          medications: extractedData.medications.length,
+          symptoms: extractedData.symptoms?.length || 0
+        });
+
+      } catch (voiceError) {
+        logger.error('PatientPortal', 'Voice processing error', {
+          error: voiceError.message,
+          stack: voiceError.stack
+        });
+
+        // Store error but don't completely fail
+        extractedData.raw_content = `[Voice processing failed: ${voiceError.message}]`;
+        extractedData.processing_error = voiceError.message;
+      }
     }
 
     // Store upload record
