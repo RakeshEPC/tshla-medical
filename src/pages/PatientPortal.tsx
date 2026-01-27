@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getPatientData } from '../services/patientData.service';
 
 const ELEVENLABS_VOICES = [
+  { id: 'f6qhiUOSRVGsfwvD4oSU', name: 'Rakesh Patel', description: 'Custom voice' },
   { id: '21m00Tcm4TlvDq8ikWAM', name: 'Adam', description: 'Professional male' },
   { id: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi', description: 'Friendly female' },
   { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Bella', description: 'Warm female' },
@@ -38,7 +39,7 @@ export default function PatientPortal() {
   const [gad7Answers, setGad7Answers] = useState<number[]>(new Array(7).fill(0));
   const [avatarMessage, setAvatarMessage] = useState('');
   const [doctorMessage, setDoctorMessage] = useState('');
-  const [selectedVoice, setSelectedVoice] = useState('21m00Tcm4TlvDq8ikWAM'); // Adam voice as default
+  const [selectedVoice, setSelectedVoice] = useState('f6qhiUOSRVGsfwvD4oSU'); // Rakesh Patel custom voice as default
 
   const phq9Questions = [
     'Little interest or pleasure in doing things',

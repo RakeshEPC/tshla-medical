@@ -228,8 +228,8 @@ Respond naturally and conversationally:`;
   const speakResponse = async (text: string) => {
     setIsSpeaking(true);
     try {
-      // Use Rachel voice for consistency
-      await elevenLabsService.speak(text, '21m00Tcm4TlvDq8ikWAM');
+      // Use Rakesh Patel custom voice for consistency
+      await elevenLabsService.speak(text, 'f6qhiUOSRVGsfwvD4oSU');
     } catch (error) {
       logError('PatientChat', 'Error message', {});
     } finally {

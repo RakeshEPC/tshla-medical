@@ -7,6 +7,7 @@
 import { logInfo, logError, logDebug } from './logger.service';
 
 export const ELEVENLABS_VOICES = [
+  { id: 'f6qhiUOSRVGsfwvD4oSU', name: 'Rakesh Patel', description: 'Custom voice' },
   { id: '21m00Tcm4TlvDq8ikWAM', name: 'Adam', description: 'Professional male' },
   { id: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi', description: 'Friendly female' },
   { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Bella', description: 'Warm professional female' },

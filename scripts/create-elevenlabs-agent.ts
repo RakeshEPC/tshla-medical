@@ -115,7 +115,7 @@ async function createAgent() {
         language: 'en',
       },
       tts: {
-        voice_id: '21m00Tcm4TlvDq8ikWAM', // Rachel voice - professional female
+        voice_id: 'f6qhiUOSRVGsfwvD4oSU', // Rakesh Patel custom voice
         model_id: 'eleven_turbo_v2_5',
         optimize_streaming_latency: 3,
         stability: 0.5,
@@ -183,7 +183,7 @@ async function createAgent() {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log(`   Agent ID: ${data.agent_id || data.id}`);
     console.log(`   Name: ${data.name || 'TSHLA Pre-Visit Interview Agent'}`);
-    console.log(`   Voice: Rachel (Professional Female)`);
+    console.log(`   Voice: Rakesh Patel (Custom Voice)`);
     console.log(`   Model: GPT-4o`);
     console.log(`   Max Duration: 7 minutes`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
