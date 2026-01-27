@@ -36,7 +36,7 @@ const activeSessions = new Map();
 
 /**
  * Parse athenaCollector PDF files for medical data
- * Extracts diagnoses, medications, procedures, and billing codes
+ * Handles multiple formats: clinical visit notes, lab reports, etc.
  */
 function parseAthenaCollectorPDF(text) {
   logger.info('PatientPortal', 'Parsing athenaCollector PDF');
@@ -55,54 +55,167 @@ function parseAthenaCollectorPDF(text) {
   const lines = text.split('\n');
   let currentSection = null;
 
-  // Extract date from document (e.g., "Date: 01/27/2026" or "1/27/2026")
+  // Extract date from document (multiple formats)
   let documentDate = null;
-  const dateMatch = text.match(/(?:Date:|DOS:)?\s*(\d{1,2}\/\d{1,2}\/\d{4})/);
+  const dateMatch = text.match(/(?:Date:|DOS:|Collected|Observation date:)\s*(\d{1,2}\/\d{1,2}\/\d{4})/i);
   if (dateMatch) {
     const parts = dateMatch[1].split('/');
     documentDate = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
   }
 
+  // **NEW: Extract labs from table format**
+  // Common in lab reports with format: "TEST_NAME  VALUE  UNIT  FLAG  REFERENCE"
+  const labTablePatterns = [
+    // Pattern 1: Test name on left, values following (athenaCollector lab reports)
+    // Example: "A1c WB Gen.2   1.34   g/dL"
+    /^([A-Z][A-Za-z\d\s\/_\-\.]+?)\s+([\d\.]+)\s+(mg\/d[Ll]|g\/d[Ll]|mmol\/L|U\/L|%|mEq\/L|mL\/min\/[\d\.]+m2)/,
+
+    // Pattern 2: Test name with value and unit (more compact)
+    // Example: "Glucose   166   mg/dl   H   70-115"
+    /^([A-Z][A-Za-z\s]+?)\s+([\d\.]+)\s+(mg\/d[Ll]|g\/d[Ll]|mmol\/L|U\/L|%|mEq\/L)\s+([HL])?\s*([\d\-\.]+)?/,
+
+    // Pattern 3: Common lab tests with specific patterns
+    /^(A1[Cc]|Glucose|Cholesterol|Triglycerides|HDL|LDL|Creatinine|eGFR|TSH|PSA|Testosterone|Hemoglobin|Sodium|Potassium|Chloride|BUN|Calcium|Albumin|Protein|Bilirubin|ALP|ALT|AST|BICARBONATE)\s+[A-Za-z\s]*?\s*([\d\.]+)\s*([A-Za-z\/\d%]+)/i
+  ];
+
+  // Common lab test names for multi-line format
+  const knownLabTests = [
+    'A1c', 'A/G RATIO', 'ALBUMIN', 'ALP', 'Alanine Aminotrans', 'Aspartate Aminotrans',
+    'BICARBONATE', 'Bilirubin Total', 'Bun/Creatinine Ratio', 'CREA', 'Calcium',
+    'Calculated LDL', 'Chloride', 'Cholesterol', 'Glucose', 'HDL-C', 'Hb', 'Potassium',
+    'Sodium', 'Total Protein', 'Triglycerides', 'Urea/Bun', 'AGAP', 'Globulin',
+    'Creatinine', 'eGFR', 'CO2', 'TSH', 'PSA', 'Testosterone', 'Hemoglobin',
+    'WBC', 'RBC', 'HGB', 'HCT', 'MCV', 'MCH', 'MCHC', 'RDW', 'PLT', 'MPV'
+  ];
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
 
+    // Skip empty lines and headers
+    if (!line || line.length < 3) continue;
+
     // Identify sections
-    if (line.match(/diagnosis|icd-?10/i)) {
+    if (line.match(/diagnosis|icd-?10|problem list/i)) {
       currentSection = 'diagnoses';
-    } else if (line.match(/medication|prescri|drug/i)) {
+    } else if (line.match(/medication|prescri|drug|current med/i)) {
       currentSection = 'medications';
-    } else if (line.match(/procedure|cpt/i)) {
+    } else if (line.match(/procedure|cpt|billing/i)) {
       currentSection = 'procedures';
     } else if (line.match(/allerg/i)) {
       currentSection = 'allergies';
+    } else if (line.match(/lab|result|test|chemistry|hematology/i)) {
+      currentSection = 'labs';
     }
+
+    // **NEW: Check for multi-line lab format (test name on one line, value on another)**
+    // Example: Line i: "A1c", Line i+4: "8.77", Line i+5: "%"
+    const isKnownTest = knownLabTests.some(test =>
+      line.toLowerCase() === test.toLowerCase() ||
+      line.toLowerCase().includes(test.toLowerCase())
+    );
+
+    if (isKnownTest && line.length < 50) {
+      // Look ahead for numeric value (within next 10 lines)
+      for (let j = i + 1; j < Math.min(i + 10, lines.length); j++) {
+        const nextLine = lines[j].trim();
+
+        // Check if it's a numeric value
+        if (nextLine.match(/^[\d\.]+$/)) {
+          const value = nextLine;
+
+          // Look for unit in next few lines
+          let unit = '';
+          for (let k = j + 1; k < Math.min(j + 3, lines.length); k++) {
+            const unitLine = lines[k].trim();
+            if (unitLine.match(/^(mg\/d[Ll]|g\/d[Ll]|mmol\/L|U\/L|%|mEq\/L|10\^3\/mm|10\^6\/mm|m\^3|mL\/min\/[\d\.]+m2)$/)) {
+              unit = unitLine;
+              break;
+            }
+          }
+
+          // Check if it's a duplicate
+          const isDuplicate = extractedData.labs.some(lab =>
+            lab.name.toLowerCase() === line.toLowerCase()
+          );
+
+          if (!isDuplicate) {
+            extractedData.labs.push({
+              name: line,
+              value: value,
+              unit: unit,
+              date: documentDate || new Date().toISOString().split('T')[0]
+            });
+          }
+          break;
+        }
+      }
+      continue;
+    }
+
+    // **Try lab table patterns (single-line format)**
+    let labExtracted = false;
+    for (const pattern of labTablePatterns) {
+      const labMatch = pattern.exec(line);
+      if (labMatch) {
+        const testName = labMatch[1].trim();
+        const value = labMatch[2];
+        const unit = labMatch[3] || '';
+
+        // Validate it's a real lab test
+        if (testName.length > 2 && testName.length < 60 &&
+            !testName.match(/patient|doctor|provider|page|printed|report|specimen|collected|received|reported/i)) {
+
+          // Check if it's a duplicate
+          const isDuplicate = extractedData.labs.some(lab =>
+            lab.name.toLowerCase() === testName.toLowerCase()
+          );
+
+          if (!isDuplicate) {
+            extractedData.labs.push({
+              name: testName,
+              value: value,
+              unit: unit,
+              date: documentDate || new Date().toISOString().split('T')[0]
+            });
+            labExtracted = true;
+          }
+        }
+        break;
+      }
+    }
+
+    if (labExtracted) continue;
 
     // Extract ICD-10 codes and diagnoses
     // Format: "E11.9 Type 2 diabetes mellitus without complications"
     const icdMatch = line.match(/([A-Z]\d{2}(?:\.\d{1,3})?)\s+(.+)/);
-    if (icdMatch && icdMatch[2].length > 5) {
+    if (icdMatch && icdMatch[2].length > 5 && !icdMatch[2].match(/^\d+$/)) {
       extractedData.diagnoses.push({
         icd_code: icdMatch[1],
         name: icdMatch[2].trim(),
         status: 'active'
       });
+      continue;
     }
 
-    // Extract CPT codes and procedures
-    // Format: "99213 Office visit, established patient"
+    // Extract CPT codes and procedures (skip if it's just numbers)
     const cptMatch = line.match(/(\d{5})\s+(.+)/);
-    if (cptMatch && cptMatch[2].length > 5 && !line.match(/\d{5}\s+\d/)) {
-      extractedData.procedures.push({
-        cpt_code: cptMatch[1],
-        name: cptMatch[2].trim(),
-        date: documentDate || new Date().toISOString().split('T')[0]
-      });
+    if (cptMatch && cptMatch[2].length > 5 && !line.match(/\d{5}\s+\d{5}/)) {
+      const procName = cptMatch[2].trim();
+      if (!procName.match(/^\d+$/) && procName.length < 100) {
+        extractedData.procedures.push({
+          cpt_code: cptMatch[1],
+          name: procName,
+          date: documentDate || new Date().toISOString().split('T')[0]
+        });
+      }
+      continue;
     }
 
     // Extract medications
     // Format: "atorvastatin 40 mg tablet" or "Mounjaro 2.5 mg/0.5 mL"
-    const medMatch = line.match(/^([A-Za-z][A-Za-z\s]+?)\s+([\d\.\/]+\s*mg(?:\/[\d\.]+\s*m[Ll])?)\s*(tablet|capsule|injection|subcutaneous|oral)?/i);
-    if (medMatch) {
+    const medMatch = line.match(/^([A-Z][A-Za-z\s]+?)\s+([\d\.\/]+\s*mg(?:\/[\d\.]+\s*m[Ll])?)\s*(tablet|capsule|injection|subcutaneous|oral)?/i);
+    if (medMatch && !line.match(/patient|doctor|specimen/i)) {
       const medObj = {
         name: medMatch[1].trim(),
         dosage: medMatch[2].trim(),
@@ -112,13 +225,14 @@ function parseAthenaCollectorPDF(text) {
         status: 'active'
       };
 
-      // Look for frequency in the same line or next line
-      const freqMatch = line.match(/\b(once daily|twice daily|three times daily|bid|tid|qid|q\d+h)\b/i);
+      // Look for frequency
+      const freqMatch = line.match(/\b(once daily|twice daily|three times daily|once weekly|bid|tid|qid|q\d+h)\b/i);
       if (freqMatch) {
         medObj.frequency = freqMatch[1];
       }
 
       extractedData.medications.push(medObj);
+      continue;
     }
 
     // Extract allergies
@@ -130,52 +244,62 @@ function parseAthenaCollectorPDF(text) {
           reaction: allergyMatch[2] ? allergyMatch[2].trim() : ''
         });
       }
+      continue;
     }
 
     // Extract vitals
-    // Format: "BP: 120/80" or "Weight: 180 lbs" or "A1C: 6.9%"
     const bpMatch = line.match(/\b(?:BP|Blood Pressure):\s*(\d{2,3})\/(\d{2,3})/i);
     if (bpMatch) {
       extractedData.vitals.systolic_bp = { value: bpMatch[1], unit: 'mmHg' };
       extractedData.vitals.diastolic_bp = { value: bpMatch[2], unit: 'mmHg' };
+      continue;
     }
 
     const weightMatch = line.match(/\b(?:Weight|Wt):\s*([\d\.]+)\s*(lbs?|kg)/i);
     if (weightMatch) {
       extractedData.vitals.weight = { value: weightMatch[1], unit: weightMatch[2] };
+      continue;
     }
 
     const heightMatch = line.match(/\b(?:Height|Ht):\s*([\d'"\s]+)/i);
     if (heightMatch) {
       extractedData.vitals.height = { value: heightMatch[1].trim(), unit: '' };
+      continue;
     }
 
     const tempMatch = line.match(/\b(?:Temp|Temperature):\s*([\d\.]+)\s*°?F?/i);
     if (tempMatch) {
       extractedData.vitals.temperature = { value: tempMatch[1], unit: '°F' };
+      continue;
     }
 
     const pulseMatch = line.match(/\b(?:Pulse|HR|Heart Rate):\s*(\d+)/i);
     if (pulseMatch) {
       extractedData.vitals.pulse = { value: pulseMatch[1], unit: 'bpm' };
+      continue;
     }
 
-    // Extract lab orders or results
+    // Fallback: Simple colon format for labs
     // Format: "A1C: 6.9%" or "Glucose: 209 mg/dL"
-    const labMatch = line.match(/^([A-Za-z][A-Za-z\d\s]+?):\s*([\d\.]+)\s*([%A-Za-z\/]+)?/);
-    if (labMatch && !line.match(/date|time|patient|doctor|provider|dob|weight|temperature|pulse|bp|blood/i)) {
-      const testName = labMatch[1].trim();
-      // Only include if it looks like a lab test (has unit or is a known lab)
-      const hasUnit = labMatch[3] && labMatch[3].length > 0;
-      const isKnownLab = testName.match(/a1c|glucose|cholesterol|triglyceride|hdl|ldl|creatinine|egfr|tsh|psa|testosterone|hemoglobin|sodium|potassium/i);
+    const simpleLabMatch = line.match(/^([A-Za-z][A-Za-z\d\s]+?):\s*([\d\.]+)\s*([%A-Za-z\/]+)?$/);
+    if (simpleLabMatch && !line.match(/date|time|patient|doctor|provider|dob|page|specimen|collected|received/i)) {
+      const testName = simpleLabMatch[1].trim();
+      const hasUnit = simpleLabMatch[3] && simpleLabMatch[3].length > 0;
+      const isKnownLab = testName.match(/a1c|glucose|cholesterol|triglyceride|hdl|ldl|creatinine|egfr|tsh|psa|testosterone|hemoglobin|sodium|potassium|calcium|albumin|protein/i);
 
       if (testName.length > 2 && testName.length < 50 && (hasUnit || isKnownLab)) {
-        extractedData.labs.push({
-          name: testName,
-          value: labMatch[2],
-          unit: labMatch[3] ? labMatch[3].trim() : '',
-          date: documentDate || new Date().toISOString().split('T')[0]
-        });
+        const isDuplicate = extractedData.labs.some(lab =>
+          lab.name.toLowerCase() === testName.toLowerCase()
+        );
+
+        if (!isDuplicate) {
+          extractedData.labs.push({
+            name: testName,
+            value: simpleLabMatch[2],
+            unit: simpleLabMatch[3] ? simpleLabMatch[3].trim() : '',
+            date: documentDate || new Date().toISOString().split('T')[0]
+          });
+        }
       }
     }
   }
