@@ -359,8 +359,9 @@ Extract and return ONLY valid JSON in this exact format:
   "allergies": [{"allergen": "substance", "reaction": "reaction type"}],
   "vitals": {"bp": "120/80", "weight": "180 lbs", "temperature": "98.6 F"},
   "diagnoses": [{"name": "condition name", "icd_code": "code if mentioned"}],
+  "labs": [{"name": "lab test name", "value": "numeric value", "unit": "unit of measurement", "date": "YYYY-MM-DD if mentioned"}],
   "family_history": ["conditions in family"],
-  "notes": "Any other relevant information"
+  "notes": "Any other relevant information NOT covered by other fields"
 }
 
 Rules:
@@ -369,7 +370,10 @@ Rules:
 - Leave vitals empty {} if not mentioned
 - Use "unknown" for unclear information
 - Standardize medication names (e.g., "Tylenol" → "acetaminophen")
-- Infer severity from patient's description if not explicitly stated`
+- Infer severity from patient's description if not explicitly stated
+- IMPORTANT: Extract lab values into the labs array, NOT into notes
+- Common lab tests: A1c, glucose, cholesterol, HDL, LDL, triglycerides, TSH, T3, T4, cortisol, ACTH, vitamin D, B12, hemoglobin, WBC, RBC, platelets, creatinine, BUN, ALT, AST, etc.
+- Extract numeric values and units separately (e.g., "cortisol was 1.4" → {"name": "cortisol", "value": "1.4", "unit": ""})`
         },
         {
           role: 'user',
@@ -415,7 +419,12 @@ Rules:
       chief_complaint: extracted.chief_complaint || '',
       family_history: extracted.family_history || [],
       notes: extracted.notes || '',
-      labs: [], // Voice recordings don't typically include lab values
+      labs: (extracted.labs || []).map(lab => ({
+        name: lab.name,
+        value: lab.value,
+        unit: lab.unit || '',
+        date: lab.date || new Date().toISOString().split('T')[0]
+      })),
       procedures: []
     };
 
