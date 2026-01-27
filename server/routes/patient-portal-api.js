@@ -1311,7 +1311,11 @@ router.post('/upload-document', upload.any(), async (req, res) => {
       uploadData.ai_processing_error = extractedData.processing_error;
     } else if (extractedData.diagnoses?.length > 0 ||
                extractedData.medications?.length > 0 ||
-               extractedData.labs?.length > 0) {
+               extractedData.labs?.length > 0 ||
+               extractedData.procedures?.length > 0 ||
+               extractedData.allergies?.length > 0 ||
+               extractedData.symptoms?.length > 0 ||
+               extractedData.raw_content?.length > 0) {
       uploadData.ai_processing_status = 'completed';
       uploadData.processed_at = new Date().toISOString();
     } else {
