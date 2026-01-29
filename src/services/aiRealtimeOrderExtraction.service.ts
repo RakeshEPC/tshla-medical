@@ -188,38 +188,55 @@ class AIRealtimeOrderExtractionService {
    * Build extraction prompt optimized for real-time order detection
    */
   private buildExtractionPrompt(transcript: string): string {
-    return `Extract ALL medication orders and lab orders from this clinical dictation.
+    return `Extract ONLY valid medication orders and lab orders from this clinical dictation. Ignore conversational fragments and small talk.
 
 DICTATION:
 "${transcript}"
 
 EXTRACTION RULES:
 
-MEDICATIONS:
-- Extract drug name, dosage, frequency, route, pharmacy, quantity, refills
+MEDICATIONS - ONLY extract if ALL of these are present:
+- Drug name (e.g., Metformin, Lisinopril, Ozempic, Mounjaro, Lantus)
+- Dosage with units (e.g., "10mg", "500mg", "5 units")
+- Context indicating it's an order (e.g., "start X", "prescribe X", "continue X", "taking X", "increase to X")
+
+DO NOT extract:
+- Conversational fragments like "it back in", "one", "covered"
+- References to insurance/authorization without drug names
+- Generic mentions like "medication" without specific drug names
+
+MEDICATIONS - Handling:
 - Handle spelled-out numbers (e.g., "ten milligrams" → "10mg")
 - Detect actions and set status accordingly:
-  * "start", "takes", "refill", "continue", "prescribe" → status: "new" or "refill"
-  * "stop", "discontinue", "d/c", "hold", "stopping" → status: "discontinued"
+  * "start", "takes", "refill", "continue", "prescribe" → status: "new"
+  * "stop", "discontinue", "d/c", "hold", "stopping" → status: "cancelled"
   * "increase", "decrease", "change dose" → status: "modified"
-- IMPORTANT: If medication is being discontinued/stopped, you MUST include it with status: "discontinued"
-- If "refill both/all medications", mark all previously mentioned meds as 'new'
-- Pharmacy: CVS, Walgreens, Costco, Target, etc.
+- Pharmacy: CVS, Walgreens, Costco, Express Scripts, etc.
 - Route defaults to "PO" if not specified
-- Frequency: "once daily", "twice daily", "three times daily", "as needed", "PRN", etc.
+- Frequency: "once daily", "twice daily", "three times daily", "as needed", "PRN", "every Saturday", etc.
 
-LABS:
+LABS - ONLY extract if it's a recognized medical test:
+- Common tests: CBC, CMP, BMP, TSH, A1C, HbA1c, lipid panel, cholesterol, hemoglobin A1C, vitamin D, liver function, thyroid panel, etc.
 - Extract each test separately (don't combine "A1C lipid panel" into one)
-- Common tests: CBC, CMP, BMP, TSH, A1C, lipid panel, hemoglobin A1C, etc.
 - Extract timing: "in 3 months", "tomorrow", "next week", "today"
 - Urgency: STAT, urgent, routine (default: routine)
 - Fasting: true if "fasting" mentioned
-- Location: Quest, LabCorp, in-office, hospital lab, etc.
+- Location: Quest, LabCorp, HCA, in-office, hospital lab, etc.
+
+DO NOT extract as labs:
+- Conversational fragments like "some blood work", "your cholesterol" (without "check" or "order")
+- Phrases like "it back in", "surgery over with", "twelve"
+- Generic mentions without "check", "order", "draw", or "test"
+
+VALIDATION:
+- Medications MUST have: drug name + dosage + units
+- Labs MUST be recognized medical test names
+- Ignore insurance/authorization discussions
+- Ignore small talk and fragments
 
 IMPORTANT:
+- BE CONSERVATIVE - when in doubt, don't extract
 - Split combined lab names: "hemoglobin A1C lipid panel CMP" → 3 separate labs
-- Handle conversational language: "patient takes", "comes in on", "we'll check"
-- Extract ALL numbers correctly (spelled or numeric)
 - Return ONLY valid JSON, no other text
 
 JSON FORMAT:
