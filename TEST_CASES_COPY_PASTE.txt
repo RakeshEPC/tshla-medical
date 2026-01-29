@@ -1,0 +1,92 @@
+================================================================================
+TEST CASE 1: DIABETES MANAGEMENT VISIT
+================================================================================
+
+Patient is a 62-year-old male with type 2 diabetes and hypertension here for follow-up. Blood pressure is 142/88 today, A1C is 8.2%. Start Jardiance 10mg PO once daily in the morning, dispense 30 tablets, 2 refills, send to CVS pharmacy. Continue Metformin 1000mg PO twice daily with meals, quantity 60, refills 3, send to Walgreens. Increase Lisinopril from 10mg to 20mg once daily, dispense 30, refills 3, to CVS. Add Atorvastatin 40mg PO once nightly at bedtime, quantity 90, 3 refills, send to CVS. Order fasting glucose and A1C at Quest for 3 months. Get comprehensive metabolic panel at LabCorp today to check kidney function. Send fasting lipid panel to Quest. Order urine microalbumin at in-office lab.
+
+
+================================================================================
+TEST CASE 2: ACUTE VISIT WITH STAT LABS
+================================================================================
+
+Patient presents with chest pain. EKG shows nonspecific ST changes. Give Aspirin 325mg PO now, then 81mg daily, dispense 30, refills 3, send to CVS. Start Metoprolol 25mg PO twice daily, quantity 60, 2 refills, to Walgreens. Order STAT troponin at hospital lab. Get STAT BNP at hospital lab. Send CMP and CBC to LabCorp today. Order lipid panel at Quest for tomorrow.
+
+
+================================================================================
+TEST CASE 3: MULTIPLE PHARMACIES & SPECIALTY MEDS
+================================================================================
+
+Patient with chronic conditions needs refills. Prescribe Insulin Glargine 100 units/mL, 20 units subcutaneously at bedtime, quantity 1 vial, send to specialty pharmacy. Start Gabapentin 300mg PO three times daily, dispense 90 tablets, 2 refills, send to Costco. Continue Omeprazole 40mg PO once daily, quantity 30, refills 3, to Target. Add Montelukast 10mg PO nightly, disp 30, 3 refills, send to mail order pharmacy. Order A1C at Quest. Get TSH and free T4 at LabCorp. Send vitamin D level to in-office lab.
+
+
+================================================================================
+TEST CASE 4: MEDICATION CHANGES & CANCELLATIONS
+================================================================================
+
+Patient tolerating medications poorly, making changes today. Start Metformin 500mg twice daily, dispense 60, send to CVS. Actually, increase that Metformin to 1000mg. Also prescribe Lisinopril 10mg daily, quantity 30, refills 3, to Walgreens. Stop the Lisinopril due to cough. Instead, start Losartan 50mg once daily, disp 30, 3 refills, send to CVS. Get CBC and CMP at LabCorp today.
+
+
+================================================================================
+TEST CASE 5: THYROID MANAGEMENT
+================================================================================
+
+Patient with hypothyroidism for medication adjustment. Increase Levothyroxine from 75mcg to 100mcg once daily before breakfast, dispense 90 tablets, 3 refills, send to CVS pharmacy. Order TSH, free T4, and free T3 at Quest for 6 weeks. Get comprehensive metabolic panel at LabCorp today.
+
+
+================================================================================
+TEST CASE 6: COMPLEX MULTI-PHARMACY SETUP
+================================================================================
+
+Patient needs multiple medications sent to different pharmacies based on insurance. Start Jardiance 25mg once daily, dispense 30, 2 refills, to CVS. Prescribe Trulicity 1.5mg subcutaneously once weekly, quantity 4 pens, send to specialty pharmacy. Add Metformin 1000mg twice daily, disp 60, 3 refills, to Walmart. Continue Glimepiride 2mg once daily before breakfast, quantity 30, refills 3, send to Kroger. Order fasting glucose at Quest. Get A1C and CMP at LabCorp. Send lipid panel to Quest, fasting required.
+
+
+================================================================================
+TEST CASE 7: URGENT VS ROUTINE LABS
+================================================================================
+
+Patient with diabetes and new symptoms. Continue current medications. No changes today. Order STAT glucose at hospital lab due to symptoms. Get urgent CBC and CMP at LabCorp today. Send routine A1C and lipid panel to Quest for next week. Order TSH at Quest, routine.
+
+
+================================================================================
+TEST CASE 8: MIXED ROUTE MEDICATIONS
+================================================================================
+
+Patient needs various medication routes. Start Albuterol inhaler 2 puffs every 4-6 hours as needed, dispense 1 inhaler, 2 refills, send to CVS. Prescribe Insulin Aspart 100 units/mL, 6 units subcutaneously before meals, quantity 2 vials, send to specialty pharmacy. Add Timolol 0.5% eye drops, 1 drop in each eye twice daily, disp 1 bottle, 3 refills, to Walgreens. Continue Prednisone 10mg PO once daily, quantity 30, refills 1, send to CVS. Get CBC and CMP at LabCorp today.
+
+
+================================================================================
+TEST CASE 9: REFILL-ONLY VISIT
+================================================================================
+
+Patient here for medication refills only, all working well. Refill Metformin 1000mg twice daily, dispense 60 tablets, 3 refills, send to CVS. Refill Lisinopril 20mg once daily, quantity 30, 3 refills, to CVS. Refill Atorvastatin 40mg nightly, disp 90, 3 refills, send to CVS. Order fasting glucose, A1C, and lipid panel at Quest for 3 months.
+
+
+================================================================================
+TEST CASE 10: KITCHEN SINK - EVERYTHING AT ONCE
+================================================================================
+
+Complex patient with multiple issues requiring extensive orders. Start Jardiance 10mg once daily in AM, dispense 30, 2 refills, CVS. Increase Metformin to 1000mg twice daily, quantity 60, 3 refills, Walgreens. Continue Lisinopril 20mg daily, disp 30, 3 refills, CVS. Add Atorvastatin 40mg nightly, quantity 90, 3 refills, CVS. Prescribe Gabapentin 300mg three times daily, disp 90, 2 refills, Target. Start Omeprazole 20mg daily, quantity 30, 3 refills, CVS. Add Montelukast 10mg nightly, disp 30, 3 refills, mail order. Order STAT troponin at hospital lab. Get urgent CBC, CMP, and lipid panel at LabCorp today. Send A1C, TSH, and vitamin D to Quest for tomorrow. Order urinalysis and urine microalbumin at in-office lab. Get liver function tests at LabCorp today. Send hemoglobin A1C to Quest, fasting required.
+
+
+================================================================================
+HOW TO TEST:
+================================================================================
+
+1. Go to: http://localhost:5173/quick-note
+2. Login with: admin@tshla.ai / TshlaAdmin2025!
+3. Copy any test case above (from "Patient is..." to the end)
+4. Paste into the transcript box on the page
+5. Watch the Medications and Lab Orders sections populate in real-time!
+6. Try the delete buttons to remove items
+7. Try the copy buttons to copy individual items or all items
+
+Expected Results:
+- Medications appear with: Drug • Dosage • Frequency • Route • Qty: #XX • RF: X
+- Pharmacy on line 2: 📍 Send to: [Pharmacy Name]
+- Labs grouped by date and location
+- STAT labs show first with 🚨 and red background
+- Urgent labs show with ⚡ and orange background
+- Routine labs show with 📋 and blue background
+- Fasting labs show 🍽️ FASTING indicator
+
+================================================================================

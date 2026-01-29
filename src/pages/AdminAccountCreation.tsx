@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabaseAuthService } from '../services/supabaseAuth.service';
 import { scheduleService } from '../services/scheduleService';
 import { AthenaScheduleUploader } from '../components/AthenaScheduleUploader';
@@ -18,6 +19,7 @@ interface FormData {
 }
 
 export default function AdminAccountCreation() {
+  const navigate = useNavigate();
   const [accountType, setAccountType] = useState<'staff' | 'patient' | 'schedule'>('staff');
   const [formData, setFormData] = useState<FormData>({
     email: '',
@@ -220,6 +222,17 @@ ${mode === 'replace' ? '✓ Cleared and replaced all appointments for this date'
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
       <div className="max-w-6xl mx-auto">
+        {/* Back to Dashboard Button */}
+        <button
+          onClick={() => navigate('/dashboard')}
+          className="mb-4 flex items-center gap-2 px-4 py-2 bg-white text-gray-700 rounded-lg shadow hover:bg-gray-50 transition-colors"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          Back to Dashboard
+        </button>
+
         {/* Header */}
         <div className="bg-white rounded-xl shadow-lg p-8 mb-6">
           <div className="flex items-center gap-4 mb-4">

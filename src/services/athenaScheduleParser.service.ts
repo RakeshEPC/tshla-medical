@@ -40,12 +40,17 @@ const PROVIDER_NAME_MAPPING: Record<string, { id: string; fullName: string; spec
   // Rakesh Patel
   'patel, rakesh': { id: '652d519e-1d9d-4cdb-9768-111d4ccc03da', fullName: 'Dr. Rakesh Patel', specialty: 'Endocrinology' },
   'rakesh patel': { id: '652d519e-1d9d-4cdb-9768-111d4ccc03da', fullName: 'Dr. Rakesh Patel', specialty: 'Endocrinology' },
+  'gc_epc_patel_r': { id: '652d519e-1d9d-4cdb-9768-111d4ccc03da', fullName: 'Dr. Rakesh Patel', specialty: 'Endocrinology' },
   // Rakesh Patel
   'patel, rakesh': { id: '30c21923-cf6a-4cef-991b-808d13a26c5a', fullName: 'Dr. Rakesh Patel', specialty: 'Endocrinology' },
   'rakesh patel': { id: '30c21923-cf6a-4cef-991b-808d13a26c5a', fullName: 'Dr. Rakesh Patel', specialty: 'Endocrinology' },
   // Neha Patel
   'patel, neha': { id: '59bb5994-5c0d-4e1b-975a-eec141dccda8', fullName: 'Dr. Neha Patel', specialty: 'Psychiatry' },
   'neha patel': { id: '59bb5994-5c0d-4e1b-975a-eec141dccda8', fullName: 'Dr. Neha Patel', specialty: 'Psychiatry' },
+  'gc_epc_patel_n': { id: '59bb5994-5c0d-4e1b-975a-eec141dccda8', fullName: 'Dr. Neha Patel', specialty: 'Psychiatry' },
+  // Patel-Konasag (assuming this is a provider)
+  'patel-konasag': { id: '652d519e-1d9d-4cdb-9768-111d4ccc03da', fullName: 'Dr. Patel-Konasag', specialty: 'Endocrinology' },
+  'gc_epc_patel-konasag': { id: '652d519e-1d9d-4cdb-9768-111d4ccc03da', fullName: 'Dr. Patel-Konasag', specialty: 'Endocrinology' },
   // Elinia Shakya
   'shakya, elinia': { id: '96306043-2e3e-4323-a07e-d11e1f1b76fc', fullName: 'Dr. Elinia Shakya', specialty: 'Family Medicine' },
   'elinia shakya': { id: '96306043-2e3e-4323-a07e-d11e1f1b76fc', fullName: 'Dr. Elinia Shakya', specialty: 'Family Medicine' },
@@ -55,6 +60,9 @@ const PROVIDER_NAME_MAPPING: Record<string, { id: string; fullName: string; spec
   // Admin User
   'user, admin': { id: 'd24f32c8-3af2-49a2-88bd-34d56d4cf131', fullName: 'Dr. Admin User', specialty: 'admin' },
   'admin user': { id: 'd24f32c8-3af2-49a2-88bd-34d56d4cf131', fullName: 'Dr. Admin User', specialty: 'admin' },
+  // Adeleke A
+  'adeleke, a': { id: 'd24f32c8-3af2-49a2-88bd-34d56d4cf131', fullName: 'Dr. Adeleke A', specialty: 'Endocrinology' },
+  'gc_epc_adeleke_a': { id: 'd24f32c8-3af2-49a2-88bd-34d56d4cf131', fullName: 'Dr. Adeleke A', specialty: 'Endocrinology' },
   // Kamili Wade-Reescano
   'wade-reescano, kamili': { id: 'ff53319a-40fe-4011-a314-ceabbdb3180f', fullName: 'Dr. Kamili Wade-Reescano', specialty: 'Mental Health' },
   'kamili wade-reescano': { id: 'ff53319a-40fe-4011-a314-ceabbdb3180f', fullName: 'Dr. Kamili Wade-Reescano', specialty: 'Mental Health' },
