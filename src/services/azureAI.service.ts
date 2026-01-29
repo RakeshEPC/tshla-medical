@@ -1008,12 +1008,21 @@ Date: ${date}
         const complexityAnalysis = cptBillingAnalyzer.analyzeComplexity(originalTranscript, extractedInfo);
         console.log('✅ [BILLING DEBUG] Complexity analysis complete:', complexityAnalysis);
 
-        // Get CPT recommendations
+        // Detect in-office procedures FIRST (needed for E/M significance assessment)
+        const procedureRecommendations = cptBillingAnalyzer.detectInOfficeProcedures(
+          originalTranscript,
+          extractedInfo.plan,
+          extractedInfo.assessment
+        );
+        console.log('✅ [BILLING DEBUG] Procedure recommendations:', procedureRecommendations);
+
+        // Get CPT recommendations (now with procedure awareness)
         const cptRecommendation = cptBillingAnalyzer.suggestCPTCodes(
           complexityAnalysis,
           !!sections.chiefComplaint,
           extractedInfo.assessment.length > 0,
-          extractedInfo.plan.length > 0
+          extractedInfo.plan.length > 0,
+          procedureRecommendations.length > 0  // NEW: Pass procedure detection status
         );
         console.log('✅ [BILLING DEBUG] CPT recommendation:', cptRecommendation);
 
@@ -1024,14 +1033,6 @@ Date: ${date}
           icd10Suggestions = cptBillingAnalyzer.suggestICD10Codes(extractedInfo.assessment);
         }
         console.log('✅ [BILLING DEBUG] ICD-10 suggestions:', icd10Suggestions);
-
-        // Detect in-office procedures
-        const procedureRecommendations = cptBillingAnalyzer.detectInOfficeProcedures(
-          originalTranscript,
-          extractedInfo.plan,
-          extractedInfo.assessment
-        );
-        console.log('✅ [BILLING DEBUG] Procedure recommendations:', procedureRecommendations);
 
         // Generate billing section
         const billingSection = cptBillingAnalyzer.generateBillingSection(cptRecommendation, icd10Suggestions, procedureRecommendations);

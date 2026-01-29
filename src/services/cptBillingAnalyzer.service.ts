@@ -830,13 +830,66 @@ export class CPTBillingAnalyzer {
   }
 
   /**
+   * Assess if E/M service is significant and separately identifiable from a procedure
+   * Per CMS guidelines for modifier -25
+   *
+   * Returns whether E/M is significant enough to bill separately from procedure
+   */
+  assessEMSignificance(
+    analysis: ComplexityAnalysis,
+    hasProcedure: boolean
+  ): { isSignificant: boolean; reason: string; suggestedApproach: string } {
+    // If no procedure, this assessment doesn't apply
+    if (!hasProcedure) {
+      return {
+        isSignificant: true,
+        reason: 'No procedure detected',
+        suggestedApproach: 'Bill E/M normally'
+      };
+    }
+
+    // Check for indicators of significant, separately identifiable E/M
+    const significanceScore = {
+      multipleProblems: analysis.problemCount >= 2, // Multiple problems beyond procedure
+      medicationChanges: analysis.medicationChanges >= 1, // Med changes unrelated to procedure
+      chronicManagement: analysis.chronicConditions >= 2, // Managing chronic conditions
+      moderateRisk: analysis.riskLevel === 'moderate' || analysis.riskLevel === 'high', // Clinical complexity
+      substantialData: analysis.dataPoints >= 3 // Reviewing substantial data
+    };
+
+    const significantFactors = Object.values(significanceScore).filter(v => v).length;
+
+    // SIGNIFICANT E/M (bill E/M with -25):
+    // Need at least 2 factors indicating substantial work beyond the procedure
+    if (significantFactors >= 2) {
+      return {
+        isSignificant: true,
+        reason: `Significant E/M work beyond procedure: ${Object.entries(significanceScore)
+          .filter(([_, v]) => v)
+          .map(([k]) => k)
+          .join(', ')}`,
+        suggestedApproach: 'Bill E/M code with modifier -25 + procedure code'
+      };
+    }
+
+    // MINIMAL E/M (procedure-focused visit):
+    // Only 0-1 factors, visit focused primarily on procedure
+    return {
+      isSignificant: false,
+      reason: `Visit appears procedure-focused with minimal separate E/M (only ${significantFactors} significant factor(s))`,
+      suggestedApproach: 'Bill 99211 + procedure, or procedure only if no separate E/M performed'
+    };
+  }
+
+  /**
    * Suggest CPT E&M codes based on analysis
    */
   suggestCPTCodes(
     analysis: ComplexityAnalysis,
     hasChiefComplaint: boolean,
     hasAssessment: boolean,
-    hasPlan: boolean
+    hasPlan: boolean,
+    hasProcedure: boolean = false
   ): CPTRecommendation {
     let primaryCode = '99213';
     let primaryDescription = 'Office/Outpatient Visit, Established Patient (20-29 min)';
@@ -847,6 +900,50 @@ export class CPTBillingAnalyzer {
       description: string;
       reason: string;
     }> = [];
+
+    // CRITICAL: If procedure detected, assess E/M significance first
+    const emSignificance = this.assessEMSignificance(analysis, hasProcedure);
+
+    // If E/M is NOT significant (procedure-focused visit), suggest 99211
+    if (hasProcedure && !emSignificance.isSignificant) {
+      primaryCode = '99211';
+      primaryDescription = 'Office/Outpatient Visit, Established Patient (Minimal)';
+      timeRange = 'Procedure-focused visit';
+      confidenceScore = 70;
+
+      alternativeCodes.push({
+        code: 'Procedure only',
+        description: 'Bill procedure code only without E/M',
+        reason: 'If no separate E/M service was performed beyond procedure'
+      });
+
+      // Build MDM justification for 99211
+      const mdmJustification: string[] = [];
+      mdmJustification.push(`⚠️ PROCEDURE-FOCUSED VISIT`);
+      mdmJustification.push(`Reason: ${emSignificance.reason}`);
+      mdmJustification.push(`Recommendation: ${emSignificance.suggestedApproach}`);
+      mdmJustification.push(`Problems addressed: ${analysis.problemCount}`);
+      mdmJustification.push(`Data reviewed/ordered: ${analysis.dataPoints} items`);
+      mdmJustification.push(`Risk level: ${analysis.riskLevel.toUpperCase()}`);
+      mdmJustification.push(`Medication changes: ${analysis.medicationChanges}`);
+
+      return {
+        primaryCode,
+        primaryDescription,
+        timeRange,
+        complexity: 'minimal',
+        alternativeCodes,
+        supportingEvidence: {
+          timeDocumented: analysis.timeSpent !== null,
+          chiefComplaintPresent: hasChiefComplaint,
+          assessmentPresent: hasAssessment,
+          planPresent: hasPlan,
+          followUpPresent: true,
+        },
+        confidenceScore,
+        mdmJustification,
+      };
+    }
 
     // Time-based determination (preferred method)
     if (analysis.timeSpent !== null) {
@@ -1274,9 +1371,18 @@ BILLING CODES (AI-GENERATED)
     section += `📋 CPT CODES TO BILL:\n`;
     section += `───────────────────────────────────────────────────────\n`;
 
+    // Determine if we should add modifier -25
+    // CRITICAL: Only add -25 if E/M is significant (NOT 99211)
+    // 99211 = procedure-focused visit with minimal E/M
+    const shouldAddModifier25 = procedures.length > 0 && cptRecommendation.primaryCode !== '99211';
+
     // List all CPT codes together at the top
     if (procedures.length > 0) {
-      section += `**${cptRecommendation.primaryCode}-25**  (E/M Visit with Modifier -25)\n`;
+      if (shouldAddModifier25) {
+        section += `**${cptRecommendation.primaryCode}-25**  (E/M Visit with Modifier -25)\n`;
+      } else {
+        section += `**${cptRecommendation.primaryCode}**  (E/M Visit - Procedure-focused)\n`;
+      }
       for (const proc of procedures) {
         section += `**${proc.cptCode}**  (${proc.description.split(',')[0]})\n`;
       }
@@ -1292,12 +1398,23 @@ BILLING CODES (AI-GENERATED)
 
     // E/M Code details
     if (procedures.length > 0) {
-      section += `**${cptRecommendation.primaryCode}-25** - ${cptRecommendation.primaryDescription}\n`;
-      section += `  • Complexity Level: ${cptRecommendation.complexity.toUpperCase()}\n`;
-      section += `  • Time Range: ${cptRecommendation.timeRange}\n`;
-      section += `  • AI Confidence: ${cptRecommendation.confidenceScore}%\n`;
-      section += `  • Modifier -25: "Significant, separately identifiable E/M service on same day as procedure"\n`;
-      section += `  • Required when billing E/M + procedure on same day\n\n`;
+      if (shouldAddModifier25) {
+        // Significant E/M with -25 modifier
+        section += `**${cptRecommendation.primaryCode}-25** - ${cptRecommendation.primaryDescription}\n`;
+        section += `  • Complexity Level: ${cptRecommendation.complexity.toUpperCase()}\n`;
+        section += `  • Time Range: ${cptRecommendation.timeRange}\n`;
+        section += `  • AI Confidence: ${cptRecommendation.confidenceScore}%\n`;
+        section += `  • Modifier -25: "Significant, separately identifiable E/M service on same day as procedure"\n`;
+        section += `  • Required when billing E/M + procedure on same day\n\n`;
+      } else {
+        // Minimal E/M (99211) - NO -25 modifier
+        section += `**${cptRecommendation.primaryCode}** - ${cptRecommendation.primaryDescription}\n`;
+        section += `  • Complexity Level: ${cptRecommendation.complexity.toUpperCase()}\n`;
+        section += `  • Time Range: ${cptRecommendation.timeRange}\n`;
+        section += `  • AI Confidence: ${cptRecommendation.confidenceScore}%\n`;
+        section += `  • ⚠️ NO MODIFIER -25: Visit appears procedure-focused with minimal separate E/M\n`;
+        section += `  • Consider billing procedure only if no separate E/M was performed\n\n`;
+      }
     } else {
       section += `**${cptRecommendation.primaryCode}** - ${cptRecommendation.primaryDescription}\n`;
       section += `  • Complexity Level: ${cptRecommendation.complexity.toUpperCase()}\n`;
