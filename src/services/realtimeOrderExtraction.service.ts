@@ -64,7 +64,8 @@ class RealtimeOrderExtractionService {
     'citalopram', 'tramadol', 'trazodone', 'pantoprazole', 'escitalopram', 'carvedilol',
     'montelukast', 'rosuvastatin', 'warfarin', 'apixaban', 'rivaroxaban', 'empagliflozin',
     'semaglutide', 'ozempic', 'wegovy', 'mounjaro', 'tirzepatide', 'trulicity', 'victoza',
-    'januvia', 'jardiance', 'farxiga', 'invokana', 'glipizide', 'glyburide'
+    'januvia', 'jardiance', 'farxiga', 'invokana', 'glipizide', 'glyburide',
+    'lipitor', 'zofran', 'ondansetron'
   ];
 
   // Lab test patterns - improved to capture full test names
@@ -77,13 +78,15 @@ class RealtimeOrderExtractionService {
     specificTests: /\b(CBC|CMP|BMP|TSH|A1C|HbA1c|hemoglobin A1C|lipid panel|metabolic panel|liver function|kidney function|thyroid panel|glucose|creatinine|hemoglobin|cholesterol|LDL|HDL|triglycerides|free T3|free T4|microalbumin|urine microalbumin)/gi,
   };
 
-  // Common lab tests
+  // Common lab tests - ordered by length (longest first for better matching)
   private commonLabs = [
-    'CBC', 'CMP', 'BMP', 'TSH', 'A1C', 'HbA1c', 'lipid panel', 'liver function', 'LFT',
-    'kidney function', 'renal panel', 'thyroid panel', 'glucose', 'fasting glucose',
-    'creatinine', 'BUN', 'eGFR', 'hemoglobin', 'hematocrit', 'platelet count',
-    'cholesterol', 'LDL', 'HDL', 'triglycerides', 'urinalysis', 'UA', 'vitamin D',
-    'vitamin B12', 'iron panel', 'ferritin', 'PSA', 'troponin', 'BNP', 'INR', 'PT/PTT'
+    'hemoglobin A1C', 'lipid panel', 'liver function', 'kidney function', 'renal panel',
+    'thyroid panel', 'fasting glucose', 'platelet count', 'vitamin D', 'vitamin B12',
+    'iron panel', 'microalbumin', 'urine microalbumin',
+    'CBC', 'CMP', 'BMP', 'TSH', 'A1C', 'HbA1c', 'LFT', 'glucose', 'creatinine',
+    'BUN', 'eGFR', 'hemoglobin', 'hematocrit', 'cholesterol', 'LDL', 'HDL',
+    'triglycerides', 'urinalysis', 'UA', 'ferritin', 'PSA', 'troponin', 'BNP', 'INR',
+    'PT/PTT', 'FSH', 'LH', 'estrogen', 'progesterone'
   ];
 
   // Urgency keywords
@@ -120,6 +123,7 @@ class RealtimeOrderExtractionService {
     // Process each sentence that might contain a medication order
     for (const sentence of sentences) {
       const lowerSentence = sentence.toLowerCase();
+      const convertedSentence = this.convertSpelledNumber(sentence);
 
       // Skip sentences that don't look like medication orders
       if (!lowerSentence.includes('start') &&
@@ -127,14 +131,19 @@ class RealtimeOrderExtractionService {
           !lowerSentence.includes('add') &&
           !lowerSentence.includes('continue') &&
           !lowerSentence.includes('give') &&
-          !sentence.match(/\b\d+\s*mg\b/i)) {
+          !lowerSentence.includes('takes') &&
+          !lowerSentence.includes('taking') &&
+          !lowerSentence.includes('refill') &&
+          !sentence.match(/\b\d+\s*mg\b/i) &&
+          !convertedSentence.match(/\b\d+\s*mg\b/i)) {
         continue;
       }
 
       // Try to extract medication from this sentence
       for (const drug of this.commonDrugs) {
         if (lowerSentence.includes(drug)) {
-          const dosageMatch = sentence.match(/\b(\d+\s*(?:mg|mcg|g|ml|units?))\b/i);
+          // Try to match dosage from converted sentence (handles spelled numbers)
+          const dosageMatch = convertedSentence.match(/\b(\d+\s*(?:mg|mcg|g|ml|units?))\b/i);
           if (dosageMatch) {
             const existingMed = medications.find(m =>
               this.normalizeDrugName(m.drugName) === drug && m.status !== 'cancelled'
@@ -313,31 +322,41 @@ class RealtimeOrderExtractionService {
     for (const match of orderMatches) {
       const fullMatch = match[0];
       const capturedText = match[1];
-      const testName = this.normalizeTestName(capturedText);
 
-      if (testName && !uniqueTests.has(testName.toLowerCase())) {
-        const urgency = this.detectUrgency(fullMatch, 0);
-        const fasting = this.detectFasting(fullMatch, 0);
+      // Split combined lab names into individual tests
+      const testNames = this.splitCombinedLabNames(capturedText);
 
-        // Get wider context for location extraction
-        const context = this.getContext(transcript, match.index!, 150);
+      for (const testName of testNames) {
+        if (testName && !uniqueTests.has(testName.toLowerCase())) {
+          const urgency = this.detectUrgency(fullMatch, 0);
+          const fasting = this.detectFasting(fullMatch, 0);
 
-        labs.push(this.createLabOrder(testName, urgency, fasting, context));
-        uniqueTests.add(testName.toLowerCase());
+          // Get wider context for location extraction
+          const context = this.getContext(transcript, match.index!, 150);
+
+          labs.push(this.createLabOrder(testName, urgency, fasting, context));
+          uniqueTests.add(testName.toLowerCase());
+        }
       }
     }
 
     // Extract from "let's" commands
     const letsMatches = [...transcript.matchAll(this.labPatterns.letsCommand)];
     for (const match of letsMatches) {
-      const testName = this.normalizeTestName(match[1]);
+      // Split combined lab names into individual tests
+      const testNames = this.splitCombinedLabNames(match[1]);
 
-      if (testName && !uniqueTests.has(testName.toLowerCase())) {
-        const urgency = this.detectUrgency(transcript, match.index!);
-        const fasting = this.detectFasting(transcript, match.index!);
+      for (const testName of testNames) {
+        if (testName && !uniqueTests.has(testName.toLowerCase())) {
+          const urgency = this.detectUrgency(transcript, match.index!);
+          const fasting = this.detectFasting(transcript, match.index!);
 
-        labs.push(this.createLabOrder(testName, urgency, fasting, match[0]));
-        uniqueTests.add(testName.toLowerCase());
+          // Get wider context for location extraction
+          const context = this.getContext(transcript, match.index!, 150);
+
+          labs.push(this.createLabOrder(testName, urgency, fasting, context));
+          uniqueTests.add(testName.toLowerCase());
+        }
       }
     }
 
@@ -531,6 +550,36 @@ class RealtimeOrderExtractionService {
         return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
       })
       .join(' ');
+  }
+
+  /**
+   * Helper: Split combined lab names into individual tests
+   * e.g., "hemoglobin A1C lipid panel CMP" → ["Hemoglobin A1C", "Lipid Panel", "CMP"]
+   */
+  private splitCombinedLabNames(text: string): string[] {
+    const found: string[] = [];
+    let remaining = text;
+
+    // Try to match known lab tests from longest to shortest
+    for (const labTest of this.commonLabs) {
+      const regex = new RegExp(`\\b${labTest}\\b`, 'gi');
+      const match = remaining.match(regex);
+
+      if (match) {
+        found.push(this.normalizeTestName(labTest));
+        // Remove matched test from remaining text
+        remaining = remaining.replace(regex, '').trim();
+      }
+    }
+
+    // If we found multiple tests, return them
+    if (found.length > 1) {
+      return found;
+    }
+
+    // If we only found one or none, return the original normalized text
+    const normalized = this.normalizeTestName(text);
+    return normalized ? [normalized] : [];
   }
 
   /**

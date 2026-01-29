@@ -28,6 +28,7 @@ import RecordingConfirmationModal from './RecordingConfirmationModal';
 import RealtimeMedicationOrders from './RealtimeMedicationOrders';
 import RealtimeLabOrders from './RealtimeLabOrders';
 import { realtimeOrderExtractionService, type RealtimeOrders } from '../services/realtimeOrderExtraction.service';
+import { aiRealtimeOrderExtractionService } from '../services/aiRealtimeOrderExtraction.service';
 
 // Speech recognition interfaces removed - using HIPAA-compliant services only
 
@@ -128,6 +129,8 @@ export default function MedicalDictation({
     labs: [],
     lastUpdated: new Date()
   });
+  const [isExtractingOrders, setIsExtractingOrders] = useState(false);
+  const extractionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Patient details for live editing
   const [patientDetails, setPatientDetails] = useState({
@@ -164,11 +167,68 @@ export default function MedicalDictation({
   }, []);
 
   // Real-time order extraction when transcript changes (for manual editing)
+  // Uses AI extraction with 2-second debouncing, fallback to regex on error
   useEffect(() => {
-    if (transcript.trim()) {
-      const orders = realtimeOrderExtractionService.extractOrders(transcript, realtimeOrders);
-      setRealtimeOrders(orders);
+    // Clear any existing timeout
+    if (extractionTimeoutRef.current) {
+      clearTimeout(extractionTimeoutRef.current);
     }
+
+    if (!transcript.trim()) {
+      setRealtimeOrders({
+        medications: [],
+        labs: [],
+        lastUpdated: new Date()
+      });
+      setIsExtractingOrders(false);
+      return;
+    }
+
+    // Show loading indicator
+    setIsExtractingOrders(true);
+
+    // Debounce AI extraction by 2 seconds
+    extractionTimeoutRef.current = setTimeout(async () => {
+      try {
+        // Try AI extraction first if available
+        if (aiRealtimeOrderExtractionService.isAvailable()) {
+          logDebug('MedicalDictation', 'Using AI real-time extraction', {
+            transcriptLength: transcript.length
+          });
+
+          const orders = await aiRealtimeOrderExtractionService.extractOrders(transcript, realtimeOrders);
+          setRealtimeOrders(orders);
+          setIsExtractingOrders(false);
+
+          logInfo('MedicalDictation', 'AI extraction successful', {
+            medications: orders.medications.length,
+            labs: orders.labs.length
+          });
+        } else {
+          // Fallback to regex if AI not available
+          logWarn('MedicalDictation', 'AI extraction not available, using regex fallback', {});
+          const orders = realtimeOrderExtractionService.extractOrders(transcript, realtimeOrders);
+          setRealtimeOrders(orders);
+          setIsExtractingOrders(false);
+        }
+      } catch (error) {
+        // Fallback to regex on error
+        logError('MedicalDictation', 'AI extraction failed, using regex fallback', {
+          error: error instanceof Error ? error.message : String(error)
+        });
+
+        const orders = realtimeOrderExtractionService.extractOrders(transcript, realtimeOrders);
+        setRealtimeOrders(orders);
+        setIsExtractingOrders(false);
+      }
+    }, 2000); // 2-second debounce
+
+    // Cleanup timeout on unmount
+    return () => {
+      if (extractionTimeoutRef.current) {
+        clearTimeout(extractionTimeoutRef.current);
+      }
+    };
   }, [transcript]);
 
   // Load patient data if patientId is provided and preload is enabled
@@ -2091,28 +2151,48 @@ Visit Date: ${patientDetails.visitDate}
         {/* Real-Time Orders Section - Below Main Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
           {/* Real-Time Medication Orders */}
-          <RealtimeMedicationOrders
-            medications={realtimeOrders.medications}
-            patientName={patientDetails.name}
-            onDeleteMedication={(medicationId) => {
-              setRealtimeOrders(prev => ({
-                ...prev,
-                medications: prev.medications.filter(m => m.id !== medicationId)
-              }));
-            }}
-          />
+          <div className="relative">
+            {isExtractingOrders && (
+              <div className="absolute top-2 right-2 z-10">
+                <div className="flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-medium border border-blue-200 shadow-sm">
+                  <div className="animate-spin h-3 w-3 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                  <span>AI Extracting...</span>
+                </div>
+              </div>
+            )}
+            <RealtimeMedicationOrders
+              medications={realtimeOrders.medications}
+              patientName={patientDetails.name}
+              onDeleteMedication={(medicationId) => {
+                setRealtimeOrders(prev => ({
+                  ...prev,
+                  medications: prev.medications.filter(m => m.id !== medicationId)
+                }));
+              }}
+            />
+          </div>
 
           {/* Real-Time Lab Orders */}
-          <RealtimeLabOrders
-            labs={realtimeOrders.labs}
-            patientName={patientDetails.name}
-            onDeleteLab={(labId) => {
-              setRealtimeOrders(prev => ({
-                ...prev,
-                labs: prev.labs.filter(l => l.id !== labId)
-              }));
-            }}
-          />
+          <div className="relative">
+            {isExtractingOrders && (
+              <div className="absolute top-2 right-2 z-10">
+                <div className="flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-medium border border-blue-200 shadow-sm">
+                  <div className="animate-spin h-3 w-3 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                  <span>AI Extracting...</span>
+                </div>
+              </div>
+            )}
+            <RealtimeLabOrders
+              labs={realtimeOrders.labs}
+              patientName={patientDetails.name}
+              onDeleteLab={(labId) => {
+                setRealtimeOrders(prev => ({
+                  ...prev,
+                  labs: prev.labs.filter(l => l.id !== labId)
+                }));
+              }}
+            />
+          </div>
         </div>
 
       </div>
