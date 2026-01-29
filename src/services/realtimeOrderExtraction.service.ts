@@ -44,8 +44,12 @@ class RealtimeOrderExtractionService {
   private medicationPatterns = {
     // Common medication formats
     standard: /\b([A-Z][a-z]+(?:ol|in|pril|pine|statin|ide|one|pam|oxin|mycin|cillin|cycline|floxacin|azole|vir))\s+(\d+\s*(?:mg|mcg|g|ml|units?))\s+(?:PO|po|by mouth|orally)?\s*(?:once|twice|three times|qd|bid|tid|qid|q\d+h|daily|nightly|prn)?/gi,
-    // "start X", "begin X", "prescribe X"
-    startCommand: /\b(?:start|begin|initiate|prescribe|give|add)\s+([A-Z][a-z]+(?:ol|in|pril|pine|statin|ide|one|pam|oxin|mycin|cillin|cycline|floxacin|azole|vir|formin))\s+(\d+\s*(?:mg|mcg|g|ml|units?))/gi,
+    // "start X", "begin X", "prescribe X", "we'll X"
+    startCommand: /\b(?:start|begin|initiate|prescribe|give|add|we'?ll)\s+(?:go ahead and\s+)?([A-Z][a-z]+(?:ol|in|pril|pine|statin|ide|one|pam|oxin|mycin|cillin|cycline|floxacin|azole|vir|formin))\s+(\d+\s*(?:mg|mcg|g|ml|units?))/gi,
+    // "Taking X", "On X", "Currently on X"
+    takingCommand: /\b(?:taking|on|currently on|patient on)\s+([A-Z][a-z]+(?:ol|in|pril|pine|statin|ide|one|pam|oxin|mycin|cillin|cycline|floxacin|azole|vir|formin))\s+(\d+\s*(?:mg|mcg|g|ml|units?))/gi,
+    // "refill X", "continue X"
+    refillCommand: /\b(?:refill|continue|renew)\s+(?:the\s+)?([A-Z][a-z]+(?:ol|in|pril|pine|statin|ide|one|pam|oxin|mycin|cillin|cycline|floxacin|azole|vir|formin))\s*(?:(\d+\s*(?:mg|mcg|g|ml|units?)))?/gi,
     // "stop X", "discontinue X", "cancel X"
     stopCommand: /\b(?:stop|discontinue|cancel|hold|cease|dc|d\/c)\s+(?:the\s+)?([A-Z][a-z]+(?:ol|in|pril|pine|statin|ide|one|pam|oxin|mycin|cillin|cycline|floxacin|azole|vir|formin))/gi,
     // "increase X to Y", "decrease X to Y"
@@ -65,12 +69,12 @@ class RealtimeOrderExtractionService {
 
   // Lab test patterns - improved to capture full test names
   private labPatterns = {
-    // "order X lab", "get X test" - capture everything up to 'at' or end of phrase
-    orderCommand: /\b(?:order|get|draw|check|obtain|send)\s+(?:a\s+)?(?:STAT\s+)?([^.!?]+?)(?:\s+at\s+|\s+to\s+|$)/gi,
-    // "let's get X", "let's check X"
-    letsCommand: /\b(?:let'?s|we'?ll)\s+(?:get|check|order|draw)\s+(?:a\s+)?([^.!?]+?)(?:\s+at\s+|\s+to\s+|$)/gi,
+    // "order X lab", "get X test", "check X" - capture everything up to 'at', 'in', 'for' or end
+    orderCommand: /\b(?:order|get|draw|check|obtain|send)\s+(?:a\s+)?(?:STAT\s+)?([^.!?,]+?)(?:\s+(?:at|in|for)\s+|\s+and\s+|,|$)/gi,
+    // "let's get X", "let's check X", "we'll check X", "I will check X"
+    letsCommand: /\b(?:let'?s|we'?ll|i will|i'll)\s+(?:go ahead and\s+)?(?:get|check|order|draw|do)\s+(?:a\s+)?(?:that\s+)?([^.!?,]+?)(?:\s+(?:at|in|for)\s+|\s+and\s+|,|$)/gi,
     // Specific tests - keep these for fallback
-    specificTests: /\b(CBC|CMP|BMP|TSH|A1C|HbA1c|lipid panel|metabolic panel|liver function|kidney function|thyroid panel|glucose|creatinine|hemoglobin|cholesterol|LDL|HDL|triglycerides|free T3|free T4)/gi,
+    specificTests: /\b(CBC|CMP|BMP|TSH|A1C|HbA1c|hemoglobin A1C|lipid panel|metabolic panel|liver function|kidney function|thyroid panel|glucose|creatinine|hemoglobin|cholesterol|LDL|HDL|triglycerides|free T3|free T4|microalbumin|urine microalbumin)/gi,
   };
 
   // Common lab tests
@@ -207,6 +211,63 @@ class RealtimeOrderExtractionService {
       if (!existingMed || existingMed.status === 'cancelled') {
         medications.push(this.createMedication(drugName, dosage, match[0], 'new'));
       }
+    }
+
+    // Check for "Taking" commands (patient currently on medication)
+    const takingMatches = [...transcript.matchAll(this.medicationPatterns.takingCommand)];
+    for (const match of takingMatches) {
+      const drugName = this.normalizeDrugName(match[1]);
+      const dosage = match[2];
+
+      const existingMed = medications.find(m =>
+        this.normalizeDrugName(m.drugName) === drugName
+      );
+
+      if (!existingMed || existingMed.status === 'cancelled') {
+        medications.push(this.createMedication(drugName, dosage, match[0], 'new'));
+      }
+    }
+
+    // Check for refill commands
+    const refillMatches = [...transcript.matchAll(this.medicationPatterns.refillCommand)];
+    for (const match of refillMatches) {
+      const drugName = this.normalizeDrugName(match[1]);
+      const dosage = match[2]; // May be undefined if not specified
+
+      // Try to find existing medication to refill
+      const existingMed = medications.find(m =>
+        this.normalizeDrugName(m.drugName) === drugName && m.status !== 'cancelled'
+      );
+
+      if (existingMed && dosage) {
+        // Update dosage if specified
+        existingMed.dosage = dosage;
+      } else if (!existingMed) {
+        // If dosage provided, create new medication
+        if (dosage) {
+          medications.push(this.createMedication(drugName, dosage, match[0], 'new'));
+        } else {
+          // Try to find dosage from earlier in transcript
+          const context = this.getContext(transcript, match.index!, 500);
+          const contextDosage = this.extractDosageFromContext(context);
+          if (contextDosage) {
+            medications.push(this.createMedication(drugName, contextDosage, match[0], 'new'));
+          }
+        }
+      }
+    }
+
+    // Check for "refill both" or "refill all" patterns - applies to previously mentioned meds
+    const refillBothPattern = /\b(?:refill|continue|renew)\s+(?:both|all|those|these)\s+(?:medications?|meds?)\b/gi;
+    const refillBothMatches = [...transcript.matchAll(refillBothPattern)];
+    if (refillBothMatches.length > 0) {
+      // Mark all existing medications as confirmed
+      // This ensures they stay in the list even if mentioned before
+      medications.forEach(med => {
+        if (med.status !== 'cancelled') {
+          med.status = 'new'; // Keep them as active orders
+        }
+      });
     }
 
     // Fuzzy matching for common drugs mentioned in transcript
@@ -363,8 +424,9 @@ class RealtimeOrderExtractionService {
     fasting: boolean,
     rawText: string
   ): RealtimeLabOrder {
-    // Calculate order date based on urgency
-    const orderDate = this.calculateOrderDate(urgency);
+    // Try to extract specific date/time from text first
+    const extractedDate = this.extractOrderDate(rawText);
+    const orderDate = extractedDate || this.calculateOrderDate(urgency);
 
     return {
       id: `lab-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -377,6 +439,42 @@ class RealtimeOrderExtractionService {
       rawText,
       confidence: 0.85
     };
+  }
+
+  /**
+   * Helper: Extract order date from text (e.g., "in 3 months", "tomorrow", "next week")
+   */
+  private extractOrderDate(text: string): string | null {
+    const converted = this.convertSpelledNumber(text.toLowerCase());
+
+    // Check for specific time references
+    if (/\btoday\b/i.test(text)) {
+      return 'Today';
+    }
+    if (/\btomorrow\b/i.test(text)) {
+      return 'Tomorrow';
+    }
+    if (/\bnext week\b/i.test(text)) {
+      return 'Next Week';
+    }
+
+    // Check for "in X days/weeks/months"
+    const inTimeMatch = converted.match(/\bin\s+(\d+)\s+(day|week|month)s?\b/i);
+    if (inTimeMatch) {
+      const num = inTimeMatch[1];
+      const unit = inTimeMatch[2];
+      return `In ${num} ${unit}${num !== '1' ? 's' : ''}`;
+    }
+
+    // Check for "X months" or "X weeks"
+    const timeMatch = converted.match(/\b(\d+)\s+(day|week|month)s?\b/i);
+    if (timeMatch) {
+      const num = timeMatch[1];
+      const unit = timeMatch[2];
+      return `In ${num} ${unit}${num !== '1' ? 's' : ''}`;
+    }
+
+    return null;
   }
 
   /**
@@ -393,13 +491,22 @@ class RealtimeOrderExtractionService {
     let cleaned = name.trim().replace(/\s+/g, ' ');
 
     // Remove common prefixes/suffixes that aren't part of the test name
-    cleaned = cleaned.replace(/\b(also|order|get|send|draw|check|obtain|a|an|the|for|tomorrow|today|next week|this week)\b/gi, '');
+    cleaned = cleaned.replace(/\b(also|order|get|send|draw|check|obtain|a|an|the|for|tomorrow|today|next week|this week|that|i will|we'll|we will|go ahead and)\b/gi, '');
     cleaned = cleaned.replace(/\b(stat|urgent|routine)\b/gi, '');
+
+    // Remove phrases about pharmacies/locations that snuck in
+    cleaned = cleaned.replace(/\b(?:to|at|send to)\s+(?:cvs|walgreens|costco|target|quest|labcorp|pharmacy|pharm)\b/gi, '');
+
     cleaned = cleaned.trim().replace(/\s+/g, ' ');
 
-    // Filter out common false positives
-    const falsePositives = ['to', 'at', 'send', 'get', 'order', 'a', 'the', 'is', 'was', ''];
+    // Filter out common false positives and pharmacy-related words
+    const falsePositives = ['to', 'at', 'send', 'get', 'order', 'a', 'the', 'is', 'was', 'that', 'cvs', 'walgreens', 'costco', 'target', 'walmart', 'pharmacy', 'pharm', ''];
     if (falsePositives.includes(cleaned.toLowerCase()) || cleaned.length < 2) {
+      return '';
+    }
+
+    // If it contains pharmacy names, likely not a lab test
+    if (/\b(cvs|walgreens|costco|target|walmart|kroger|pharmacy)\b/i.test(cleaned)) {
       return '';
     }
 
@@ -426,10 +533,36 @@ class RealtimeOrderExtractionService {
   }
 
   /**
+   * Helper: Convert spelled-out numbers to digits
+   */
+  private convertSpelledNumber(text: string): string {
+    const numbers: Record<string, string> = {
+      'one': '1', 'two': '2', 'three': '3', 'four': '4', 'five': '5',
+      'six': '6', 'seven': '7', 'eight': '8', 'nine': '9', 'ten': '10',
+      'eleven': '11', 'twelve': '12', 'thirteen': '13', 'fourteen': '14', 'fifteen': '15',
+      'sixteen': '16', 'seventeen': '17', 'eighteen': '18', 'nineteen': '19', 'twenty': '20',
+      'twenty-five': '25', 'thirty': '30', 'forty': '40', 'fifty': '50',
+      'sixty': '60', 'seventy': '70', 'eighty': '80', 'ninety': '90',
+      'one hundred': '100', 'two hundred': '200', 'three hundred': '300',
+      'four hundred': '400', 'five hundred': '500', 'thousand': '1000'
+    };
+
+    let converted = text.toLowerCase();
+    for (const [word, digit] of Object.entries(numbers)) {
+      converted = converted.replace(new RegExp(`\\b${word}\\b`, 'gi'), digit);
+    }
+    return converted;
+  }
+
+  /**
    * Helper: Extract dosage from context
    */
   private extractDosageFromContext(context: string): string | null {
-    const dosageMatch = context.match(/\b(\d+\s*(?:mg|mcg|g|ml|units?))\b/i);
+    // First, convert spelled-out numbers to digits
+    const converted = this.convertSpelledNumber(context);
+
+    // Now try to match dosage patterns
+    const dosageMatch = converted.match(/\b(\d+\s*(?:mg|mcg|g|ml|units?))\b/i);
     return dosageMatch ? dosageMatch[1] : null;
   }
 
@@ -499,15 +632,19 @@ class RealtimeOrderExtractionService {
    * Helper: Extract quantity
    */
   private extractQuantity(text: string): string | undefined {
+    // Convert spelled numbers first
+    const converted = this.convertSpelledNumber(text);
+
     const patterns = [
       /\b(?:dispense|disp)\s+(\d+)\b/i,  // "dispense 30" or "disp 30"
       /\b(?:quantity|qty)\s*:?\s*(\d+)\b/i,  // "quantity 60" or "qty: 60"
       /\b#\s*(\d+)\b/i,  // "#30"
-      /\b(\d+)\s+(?:tablets?|capsules?|pills?|vials?|bottles?|inhalers?|pens?)\b/i  // "30 tablets"
+      /\b(\d+)\s+(?:tablets?|capsules?|pills?|vials?|bottles?|inhalers?|pens?)\b/i,  // "30 tablets"
+      /\b(\d+)\s+day supply\b/i  // "90 day supply" or "ninety day supply"
     ];
 
     for (const pattern of patterns) {
-      const match = text.match(pattern);
+      const match = converted.match(pattern);
       if (match) return match[1];
     }
 
