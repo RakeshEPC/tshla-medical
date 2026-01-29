@@ -198,7 +198,11 @@ EXTRACTION RULES:
 MEDICATIONS:
 - Extract drug name, dosage, frequency, route, pharmacy, quantity, refills
 - Handle spelled-out numbers (e.g., "ten milligrams" → "10mg")
-- Detect actions: "start", "takes", "refill", "stop", "increase", "decrease"
+- Detect actions and set status accordingly:
+  * "start", "takes", "refill", "continue", "prescribe" → status: "new" or "refill"
+  * "stop", "discontinue", "d/c", "hold", "stopping" → status: "discontinued"
+  * "increase", "decrease", "change dose" → status: "modified"
+- IMPORTANT: If medication is being discontinued/stopped, you MUST include it with status: "discontinued"
 - If "refill both/all medications", mark all previously mentioned meds as 'new'
 - Pharmacy: CVS, Walgreens, Costco, Target, etc.
 - Route defaults to "PO" if not specified
@@ -230,6 +234,13 @@ JSON FORMAT:
       "quantity": "90",
       "refills": "3",
       "status": "new"
+    },
+    {
+      "drugName": "Lantus",
+      "dosage": "20 units",
+      "frequency": "at bedtime",
+      "route": "SubQ",
+      "status": "discontinued"
     }
   ],
   "labs": [

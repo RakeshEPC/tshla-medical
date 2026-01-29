@@ -893,7 +893,11 @@ export default function MedicalDictation({
     let ordersText = '';
 
     // Format medications grouped by pharmacy
-    const activeMeds = realtimeOrders.medications.filter(m => m.status !== 'cancelled');
+    const activeMeds = realtimeOrders.medications.filter(m =>
+      m.status !== 'cancelled' &&
+      m.status !== 'discontinued' &&
+      m.status !== 'stopped'
+    );
     if (activeMeds.length > 0) {
       ordersText += '\n\n---\n\n### 💊 MEDICATION ORDERS\n\n';
 
@@ -924,7 +928,10 @@ export default function MedicalDictation({
     }
 
     // Format labs grouped by date and location
-    const activeLabs = realtimeOrders.labs.filter(l => l.status !== 'cancelled');
+    const activeLabs = realtimeOrders.labs.filter(l =>
+      l.status !== 'cancelled' &&
+      l.status !== 'discontinued'
+    );
     if (activeLabs.length > 0) {
       ordersText += '### 🔬 LAB ORDERS\n\n';
 
