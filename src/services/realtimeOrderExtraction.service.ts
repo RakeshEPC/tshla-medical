@@ -46,8 +46,8 @@ class RealtimeOrderExtractionService {
     standard: /\b([A-Z][a-z]+(?:ol|in|pril|pine|statin|ide|one|pam|oxin|mycin|cillin|cycline|floxacin|azole|vir))\s+(\d+\s*(?:mg|mcg|g|ml|units?))\s+(?:PO|po|by mouth|orally)?\s*(?:once|twice|three times|qd|bid|tid|qid|q\d+h|daily|nightly|prn)?/gi,
     // "start X", "begin X", "prescribe X", "we'll X"
     startCommand: /\b(?:start|begin|initiate|prescribe|give|add|we'?ll)\s+(?:go ahead and\s+)?([A-Z][a-z]+(?:ol|in|pril|pine|statin|ide|one|pam|oxin|mycin|cillin|cycline|floxacin|azole|vir|formin))\s+(\d+\s*(?:mg|mcg|g|ml|units?))/gi,
-    // "Taking X", "On X", "Currently on X"
-    takingCommand: /\b(?:taking|on|currently on|patient on)\s+([A-Z][a-z]+(?:ol|in|pril|pine|statin|ide|one|pam|oxin|mycin|cillin|cycline|floxacin|azole|vir|formin))\s+(\d+\s*(?:mg|mcg|g|ml|units?))/gi,
+    // "Taking X", "On X", "Currently on X", "Patient takes X", "Comes in on X"
+    takingCommand: /\b(?:taking|on|currently on|patient on|patient takes?|pt takes?|takes?|comes in on)\s+([A-Z][a-z]+(?:ol|in|pril|pine|statin|ide|one|pam|oxin|mycin|cillin|cycline|floxacin|azole|vir|formin))\s+(\d+\s*(?:mg|mcg|g|ml|units?))/gi,
     // "refill X", "continue X"
     refillCommand: /\b(?:refill|continue|renew)\s+(?:the\s+)?([A-Z][a-z]+(?:ol|in|pril|pine|statin|ide|one|pam|oxin|mycin|cillin|cycline|floxacin|azole|vir|formin))\s*(?:(\d+\s*(?:mg|mcg|g|ml|units?)))?/gi,
     // "stop X", "discontinue X", "cancel X"
@@ -491,22 +491,32 @@ class RealtimeOrderExtractionService {
     let cleaned = name.trim().replace(/\s+/g, ' ');
 
     // Remove common prefixes/suffixes that aren't part of the test name
-    cleaned = cleaned.replace(/\b(also|order|get|send|draw|check|obtain|a|an|the|for|tomorrow|today|next week|this week|that|i will|we'll|we will|go ahead and)\b/gi, '');
+    cleaned = cleaned.replace(/\b(also|order|get|send|draw|check|obtain|a|an|the|for|tomorrow|today|next week|this week|that|i will|we'll|we will|go ahead and|patient takes?|takes?)\b/gi, '');
     cleaned = cleaned.replace(/\b(stat|urgent|routine)\b/gi, '');
 
     // Remove phrases about pharmacies/locations that snuck in
-    cleaned = cleaned.replace(/\b(?:to|at|send to)\s+(?:cvs|walgreens|costco|target|quest|labcorp|pharmacy|pharm)\b/gi, '');
+    cleaned = cleaned.replace(/\b(?:to|at|send to|send that to)\s+(?:cvs|walgreens|costco|target|quest|labcorp|pharmacy|pharm)\b/gi, '');
 
     cleaned = cleaned.trim().replace(/\s+/g, ' ');
 
     // Filter out common false positives and pharmacy-related words
-    const falsePositives = ['to', 'at', 'send', 'get', 'order', 'a', 'the', 'is', 'was', 'that', 'cvs', 'walgreens', 'costco', 'target', 'walmart', 'pharmacy', 'pharm', ''];
+    const falsePositives = ['to', 'at', 'send', 'get', 'order', 'a', 'the', 'is', 'was', 'that', 'cvs', 'walgreens', 'costco', 'target', 'walmart', 'pharmacy', 'pharm', 'takes', 'patient', ''];
     if (falsePositives.includes(cleaned.toLowerCase()) || cleaned.length < 2) {
       return '';
     }
 
     // If it contains pharmacy names, likely not a lab test
     if (/\b(cvs|walgreens|costco|target|walmart|kroger|pharmacy)\b/i.test(cleaned)) {
+      return '';
+    }
+
+    // If it's just a single letter or very short and not a known abbreviation, filter it
+    if (cleaned.length < 2 || (cleaned.length === 2 && !/^(a1c|cbc|cmp|bmp|tsh|lft|ldl|hdl)$/i.test(cleaned))) {
+      return '';
+    }
+
+    // Filter out common medication name patterns (they should not be labs)
+    if (/\b(metformin|lisinopril|amlodipine|atorvastatin|losartan|simvastatin|omeprazole|levothyroxine|gabapentin|hydrochlorothiazide|sertraline|ibuprofen|prednisone|insulin|albuterol|furosemide)\b/i.test(cleaned)) {
       return '';
     }
 
