@@ -1240,9 +1240,14 @@ RULES:
 1. Extract ALL information from the transcription - be thorough
 2. Include exact numbers (blood sugar 400, A1C 9, age 45)
 3. Extract medications with doses, labs ordered, diagnoses mentioned
-4. NEVER write "Not provided", "Not mentioned", or placeholders - always extract from transcription
-5. If a section seems empty, re-read the transcription - the information is there
-6. Return only the note - no explanations`;
+4. DIAGNOSES: Only document diagnoses that are EXPLICITLY stated by the provider
+   - If provider says "diabetes", "diabetic", "has diabetes" → document as definitive diagnosis
+   - If diagnosis is NOT explicitly stated but inferred from medications/labs → add "(possible)" qualifier
+   - Example: Patient on Ozempic but diabetes never mentioned → "Type 2 diabetes mellitus (possible)"
+   - Example: Patient on Synthroid but hypothyroid never mentioned → "Hypothyroidism (possible)"
+5. NEVER write "Not provided", "Not mentioned", or placeholders - always extract from transcription
+6. If a section seems empty, re-read the transcription - the information is there
+7. Return only the note - no explanations`;
   }
 
   private parseResponse(
