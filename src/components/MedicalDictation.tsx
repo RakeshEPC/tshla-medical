@@ -25,6 +25,9 @@ import { logError, logWarn, logInfo, logDebug } from '../services/logger.service
 import { dictationStorageService } from '../services/dictationStorage.service';
 import DictationHistorySidebar from './DictationHistorySidebar';
 import RecordingConfirmationModal from './RecordingConfirmationModal';
+import RealtimeMedicationOrders from './RealtimeMedicationOrders';
+import RealtimeLabOrders from './RealtimeLabOrders';
+import { realtimeOrderExtractionService, type RealtimeOrders } from '../services/realtimeOrderExtraction.service';
 
 // Speech recognition interfaces removed - using HIPAA-compliant services only
 
@@ -119,6 +122,13 @@ export default function MedicalDictation({
   // Recording Confirmation Modal state
   const [showRecordingConfirmation, setShowRecordingConfirmation] = useState(false);
 
+  // Real-time orders state
+  const [realtimeOrders, setRealtimeOrders] = useState<RealtimeOrders>({
+    medications: [],
+    labs: [],
+    lastUpdated: new Date()
+  });
+
   // Patient details for live editing
   const [patientDetails, setPatientDetails] = useState({
     name: '',
@@ -152,6 +162,14 @@ export default function MedicalDictation({
     };
     loadCurrentUser();
   }, []);
+
+  // Real-time order extraction when transcript changes (for manual editing)
+  useEffect(() => {
+    if (transcript.trim()) {
+      const orders = realtimeOrderExtractionService.extractOrders(transcript, realtimeOrders);
+      setRealtimeOrders(orders);
+    }
+  }, [transcript]);
 
   // Load patient data if patientId is provided and preload is enabled
   useEffect(() => {
@@ -632,11 +650,24 @@ export default function MedicalDictation({
             if (!isFinal) {
               // Show partial results
               setInterimText(corrected);
+
+              // Extract orders from interim text in real-time
+              setTranscript(prev => {
+                const combinedText = prev + (prev ? ' ' : '') + corrected;
+                const orders = realtimeOrderExtractionService.extractOrders(combinedText, realtimeOrders);
+                setRealtimeOrders(orders);
+                return prev; // Don't update transcript yet
+              });
             } else {
               // Append final results
               setTranscript(prev => {
                 const updated = prev + (prev ? ' ' : '') + corrected;
                 logDebug('MedicalDictation', `Updated transcript: ${updated.length} chars, ${updated.split(/\s+/).length} words`);
+
+                // Extract orders from final transcript in real-time
+                const orders = realtimeOrderExtractionService.extractOrders(updated, realtimeOrders);
+                setRealtimeOrders(orders);
+
                 return updated;
               });
               setInterimText('');
@@ -795,6 +826,87 @@ export default function MedicalDictation({
     }
   };
 
+  /**
+   * Format realtime orders as text for appending to the processed note
+   */
+  const formatRealtimeOrdersForNote = (): string => {
+    let ordersText = '';
+
+    // Format medications grouped by pharmacy
+    const activeMeds = realtimeOrders.medications.filter(m => m.status !== 'cancelled');
+    if (activeMeds.length > 0) {
+      ordersText += '\n\n---\n\n### 💊 MEDICATION ORDERS\n\n';
+
+      // Group by pharmacy
+      const groupedMeds = activeMeds.reduce((groups, med) => {
+        const pharmacy = med.pharmacy || 'No Pharmacy Specified';
+        if (!groups[pharmacy]) groups[pharmacy] = [];
+        groups[pharmacy].push(med);
+        return groups;
+      }, {} as Record<string, typeof activeMeds>);
+
+      // Sort alphabetically
+      const sortedPharmacies = Object.entries(groupedMeds).sort(([a], [b]) => {
+        if (a === 'No Pharmacy Specified') return 1;
+        if (b === 'No Pharmacy Specified') return -1;
+        return a.localeCompare(b);
+      });
+
+      sortedPharmacies.forEach(([pharmacy, meds]) => {
+        ordersText += `**${pharmacy}** (${meds.length} Rx${meds.length > 1 ? 's' : ''})\n`;
+        meds.forEach((med, idx) => {
+          ordersText += `${idx + 1}. ${med.drugName} ${med.dosage} • ${med.frequency} ${med.route}`;
+          if (med.quantity) ordersText += ` • Qty: #${med.quantity}`;
+          ordersText += ` • RF: ${med.refills || '0'}\n`;
+        });
+        ordersText += '\n';
+      });
+    }
+
+    // Format labs grouped by date and location
+    const activeLabs = realtimeOrders.labs.filter(l => l.status !== 'cancelled');
+    if (activeLabs.length > 0) {
+      ordersText += '### 🔬 LAB ORDERS\n\n';
+
+      // Group by date and location
+      const groupedLabs = activeLabs.reduce((groups, lab) => {
+        const key = `${lab.orderDate}|${lab.location || 'No Location'}`;
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(lab);
+        return groups;
+      }, {} as Record<string, typeof activeLabs>);
+
+      // Sort by urgency
+      const sortedGroups = Object.entries(groupedLabs).sort(([, labsA], [, labsB]) => {
+        const urgencyOrder = { 'stat': 0, 'urgent': 1, 'routine': 2 };
+        const maxA = Math.min(...labsA.map(l => urgencyOrder[l.urgency]));
+        const maxB = Math.min(...labsB.map(l => urgencyOrder[l.urgency]));
+        return maxA - maxB;
+      });
+
+      sortedGroups.forEach(([key, labs]) => {
+        const [date, location] = key.split('|');
+        const highestUrgency = labs.reduce((max, lab) => {
+          const order = { 'stat': 0, 'urgent': 1, 'routine': 2 };
+          return order[lab.urgency] < order[max.urgency] ? lab : max;
+        }).urgency;
+
+        const urgencyLabel = highestUrgency === 'stat' ? '🚨 STAT' :
+                            highestUrgency === 'urgent' ? '⚡ URGENT' : '📋 ROUTINE';
+
+        ordersText += `**${date}** • ${location} • ${urgencyLabel}\n`;
+        labs.forEach((lab, idx) => {
+          ordersText += `${idx + 1}. ${lab.testName}`;
+          if (lab.fasting) ordersText += ' (FASTING)';
+          ordersText += '\n';
+        });
+        ordersText += '\n';
+      });
+    }
+
+    return ordersText;
+  };
+
   const processWithAI = async (transcriptToProcess?: string) => {
     // Use the passed transcript or fall back to state
     let contentToProcess = transcriptToProcess || transcript;
@@ -914,17 +1026,21 @@ Visit Date: ${patientDetails.visitDate}
 
       logDebug('MedicalDictation', 'Debug message', {});
 
+      // Append realtime orders to the processed note
+      const ordersAppendix = formatRealtimeOrdersForNote();
+      const finalProcessedNote = processedContent + ordersAppendix;
+
       // Save version to history before updating current
       const newVersion: ProcessedNoteVersion = {
         id: `version-${Date.now()}`,
         timestamp: new Date(),
-        processedContent: processedContent,
+        processedContent: finalProcessedNote,
         templateUsed: selectedTemplate?.name || 'Standard SOAP Note',
         templateId: selectedTemplate?.id || null,
       };
 
       setProcessedNoteVersions(prev => [...prev, newVersion]);
-      setProcessedNote(processedContent);
+      setProcessedNote(finalProcessedNote);
       setShowProcessed(true);
 
       // Auto-save after processing
@@ -949,7 +1065,7 @@ Visit Date: ${patientDetails.visitDate}
               patientDob: patientDetails.dob,
               visitDate: patientDetails.visitDate,
               rawTranscript: contentToProcess,
-              aiProcessedNote: processedContent,
+              aiProcessedNote: finalProcessedNote,
               recordingMode: recordingMode || 'dictation',
             }),
           });
@@ -978,7 +1094,7 @@ Visit Date: ${patientDetails.visitDate}
               patientDob: patientDetails.dob,
               visitDate: patientDetails.visitDate,
               rawTranscript: contentToProcess,
-              aiProcessedNote: processedContent,
+              aiProcessedNote: finalProcessedNote,
               recordingMode: recordingMode || 'dictation',
             }),
           });
@@ -1970,6 +2086,33 @@ Visit Date: ${patientDetails.visitDate}
               currentDictationId={lastSavedNoteId ? parseInt(lastSavedNoteId, 10) : null}
             />
           )}
+        </div>
+
+        {/* Real-Time Orders Section - Below Main Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
+          {/* Real-Time Medication Orders */}
+          <RealtimeMedicationOrders
+            medications={realtimeOrders.medications}
+            patientName={patientDetails.name}
+            onDeleteMedication={(medicationId) => {
+              setRealtimeOrders(prev => ({
+                ...prev,
+                medications: prev.medications.filter(m => m.id !== medicationId)
+              }));
+            }}
+          />
+
+          {/* Real-Time Lab Orders */}
+          <RealtimeLabOrders
+            labs={realtimeOrders.labs}
+            patientName={patientDetails.name}
+            onDeleteLab={(labId) => {
+              setRealtimeOrders(prev => ({
+                ...prev,
+                labs: prev.labs.filter(l => l.id !== labId)
+              }));
+            }}
+          />
         </div>
 
       </div>
