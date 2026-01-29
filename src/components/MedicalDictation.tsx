@@ -411,6 +411,7 @@ export default function MedicalDictation({
             }
             if (mostRecentNote.aiProcessedNote) {
               setProcessedNote(mostRecentNote.aiProcessedNote);
+              setShowProcessed(true); // Show the processed note panel
             }
 
             setLastSavedNoteId(String(mostRecentNote.id || ''));
