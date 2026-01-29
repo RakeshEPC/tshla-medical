@@ -360,20 +360,50 @@ export default function MedicalDictation({
   // Load existing notes for this patient from database
   useEffect(() => {
     const loadExistingNotes = async () => {
-      if (patientId && patientDetails.name) {
+      if ((patientId && patientDetails.name) || appointmentId) {
         try {
-          logDebug('MedicalDictation', 'Debug message', {});
-          const existingNotes = await scheduleDatabaseService.getNotes(providerId);
+          logDebug('MedicalDictation', 'Loading existing notes - cross-provider access', {
+            appointmentId,
+            patientMrn: patientDetails.mrn,
+            patientPhone: patientDetails.phone
+          });
 
-          // Find the most recent note for this patient
-          const patientNotes = existingNotes.filter(note =>
-            note.patientName === patientDetails.name ||
-            (note.patientMrn && patientDetails.mrn && note.patientMrn === patientDetails.mrn)
-          );
+          // Try to load notes using cross-provider methods
+          let existingNotes: any[] = [];
 
-          if (patientNotes.length > 0) {
-            // Sort by created date (assuming most recent first)
-            const mostRecentNote = patientNotes[0];
+          // First priority: Load by appointment ID (most specific)
+          if (appointmentId) {
+            existingNotes = await scheduleDatabaseService.getNotesForAppointment(appointmentId);
+            logDebug('MedicalDictation', `Found ${existingNotes.length} notes for appointment`, { appointmentId });
+          }
+
+          // Second priority: Load by patient identifiers (MRN, phone, name)
+          if (existingNotes.length === 0 && (patientDetails.mrn || patientDetails.phone || patientDetails.name)) {
+            existingNotes = await scheduleDatabaseService.getNotesForPatient(
+              patientDetails.mrn,
+              patientDetails.phone,
+              patientDetails.name
+            );
+            logDebug('MedicalDictation', `Found ${existingNotes.length} notes for patient`, {
+              mrn: patientDetails.mrn,
+              phone: patientDetails.phone
+            });
+          }
+
+          // Fallback: Load by current provider only
+          if (existingNotes.length === 0) {
+            existingNotes = await scheduleDatabaseService.getNotes(providerId);
+            // Filter to current patient
+            existingNotes = existingNotes.filter(note =>
+              note.patientName === patientDetails.name ||
+              (note.patientMrn && patientDetails.mrn && note.patientMrn === patientDetails.mrn)
+            );
+            logDebug('MedicalDictation', `Found ${existingNotes.length} notes from current provider`, {});
+          }
+
+          if (existingNotes.length > 0) {
+            // Sort by created date (most recent first)
+            const mostRecentNote = existingNotes[0];
 
             // Load the existing content
             if (mostRecentNote.rawTranscript) {
@@ -384,24 +414,37 @@ export default function MedicalDictation({
             }
 
             setLastSavedNoteId(String(mostRecentNote.id || ''));
-            logInfo('MedicalDictation', 'Info message', {});
+
+            const providerInfo = mostRecentNote.providerName
+              ? `\nCreated by: ${mostRecentNote.providerName}`
+              : '';
+            const createdDate = mostRecentNote.createdAt
+              ? new Date(mostRecentNote.createdAt).toLocaleString()
+              : 'Unknown date';
+
+            logInfo('MedicalDictation', `Loaded note from ${createdDate}`, {
+              noteId: mostRecentNote.id,
+              hasTranscript: !!mostRecentNote.rawTranscript,
+              hasProcessedNote: !!mostRecentNote.aiProcessedNote,
+              provider: mostRecentNote.providerName
+            });
 
             // Show notification that previous notes were loaded
             setTimeout(() => {
-              alert(`📋 Loaded previous notes for ${patientDetails.name}\n\nYou can continue editing where you left off!`);
+              alert(`📋 Loaded previous note from ${createdDate}${providerInfo}\n\nYou can continue editing or create a new note!`);
             }, 1000);
           }
         } catch (error) {
-          logError('MedicalDictation', 'Error message', {});
+          logError('MedicalDictation', 'Failed to load existing notes', { error });
         }
       }
     };
 
-    // Only load once when component mounts with patient data
-    if (patientId && patientDetails.name && !transcript && !processedNote) {
+    // Load if we have patient data OR appointment ID (removed restrictive condition)
+    if ((patientId && patientDetails.name) || appointmentId) {
       loadExistingNotes();
     }
-  }, [patientId, patientDetails.name, patientDetails.mrn, providerId]);
+  }, [patientId, patientDetails.name, patientDetails.mrn, patientDetails.phone, providerId, appointmentId]);
 
   // Load doctor templates
   useEffect(() => {

@@ -17,6 +17,8 @@ interface Patient {
 
 interface DictatedNote {
   id?: number;
+  providerId?: string;
+  providerName?: string;
   patientName: string;
   patientMrn?: string;
   patientPhone?: string;
@@ -283,6 +285,96 @@ class ScheduleDatabaseService {
     } catch (error) {
       logError('scheduleDatabase', 'Error message', {});
       return false;
+    }
+  }
+
+  /**
+   * Get all notes for a specific patient (cross-provider access)
+   */
+  async getNotesForPatient(mrn?: string, phone?: string, patientName?: string): Promise<DictatedNote[]> {
+    try {
+      // Use MRN first, then phone, then name
+      const identifier = mrn || phone || patientName;
+      if (!identifier) {
+        return [];
+      }
+
+      const url = `${this.API_BASE_URL}/api/notes/patient/${encodeURIComponent(identifier)}`;
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch patient notes: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to load patient notes');
+      }
+
+      // Map snake_case API response to camelCase interface
+      const notes = (data.notes || []).map((note: any) => ({
+        id: note.id,
+        providerId: note.provider_id,
+        providerName: note.provider_name,
+        patientName: note.patient_name || '',
+        patientMrn: note.patient_mrn,
+        patientPhone: note.patient_phone,
+        patientEmail: note.patient_email,
+        rawTranscript: note.raw_transcript || '',
+        aiProcessedNote: note.processed_note || '',
+        recordingMode: note.recording_mode || 'dictation',
+        isQuickNote: note.is_quick_note,
+        visitDate: note.visit_date,
+        createdAt: note.created_at
+      }));
+
+      return notes;
+    } catch (error) {
+      logError('scheduleDatabase', 'Failed to fetch patient notes', {});
+      return [];
+    }
+  }
+
+  /**
+   * Get notes linked to a specific appointment (cross-provider access)
+   */
+  async getNotesForAppointment(appointmentId: number): Promise<DictatedNote[]> {
+    try {
+      const url = `${this.API_BASE_URL}/api/notes/appointment/${appointmentId}`;
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch appointment notes: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to load appointment notes');
+      }
+
+      // Map snake_case API response to camelCase interface
+      const notes = (data.notes || []).map((note: any) => ({
+        id: note.id,
+        providerId: note.provider_id,
+        providerName: note.provider_name,
+        patientName: note.patient_name || '',
+        patientMrn: note.patient_mrn,
+        patientPhone: note.patient_phone,
+        patientEmail: note.patient_email,
+        rawTranscript: note.raw_transcript || '',
+        aiProcessedNote: note.processed_note || '',
+        recordingMode: note.recording_mode || 'dictation',
+        isQuickNote: note.is_quick_note,
+        visitDate: note.visit_date,
+        createdAt: note.created_at
+      }));
+
+      return notes;
+    } catch (error) {
+      logError('scheduleDatabase', 'Failed to fetch appointment notes', {});
+      return [];
     }
   }
 }

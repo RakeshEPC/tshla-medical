@@ -1166,6 +1166,92 @@ app.get('/api/notes/search', async (req, res) => {
   }
 });
 
+// Get all notes for a specific patient (cross-provider access)
+app.get('/api/notes/patient/:identifier', async (req, res) => {
+  try {
+    const { identifier } = req.params;
+    const { limit = 20 } = req.query;
+
+    // Try to find notes by MRN, phone, or patient name
+    let query = unifiedSupabase
+      .from('dictated_notes')
+      .select('id, provider_id, provider_name, patient_name, patient_mrn, patient_phone, patient_email, visit_date, note_title, raw_transcript, processed_note, recording_mode, created_at, status')
+      .or(`patient_mrn.eq.${identifier},patient_phone.eq.${identifier},patient_name.ilike.%${identifier}%`)
+      .order('created_at', { ascending: false })
+      .limit(parseInt(limit));
+
+    const { data: notes, error } = await query;
+
+    if (error) throw error;
+
+    logger.info('API', `Found ${notes?.length || 0} notes for patient: ${identifier}`);
+
+    res.json({
+      success: true,
+      notes: notes || [],
+      count: notes?.length || 0,
+    });
+  } catch (error) {
+    logger.error('API', error.message, { error });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch patient notes',
+      details: error.message,
+    });
+  }
+});
+
+// Get notes linked to a specific appointment (cross-provider access)
+app.get('/api/notes/appointment/:appointmentId', async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+
+    // First get note IDs from schedule_note_links
+    const { data: links, error: linkError } = await unifiedSupabase
+      .from('schedule_note_links')
+      .select('note_id')
+      .eq('appointment_id', appointmentId)
+      .order('created_at', { ascending: false });
+
+    if (linkError) throw linkError;
+
+    if (!links || links.length === 0) {
+      return res.json({
+        success: true,
+        notes: [],
+        count: 0,
+      });
+    }
+
+    // Get note IDs
+    const noteIds = links.map(link => link.note_id);
+
+    // Fetch the actual notes
+    const { data: notes, error: notesError } = await unifiedSupabase
+      .from('dictated_notes')
+      .select('id, provider_id, provider_name, patient_name, patient_mrn, patient_phone, patient_email, visit_date, note_title, raw_transcript, processed_note, recording_mode, created_at, status')
+      .in('id', noteIds)
+      .order('created_at', { ascending: false});
+
+    if (notesError) throw notesError;
+
+    logger.info('API', `Found ${notes?.length || 0} notes for appointment: ${appointmentId}`);
+
+    res.json({
+      success: true,
+      notes: notes || [],
+      count: notes?.length || 0,
+    });
+  } catch (error) {
+    logger.error('API', error.message, { error });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch appointment notes',
+      details: error.message,
+    });
+  }
+});
+
 // ===============================
 // ANALYTICS ENDPOINTS
 // ===============================
