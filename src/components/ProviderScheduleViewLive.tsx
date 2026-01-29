@@ -100,9 +100,11 @@ export function ProviderScheduleViewLive({ date, providerIds, onRefresh }: Provi
                 patient_gender: appt.patient_gender || patient?.gender,
                 patient_dob: appt.patient_dob || patient?.date_of_birth,
                 patient_phone: appt.patient_phone || patient?.phone_primary,
+                patient_email: appt.patient_email || patient?.email,
                 // Include Internal ID and TSH ID in the appointment data
                 internal_id: patient?.patient_id,
-                tsh_id: patient?.tshla_id,
+                tsh_id: patient?.patient_id,  // Fixed: patient_id is the TSH ID
+                mrn: appt.patient_mrn || patient?.mrn,  // MRN from schedule or patient table
                 chief_diagnosis: appt.chief_diagnosis || appt.visit_reason,
                 appointment_type: appt.appointment_type || 'follow-up',
                 scheduled_date: appt.scheduled_date,

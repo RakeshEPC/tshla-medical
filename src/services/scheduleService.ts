@@ -413,35 +413,44 @@ class ScheduleService {
             if (!unifiedPatientId) {
               try {
                 const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-                const response = await fetch(`${apiUrl}/api/patients/find-or-create`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    phone: apt.patientPhone,
-                    patientData: {
-                      firstName: apt.patientFirstName,
-                      lastName: apt.patientLastName,
-                      dob: apt.patientDOB,
-                      gender: apt.patientGender,
-                      email: apt.patientEmail,
-                      mrn: apt.patientMRN,
-                      provider_id: apt.providerId,
-                      provider_name: apt.providerName
-                    },
-                    source: 'schedule'
-                  })
-                });
 
-                if (response.ok) {
-                  const result = await response.json();
-                  unifiedPatientId = result.patient?.id;
-                  logInfo('scheduleService', 'Created new unified patient', {
-                    patientId: result.patient?.patient_id,
-                    tshlaId: result.patient?.tshla_id
+                // 🔥 SKIP API CALL IF NO API URL CONFIGURED
+                if (!import.meta.env.VITE_API_BASE_URL) {
+                  logWarn('scheduleService', 'Skipping patient creation - VITE_API_BASE_URL not configured', {});
+                  // Continue without linking - appointment will still be created
+                } else {
+                  const response = await fetch(`${apiUrl}/api/patients/find-or-create`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      phone: apt.patientPhone,
+                      patientData: {
+                        firstName: apt.patientFirstName,
+                        lastName: apt.patientLastName,
+                        dob: apt.patientDOB,
+                        gender: apt.patientGender,
+                        email: apt.patientEmail,
+                        mrn: apt.patientMRN,
+                        provider_id: apt.providerId,
+                        provider_name: apt.providerName
+                      },
+                      source: 'schedule'
+                    })
                   });
+
+                  if (response.ok) {
+                    const result = await response.json();
+                    unifiedPatientId = result.patient?.id;
+                    logInfo('scheduleService', 'Created new unified patient', {
+                      patientId: result.patient?.patient_id,
+                      tshlaId: result.patient?.tshla_id
+                    });
+                  } else {
+                    logWarn('scheduleService', `Patient creation API returned ${response.status}`, {});
+                  }
                 }
               } catch (apiError) {
-                logWarn('scheduleService', 'Failed to create unified patient via API', { error: apiError });
+                logWarn('scheduleService', 'Failed to create unified patient via API (continuing anyway)', { error: apiError });
                 // Continue without linking - appointment will still be created
               }
             }
@@ -452,43 +461,101 @@ class ScheduleService {
                               apt.visitType?.toLowerCase().includes('virtual') ||
                               apt.visitType?.toLowerCase().includes('telemedicine');
 
+          // 🔥 DATA VALIDATION - Check for required fields (but allow defaults)
+          if (!apt.date) {
+            console.warn('⚠️ Missing date for appointment, skipping:', apt);
+            continue; // Skip this appointment instead of throwing error
+          }
+          if (!apt.time) {
+            console.warn('⚠️ Missing time for appointment, skipping:', apt);
+            continue; // Skip this appointment instead of throwing error
+          }
+          // Allow missing patient name - will use "Unknown Patient"
+          // Allow missing provider - will use "unknown" as provider_id
+
+          // Build insert data carefully - only include non-null fields
+          const insertData: any = {
+            provider_id: apt.providerId || 'unknown',
+            provider_name: apt.providerName || 'Unknown Provider',
+            patient_name: `${apt.patientFirstName || ''} ${apt.patientLastName || ''}`.trim() || 'Unknown Patient',
+            scheduled_date: apt.date,
+            start_time: apt.time,
+            duration_minutes: apt.duration || 30,
+            status: 'scheduled',
+            urgency_level: 'routine',
+            is_telehealth: isTelehealth || false,
+            imported_by: importedBy,
+            imported_at: new Date().toISOString(),
+            import_batch_id: batchId,
+          };
+
+          // Only add optional fields if they exist
+          if (apt.patientAge) insertData.patient_age = apt.patientAge;
+          if (apt.patientGender) insertData.patient_gender = apt.patientGender;
+          if (apt.patientDOB) insertData.patient_dob = apt.patientDOB;
+          if (apt.patientPhone) insertData.patient_phone = apt.patientPhone;
+          if (apt.patientEmail) insertData.patient_email = apt.patientEmail;
+          if (apt.patientMRN) insertData.patient_mrn = apt.patientMRN;
+          if (unifiedPatientId) insertData.unified_patient_id = unifiedPatientId;
+          if (apt.diagnosis) insertData.chief_diagnosis = apt.diagnosis;
+          if (apt.visitReason) insertData.visit_reason = apt.visitReason;
+          if (apt.visitType) insertData.appointment_type = apt.visitType;
+
           // Insert appointment (now with unified_patient_id if found/created)
           const { data, error } = await supabase
             .from('provider_schedules')
-            .insert({
-              provider_id: apt.providerId || 'unknown',
-              provider_name: apt.providerName,
-              patient_name: `${apt.patientFirstName} ${apt.patientLastName}`,
-              patient_age: apt.patientAge,
-              patient_gender: apt.patientGender,
-              patient_dob: apt.patientDOB,
-              patient_phone: apt.patientPhone,
-              patient_email: apt.patientEmail,
-              patient_mrn: apt.patientMRN,
-              unified_patient_id: unifiedPatientId, // 🆕 Link to unified patient
-              chief_diagnosis: apt.diagnosis,
-              visit_reason: apt.visitReason,
-              appointment_type: apt.visitType || this.mapVisitType(apt.visitReason),
-              scheduled_date: apt.date,
-              start_time: apt.time,
-              duration_minutes: apt.duration,
-              status: apt.status || 'scheduled',
-              is_telehealth: isTelehealth,
-              athena_appointment_id: null,
-              imported_by: importedBy,
-              imported_at: new Date().toISOString(),
-              import_batch_id: batchId,
-            })
+            .insert(insertData)
             .select()
             .single();
 
           if (error) {
-            errors.push({ appointment: apt, error: error.message });
+            // 🔥 WRITE ERROR TO A GLOBAL VARIABLE SO WE CAN ACCESS IT
+            if (!window.scheduleImportErrors) {
+              window.scheduleImportErrors = [];
+            }
+            window.scheduleImportErrors.push({
+              patient: `${apt.patientFirstName} ${apt.patientLastName}`,
+              provider: apt.providerName,
+              date: apt.date,
+              time: apt.time,
+              error: error,
+              errorMessage: error?.message,
+              errorCode: error?.code,
+              errorDetails: error?.details,
+              errorHint: error?.hint,
+            });
+
+            console.error('❌ INSERT FAILED:', error);
+            console.error('Patient:', `${apt.patientFirstName} ${apt.patientLastName}`);
+            console.error('Full error object:', error);
+
+            errors.push({
+              appointment: apt,
+              error: error?.message || 'Unknown error',
+              errorDetails: error?.details,
+              errorHint: error?.hint,
+              errorCode: error?.code
+            });
           } else {
             successfulImports.push(data);
           }
         } catch (err) {
-          errors.push({ appointment: apt, error: err instanceof Error ? err.message : 'Unknown error' });
+          // 🔥 DETAILED CATCH ERROR LOGGING
+          console.error('❌ Appointment import exception:', {
+            error: err,
+            errorMessage: err instanceof Error ? err.message : 'Unknown error',
+            appointmentData: {
+              patient: `${apt.patientFirstName} ${apt.patientLastName}`,
+              provider: apt.providerName,
+              date: apt.date,
+              time: apt.time,
+            }
+          });
+          errors.push({
+            appointment: apt,
+            error: err instanceof Error ? err.message : 'Unknown error',
+            stack: err instanceof Error ? err.stack : undefined
+          });
         }
       }
 

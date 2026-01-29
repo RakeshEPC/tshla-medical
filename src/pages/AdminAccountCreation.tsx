@@ -181,8 +181,30 @@ export default function AdminAccountCreation() {
         return acc;
       }, {} as Record<string, number>);
 
+      // Show errors in console for debugging
+      if (importResult.errors && importResult.errors.length > 0) {
+        console.group('🔴 Import Errors (' + importResult.errors.length + ' total)');
+        importResult.errors.slice(0, 10).forEach((err: any, index: number) => {
+          console.error(`Error ${index + 1}:`, {
+            patient: err.appointment?.patientFirstName + ' ' + err.appointment?.patientLastName,
+            error: err.error,
+            errorDetails: err.errorDetails,
+            errorHint: err.errorHint,
+            errorCode: err.errorCode
+          });
+        });
+        console.groupEnd();
+      }
+
+      const messageType = importResult.summary.failed > 0 ? 'error' : 'success';
+      const errorSummary = importResult.errors && importResult.errors.length > 0
+        ? `\n\n❌ ERRORS (showing first 5):\n${importResult.errors.slice(0, 5).map((err: any, i: number) =>
+            `${i+1}. ${err.appointment?.patientFirstName || 'Unknown'} ${err.appointment?.patientLastName || ''}: ${err.error}`
+          ).join('\n')}\n\nCheck browser console (F12) for full error details.`
+        : '';
+
       setMessage({
-        type: 'success',
+        type: messageType,
         text: `Successfully imported ${importResult.summary.successful} appointments for ${scheduleDate}!
 
 Status Breakdown:
@@ -198,9 +220,9 @@ ${mode === 'replace' ? '✓ Cleared and replaced all appointments for this date'
             : ''
         }${
           importResult.summary.failed > 0
-            ? `\n(${importResult.summary.failed} failed)`
+            ? `\n\n⚠️ ${importResult.summary.failed} appointments FAILED to import!`
             : ''
-        }`,
+        }${errorSummary}`,
       });
       setScheduleImportStatus('');
     } catch (error) {

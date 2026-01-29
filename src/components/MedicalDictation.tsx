@@ -131,6 +131,8 @@ export default function MedicalDictation({
   });
   const [isExtractingOrders, setIsExtractingOrders] = useState(false);
   const extractionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const periodicExtractionIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [lastExtractionTime, setLastExtractionTime] = useState<Date | null>(null);
 
   // Patient details for live editing
   const [patientDetails, setPatientDetails] = useState({
@@ -166,62 +168,74 @@ export default function MedicalDictation({
     loadCurrentUser();
   }, []);
 
-  // Real-time order extraction when transcript changes (for manual editing)
-  // Uses AI extraction with 2-second debouncing, fallback to regex on error
+  // Smart extraction function for periodic updates
+  const extractOrdersFromCurrentTranscript = async () => {
+    // Don't extract if transcript is too short
+    if (!transcript || transcript.length < 50) {
+      return;
+    }
+
+    // Don't extract if we just extracted recently (prevent duplicates)
+    if (lastExtractionTime && (Date.now() - lastExtractionTime.getTime()) < 5000) {
+      return;
+    }
+
+    setIsExtractingOrders(true);
+    setLastExtractionTime(new Date());
+
+    try {
+      if (aiRealtimeOrderExtractionService.isAvailable()) {
+        logDebug('MedicalDictation', 'Periodic extraction starting', {
+          transcriptLength: transcript.length,
+          wordCount: transcript.split(/\s+/).length
+        });
+
+        const orders = await aiRealtimeOrderExtractionService.extractOrders(transcript, realtimeOrders);
+        setRealtimeOrders(orders);
+
+        logInfo('MedicalDictation', 'Periodic extraction complete', {
+          medications: orders.medications.length,
+          labs: orders.labs.length
+        });
+      } else {
+        // Fallback to regex
+        const orders = realtimeOrderExtractionService.extractOrders(transcript, realtimeOrders);
+        setRealtimeOrders(orders);
+      }
+    } catch (error) {
+      logError('MedicalDictation', 'Periodic extraction failed', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      // Try regex fallback
+      const orders = realtimeOrderExtractionService.extractOrders(transcript, realtimeOrders);
+      setRealtimeOrders(orders);
+    } finally {
+      setIsExtractingOrders(false);
+    }
+  };
+
+  // Real-time order extraction when transcript changes (for manual editing ONLY)
+  // Only runs when NOT recording - during recording, periodic extraction handles it
   useEffect(() => {
+    // Don't run if currently recording (periodic extraction handles that)
+    if (isRecording) {
+      return;
+    }
+
     // Clear any existing timeout
     if (extractionTimeoutRef.current) {
       clearTimeout(extractionTimeoutRef.current);
     }
 
-    if (!transcript.trim()) {
-      setRealtimeOrders({
-        medications: [],
-        labs: [],
-        lastUpdated: new Date()
-      });
+    if (!transcript.trim() || transcript.length < 50) {
       setIsExtractingOrders(false);
       return;
     }
 
-    // Show loading indicator
-    setIsExtractingOrders(true);
-
-    // Debounce AI extraction by 2 seconds
+    // Debounce extraction by 3 seconds for manual edits
     extractionTimeoutRef.current = setTimeout(async () => {
-      try {
-        // Try AI extraction first if available
-        if (aiRealtimeOrderExtractionService.isAvailable()) {
-          logDebug('MedicalDictation', 'Using AI real-time extraction', {
-            transcriptLength: transcript.length
-          });
-
-          const orders = await aiRealtimeOrderExtractionService.extractOrders(transcript, realtimeOrders);
-          setRealtimeOrders(orders);
-          setIsExtractingOrders(false);
-
-          logInfo('MedicalDictation', 'AI extraction successful', {
-            medications: orders.medications.length,
-            labs: orders.labs.length
-          });
-        } else {
-          // Fallback to regex if AI not available
-          logWarn('MedicalDictation', 'AI extraction not available, using regex fallback', {});
-          const orders = realtimeOrderExtractionService.extractOrders(transcript, realtimeOrders);
-          setRealtimeOrders(orders);
-          setIsExtractingOrders(false);
-        }
-      } catch (error) {
-        // Fallback to regex on error
-        logError('MedicalDictation', 'AI extraction failed, using regex fallback', {
-          error: error instanceof Error ? error.message : String(error)
-        });
-
-        const orders = realtimeOrderExtractionService.extractOrders(transcript, realtimeOrders);
-        setRealtimeOrders(orders);
-        setIsExtractingOrders(false);
-      }
-    }, 2000); // 2-second debounce
+      await extractOrdersFromCurrentTranscript();
+    }, 3000); // 3-second debounce for manual edits
 
     // Cleanup timeout on unmount
     return () => {
@@ -229,7 +243,7 @@ export default function MedicalDictation({
         clearTimeout(extractionTimeoutRef.current);
       }
     };
-  }, [transcript]);
+  }, [transcript, isRecording]);
 
   // Load patient data if patientId is provided and preload is enabled
   useEffect(() => {
@@ -711,6 +725,20 @@ export default function MedicalDictation({
     };
   }, [isRecording]);
 
+  // Cleanup periodic extraction timer on component unmount
+  useEffect(() => {
+    return () => {
+      if (periodicExtractionIntervalRef.current) {
+        clearInterval(periodicExtractionIntervalRef.current);
+        logDebug('MedicalDictation', 'Cleaned up periodic extraction timer on unmount');
+      }
+      if (extractionTimeoutRef.current) {
+        clearTimeout(extractionTimeoutRef.current);
+        logDebug('MedicalDictation', 'Cleaned up extraction timeout on unmount');
+      }
+    };
+  }, []);
+
   // Handler to show confirmation modal before recording
   const handleStartRecordingClick = () => {
     if (isRecording) return;
@@ -752,26 +780,13 @@ export default function MedicalDictation({
             const corrected = medicalCorrections.correctTranscription(text);
 
             if (!isFinal) {
-              // Show partial results
+              // Show partial results (no extraction during interim - wait for periodic timer)
               setInterimText(corrected);
-
-              // Extract orders from interim text in real-time
-              setTranscript(prev => {
-                const combinedText = prev + (prev ? ' ' : '') + corrected;
-                const orders = realtimeOrderExtractionService.extractOrders(combinedText, realtimeOrders);
-                setRealtimeOrders(orders);
-                return prev; // Don't update transcript yet
-              });
             } else {
-              // Append final results
+              // Append final results (no extraction here - periodic timer handles it)
               setTranscript(prev => {
                 const updated = prev + (prev ? ' ' : '') + corrected;
                 logDebug('MedicalDictation', `Updated transcript: ${updated.length} chars, ${updated.split(/\s+/).length} words`);
-
-                // Extract orders from final transcript in real-time
-                const orders = realtimeOrderExtractionService.extractOrders(updated, realtimeOrders);
-                setRealtimeOrders(orders);
-
                 return updated;
               });
               setInterimText('');
@@ -805,6 +820,13 @@ export default function MedicalDictation({
         setIsRecording(true);
         setRecordingError('');
         logInfo('MedicalDictation', `${recordingMode} recording started successfully`);
+
+        // Start periodic order extraction (every 35 seconds)
+        periodicExtractionIntervalRef.current = setInterval(() => {
+          extractOrdersFromCurrentTranscript();
+        }, 35000); // 35 seconds - balanced between 30-40
+
+        logDebug('MedicalDictation', 'Started periodic extraction timer (35s intervals)');
       } else {
         const errorMsg = 'Failed to start recording service. Please check your microphone and browser permissions.';
         setRecordingError(errorMsg);
@@ -863,6 +885,13 @@ export default function MedicalDictation({
     // Immediately set recording to false to update UI
     setIsRecording(false);
 
+    // Stop periodic extraction timer
+    if (periodicExtractionIntervalRef.current) {
+      clearInterval(periodicExtractionIntervalRef.current);
+      periodicExtractionIntervalRef.current = null;
+      logDebug('MedicalDictation', 'Stopped periodic extraction timer');
+    }
+
     // Stop the Speech Service Router
     try {
       speechServiceRouter.stopRecording();
@@ -887,6 +916,12 @@ export default function MedicalDictation({
     if (finalTranscript !== transcript || interimText.trim()) {
       setTranscript(finalTranscript);
       setInterimText('');
+    }
+
+    // Do final extraction with complete transcript
+    if (finalTranscript && finalTranscript.length >= 50) {
+      extractOrdersFromCurrentTranscript();
+      logDebug('MedicalDictation', 'Final extraction completed');
     }
 
     // Check current transcript state
