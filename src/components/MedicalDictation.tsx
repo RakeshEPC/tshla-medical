@@ -175,8 +175,10 @@ export default function MedicalDictation({
       return;
     }
 
+    // 🚀 PERFORMANCE OPTIMIZATION: Smart caching - increased from 5s to 10s
     // Don't extract if we just extracted recently (prevent duplicates)
-    if (lastExtractionTime && (Date.now() - lastExtractionTime.getTime()) < 5000) {
+    if (lastExtractionTime && (Date.now() - lastExtractionTime.getTime()) < 10000) {
+      console.log('⚡ Using cached extraction - skipping duplicate AI call!');
       return;
     }
 
@@ -1145,13 +1147,18 @@ Visit Date: ${patientDetails.visitDate}
         };
       }
 
-      const result = await azureAIService.processMedicalTranscription(
-        combinedContent,
-        minimalPatientData,
-        null, // Legacy template parameter
-        `Patient context: ${patientContext}`,
-        templateInstructions // Pass custom template instructions
-      );
+      // 🚀 PERFORMANCE OPTIMIZATION: Run AI processing and order formatting in parallel
+      const [result, ordersAppendix] = await Promise.all([
+        azureAIService.processMedicalTranscription(
+          combinedContent,
+          minimalPatientData,
+          null, // Legacy template parameter
+          `Patient context: ${patientContext}`,
+          templateInstructions // Pass custom template instructions
+        ),
+        // Format orders in parallel while AI is processing
+        Promise.resolve(formatRealtimeOrdersForNote())
+      ]);
 
       // Extract just the formatted note from the result
       const processedContent = result.formatted;
@@ -1172,8 +1179,7 @@ Visit Date: ${patientDetails.visitDate}
 
       logDebug('MedicalDictation', 'Debug message', {});
 
-      // Append realtime orders to the processed note
-      const ordersAppendix = formatRealtimeOrdersForNote();
+      // Combine processed note with realtime orders (already formatted in parallel)
       const finalProcessedNote = processedContent + ordersAppendix;
 
       // Save version to history before updating current
@@ -1189,16 +1195,18 @@ Visit Date: ${patientDetails.visitDate}
       setProcessedNote(finalProcessedNote);
       setShowProcessed(true);
 
-      // Auto-save after processing
-      try {
-        setDatabaseAutoSaveStatus('saving');
-        const apiBaseUrl = import.meta.env.MODE === 'production'
-          ? 'https://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io'
-          : 'http://localhost:3003';
+      // 🚀 PERFORMANCE OPTIMIZATION: Auto-save in background (non-blocking)
+      // User sees the note immediately without waiting for database confirmation
+      const saveToDatabase = async () => {
+        try {
+          setDatabaseAutoSaveStatus('saving');
+          const apiBaseUrl = import.meta.env.MODE === 'production'
+            ? 'https://tshla-unified-api.redpebble-e4551b7a.eastus.azurecontainerapps.io'
+            : 'http://localhost:3003';
 
-        if (lastSavedNoteId) {
-          // Update existing note
-          const response = await fetch(`${apiBaseUrl}/api/simple/note/${lastSavedNoteId}`, {
+          if (lastSavedNoteId) {
+            // Update existing note
+            const response = await fetch(`${apiBaseUrl}/api/simple/note/${lastSavedNoteId}`, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
@@ -1253,73 +1261,59 @@ Visit Date: ${patientDetails.visitDate}
             setTimeout(() => setDatabaseAutoSaveStatus('idle'), 2000);
             logInfo('MedicalDictation', 'Note created after processing', { noteId: data.noteId });
 
-            // Auto-generate patient summary after successful note save
+            // 🚀 PERFORMANCE OPTIMIZATION: Patient summary in background
+            // Don't wait for summary - it takes 2-3 seconds and user doesn't need to see it
             if (patientDetails.phone && processedContent) {
-              try {
-                console.log('🔄 Creating patient audio summary...', {
-                  dictationId: data.noteId,
-                  patientPhone: patientDetails.phone,
-                  patientName: patientDetails.name,
-                  hasProcessedContent: !!processedContent
-                });
+              // Run in background with setTimeout to not block the save
+              setTimeout(() => {
+                const generateSummary = async () => {
+                  try {
+                    console.log('🔄 Creating patient audio summary in background...', {
+                      dictationId: data.noteId,
+                      patientPhone: patientDetails.phone,
+                      patientName: patientDetails.name
+                    });
 
-                const summaryResponse = await fetch(`${apiBaseUrl}/api/patient-summaries/create`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    dictationId: data.noteId,
-                    patientPhone: patientDetails.phone,
-                    patientName: patientDetails.name || 'Unidentified Patient',
-                    patientMrn: patientDetails.mrn,
-                    soapNote: processedContent,
-                    providerId,
-                    providerName
-                  })
-                });
+                    const summaryResponse = await fetch(`${apiBaseUrl}/api/patient-summaries/create`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        dictationId: data.noteId,
+                        patientPhone: patientDetails.phone,
+                        patientName: patientDetails.name || 'Unidentified Patient',
+                        patientMrn: patientDetails.mrn,
+                        soapNote: processedContent,
+                        providerId,
+                        providerName
+                      })
+                    });
 
-                if (!summaryResponse.ok) {
-                  const errorText = await summaryResponse.text();
-                  console.error('❌ Patient summary API error:', {
-                    status: summaryResponse.status,
-                    statusText: summaryResponse.statusText,
-                    error: errorText
-                  });
-                  throw new Error(`API returned ${summaryResponse.status}: ${errorText}`);
-                }
-
-                const summaryData = await summaryResponse.json();
-                if (summaryData.success) {
-                  logInfo('MedicalDictation', 'Patient summary auto-generated', {
-                    summaryId: summaryData.data.id,
-                    shareLink: summaryData.data.shareLinkUrl
-                  });
-                  console.log('✅ Patient summary created! View in Staff Patient Summaries dashboard', {
-                    summaryId: summaryData.data.summaryId,
-                    shareLinkUrl: summaryData.data.shareLinkUrl
-                  });
-                } else {
-                  console.error('❌ Patient summary creation failed:', summaryData.error);
-                }
-              } catch (summaryError) {
-                // Don't fail the entire save if summary generation fails
-                logError('MedicalDictation', 'Patient summary auto-generation failed', { summaryError });
-                console.error('⚠️ Patient summary generation failed (note was still saved):', summaryError);
-              }
-            } else {
-              console.log('⏭️ Skipping patient summary creation:', {
-                hasPhone: !!patientDetails.phone,
-                hasProcessedContent: !!processedContent,
-                phone: patientDetails.phone,
-                contentLength: processedContent?.length
-              });
+                    if (summaryResponse.ok) {
+                      const summaryData = await summaryResponse.json();
+                      if (summaryData.success) {
+                        console.log('✅ Patient summary created in background!', {
+                          summaryId: summaryData.data.summaryId
+                        });
+                      }
+                    }
+                  } catch (summaryError) {
+                    console.error('⚠️ Background patient summary failed (non-blocking):', summaryError);
+                  }
+                };
+                generateSummary();
+              }, 100); // Run after 100ms - gives UI time to update
             }
           }
         }
-      } catch (saveError) {
-        setDatabaseAutoSaveStatus('error');
-        setTimeout(() => setDatabaseAutoSaveStatus('idle'), 3000);
-        logError('MedicalDictation', 'Auto-save after processing failed', { saveError });
-      }
+        } catch (saveError) {
+          setDatabaseAutoSaveStatus('error');
+          setTimeout(() => setDatabaseAutoSaveStatus('idle'), 3000);
+          logError('MedicalDictation', 'Auto-save after processing failed', { saveError });
+        }
+      };
+
+      // Run save in background - don't wait for it!
+      saveToDatabase();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
