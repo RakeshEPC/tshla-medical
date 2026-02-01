@@ -2133,8 +2133,10 @@ Visit Date: ${patientDetails.visitDate}
               </div>
             </div>
 
-            {/* Orders for Staff Section */}
-            {extractedOrders && showProcessed && (
+            {/* Orders for Staff Section - HIDDEN: Real-time orders below are more accurate */}
+            {/* The extracted orders from AI note often contain false positives and formatting issues.
+                Real-time extraction (shown at bottom) is cleaner and more reliable. */}
+            {false && extractedOrders && showProcessed && (
               <OrdersDisplay
                 orders={extractedOrders}
                 patientName={patientDetails.name}

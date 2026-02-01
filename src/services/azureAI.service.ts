@@ -949,10 +949,9 @@ Date: ${date}
 
         if (sectionContent && sectionContent.trim()) {
           formatted += `${section.title.toUpperCase()}:\n${sectionContent}\n\n`;
-        } else if (section.required) {
-          // Show placeholder for required sections that are missing
-          formatted += `${section.title.toUpperCase()}:\n[Not mentioned in transcription]\n\n`;
         }
+        // 🚀 FIX: Don't show "[Not mentioned in transcription]" - if AI didn't extract it, skip the section
+        // The old code would show this placeholder for required sections, but it's confusing when meds ARE in the transcript
       }
     } else {
       // Fallback to standard SOAP format for templates without custom sections
