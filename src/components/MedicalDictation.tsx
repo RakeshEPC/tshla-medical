@@ -2232,7 +2232,9 @@ Visit Date: ${patientDetails.visitDate}
 
         {/* Real-Time Orders Section - Below Main Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
-          {/* Real-Time Medication Orders */}
+          {/* Real-Time Medication Orders - HIDDEN: Less accurate than main note medications section */}
+          {/* Main processed note already has accurate "📌 Medications (To be sent today)" section */}
+          {false && (
           <div className="relative">
             {isExtractingOrders && (
               <div className="absolute top-2 right-2 z-10">
@@ -2253,8 +2255,11 @@ Visit Date: ${patientDetails.visitDate}
               }}
             />
           </div>
+          )}
 
-          {/* Real-Time Lab Orders */}
+          {/* Real-Time Lab Orders - HIDDEN: Less accurate than main note labs section */}
+          {/* Main processed note already has accurate "LABS:" section */}
+          {false && (
           <div className="relative">
             {isExtractingOrders && (
               <div className="absolute top-2 right-2 z-10">
@@ -2275,6 +2280,7 @@ Visit Date: ${patientDetails.visitDate}
               }}
             />
           </div>
+          )}
         </div>
 
       </div>
