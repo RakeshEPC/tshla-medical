@@ -79,6 +79,45 @@ if [ -n "$CONSOLE_FOUND" ]; then
 fi
 echo "✅ No console.log statements in server code"
 
+# Check for patient_id misuse in schedule components (TSH ID bug prevention)
+echo ""
+echo "Checking for patient_id misuse in schedule components..."
+SCHEDULE_FILES=$(git diff --cached --name-only | grep -E 'Schedule.*\.(ts|tsx)$' | grep -E '(components|pages)/' || true)
+if [ -n "$SCHEDULE_FILES" ]; then
+  # Check if any schedule file uses patient_id for tsh_id or tshId
+  MISUSE_FOUND=$(echo "$SCHEDULE_FILES" | xargs grep -n -E "(tsh_?id|tshId).*patient\.patient_id|patient\?\.patient_id.*tsh" 2>/dev/null | grep -v "internal_id" || true)
+  if [ -n "$MISUSE_FOUND" ]; then
+    echo "❌ Found patient_id being used for TSH ID display!"
+    echo ""
+    echo "   Files with incorrect field usage:"
+    echo "$MISUSE_FOUND" | sed 's/^/     /'
+    echo ""
+    echo "   ⚠️  CRITICAL ERROR: This will show 8-digit numbers instead of formatted TSH IDs"
+    echo ""
+    echo "   What's wrong:"
+    echo "     patient.patient_id = \"99364924\" (8-digit internal ID)"
+    echo "     patient.tshla_id = \"TSH 972-918\" (formatted TSH ID for display)"
+    echo ""
+    echo "   ❌ WRONG:"
+    echo "     tsh_id: patient?.patient_id  // Shows \"99364924\""
+    echo ""
+    echo "   ✅ CORRECT:"
+    echo "     tsh_id: patient?.tshla_id    // Shows \"TSH 972-918\""
+    echo ""
+    echo "   Or even better, use the helper function:"
+    echo "     import { getDisplayTshId } from '@/utils/patient-id-formatter';"
+    echo "     tsh_id: getDisplayTshId(patient)"
+    echo ""
+    echo "   See: TSH_ID_FORMAT_FIX.md"
+    echo "   See: src/types/unified-patient.types.ts"
+    echo ""
+    exit 1
+  fi
+  echo "✅ No patient_id misuse detected in schedule components"
+else
+  echo "✅ No schedule files modified"
+fi
+
 # Check TypeScript compiles
 echo ""
 echo "Running TypeScript check..."

@@ -599,13 +599,25 @@ export default function SchedulePageV2() {
         const patient = apt.unified_patients;
         const priorCount = apt.unified_patient_id ? priorDictationsMap.get(apt.unified_patient_id) || 0 : 0;
 
+        // ========================================
+        // PATIENT IDENTIFIERS - CRITICAL!
+        // ========================================
+        // ⚠️ DO NOT CONFUSE patient_id with tshla_id!
+        //
+        // patient.patient_id  = 8-digit (e.g., "99364924") → NEVER show as TSH ID!
+        // patient.tshla_id    = Formatted (e.g., "TSH 972-918") → USE for tshId!
+        //
+        // See: src/types/unified-patient.types.ts
+        // See: TSH_ID_FORMAT_FIX.md
+        // ========================================
+
         const appointmentData = {
           id: apt.id.toString(),
           time: apt.start_time,
           patient: apt.patient_name || 'Unknown',
-          internalId: patient?.patient_id,
-          tshId: patient?.tshla_id,  // Formatted TSH ID (e.g., "TSH 123-456")
-          mrn: apt.patient_mrn || patient?.mrn,  // Show from schedule OR patient
+          internalId: patient?.patient_id,      // 8-digit (not displayed)
+          tshId: patient?.tshla_id,             // Formatted "TSH XXX-XXX" (purple)
+          mrn: apt.patient_mrn || patient?.mrn, // MRN (blue)
           phone: apt.patient_phone || patient?.phone_primary,
           dob: apt.patient_dob || patient?.date_of_birth,
           status: apt.status || 'scheduled',
@@ -757,13 +769,16 @@ export default function SchedulePageV2() {
           const patient = apt.unified_patients;
           const priorCount = apt.unified_patient_id ? priorDictationsMap.get(apt.unified_patient_id) || 0 : 0;
 
+          // ⚠️ CRITICAL: Use tshla_id (formatted), NOT patient_id (8-digit)!
+          // See: src/types/unified-patient.types.ts, TSH_ID_FORMAT_FIX.md
+
           acc[providerId].appointments.push({
             id: apt.id.toString(),
             time: apt.start_time,
             patient: apt.patient_name || 'Unknown',
-            internalId: patient?.patient_id,
-            tshId: patient?.tshla_id,  // Formatted TSH ID (e.g., "TSH 123-456")
-            mrn: apt.patient_mrn || patient?.mrn,  // Show from schedule OR patient
+            internalId: patient?.patient_id,      // 8-digit (not displayed)
+            tshId: patient?.tshla_id,             // Formatted "TSH XXX-XXX" (purple)
+            mrn: apt.patient_mrn || patient?.mrn, // MRN (blue)
             phone: apt.patient_phone || patient?.phone_primary,
             dob: apt.patient_dob || patient?.date_of_birth,
             status: apt.status || 'scheduled',

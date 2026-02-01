@@ -101,10 +101,26 @@ export function ProviderScheduleViewLive({ date, providerIds, onRefresh }: Provi
                 patient_dob: appt.patient_dob || patient?.date_of_birth,
                 patient_phone: appt.patient_phone || patient?.phone_primary,
                 patient_email: appt.patient_email || patient?.email,
-                // Include Internal ID and TSH ID in the appointment data
-                internal_id: patient?.patient_id,
-                tsh_id: patient?.tshla_id,  // Formatted TSH ID (e.g., "TSH 123-456")
-                mrn: appt.patient_mrn || patient?.mrn,  // MRN from schedule or patient table
+
+                // ========================================
+                // PATIENT IDENTIFIERS - CRITICAL!
+                // ========================================
+                // ⚠️ DO NOT CONFUSE patient_id with tshla_id!
+                //
+                // patient_id  = 8-digit internal ID (e.g., "99364924")
+                //               → ONLY for internal_id field
+                //               → NEVER use for display!
+                //
+                // tshla_id    = Formatted TSH ID (e.g., "TSH 972-918")
+                //               → USE for tsh_id field
+                //               → THIS is what shows in purple!
+                //
+                // See: src/types/unified-patient.types.ts
+                // See: TSH_ID_FORMAT_FIX.md
+                // ========================================
+                internal_id: patient?.patient_id,      // 8-digit (not displayed)
+                tsh_id: patient?.tshla_id,             // Formatted "TSH XXX-XXX" (purple display)
+                mrn: appt.patient_mrn || patient?.mrn, // Medical Record Number (blue display)
                 chief_diagnosis: appt.chief_diagnosis || appt.visit_reason,
                 appointment_type: appt.appointment_type || 'follow-up',
                 scheduled_date: appt.scheduled_date,
