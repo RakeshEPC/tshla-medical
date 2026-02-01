@@ -604,8 +604,8 @@ export default function SchedulePageV2() {
           time: apt.start_time,
           patient: apt.patient_name || 'Unknown',
           internalId: patient?.patient_id,
-          tshId: patient?.patient_id,  // Fixed: patient_id is the TSH_ID
-          mrn: apt.patient_mrn || patient?.mrn,  // Fixed: Show from schedule OR patient
+          tshId: patient?.tshla_id,  // Formatted TSH ID (e.g., "TSH 123-456")
+          mrn: apt.patient_mrn || patient?.mrn,  // Show from schedule OR patient
           phone: apt.patient_phone || patient?.phone_primary,
           dob: apt.patient_dob || patient?.date_of_birth,
           status: apt.status || 'scheduled',
@@ -762,8 +762,8 @@ export default function SchedulePageV2() {
             time: apt.start_time,
             patient: apt.patient_name || 'Unknown',
             internalId: patient?.patient_id,
-            tshId: patient?.patient_id,  // Fixed: patient_id is the TSH_ID
-            mrn: apt.patient_mrn || patient?.mrn,  // Fixed: Show from schedule OR patient
+            tshId: patient?.tshla_id,  // Formatted TSH ID (e.g., "TSH 123-456")
+            mrn: apt.patient_mrn || patient?.mrn,  // Show from schedule OR patient
             phone: apt.patient_phone || patient?.phone_primary,
             dob: apt.patient_dob || patient?.date_of_birth,
             status: apt.status || 'scheduled',

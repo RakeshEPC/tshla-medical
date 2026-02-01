@@ -103,7 +103,7 @@ export function ProviderScheduleViewLive({ date, providerIds, onRefresh }: Provi
                 patient_email: appt.patient_email || patient?.email,
                 // Include Internal ID and TSH ID in the appointment data
                 internal_id: patient?.patient_id,
-                tsh_id: patient?.patient_id,  // Fixed: patient_id is the TSH ID
+                tsh_id: patient?.tshla_id,  // Formatted TSH ID (e.g., "TSH 123-456")
                 mrn: appt.patient_mrn || patient?.mrn,  // MRN from schedule or patient table
                 chief_diagnosis: appt.chief_diagnosis || appt.visit_reason,
                 appointment_type: appt.appointment_type || 'follow-up',
@@ -345,16 +345,16 @@ export function ProviderScheduleViewLive({ date, providerIds, onRefresh }: Provi
                             )}
                           </div>
 
-                          {/* Show Internal ID and TSH ID */}
+                          {/* Show MRN and TSH ID */}
                           <div className="flex items-center gap-4 text-xs font-mono bg-gray-50 px-3 py-2 rounded">
-                            {(appointment as any).internal_id && (
+                            {appointment.mrn && (
                               <span className="text-blue-700">
-                                Internal ID: <strong>{(appointment as any).internal_id}</strong>
+                                MRN: <strong>{appointment.mrn}</strong>
                               </span>
                             )}
                             {(appointment as any).tsh_id && (
                               <span className="text-purple-700">
-                                <strong>{(appointment as any).tsh_id}</strong>
+                                TSH ID: <strong>{(appointment as any).tsh_id}</strong>
                               </span>
                             )}
                           </div>
