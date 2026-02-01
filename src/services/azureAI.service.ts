@@ -1189,8 +1189,14 @@ Generate JSON with these sections:
 RULES:
 1. Extract ALL information from the transcription - be thorough
 2. Include exact numbers (blood sugar 400, A1C 9.5, age 45)
-3. Extract medications with doses, labs ordered, diagnoses mentioned
-4. Only use "Not provided" if the section truly has NO relevant information in transcript
+3. MEDICATIONS section: Extract ALL medications mentioned in transcript with:
+   - Drug name and dose (e.g., "Lantus 20 units daily", "Lipitor 10mg daily")
+   - Route and frequency if mentioned
+   - List each medication on a separate line with bullet points
+   - Even if medications are in the PLAN, also list them in MEDICATIONS section
+4. Extract labs ordered and diagnoses mentioned
+5. DO NOT use "Not provided" or "[Not mentioned]" - extract actual data from transcript
+6. If a section seems empty, re-read the transcription carefully
 
 Return ONLY the formatted note - no instructions or meta-commentary.`;
     }
@@ -1239,15 +1245,20 @@ Generate JSON:
 RULES:
 1. Extract ALL information from the transcription - be thorough
 2. Include exact numbers (blood sugar 400, A1C 9, age 45)
-3. Extract medications with doses, labs ordered, diagnoses mentioned
-4. DIAGNOSES: Only document diagnoses that are EXPLICITLY stated by the provider
+3. MEDICATIONS section: Extract ALL medications mentioned in transcript with:
+   - Drug name and dose (e.g., "Lantus 20 units daily", "Lipitor 10mg daily")
+   - Route and frequency if mentioned
+   - List each medication on a separate line with bullet points
+   - Even if medications are in the PLAN, also list them in MEDICATIONS section
+4. Extract labs ordered and diagnoses mentioned
+5. DIAGNOSES: Only document diagnoses that are EXPLICITLY stated by the provider
    - If provider says "diabetes", "diabetic", "has diabetes" → document as definitive diagnosis
    - If diagnosis is NOT explicitly stated but inferred from medications/labs → add "(possible)" qualifier
    - Example: Patient on Ozempic but diabetes never mentioned → "Type 2 diabetes mellitus (possible)"
    - Example: Patient on Synthroid but hypothyroid never mentioned → "Hypothyroidism (possible)"
-5. NEVER write "Not provided", "Not mentioned", or placeholders - always extract from transcription
-6. If a section seems empty, re-read the transcription - the information is there
-7. Return only the note - no explanations`;
+6. NEVER write "Not provided", "Not mentioned", or placeholders - always extract from transcription
+7. If a section seems empty, re-read the transcription - the information is there
+8. Return only the note - no explanations`;
   }
 
   private parseResponse(
