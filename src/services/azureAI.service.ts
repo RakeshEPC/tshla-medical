@@ -926,12 +926,54 @@ class AzureAIService {
     const date = new Date().toLocaleDateString();
     const sections = processedNote.sections;
 
+    // 🚀 REORDERED: Generate CPT Billing Section FIRST (goes at the top)
+    let billingSection = '';
+    const billingEnabled = template?.billingConfig?.enabled !== false; // Default to enabled
+
+    if (billingEnabled && originalTranscript) {
+      try {
+        const extractedInfo = {
+          assessment: sections.assessment ? [sections.assessment] : [],
+          plan: sections.plan ? [sections.plan] : [],
+          medicationChanges: sections.medications ? [sections.medications] : [],
+          vitals: {},
+          currentMedications: []
+        };
+
+        const complexityAnalysis = cptBillingAnalyzer.analyzeComplexity(originalTranscript, extractedInfo);
+        const procedureRecommendations = cptBillingAnalyzer.detectInOfficeProcedures(
+          originalTranscript,
+          extractedInfo.plan,
+          extractedInfo.assessment
+        );
+        const cptRecommendation = cptBillingAnalyzer.suggestCPTCodes(
+          complexityAnalysis,
+          !!sections.chiefComplaint,
+          extractedInfo.assessment.length > 0,
+          extractedInfo.plan.length > 0,
+          procedureRecommendations.length > 0
+        );
+
+        const includeICD10 = template?.billingConfig?.includeICD10 !== false;
+        let icd10Suggestions: any[] = [];
+        if (includeICD10 && extractedInfo.assessment.length > 0) {
+          icd10Suggestions = cptBillingAnalyzer.suggestICD10Codes(extractedInfo.assessment);
+        }
+
+        billingSection = cptBillingAnalyzer.generateBillingSection(cptRecommendation, icd10Suggestions, procedureRecommendations);
+      } catch (error) {
+        console.error('❌ [BILLING ERROR] Failed to generate billing section:', error);
+        billingSection = `\n\n⚠️ BILLING GENERATION ERROR: ${(error as Error).message}\n`;
+      }
+    }
+
+    // Start building the formatted note with billing at the top
     let formatted = `CLINICAL NOTE
 ════════════════════════════════════════════════════════
 Date: ${date}
 ════════════════════════════════════════════════════════
 
-`;
+${billingSection}`;
 
     // If we have a custom template, use its section order and titles
     if (template && template.sections) {
@@ -955,105 +997,24 @@ Date: ${date}
       }
     } else {
       // Fallback to standard SOAP format for templates without custom sections
+      // 🚀 REORDERED: Medications and Labs at the TOP (per user request)
+      if (sections.medications) formatted += `MEDICATIONS:\n${sections.medications}\n\n`;
+      if (sections.ordersAndActions) formatted += `ORDERS & ACTIONS:\n${sections.ordersAndActions}\n\n`;
+
+      // Then the rest of the clinical note
       if (sections.chiefComplaint) formatted += `CHIEF COMPLAINT:\n${sections.chiefComplaint}\n\n`;
       if (sections.historyOfPresentIllness) formatted += `HISTORY OF PRESENT ILLNESS:\n${sections.historyOfPresentIllness}\n\n`;
       if (sections.reviewOfSystems) formatted += `REVIEW OF SYSTEMS:\n${sections.reviewOfSystems}\n\n`;
       if (sections.pastMedicalHistory) formatted += `PAST MEDICAL HISTORY:\n${sections.pastMedicalHistory}\n\n`;
-      if (sections.medications) formatted += `MEDICATIONS:\n${sections.medications}\n\n`;
       if (sections.allergies) formatted += `ALLERGIES:\n${sections.allergies}\n\n`;
       if (sections.socialHistory) formatted += `SOCIAL HISTORY:\n${sections.socialHistory}\n\n`;
       if (sections.familyHistory) formatted += `FAMILY HISTORY:\n${sections.familyHistory}\n\n`;
       if (sections.physicalExam) formatted += `PHYSICAL EXAMINATION:\n${sections.physicalExam}\n\n`;
       if (sections.assessment) formatted += `ASSESSMENT:\n${sections.assessment}\n\n`;
       if (sections.plan) formatted += `PLAN:\n${sections.plan}\n\n`;
-      if (sections.ordersAndActions) formatted += `ORDERS & ACTIONS:\n${sections.ordersAndActions}\n\n`;
     }
 
-    // ✨ NEW: Add CPT Billing Section (enabled by default for all templates)
-    console.log('🔍 [BILLING DEBUG] Starting billing section generation...');
-    console.log('🔍 [BILLING DEBUG] Template config:', {
-      hasTemplate: !!template,
-      hasBillingConfig: !!template?.billingConfig,
-      billingEnabled: template?.billingConfig?.enabled,
-      templateName: template?.name
-    });
-
-    const billingEnabled = template?.billingConfig?.enabled !== false; // Default to enabled
-    console.log('🔍 [BILLING DEBUG] Billing enabled?', billingEnabled);
-    console.log('🔍 [BILLING DEBUG] Has originalTranscript?', !!originalTranscript);
-    console.log('🔍 [BILLING DEBUG] Transcript length:', originalTranscript?.length || 0);
-
-    if (billingEnabled && originalTranscript) {
-      console.log('✅ [BILLING DEBUG] Entering billing generation block!');
-      try {
-        // CPT billing analyzer is imported at top of file
-        console.log('✅ [BILLING DEBUG] CPT analyzer available');
-
-        // Prepare extracted info for analysis
-        const extractedInfo = {
-          assessment: sections.assessment ? [sections.assessment] : [],
-          plan: sections.plan ? [sections.plan] : [],
-          medicationChanges: sections.medications ? [sections.medications] : [],
-          vitals: {},
-          currentMedications: []
-        };
-        console.log('✅ [BILLING DEBUG] Extracted info prepared:', {
-          assessmentCount: extractedInfo.assessment.length,
-          planCount: extractedInfo.plan.length,
-          medicationCount: extractedInfo.medicationChanges.length
-        });
-
-        // Analyze complexity
-        const complexityAnalysis = cptBillingAnalyzer.analyzeComplexity(originalTranscript, extractedInfo);
-        console.log('✅ [BILLING DEBUG] Complexity analysis complete:', complexityAnalysis);
-
-        // Detect in-office procedures FIRST (needed for E/M significance assessment)
-        const procedureRecommendations = cptBillingAnalyzer.detectInOfficeProcedures(
-          originalTranscript,
-          extractedInfo.plan,
-          extractedInfo.assessment
-        );
-        console.log('✅ [BILLING DEBUG] Procedure recommendations:', procedureRecommendations);
-
-        // Get CPT recommendations (now with procedure awareness)
-        const cptRecommendation = cptBillingAnalyzer.suggestCPTCodes(
-          complexityAnalysis,
-          !!sections.chiefComplaint,
-          extractedInfo.assessment.length > 0,
-          extractedInfo.plan.length > 0,
-          procedureRecommendations.length > 0  // NEW: Pass procedure detection status
-        );
-        console.log('✅ [BILLING DEBUG] CPT recommendation:', cptRecommendation);
-
-        // Get ICD-10 suggestions if enabled
-        const includeICD10 = template?.billingConfig?.includeICD10 !== false;
-        let icd10Suggestions: any[] = [];
-        if (includeICD10 && extractedInfo.assessment.length > 0) {
-          icd10Suggestions = cptBillingAnalyzer.suggestICD10Codes(extractedInfo.assessment);
-        }
-        console.log('✅ [BILLING DEBUG] ICD-10 suggestions:', icd10Suggestions);
-
-        // Generate billing section
-        const billingSection = cptBillingAnalyzer.generateBillingSection(cptRecommendation, icd10Suggestions, procedureRecommendations);
-        console.log('✅ [BILLING DEBUG] Billing section generated! Preview:', billingSection.substring(0, 200));
-        console.log('✅ [BILLING DEBUG] Billing section length:', billingSection.length);
-
-        formatted += billingSection;
-        console.log('✅ [BILLING DEBUG] Billing section appended to formatted note!');
-      } catch (error) {
-        console.error('❌ [BILLING ERROR] Failed to generate billing section:', error);
-        console.error('❌ [BILLING ERROR] Error stack:', (error as Error).stack);
-        // Make error visible in the note instead of silently failing
-        formatted += `\n\n⚠️ BILLING GENERATION ERROR: ${(error as Error).message}\n`;
-      }
-    } else {
-      console.log('❌ [BILLING DEBUG] Billing section skipped - condition not met');
-      console.log('❌ [BILLING DEBUG] Reason:', {
-        billingEnabled,
-        hasTranscript: !!originalTranscript
-      });
-    }
-
+    // 🚀 Billing section already added at the top of the note (see line 963)
     return formatted;
   }
 
