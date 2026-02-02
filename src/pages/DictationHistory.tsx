@@ -70,15 +70,15 @@ export default function DictationHistory() {
       console.log('📅 Date filter:', dateRangeFilter, 'Threshold:', dateThreshold);
       console.log('🏷️ Status filter:', statusFilter);
 
-      // Query dictations table (unified dictation storage)
+      // Query dictated_notes table (where dictations are actually stored)
       // NOTE: We'll filter deleted_at manually because Supabase .is() seems unreliable
       let query = supabase
-        .from('dictations')
+        .from('dictated_notes')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(100);
 
-      console.log('🔍 Query built for dictations table');
+      console.log('🔍 Query built for dictated_notes table');
 
       // Apply date range filter
       if (dateThreshold) {
