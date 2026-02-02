@@ -321,27 +321,41 @@ class AzureAIService {
    * Convert Azure OpenAI result to ProcessedNote format
    */
   private convertAzureToProcessedNote(azureResult: any, patient: PatientData): ProcessedNote {
+    console.log('🔧 [convertAzureToProcessedNote] azureResult.sections:', azureResult.sections);
+    console.log('🔧 [convertAzureToProcessedNote] formattedNote length:', azureResult.formattedNote?.length);
+
     // Start with standard sections
     const sections: any = {
-      chiefComplaint: azureResult.sections.chiefComplaint || '',
-      historyOfPresentIllness: azureResult.sections.hpi || azureResult.sections.historyOfPresentIllness || '',
-      reviewOfSystems: azureResult.sections.reviewOfSystems || azureResult.sections.ros || '',
-      pastMedicalHistory: azureResult.sections.pastMedicalHistory || '',
-      medications: azureResult.sections.medications || '',
-      allergies: azureResult.sections.allergies || '',
-      socialHistory: azureResult.sections.socialHistory || '',
-      familyHistory: azureResult.sections.familyHistory || '',
-      physicalExam: azureResult.sections.physicalExam || azureResult.sections.physicalExamination || '',
-      assessment: azureResult.sections.assessment || '',
-      plan: azureResult.sections.plan || ''
+      chiefComplaint: azureResult.sections?.chiefComplaint || '',
+      historyOfPresentIllness: azureResult.sections?.hpi || azureResult.sections?.historyOfPresentIllness || '',
+      reviewOfSystems: azureResult.sections?.reviewOfSystems || azureResult.sections?.ros || '',
+      pastMedicalHistory: azureResult.sections?.pastMedicalHistory || '',
+      medications: azureResult.sections?.medications || '',
+      allergies: azureResult.sections?.allergies || '',
+      socialHistory: azureResult.sections?.socialHistory || '',
+      familyHistory: azureResult.sections?.familyHistory || '',
+      physicalExam: azureResult.sections?.physicalExam || azureResult.sections?.physicalExamination || '',
+      assessment: azureResult.sections?.assessment || '',
+      plan: azureResult.sections?.plan || ''
     };
 
     // Add any custom sections from the Azure result
-    Object.keys(azureResult.sections).forEach(key => {
-      if (!sections[key] && azureResult.sections[key]) {
-        sections[key] = azureResult.sections[key];
-      }
-    });
+    if (azureResult.sections) {
+      Object.keys(azureResult.sections).forEach(key => {
+        if (!sections[key] && azureResult.sections[key]) {
+          sections[key] = azureResult.sections[key];
+        }
+      });
+    }
+
+    // CRITICAL FIX: If sections are all empty but we have a formattedNote, extract sections from it
+    const hasAnySections = Object.values(sections).some(val => val && String(val).trim());
+    if (!hasAnySections && azureResult.formattedNote) {
+      console.log('⚠️ [convertAzureToProcessedNote] Sections are empty! Extracting from formatted note...');
+      const extracted = this.extractSections(azureResult.formattedNote);
+      Object.assign(sections, extracted);
+      console.log('✅ [convertAzureToProcessedNote] Extracted sections:', Object.keys(extracted).filter(k => extracted[k]));
+    }
 
     return {
       formatted: azureResult.formattedNote,
@@ -612,7 +626,13 @@ class AzureAIService {
     this.validateNumericExtraction(processedNote, originalTranscript);
 
     // Update formatted note to reflect cleaned sections (pass template for dynamic sections and original transcript for billing)
+    console.log('🔍 [BEFORE REBUILD] Formatted note (first 800 chars):', processedNote.formatted.substring(0, 800));
+    console.log('🔍 [BEFORE REBUILD] Sections keys:', Object.keys(processedNote.sections));
+
     processedNote.formatted = this.rebuildFormattedNote(processedNote, template, originalTranscript);
+
+    console.log('🔍 [AFTER REBUILD] Formatted note (first 800 chars):', processedNote.formatted.substring(0, 800));
+    console.log('🔍 [AFTER REBUILD] Note ends with:', processedNote.formatted.substring(processedNote.formatted.length - 300));
 
     logInfo('azureAI', 'Note validation complete');
     return processedNote;
@@ -921,12 +941,19 @@ class AzureAIService {
    * Rebuild formatted note from cleaned sections
    * Now supports dynamic template sections for custom templates
    * NOW WITH AUTOMATIC CPT BILLING!
+   *
+   * UPDATED 2/2/2026: Enforces standard section order for ALL templates
+   * Billing codes now appear at the END of the note for better readability
    */
   private rebuildFormattedNote(processedNote: ProcessedNote, template?: DoctorTemplate, originalTranscript?: string): string {
     const date = new Date().toLocaleDateString();
     const sections = processedNote.sections;
 
-    // 🚀 REORDERED: Generate CPT Billing Section FIRST (goes at the top)
+    console.log('🔧 [REBUILD] Template name:', template?.name || 'No template');
+    console.log('🔧 [REBUILD] Template sections:', template?.sections ? Object.keys(template.sections) : 'No template sections');
+    console.log('🔧 [REBUILD] ProcessedNote sections:', Object.keys(sections));
+
+    // Generate billing section (will be added at the END)
     let billingSection = '';
     const billingEnabled = template?.billingConfig?.enabled !== false; // Default to enabled
 
@@ -967,16 +994,30 @@ class AzureAIService {
       }
     }
 
-    // Start building the formatted note with billing at the top
+    // Start building the formatted note with header
     let formatted = `CLINICAL NOTE
 ════════════════════════════════════════════════════════
 Date: ${date}
 ════════════════════════════════════════════════════════
 
-${billingSection}`;
+`;
 
-    // If we have a custom template, use its section order and titles
+    // 🚀 UNIVERSAL SECTIONS (added to ALL notes regardless of template)
+
+    // SECTION 1: MEDICATIONS (always first if present - universal across all templates)
+    if (sections.medications) {
+      formatted += `MEDICATIONS:\n${sections.medications}\n\n`;
+    }
+
+    // SECTION 2: LABS/ORDERS (always second if present - universal across all templates)
+    if (sections.ordersAndActions) {
+      formatted += `ORDERS & ACTIONS:\n${sections.ordersAndActions}\n\n`;
+    }
+
+    // 🔧 TEMPLATE-SPECIFIC SECTIONS (respect user's custom template or use SOAP default)
+
     if (template && template.sections) {
+      // User has a custom template - use THEIR sections in THEIR order
       // Sort sections by order property
       const sortedSections = Object.entries(template.sections).sort((a, b) => {
         const orderA = a[1].order !== undefined ? a[1].order : 999;
@@ -992,18 +1033,14 @@ ${billingSection}`;
         if (sectionContent && sectionContent.trim()) {
           formatted += `${section.title.toUpperCase()}:\n${sectionContent}\n\n`;
         }
-        // 🚀 FIX: Don't show "[Not mentioned in transcription]" - if AI didn't extract it, skip the section
-        // The old code would show this placeholder for required sections, but it's confusing when meds ARE in the transcript
+        // Don't show "[Not mentioned in transcription]" - if AI didn't extract it, skip the section
       }
     } else {
-      // Fallback to standard SOAP format for templates without custom sections
-      // 🚀 REORDERED: Medications and Labs at the TOP (per user request)
-      if (sections.medications) formatted += `MEDICATIONS:\n${sections.medications}\n\n`;
-      if (sections.ordersAndActions) formatted += `ORDERS & ACTIONS:\n${sections.ordersAndActions}\n\n`;
-
-      // Then the rest of the clinical note
-      if (sections.chiefComplaint) formatted += `CHIEF COMPLAINT:\n${sections.chiefComplaint}\n\n`;
-      if (sections.historyOfPresentIllness) formatted += `HISTORY OF PRESENT ILLNESS:\n${sections.historyOfPresentIllness}\n\n`;
+      // No custom template - use standard SOAP sections
+      if (sections.chiefComplaint) formatted += `CC, PMH, HPI, ROS:\n${sections.chiefComplaint}\n\n`;
+      if (sections.historyOfPresentIllness && sections.chiefComplaint !== sections.historyOfPresentIllness) {
+        formatted += `HISTORY OF PRESENT ILLNESS:\n${sections.historyOfPresentIllness}\n\n`;
+      }
       if (sections.reviewOfSystems) formatted += `REVIEW OF SYSTEMS:\n${sections.reviewOfSystems}\n\n`;
       if (sections.pastMedicalHistory) formatted += `PAST MEDICAL HISTORY:\n${sections.pastMedicalHistory}\n\n`;
       if (sections.allergies) formatted += `ALLERGIES:\n${sections.allergies}\n\n`;
@@ -1014,7 +1051,16 @@ ${billingSection}`;
       if (sections.plan) formatted += `PLAN:\n${sections.plan}\n\n`;
     }
 
-    // 🚀 Billing section already added at the top of the note (see line 963)
+    // SECTION AFTER TEMPLATE: Patient Summary (universal if present)
+    if (sections.patientSummary) {
+      formatted += `PATIENT SUMMARY:\n${sections.patientSummary}\n\n`;
+    }
+
+    // SECTION AT END: BILLING CODES (always at the END for better readability - universal)
+    if (billingSection) {
+      formatted += billingSection;
+    }
+
     return formatted;
   }
 
