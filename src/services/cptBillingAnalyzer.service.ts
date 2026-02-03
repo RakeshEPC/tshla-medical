@@ -1771,28 +1771,6 @@ ${icd.code} - ${icd.description}`;
 • This analysis uses CMS 2021 "2 out of 3" MDM framework
 • Visit qualifies as ${cptRecommendation.complexity.toUpperCase()} complexity based on MDM elements
 • Time-based coding preferred when time is documented (higher accuracy)
-
-⚠️ PROVIDER RESPONSIBILITIES:
-✓ Provider MUST independently verify code selection
-✓ Ensure documentation supports chosen code level
-✓ Verify medical necessity is clearly documented
-✓ Confirm all MDM elements are appropriately reflected in note
-✓ Final code selection is PROVIDER'S SOLE RESPONSIBILITY
-
-⚠️ KNOWN LIMITATIONS OF AI ANALYSIS:
-• Cannot assess documentation quality or completeness
-• Cannot determine new vs. established patient status
-• Cannot apply payer-specific requirements
-• Cannot detect preventive vs. problem-focused visits
-• Suggestions are preliminary and require human verification
-
-📋 AUDIT PROTECTION:
-• Retain copy of this analysis for billing justification
-• Ensure note contains all required elements (CC, HPI, Assessment, Plan)
-• Document total time if using time-based coding
-• Link diagnosis codes to problems addressed
-
-🔒 This is a SUGGESTION TOOL ONLY - not automated billing
 `;
 
     return section;
