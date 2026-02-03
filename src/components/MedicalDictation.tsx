@@ -25,10 +25,6 @@ import { logError, logWarn, logInfo, logDebug } from '../services/logger.service
 import { dictationStorageService } from '../services/dictationStorage.service';
 import DictationHistorySidebar from './DictationHistorySidebar';
 import RecordingConfirmationModal from './RecordingConfirmationModal';
-import RealtimeMedicationOrders from './RealtimeMedicationOrders';
-import RealtimeLabOrders from './RealtimeLabOrders';
-import { realtimeOrderExtractionService, type RealtimeOrders } from '../services/realtimeOrderExtraction.service';
-import { aiRealtimeOrderExtractionService } from '../services/aiRealtimeOrderExtraction.service';
 
 // Speech recognition interfaces removed - using HIPAA-compliant services only
 
@@ -123,17 +119,6 @@ export default function MedicalDictation({
   // Recording Confirmation Modal state
   const [showRecordingConfirmation, setShowRecordingConfirmation] = useState(false);
 
-  // Real-time orders state
-  const [realtimeOrders, setRealtimeOrders] = useState<RealtimeOrders>({
-    medications: [],
-    labs: [],
-    lastUpdated: new Date()
-  });
-  const [isExtractingOrders, setIsExtractingOrders] = useState(false);
-  const extractionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const periodicExtractionIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const [lastExtractionTime, setLastExtractionTime] = useState<Date | null>(null);
-
   // Patient details for live editing
   const [patientDetails, setPatientDetails] = useState({
     name: '',
@@ -168,84 +153,6 @@ export default function MedicalDictation({
     loadCurrentUser();
   }, []);
 
-  // Smart extraction function for periodic updates
-  const extractOrdersFromCurrentTranscript = async () => {
-    // Don't extract if transcript is too short
-    if (!transcript || transcript.length < 50) {
-      return;
-    }
-
-    // 🚀 PERFORMANCE OPTIMIZATION: Smart caching - increased from 5s to 10s
-    // Don't extract if we just extracted recently (prevent duplicates)
-    if (lastExtractionTime && (Date.now() - lastExtractionTime.getTime()) < 10000) {
-      console.log('⚡ Using cached extraction - skipping duplicate AI call!');
-      return;
-    }
-
-    setIsExtractingOrders(true);
-    setLastExtractionTime(new Date());
-
-    try {
-      if (aiRealtimeOrderExtractionService.isAvailable()) {
-        logDebug('MedicalDictation', 'Periodic extraction starting', {
-          transcriptLength: transcript.length,
-          wordCount: transcript.split(/\s+/).length
-        });
-
-        const orders = await aiRealtimeOrderExtractionService.extractOrders(transcript, realtimeOrders);
-        setRealtimeOrders(orders);
-
-        logInfo('MedicalDictation', 'Periodic extraction complete', {
-          medications: orders.medications.length,
-          labs: orders.labs.length
-        });
-      } else {
-        // Fallback to regex
-        const orders = realtimeOrderExtractionService.extractOrders(transcript, realtimeOrders);
-        setRealtimeOrders(orders);
-      }
-    } catch (error) {
-      logError('MedicalDictation', 'Periodic extraction failed', {
-        error: error instanceof Error ? error.message : String(error)
-      });
-      // Try regex fallback
-      const orders = realtimeOrderExtractionService.extractOrders(transcript, realtimeOrders);
-      setRealtimeOrders(orders);
-    } finally {
-      setIsExtractingOrders(false);
-    }
-  };
-
-  // Real-time order extraction when transcript changes (for manual editing ONLY)
-  // Only runs when NOT recording - during recording, periodic extraction handles it
-  useEffect(() => {
-    // Don't run if currently recording (periodic extraction handles that)
-    if (isRecording) {
-      return;
-    }
-
-    // Clear any existing timeout
-    if (extractionTimeoutRef.current) {
-      clearTimeout(extractionTimeoutRef.current);
-    }
-
-    if (!transcript.trim() || transcript.length < 50) {
-      setIsExtractingOrders(false);
-      return;
-    }
-
-    // Debounce extraction by 3 seconds for manual edits
-    extractionTimeoutRef.current = setTimeout(async () => {
-      await extractOrdersFromCurrentTranscript();
-    }, 3000); // 3-second debounce for manual edits
-
-    // Cleanup timeout on unmount
-    return () => {
-      if (extractionTimeoutRef.current) {
-        clearTimeout(extractionTimeoutRef.current);
-      }
-    };
-  }, [transcript, isRecording]);
 
   // Load patient data if patientId is provided and preload is enabled
   useEffect(() => {
@@ -727,19 +634,6 @@ export default function MedicalDictation({
     };
   }, [isRecording]);
 
-  // Cleanup periodic extraction timer on component unmount
-  useEffect(() => {
-    return () => {
-      if (periodicExtractionIntervalRef.current) {
-        clearInterval(periodicExtractionIntervalRef.current);
-        logDebug('MedicalDictation', 'Cleaned up periodic extraction timer on unmount');
-      }
-      if (extractionTimeoutRef.current) {
-        clearTimeout(extractionTimeoutRef.current);
-        logDebug('MedicalDictation', 'Cleaned up extraction timeout on unmount');
-      }
-    };
-  }, []);
 
   // Handler to show confirmation modal before recording
   const handleStartRecordingClick = () => {
@@ -823,13 +717,6 @@ export default function MedicalDictation({
         setRecordingError('');
         logInfo('MedicalDictation', `${recordingMode} recording started successfully`);
 
-        // Start periodic order extraction (every 35 seconds)
-        periodicExtractionIntervalRef.current = setInterval(() => {
-          extractOrdersFromCurrentTranscript();
-        }, 35000); // 35 seconds - balanced between 30-40
-
-        logDebug('MedicalDictation', 'Started periodic extraction timer (35s intervals)');
-      } else {
         const errorMsg = 'Failed to start recording service. Please check your microphone and browser permissions.';
         setRecordingError(errorMsg);
         logError('MedicalDictation', errorMsg);
@@ -888,12 +775,6 @@ export default function MedicalDictation({
     setIsRecording(false);
 
     // Stop periodic extraction timer
-    if (periodicExtractionIntervalRef.current) {
-      clearInterval(periodicExtractionIntervalRef.current);
-      periodicExtractionIntervalRef.current = null;
-      logDebug('MedicalDictation', 'Stopped periodic extraction timer');
-    }
-
     // Stop the Speech Service Router
     try {
       speechServiceRouter.stopRecording();
@@ -918,12 +799,6 @@ export default function MedicalDictation({
     if (finalTranscript !== transcript || interimText.trim()) {
       setTranscript(finalTranscript);
       setInterimText('');
-    }
-
-    // Do final extraction with complete transcript
-    if (finalTranscript && finalTranscript.length >= 50) {
-      extractOrdersFromCurrentTranscript();
-      logDebug('MedicalDictation', 'Final extraction completed');
     }
 
     // Check current transcript state
@@ -970,90 +845,6 @@ export default function MedicalDictation({
   /**
    * Format realtime orders as text for appending to the processed note
    */
-  const formatRealtimeOrdersForNote = (): string => {
-    let ordersText = '';
-
-    // Format medications grouped by pharmacy
-    const activeMeds = realtimeOrders.medications.filter(m =>
-      m.status !== 'cancelled' &&
-      m.status !== 'discontinued' &&
-      m.status !== 'stopped'
-    );
-    if (activeMeds.length > 0) {
-      ordersText += '\n\n---\n\n### 💊 MEDICATION ORDERS\n\n';
-
-      // Group by pharmacy
-      const groupedMeds = activeMeds.reduce((groups, med) => {
-        const pharmacy = med.pharmacy || 'No Pharmacy Specified';
-        if (!groups[pharmacy]) groups[pharmacy] = [];
-        groups[pharmacy].push(med);
-        return groups;
-      }, {} as Record<string, typeof activeMeds>);
-
-      // Sort alphabetically
-      const sortedPharmacies = Object.entries(groupedMeds).sort(([a], [b]) => {
-        if (a === 'No Pharmacy Specified') return 1;
-        if (b === 'No Pharmacy Specified') return -1;
-        return a.localeCompare(b);
-      });
-
-      sortedPharmacies.forEach(([pharmacy, meds]) => {
-        ordersText += `**${pharmacy}** (${meds.length} Rx${meds.length > 1 ? 's' : ''})\n`;
-        meds.forEach((med, idx) => {
-          ordersText += `${idx + 1}. ${med.drugName} ${med.dosage} • ${med.frequency} ${med.route}`;
-          if (med.quantity) ordersText += ` • Qty: #${med.quantity}`;
-          ordersText += ` • RF: ${med.refills || '0'}\n`;
-        });
-        ordersText += '\n';
-      });
-    }
-
-    // Format labs grouped by date and location
-    const activeLabs = realtimeOrders.labs.filter(l =>
-      l.status !== 'cancelled' &&
-      l.status !== 'discontinued'
-    );
-    if (activeLabs.length > 0) {
-      ordersText += '### 🔬 LAB ORDERS\n\n';
-
-      // Group by date and location
-      const groupedLabs = activeLabs.reduce((groups, lab) => {
-        const key = `${lab.orderDate}|${lab.location || 'No Location'}`;
-        if (!groups[key]) groups[key] = [];
-        groups[key].push(lab);
-        return groups;
-      }, {} as Record<string, typeof activeLabs>);
-
-      // Sort by urgency
-      const sortedGroups = Object.entries(groupedLabs).sort(([, labsA], [, labsB]) => {
-        const urgencyOrder = { 'stat': 0, 'urgent': 1, 'routine': 2 };
-        const maxA = Math.min(...labsA.map(l => urgencyOrder[l.urgency]));
-        const maxB = Math.min(...labsB.map(l => urgencyOrder[l.urgency]));
-        return maxA - maxB;
-      });
-
-      sortedGroups.forEach(([key, labs]) => {
-        const [date, location] = key.split('|');
-        const highestUrgency = labs.reduce((max, lab) => {
-          const order = { 'stat': 0, 'urgent': 1, 'routine': 2 };
-          return order[lab.urgency] < order[max.urgency] ? lab : max;
-        }).urgency;
-
-        const urgencyLabel = highestUrgency === 'stat' ? '🚨 STAT' :
-                            highestUrgency === 'urgent' ? '⚡ URGENT' : '📋 ROUTINE';
-
-        ordersText += `**${date}** • ${location} • ${urgencyLabel}\n`;
-        labs.forEach((lab, idx) => {
-          ordersText += `${idx + 1}. ${lab.testName}`;
-          if (lab.fasting) ordersText += ' (FASTING)';
-          ordersText += '\n';
-        });
-        ordersText += '\n';
-      });
-    }
-
-    return ordersText;
-  };
 
   const processWithAI = async (transcriptToProcess?: string) => {
     // Use the passed transcript or fall back to state
@@ -1147,18 +938,14 @@ Visit Date: ${patientDetails.visitDate}
         };
       }
 
-      // 🚀 PERFORMANCE OPTIMIZATION: Run AI processing and order formatting in parallel
-      const [result, ordersAppendix] = await Promise.all([
-        azureAIService.processMedicalTranscription(
-          combinedContent,
-          minimalPatientData,
-          null, // Legacy template parameter
-          `Patient context: ${patientContext}`,
-          templateInstructions // Pass custom template instructions
-        ),
-        // Format orders in parallel while AI is processing
-        Promise.resolve(formatRealtimeOrdersForNote())
-      ]);
+      // Process medical transcription with AI
+      const result = await azureAIService.processMedicalTranscription(
+        combinedContent,
+        minimalPatientData,
+        null, // Legacy template parameter
+        `Patient context: ${patientContext}`,
+        templateInstructions // Pass custom template instructions
+      );
 
       // Extract just the formatted note from the result
       const processedContent = result.formatted;
@@ -1179,8 +966,8 @@ Visit Date: ${patientDetails.visitDate}
 
       logDebug('MedicalDictation', 'Debug message', {});
 
-      // Combine processed note with realtime orders (already formatted in parallel)
-      const finalProcessedNote = processedContent + ordersAppendix;
+      // Use the processed content directly (no realtime orders appendix)
+      const finalProcessedNote = processedContent;
 
       // Save version to history before updating current
       const newVersion: ProcessedNoteVersion = {
@@ -2227,59 +2014,6 @@ Visit Date: ${patientDetails.visitDate}
               onDictationSelect={handleLoadDictation}
               currentDictationId={lastSavedNoteId ? parseInt(lastSavedNoteId, 10) : null}
             />
-          )}
-        </div>
-
-        {/* Real-Time Orders Section - Below Main Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
-          {/* Real-Time Medication Orders - HIDDEN: Less accurate than main note medications section */}
-          {/* Main processed note already has accurate "📌 Medications (To be sent today)" section */}
-          {false && (
-          <div className="relative">
-            {isExtractingOrders && (
-              <div className="absolute top-2 right-2 z-10">
-                <div className="flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-medium border border-blue-200 shadow-sm">
-                  <div className="animate-spin h-3 w-3 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-                  <span>AI Extracting...</span>
-                </div>
-              </div>
-            )}
-            <RealtimeMedicationOrders
-              medications={realtimeOrders.medications}
-              patientName={patientDetails.name}
-              onDeleteMedication={(medicationId) => {
-                setRealtimeOrders(prev => ({
-                  ...prev,
-                  medications: prev.medications.filter(m => m.id !== medicationId)
-                }));
-              }}
-            />
-          </div>
-          )}
-
-          {/* Real-Time Lab Orders - HIDDEN: Less accurate than main note labs section */}
-          {/* Main processed note already has accurate "LABS:" section */}
-          {false && (
-          <div className="relative">
-            {isExtractingOrders && (
-              <div className="absolute top-2 right-2 z-10">
-                <div className="flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-medium border border-blue-200 shadow-sm">
-                  <div className="animate-spin h-3 w-3 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-                  <span>AI Extracting...</span>
-                </div>
-              </div>
-            )}
-            <RealtimeLabOrders
-              labs={realtimeOrders.labs}
-              patientName={patientDetails.name}
-              onDeleteLab={(labId) => {
-                setRealtimeOrders(prev => ({
-                  ...prev,
-                  labs: prev.labs.filter(l => l.id !== labId)
-                }));
-              }}
-            />
-          </div>
           )}
         </div>
 
