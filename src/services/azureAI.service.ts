@@ -1005,11 +1005,19 @@ Date: ${date}
     // 🚀 UNIVERSAL SECTIONS (added to ALL notes regardless of template)
 
     // SECTION 0: LABS (always first if present - most actionable for clinical workflow)
-    // Check all lab key variants used across different templates
-    const labKeys = ['labs', 'labOrders', 'laboratoryData', 'laboratoryResults', 'laboratoryValues'];
-    const labKey = labKeys.find(k => sections[k]?.trim());
-    if (labKey) {
-      formatted += `LABS:\n${sections[labKey]}\n\n`;
+    // Find lab section by checking template section titles (handles any key name)
+    let labSectionKey: string | null = null;
+    if (template?.sections) {
+      labSectionKey = Object.entries(template.sections)
+        .find(([, s]) => s.title?.toLowerCase().includes('lab'))?.[0] || null;
+    }
+    // Also check common direct keys for templates without section metadata
+    if (!labSectionKey) {
+      const fallbackKeys = ['labs', 'labOrders', 'laboratoryData', 'laboratoryResults', 'laboratoryValues'];
+      labSectionKey = fallbackKeys.find(k => sections[k]?.trim()) || null;
+    }
+    if (labSectionKey && sections[labSectionKey]?.trim()) {
+      formatted += `LABS:\n${sections[labSectionKey]}\n\n`;
     }
 
     // SECTION 1: MEDICATIONS (always second if present - universal across all templates)
@@ -1036,7 +1044,7 @@ Date: ${date}
       // Build note using template section order and titles
       for (const [key, section] of sortedSections) {
         // Skip sections already rendered as universal sections above
-        if (key === 'labs' || key === 'labOrders' || key === 'laboratoryData' || key === 'laboratoryResults' || key === 'laboratoryValues' || key === 'medications') continue;
+        if (key === labSectionKey || key === 'medications') continue;
 
         // Find the content for this section (handle different key formats)
         const sectionContent = sections[key] || sections[key as keyof typeof sections];
