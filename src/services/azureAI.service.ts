@@ -1160,7 +1160,10 @@ CRITICAL RULES - STRICT EXTRACTION MODE (NO AI INFERENCE):
    - Only create diagnoses if provider says "has", "diagnosed with", "diagnosis of"
    - DO NOT create ICD-10 codes for symptoms unless provider explicitly diagnosed them
 6. DO NOT create problem categories not mentioned by provider in PLAN section
-7. EMPTY SECTIONS - If information not in transcription:
+7. RISK STATEMENTS - DO NOT CREATE PROBLEMS:
+   - "patient is at high risk of hospitalization" → document in HPI, NOT as problem in Assessment/Plan
+   - "at risk for...", "high risk of...", "likely to..." → descriptive statements, NOT diagnoses
+8. EMPTY SECTIONS - If information not in transcription:
    - Leave section completely blank (no text at all)
    - NEVER write "Not documented", "Not mentioned", "Not specified", or any placeholder text
    - Exception: For Allergies only, if not mentioned write "NKDA (not documented this visit)"
@@ -1230,7 +1233,10 @@ CRITICAL RULES - STRICT EXTRACTION MODE (NO AI INFERENCE):
 6. SYMPTOMS vs DIAGNOSES:
    - "patient complains of chest pain" → document in HPI, NOT as R07.9 diagnosis
    - Only create diagnoses if provider says "has", "diagnosed with", "diagnosis of"
-7. EMPTY SECTIONS - Leave completely blank, NEVER write "Not documented", "Not mentioned", or any placeholder
+7. RISK STATEMENTS - DO NOT CREATE PROBLEMS:
+   - "at high risk of hospitalization" → document in HPI, NOT as problem in Assessment/Plan
+   - "at risk for...", "high risk of...", "likely to..." → descriptive statements, NOT diagnoses
+8. EMPTY SECTIONS - Leave completely blank, NEVER write "Not documented", "Not mentioned", or any placeholder
 
 Return ONLY the formatted note - no instructions or meta-commentary.`;
     }
@@ -1299,11 +1305,15 @@ CRITICAL RULES - STRICT EXTRACTION MODE (NO AI INFERENCE):
 7. SYMPTOMS vs DIAGNOSES - CRITICAL DISTINCTION:
    - "patient complains of chest pain" → document in HPI/CC, NOT as R07.9 diagnosis in Assessment
    - Only list as diagnosis if provider says "diagnosis of", "has", "diagnosed with"
-8. EMPTY SECTIONS - If information not in transcription:
+8. RISK STATEMENTS - DO NOT CREATE PROBLEMS:
+   - "patient is at high risk of hospitalization" → document in HPI, NOT as Z91.89 problem in Assessment/Plan
+   - "at risk for...", "high risk of...", "likely to..." → these are descriptive statements, NOT diagnoses
+   - Only create problem if provider explicitly says to manage/address the risk (e.g., "manage hospitalization risk")
+9. EMPTY SECTIONS - If information not in transcription:
    - Leave section completely blank (no text)
    - NEVER write "Not documented", "Not mentioned", "Not specified", or any placeholder text
    - Exception: For Allergies only, write "NKDA (not documented this visit)"
-9. Return only the note - no explanations, no meta-commentary`;
+10. Return only the note - no explanations, no meta-commentary`;
   }
 
   private parseResponse(
