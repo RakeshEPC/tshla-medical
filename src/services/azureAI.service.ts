@@ -37,6 +37,7 @@ import { azureOpenAIService } from './_deprecated/azureOpenAI.service';
 import { medicalCorrections } from './medicalCorrections.service';
 import { logError, logWarn, logInfo, logDebug } from './logger.service';
 import { cptBillingAnalyzer } from './cptBillingAnalyzer.service';
+import { calculateAge } from '../utils/date';
 
 export interface ProcessedNote {
   formatted: string;
@@ -1152,7 +1153,7 @@ ${sectionPrompts.join('\n')}
 
 ────────────────────────────────────────────────────────
 
-PATIENT: ${patient.name} (MRN: ${patient.mrn})${patient.dob ? ` | DOB: ${patient.dob}` : ''}
+PATIENT: ${patient.name} (MRN: ${patient.mrn})${patient.dob ? ` | DOB: ${patient.dob} | Age: ${calculateAge(patient.dob)}` : ''}
 ${additionalContext ? `CONTEXT: ${additionalContext}\n` : ''}
 TRANSCRIPTION:
 "${transcript}"

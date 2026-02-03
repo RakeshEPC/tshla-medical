@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import type { ProviderScheduleGroup, ProviderScheduleAppointment, AppointmentStatus } from '../types/schedule.types';
+import { formatDOB } from '../utils/date';
 
 interface ProviderScheduleViewProps {
   date: string;
@@ -384,7 +385,7 @@ export function ProviderScheduleViewLive({ date, providerIds, onRefresh }: Provi
                           <div className="flex items-center gap-4 text-xs text-gray-500">
                             <span className="capitalize">{appointment.appointment_type.replace('-', ' ')}</span>
                             {appointment.patient_dob && (
-                              <span>DOB: {new Date(appointment.patient_dob).toLocaleDateString()}</span>
+                              <span>DOB: {formatDOB(appointment.patient_dob)}</span>
                             )}
                             {appointment.patient_phone && (
                               <span>📞 {appointment.patient_phone}</span>

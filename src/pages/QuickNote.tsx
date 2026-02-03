@@ -4,6 +4,7 @@ import MedicalDictation from '../components/MedicalDictation';
 import PreVisitSummary from '../components/PreVisitSummary';
 import { supabase } from '../lib/supabase';
 import '../styles/unified-theme.css';
+import { formatDOB } from '../utils/date';
 
 interface AppointmentData {
   id: number;
@@ -112,7 +113,7 @@ export default function QuickNote() {
                   )}
                   {appointmentData.patient_dob && (
                     <span className="text-sm text-slate-600 font-medium">
-                      DOB: {new Date(appointmentData.patient_dob).toLocaleDateString()}
+                      DOB: {formatDOB(appointmentData.patient_dob)}
                     </span>
                   )}
                 </div>

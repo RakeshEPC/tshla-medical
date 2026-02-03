@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import AppointmentFormModal from '../components/AppointmentFormModal';
 import AppointmentCancelDialog from '../components/AppointmentCancelDialog';
+import { formatDOB } from '../utils/date';
 
 interface ProviderGroup {
   providerId: string;
@@ -1245,7 +1246,7 @@ export default function SchedulePageV2() {
                             {/* Additional Info - DOB & Notes */}
                             {apt.dob && (
                               <div className="text-[10px] text-gray-600 mb-1">
-                                DOB: {new Date(apt.dob).toLocaleDateString()}
+                                DOB: {formatDOB(apt.dob)}
                               </div>
                             )}
 

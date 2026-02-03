@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Search, Edit2, Eye, Trash2, FileText, Activity } from 'lucide-react';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
+import { calculateAge, formatDOB } from '../utils/date';
 
 interface Patient {
   id: string;
@@ -57,16 +58,6 @@ export default function PatientsPage() {
       patient.phone?.includes(searchTerm)
   );
 
-  const calculateAge = (dob: string) => {
-    const birthDate = new Date(dob);
-    const today = new Date();
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
-    return age;
-  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -138,7 +129,7 @@ export default function PatientsPage() {
                   <div className="space-y-2 text-sm">
                     <div className="flex items-center text-gray-600">
                       <span className="font-medium mr-2">DOB:</span>
-                      {new Date(patient.dateOfBirth).toLocaleDateString()}
+                      {formatDOB(patient.dateOfBirth)}
                     </div>
                     {patient.email && (
                       <div className="flex items-center text-gray-600">

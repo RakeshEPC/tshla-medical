@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { ArrowLeft, Calendar, User, Clock, FileText, Printer, Download } from 'lucide-react';
+import { formatDOB } from '../utils/date';
 
 interface DictationData {
   id: string;
@@ -99,7 +100,7 @@ PATIENT MEDICAL NOTE
 
 Patient: ${dictation.patient_name}
 MRN: ${dictation.patient_mrn}
-DOB: ${dictation.patient_dob ? new Date(dictation.patient_dob).toLocaleDateString() : 'N/A'}
+DOB: ${dictation.patient_dob ? formatDOB(dictation.patient_dob) : 'N/A'}
 Visit Date: ${dictation.visit_date ? new Date(dictation.visit_date).toLocaleDateString() : 'N/A'}
 Visit Type: ${dictation.visit_type || 'N/A'}
 Status: ${dictation.status}
@@ -233,7 +234,7 @@ ${dictation.signed_at ? `Signed: ${new Date(dictation.signed_at).toLocaleString(
             <div>
               <div className="text-sm text-gray-600">DOB</div>
               <div className="font-semibold text-gray-900">
-                {dictation.patient_dob ? new Date(dictation.patient_dob).toLocaleDateString() : 'N/A'}
+                {dictation.patient_dob ? formatDOB(dictation.patient_dob) : 'N/A'}
               </div>
             </div>
             <div>

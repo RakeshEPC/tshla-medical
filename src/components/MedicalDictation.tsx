@@ -26,6 +26,7 @@ import { getValidAuthToken } from '../services/authInterceptor';
 import { dictationStorageService } from '../services/dictationStorage.service';
 import DictationHistorySidebar from './DictationHistorySidebar';
 import RecordingConfirmationModal from './RecordingConfirmationModal';
+import { calculateAge } from '../utils/date';
 
 // Speech recognition interfaces removed - using HIPAA-compliant services only
 
@@ -170,7 +171,7 @@ export default function MedicalDictation({
       if (appointmentData) {
 
         const age = appointmentData.patient_dob
-          ? new Date().getFullYear() - new Date(appointmentData.patient_dob).getFullYear()
+          ? calculateAge(appointmentData.patient_dob)
           : null;
 
         const filledData = {

@@ -8,6 +8,7 @@ import type { PatientData } from './patientData.service';
 import type { Template } from '../types/template.types';
 import type { ProcessedNote } from './bedrock.service';
 import { logInfo, logWarn, logDebug } from './logger.service';
+import { calculateAge } from '../utils/date';
 
 export class LocalFallbackService {
 
@@ -235,7 +236,7 @@ export class LocalFallbackService {
   }
 
   private generateSubjective(data: MedicalData, patient: PatientData): string {
-    const age = patient.dob ? this.calculateAge(patient.dob) : 'unknown age';
+    const age = patient.dob ? calculateAge(patient.dob) : 'unknown age';
     const gender = patient.gender || 'patient';
 
     let subjective = `${age} year old ${gender}`;
@@ -294,22 +295,11 @@ ${soap.plan}
   }
 
   private generatePatientSummary(data: MedicalData, patient: PatientData): string {
-    const age = patient.dob ? this.calculateAge(patient.dob) : 'unknown age';
+    const age = patient.dob ? calculateAge(patient.dob) : 'unknown age';
     return `${age} year old patient with ${data.chiefComplaint || 'medical concerns'} requiring evaluation and treatment.`;
   }
 
-  private calculateAge(dob: string): number {
-    const birthDate = new Date(dob);
-    const today = new Date();
-    const age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      return age - 1;
-    }
-
-    return age;
-  }
+  // Age calculation moved to shared utility: src/utils/date.ts
 
   private createEmergencyFallback(transcript: string, patient: PatientData): ProcessedNote {
     const emergencyNote = `

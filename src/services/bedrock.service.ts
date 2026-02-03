@@ -8,6 +8,7 @@ import type { Template } from '../types/template.types';
 import type { PatientData } from './patientData.service';
 import { specialtyService } from './specialty.service';
 import type { DoctorTemplate, DoctorSettings } from './doctorProfile.service';
+import { calculateAge } from '../utils/date';
 import { orderExtractionService, type OrderExtractionResult } from './orderExtraction.service';
 import { azureOpenAIService } from './_deprecated/azureOpenAI.service';
 import { localFallbackService } from './localFallback.service';
@@ -346,7 +347,7 @@ ${section.required ? 'This section is REQUIRED.' : 'This section is optional.'}
 PATIENT INFORMATION:
 - Name: ${patient.name}
 - MRN: ${patient.mrn}
-- DOB: ${patient.dob || 'Not provided'}
+- DOB: ${patient.dob || 'Not provided'}${patient.dob ? ` | Age: ${calculateAge(patient.dob)}` : ''}
 ${additionalContext ? `\nADDITIONAL CONTEXT:\n${additionalContext}\n` : ''}
 
 MEDICAL DICTATION:
@@ -887,7 +888,7 @@ Processed: ${new Date().toLocaleString()}`;
 **PATIENT INFORMATION:**
 Name: ${patient.name || 'Not provided'}
 MRN: ${patient.mrn || 'Not provided'}
-DOB: ${patient.dob || 'Not provided'}
+DOB: ${patient.dob || 'Not provided'}${patient.dob ? ` | Age: ${calculateAge(patient.dob)}` : ''}
 Visit Date: ${new Date().toLocaleDateString()}
 
 **CLINICAL NOTE:**
