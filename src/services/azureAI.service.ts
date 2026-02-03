@@ -1143,23 +1143,27 @@ TRANSCRIPTION:
 CRITICAL RULES - STRICT EXTRACTION MODE (NO AI INFERENCE):
 1. Extract ONLY what provider explicitly stated - DO NOT add clinical recommendations or suggestions
 2. Use exact values and doses AS DICTATED (e.g., "blood sugar 400", "Lantus 20 units")
-3. Match the format shown in examples (abbreviations, bullets, structure)
-4. PLAN section - LITERAL EXTRACTION ONLY:
+   - If dose is incomplete (e.g., "increase from 25 to..."), write "increased from 25mcg (new dose not completed)"
+   - If dose is missing entirely, write the medication name only without "(dose not specified)"
+3. PLAN section - LITERAL EXTRACTION ONLY:
    - Document ONLY actions provider stated they performed or ordered
    - If provider says "increase Lantus from 10 to 20 units" → write exactly that
+   - DO NOT create problem bullets for conditions mentioned in PMH unless provider gave a specific plan
+   - Example: If provider mentions "patient has HTN" but gives no HTN plan → do NOT add "HTN - Not documented"
    - DO NOT add: "monitor at home", "counsel patient", "consider workup", "reassess at next visit"
-   - DO NOT add clinical recommendations unless provider explicitly stated them
-   - DO NOT add patient education unless provider said "I counseled patient on..."
-5. LABS: Extract ONLY labs explicitly ordered (keywords: "order", "check", "get", "draw")
-   - Provider says "check A1C" → document as lab order
-   - Provider says "A1C is 9.5" → this is a RESULT, not an order
-6. SYMPTOMS vs DIAGNOSES - CRITICAL:
+4. LABS vs RESULTS - CRITICAL DISTINCTION:
+   - Provider says "check A1C" → lab ORDER (list in Labs section)
+   - Provider says "A1C is 9" → lab RESULT (list in Physical Exam or separate Results section)
+   - Provider says "BP 140/90" → VITAL SIGN (list in Physical Exam)
+5. SYMPTOMS vs DIAGNOSES - CRITICAL:
    - "patient complains of chest pain" → document in HPI/Chief Complaint, NOT as diagnosis
    - Only create diagnoses if provider says "has", "diagnosed with", "diagnosis of"
    - DO NOT create ICD-10 codes for symptoms unless provider explicitly diagnosed them
-7. DO NOT create problem categories not mentioned by provider
-   - If provider orders FSH/LH → list in labs only, don't create "Menopausal Symptoms" problem
-8. If information not in transcription: leave blank or write "Not documented" (NOT "[Not mentioned]")
+6. DO NOT create problem categories not mentioned by provider in PLAN section
+7. EMPTY SECTIONS - If information not in transcription:
+   - Leave section completely blank (no text at all)
+   - NEVER write "Not documented", "Not mentioned", "Not specified", or any placeholder text
+   - Exception: For Allergies only, if not mentioned write "NKDA (not documented this visit)"
 
 Generate the note now:`;
   }
@@ -1215,18 +1219,18 @@ CRITICAL RULES - STRICT EXTRACTION MODE (NO AI INFERENCE):
    - Route and frequency if mentioned
    - List each medication on a separate line with bullet points
    - Even if medications are in the PLAN, also list them in MEDICATIONS section
-4. LABS: Extract ONLY labs explicitly ordered - look for "order", "check", "get", "draw"
-   - Provider says "check A1C" → document as lab order
-   - Provider says "A1C is 9.5" → this is a result, not an order
+4. LABS vs RESULTS - CRITICAL DISTINCTION:
+   - Provider says "check A1C" → lab ORDER (list in Labs section)
+   - Provider says "A1C is 9" → lab RESULT (list in Physical Exam or Results section)
+   - Provider says "BP 140/90" → VITAL SIGN (list in Physical Exam)
 5. PLAN section - LITERAL EXTRACTION ONLY:
    - Document ONLY what provider said they did or ordered
+   - DO NOT create problem bullets for conditions mentioned in PMH unless provider gave a specific plan
    - DO NOT add: "monitor at home", "counsel patient", "consider workup", "reassess"
-   - DO NOT add clinical recommendations unless explicitly dictated
 6. SYMPTOMS vs DIAGNOSES:
    - "patient complains of chest pain" → document in HPI, NOT as R07.9 diagnosis
    - Only create diagnoses if provider says "has", "diagnosed with", "diagnosis of"
-7. DO NOT create problem categories not mentioned by provider
-8. If information not in transcription: leave blank, write "Not documented" (NOT "Not mentioned in transcription")
+7. EMPTY SECTIONS - Leave completely blank, NEVER write "Not documented", "Not mentioned", or any placeholder
 
 Return ONLY the formatted note - no instructions or meta-commentary.`;
     }
@@ -1280,28 +1284,25 @@ CRITICAL RULES - STRICT EXTRACTION MODE (NO AI INFERENCE):
    - Route and frequency if mentioned
    - List each medication on a separate line with bullet points
    - Even if medications are in the PLAN, also list them in MEDICATIONS section
-4. LABS: Extract ONLY labs explicitly ordered using keywords: "order", "check", "get", "draw"
-   - If provider says "check A1C" → document "A1C"
-   - If provider mentions "A1C is 9.9" → this is a RESULT, not an order
-5. PLAN section - STRICT LITERAL EXTRACTION:
+4. INCOMPLETE DOSES - If provider's dictation was cut off:
+   - "increase from 25 to..." → write "Increase from 25mcg (new dose not completed in dictation)"
+   - "Start Lantus units daily" (no number) → write "Start Lantus (dose not stated) units daily"
+5. LABS vs RESULTS - CRITICAL DISTINCTION:
+   - Provider says "check A1C" → lab ORDER (list in Labs section)
+   - Provider says "A1C is 9" → lab RESULT (list in Physical Exam or Results section)
+   - Provider says "BP 140/90" or "TSH 9" → VITAL/RESULT (list in Physical Exam)
+6. PLAN section - STRICT LITERAL EXTRACTION:
    - Document ONLY actions provider stated they performed or ordered
-   - If provider says "increase Lantus from 10 to 20 units" → write exactly that
+   - DO NOT create problem bullets for conditions mentioned in PMH unless provider gave a specific plan
+   - Example: Provider says "patient has HTN" but no HTN plan → DO NOT add "Hypertension - Not documented"
    - DO NOT add: "monitor at home", "counsel patient", "consider workup", "reassess at next visit"
-   - DO NOT add clinical recommendations unless provider explicitly stated them
-   - DO NOT add patient education unless provider said "I counseled patient on..."
-   - DO NOT add follow-up plans unless provider said specific follow-up timing
-6. SYMPTOMS vs DIAGNOSES - CRITICAL DISTINCTION:
-   - If provider says "patient complains of chest pain" → document in HPI/CC, NOT as diagnosis in Assessment
-   - If provider says "patient reports SOB" → document as symptom, NOT as R06.02 diagnosis
+7. SYMPTOMS vs DIAGNOSES - CRITICAL DISTINCTION:
+   - "patient complains of chest pain" → document in HPI/CC, NOT as R07.9 diagnosis in Assessment
    - Only list as diagnosis if provider says "diagnosis of", "has", "diagnosed with"
-   - DO NOT create ICD-10 codes for symptoms unless provider explicitly diagnosed them
-7. DO NOT create new problem categories:
-   - If provider orders FSH/LH → list in labs section only
-   - DO NOT create "Menopausal Symptoms" problem unless provider mentioned menopause
-8. If information is not in transcription:
-   - Leave that section blank or minimal
-   - NEVER write "Not provided", "Not mentioned in transcription", or "[Not specified]"
-   - For Allergies: if not mentioned, write "Not documented"
+8. EMPTY SECTIONS - If information not in transcription:
+   - Leave section completely blank (no text)
+   - NEVER write "Not documented", "Not mentioned", "Not specified", or any placeholder text
+   - Exception: For Allergies only, write "NKDA (not documented this visit)"
 9. Return only the note - no explanations, no meta-commentary`;
   }
 
