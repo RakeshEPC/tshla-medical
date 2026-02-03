@@ -101,18 +101,17 @@ export default function PCMPatientSetup() {
       const medicationCount = parseInt(params.get('medicationCount') || '0');
       const labCount = parseInt(params.get('labCount') || '0');
 
-      // NEW: Extract PCM data from clinical note if provided
-      const clinicalNoteParam = params.get('clinicalNote');
+      // Extract PCM data from clinical note (stored in sessionStorage to avoid PHI in URLs)
+      const clinicalNoteText = sessionStorage.getItem('pcm_clinical_note');
       let pcmExtracted: PCMExtractionResult | null = null;
       const autoFields = new Set<string>();
 
-      if (clinicalNoteParam) {
+      if (clinicalNoteText) {
         try {
-          const decodedNote = decodeURIComponent(clinicalNoteParam);
-          pcmExtracted = pcmDataExtractionService.extractPCMData(decodedNote);
+          pcmExtracted = pcmDataExtractionService.extractPCMData(clinicalNoteText);
           setExtractedPCMData(pcmExtracted);
-
-          console.log('🔍 Extracted PCM Data from Dictation:', pcmExtracted);
+          // Clean up after reading
+          sessionStorage.removeItem('pcm_clinical_note');
         } catch (error) {
           console.error('Error extracting PCM data:', error);
         }
@@ -324,13 +323,14 @@ export default function PCMPatientSetup() {
         }
       }
 
-      // Check if this enrollment came from dictation with extracted orders
-      const params = new URLSearchParams(window.location.search);
-      const extractedOrdersJSON = params.get('extractedOrders');
+      // Check if this enrollment came from dictation with extracted orders (stored in sessionStorage)
+      const extractedOrdersJSON = sessionStorage.getItem('pcm_extracted_orders');
 
       if (extractedOrdersJSON) {
         try {
-          const extractedOrders = JSON.parse(decodeURIComponent(extractedOrdersJSON));
+          const extractedOrders = JSON.parse(extractedOrdersJSON);
+          // Clean up after reading
+          sessionStorage.removeItem('pcm_extracted_orders');
 
           // Create PCM lab orders from extracted dictation orders
           const result = await pcmService.createLabOrdersFromExtraction(

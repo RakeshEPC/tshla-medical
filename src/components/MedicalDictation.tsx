@@ -22,11 +22,22 @@ import { OrdersDisplay } from './OrdersDisplay';
 import type { OrderExtractionResult } from '../services/orderExtraction.service';
 import '../styles/modernUI.css';
 import { logError, logWarn, logInfo, logDebug } from '../services/logger.service';
+import { getValidAuthToken } from '../services/authInterceptor';
 import { dictationStorageService } from '../services/dictationStorage.service';
 import DictationHistorySidebar from './DictationHistorySidebar';
 import RecordingConfirmationModal from './RecordingConfirmationModal';
 
 // Speech recognition interfaces removed - using HIPAA-compliant services only
+
+/** Build headers with auth token for API requests */
+const getAuthHeaders = (): Record<string, string> => {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const token = getValidAuthToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+};
 
 interface AppointmentData {
   id: number;
@@ -143,11 +154,7 @@ export default function MedicalDictation({
         setCurrentUser(result.user);
         setProviderId(result.user.email || result.user.id || 'doctor-default-001');
         setProviderName(result.user.name || 'Dr. Default');
-        console.log('👤 [MedicalDictation] Loaded current user:', {
-          email: result.user.email,
-          id: result.user.id,
-          name: result.user.name
-        });
+        logDebug('MedicalDictation', 'Loaded current user');
       }
     };
     loadCurrentUser();
@@ -157,16 +164,10 @@ export default function MedicalDictation({
   // Load patient data if patientId is provided and preload is enabled
   useEffect(() => {
     const loadPatientData = async () => {
-      console.log('📋 MedicalDictation received appointmentData:', appointmentData);
-      console.log('📋 MedicalDictation received appointmentId:', appointmentId);
+      logDebug('MedicalDictation', 'Loading patient data', { hasAppointmentData: !!appointmentData, appointmentId });
 
       // HIGHEST PRIORITY: Auto-fill from appointmentData prop
       if (appointmentData) {
-        console.log('✅ appointmentData exists, auto-filling patient fields...');
-        console.log('  - Patient Name:', appointmentData.patient_name);
-        console.log('  - Patient MRN:', appointmentData.patient_mrn);
-        console.log('  - Patient DOB:', appointmentData.patient_dob);
-        console.log('  - Patient Phone:', appointmentData.patient_phone);
 
         const age = appointmentData.patient_dob
           ? new Date().getFullYear() - new Date(appointmentData.patient_dob).getFullYear()
@@ -182,7 +183,6 @@ export default function MedicalDictation({
           visitDate: new Date(appointmentData.scheduled_date).toLocaleDateString()
         };
 
-        console.log('📝 Setting patient details to:', filledData);
         setPatientDetails(filledData);
 
         logInfo('MedicalDictation', '✅ Patient data auto-filled from appointment', {
@@ -191,7 +191,7 @@ export default function MedicalDictation({
         });
         return; // Exit early - we have the data
       } else {
-        console.log('⚠️ No appointmentData provided, falling back to other methods');
+        logDebug('MedicalDictation', 'No appointmentData provided, falling back to other methods');
       }
 
       // FIRST PRIORITY: Try sessionStorage (from schedule click)
@@ -386,7 +386,7 @@ export default function MedicalDictation({
         }
 
         const doctorId = result.user.authUserId || result.user.id || result.user.email || 'doctor-default-001';
-        console.log('✅ [MedicalDictation] Loading templates for doctor:', { id: doctorId, email: result.user.email });
+        logDebug('MedicalDictation', 'Loading templates for doctor');
 
         doctorProfileService.initialize(doctorId);
 
@@ -394,7 +394,7 @@ export default function MedicalDictation({
         const recent = await doctorProfileService.getRecentTemplates(doctorId);
         const favorites = await doctorProfileService.getFavoriteTemplates(doctorId);
 
-        console.log(`✅ [MedicalDictation] Loaded ${allTemplates.length} templates from Supabase`);
+        logDebug('MedicalDictation', `Loaded ${allTemplates.length} templates`);
         setTemplates(allTemplates);
         setRecentTemplates(recent);
         setFavoriteTemplates(favorites);
@@ -402,14 +402,14 @@ export default function MedicalDictation({
         // Set default template if available
         const defaultTemplate = await doctorProfileService.getDefaultTemplate(doctorId);
         if (defaultTemplate) {
-          console.log('✅ [MedicalDictation] Set default template:', defaultTemplate.name);
+          logDebug('MedicalDictation', 'Set default template');
           setSelectedTemplate(defaultTemplate);
         } else if (allTemplates.length > 0) {
-          console.log('✅ [MedicalDictation] Set first template as default:', allTemplates[0].name);
+          logDebug('MedicalDictation', 'Set first template as default');
           setSelectedTemplate(allTemplates[0]);
         }
       } catch (error) {
-        console.error('❌ [MedicalDictation] Failed to load templates:', error);
+        logError('MedicalDictation', 'Failed to load templates');
         logError('MedicalDictation', 'Failed to load templates from Supabase', { error });
         // Load empty array as fallback, don't block dictation
         setTemplates([]);
@@ -447,28 +447,17 @@ export default function MedicalDictation({
             recordingMode: recordingMode || 'dictation',
           };
 
-          console.log('🔄 Auto-save PUT request:', {
-            url: `${apiBaseUrl}/api/simple/note/${lastSavedNoteId}`,
-            body: requestBody
-          });
-
           const response = await fetch(`${apiBaseUrl}/api/simple/note/${lastSavedNoteId}`, {
             method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify(requestBody),
           });
 
-          console.log('🔄 Auto-save PUT response status:', response.status);
+          logDebug('MedicalDictation', `Auto-save PUT response: ${response.status}`);
 
           if (!response.ok) {
             const errorText = await response.text();
-            console.error('❌ Auto-save PUT failed:', {
-              status: response.status,
-              statusText: response.statusText,
-              body: errorText
-            });
+            logError('MedicalDictation', `Auto-save PUT failed: ${response.status}`);
             throw new Error(`Auto-save failed: ${response.status} ${errorText}`);
           }
 
@@ -961,7 +950,7 @@ Visit Date: ${patientDetails.visitDate}
           referrals: result.extractedOrders.referrals.length
         });
       } else {
-        console.log('❌ No extractedOrders in result');
+        logDebug('MedicalDictation', 'No extractedOrders in result');
       }
 
       logDebug('MedicalDictation', 'Debug message', {});
@@ -995,9 +984,7 @@ Visit Date: ${patientDetails.visitDate}
             // Update existing note
             const response = await fetch(`${apiBaseUrl}/api/simple/note/${lastSavedNoteId}`, {
             method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify({
               patientName: patientDetails.name || 'Unidentified Patient',
               patientMrn: patientDetails.mrn,
@@ -1022,9 +1009,7 @@ Visit Date: ${patientDetails.visitDate}
           // Create new note
           const response = await fetch(`${apiBaseUrl}/api/simple/note`, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify({
               providerId,
               providerName,
@@ -1055,15 +1040,11 @@ Visit Date: ${patientDetails.visitDate}
               setTimeout(() => {
                 const generateSummary = async () => {
                   try {
-                    console.log('🔄 Creating patient audio summary in background...', {
-                      dictationId: data.noteId,
-                      patientPhone: patientDetails.phone,
-                      patientName: patientDetails.name
-                    });
+                    logDebug('MedicalDictation', 'Creating patient audio summary in background');
 
                     const summaryResponse = await fetch(`${apiBaseUrl}/api/patient-summaries/create`, {
                       method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
+                      headers: getAuthHeaders(),
                       body: JSON.stringify({
                         dictationId: data.noteId,
                         patientPhone: patientDetails.phone,
@@ -1078,13 +1059,11 @@ Visit Date: ${patientDetails.visitDate}
                     if (summaryResponse.ok) {
                       const summaryData = await summaryResponse.json();
                       if (summaryData.success) {
-                        console.log('✅ Patient summary created in background!', {
-                          summaryId: summaryData.data.summaryId
-                        });
+                        logInfo('MedicalDictation', 'Patient summary created in background');
                       }
                     }
                   } catch (summaryError) {
-                    console.error('⚠️ Background patient summary failed (non-blocking):', summaryError);
+                    logWarn('MedicalDictation', 'Background patient summary failed (non-blocking)');
                   }
                 };
                 generateSummary();
@@ -1159,7 +1138,7 @@ Visit Date: ${patientDetails.visitDate}
 
   // Load dictation from sidebar into editor
   const handleLoadDictation = (dictation: DictationNote) => {
-    console.log('📋 Loading dictation:', dictation.id);
+    logDebug('MedicalDictation', 'Loading dictation from history');
 
     // Populate transcript
     setTranscript(dictation.rawTranscript || '');
@@ -1552,14 +1531,6 @@ Visit Date: ${patientDetails.visitDate}
               </button>
 
               {/* Enroll in PCM Button - Show if we have processed content or extracted orders */}
-              {(() => {
-                console.log('🔍 ENROLL IN PCM Button Check:', {
-                  showProcessed,
-                  hasExtractedOrders: !!extractedOrders,
-                  shouldShow: showProcessed || extractedOrders
-                });
-                return null;
-              })()}
               {(showProcessed || extractedOrders) && (
                 <button
                   onClick={() => {
@@ -1576,15 +1547,14 @@ Visit Date: ${patientDetails.visitDate}
                       labCount: extractedOrders?.labs.length.toString() || '0'
                     };
 
-                    // Pass clinical note for PCM data extraction (baseline values and goals)
+                    // Store PHI-sensitive data in sessionStorage instead of URL params
+                    // URLs can be logged by browsers, proxies, and server access logs
                     const clinicalNoteText = processedNote || transcript;
                     if (clinicalNoteText.trim()) {
-                      params.clinicalNote = encodeURIComponent(clinicalNoteText);
+                      sessionStorage.setItem('pcm_clinical_note', clinicalNoteText);
                     }
-
-                    // If we have extracted orders, pass them as JSON
                     if (extractedOrders) {
-                      params.extractedOrders = encodeURIComponent(JSON.stringify(extractedOrders));
+                      sessionStorage.setItem('pcm_extracted_orders', JSON.stringify(extractedOrders));
                     }
 
                     const queryParams = new URLSearchParams(params);
