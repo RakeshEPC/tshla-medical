@@ -1004,7 +1004,12 @@ Date: ${date}
 
     // 🚀 UNIVERSAL SECTIONS (added to ALL notes regardless of template)
 
-    // SECTION 1: MEDICATIONS (always first if present - universal across all templates)
+    // SECTION 0: LABS (always first if present - most actionable for clinical workflow)
+    if (sections.labs) {
+      formatted += `LABS:\n${sections.labs}\n\n`;
+    }
+
+    // SECTION 1: MEDICATIONS (always second if present - universal across all templates)
     if (sections.medications) {
       formatted += `MEDICATIONS:\n${sections.medications}\n\n`;
     }
@@ -1027,6 +1032,9 @@ Date: ${date}
 
       // Build note using template section order and titles
       for (const [key, section] of sortedSections) {
+        // Skip sections already rendered as universal sections above
+        if (key === 'labs' || key === 'medications') continue;
+
         // Find the content for this section (handle different key formats)
         const sectionContent = sections[key] || sections[key as keyof typeof sections];
 
