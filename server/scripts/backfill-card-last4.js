@@ -42,22 +42,27 @@ async function backfillCardLast4() {
   for (const payment of payments) {
 
     try {
-      // Retrieve PaymentIntent from Stripe
+      // Retrieve PaymentIntent from Stripe using modern latest_charge expansion
       const paymentIntent = await stripeInstance.paymentIntents.retrieve(
         payment.stripe_payment_intent_id,
-        { expand: ['charges.data.payment_method_details'] }
+        { expand: ['latest_charge'] }
       );
 
       let cardLast4 = null;
 
-      // Try to extract card last 4
-      if (paymentIntent.charges && paymentIntent.charges.data.length > 0) {
-        const charge = paymentIntent.charges.data[0];
+      // Modern API: latest_charge
+      const charge = paymentIntent.latest_charge;
+      if (charge && typeof charge === 'object' && charge.payment_method_details?.card) {
+        cardLast4 = charge.payment_method_details.card.last4;
+      }
 
-        if (charge.payment_method_details && charge.payment_method_details.card) {
-          cardLast4 = charge.payment_method_details.card.last4;
-        } else if (charge.source && charge.source.last4) {
-          cardLast4 = charge.source.last4;
+      // Fallback: legacy charges array
+      if (!cardLast4 && paymentIntent.charges?.data?.length > 0) {
+        const legacyCharge = paymentIntent.charges.data[0];
+        if (legacyCharge.payment_method_details?.card) {
+          cardLast4 = legacyCharge.payment_method_details.card.last4;
+        } else if (legacyCharge.source?.last4) {
+          cardLast4 = legacyCharge.source.last4;
         }
       }
 

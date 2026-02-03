@@ -110,42 +110,35 @@ async function handleCheckoutCompleted(session) {
     if (session.payment_status === 'paid') {
       // Retrieve payment method details to get last 4 digits of card
       let cardLast4 = null;
+      let chargeId = null;
       try {
-        // Try to get card details from the session first (more reliable)
-        if (session.payment_method_details && session.payment_method_details.card) {
-          cardLast4 = session.payment_method_details.card.last4;
-          logger.info('StripeWebhook', 'Retrieved card last 4 from session', {
-            paymentRequestId,
-            last4: cardLast4
-          });
-        } else if (session.payment_intent) {
-          // Fallback: retrieve from PaymentIntent with expanded charge data
+        if (session.payment_intent) {
+          // Modern Stripe API: use latest_charge expansion
           const paymentIntent = await stripeInstance.paymentIntents.retrieve(
             session.payment_intent,
-            { expand: ['charges.data.payment_method_details'] }
+            { expand: ['latest_charge'] }
           );
 
-          logger.info('StripeWebhook', 'PaymentIntent retrieved', {
-            paymentRequestId,
-            hasCharges: !!paymentIntent.charges,
-            chargeCount: paymentIntent.charges?.data?.length || 0
-          });
-
-          if (paymentIntent && paymentIntent.charges && paymentIntent.charges.data.length > 0) {
-            const charge = paymentIntent.charges.data[0];
-
-            // Try multiple paths to get card details
-            if (charge.payment_method_details && charge.payment_method_details.card) {
+          const charge = paymentIntent.latest_charge;
+          if (charge && typeof charge === 'object') {
+            chargeId = charge.id;
+            if (charge.payment_method_details?.card) {
               cardLast4 = charge.payment_method_details.card.last4;
-              logger.info('StripeWebhook', 'Retrieved card last 4 from charge', {
+              logger.info('StripeWebhook', 'Retrieved card last 4 from latest_charge', {
                 paymentRequestId,
                 last4: cardLast4,
                 brand: charge.payment_method_details.card.brand
               });
-            } else if (charge.source && charge.source.last4) {
-              // Older Stripe API structure
-              cardLast4 = charge.source.last4;
-              logger.info('StripeWebhook', 'Retrieved card last 4 from source', {
+            }
+          }
+
+          // Fallback: legacy charges array
+          if (!cardLast4 && paymentIntent.charges?.data?.length > 0) {
+            const legacyCharge = paymentIntent.charges.data[0];
+            chargeId = chargeId || legacyCharge.id;
+            if (legacyCharge.payment_method_details?.card) {
+              cardLast4 = legacyCharge.payment_method_details.card.last4;
+              logger.info('StripeWebhook', 'Retrieved card last 4 from legacy charges', {
                 paymentRequestId,
                 last4: cardLast4
               });
@@ -174,7 +167,7 @@ async function handleCheckoutCompleted(session) {
           payment_status: 'paid',
           paid_at: new Date().toISOString(),
           stripe_payment_intent_id: session.payment_intent,
-          stripe_charge_id: session.payment_intent, // Stripe uses payment_intent as charge reference
+          stripe_charge_id: chargeId || session.payment_intent,
           card_last_4: cardLast4
         })
         .eq('id', paymentRequestId)

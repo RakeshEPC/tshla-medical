@@ -132,13 +132,38 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
 
       // Handle office visit copay payment
       if (metadata.type === 'office_visit_copay') {
+        // Extract card last 4 digits via PaymentIntent -> latest_charge
+        let cardLast4 = null;
+        let chargeId = null;
+        try {
+          if (session.payment_intent) {
+            const paymentIntent = await stripeInstance.paymentIntents.retrieve(
+              session.payment_intent,
+              { expand: ['latest_charge'] }
+            );
+            const charge = paymentIntent.latest_charge;
+            if (charge && typeof charge === 'object') {
+              chargeId = charge.id;
+              if (charge.payment_method_details?.card) {
+                cardLast4 = charge.payment_method_details.card.last4;
+              }
+            }
+          }
+        } catch (cardError) {
+          logger.error('StripeWebhook', 'Error retrieving card details', {
+            error: cardError.message,
+            paymentRequestId: metadata.payment_request_id
+          });
+        }
+
         const { error: paymentRequestError } = await supabase
           .from('patient_payment_requests')
           .update({
             payment_status: 'paid',
             paid_at: new Date().toISOString(),
             stripe_payment_intent_id: session.payment_intent,
-            stripe_charge_id: session.payment_intent
+            stripe_charge_id: chargeId || session.payment_intent,
+            card_last_4: cardLast4
           })
           .eq('id', metadata.payment_request_id);
 
@@ -159,7 +184,7 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
             .from('previsit_data')
             .update({
               patient_paid: true,
-              payment_method: 'Credit Card (Stripe)',
+              payment_method: cardLast4 ? `Credit Card (****${cardLast4})` : 'Credit Card (Stripe)',
               billing_updated_at: new Date().toISOString()
             })
             .eq('id', paymentRequest.previsit_id);
@@ -167,7 +192,8 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
 
         logger.info('StripeWebhook', 'Office visit copay payment completed', {
           paymentRequestId: metadata.payment_request_id,
-          tshlaId: metadata.tshla_id
+          tshlaId: metadata.tshla_id,
+          cardLast4: cardLast4 || 'N/A'
         });
       }
     }
