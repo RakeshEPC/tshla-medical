@@ -716,7 +716,7 @@ export default function MedicalDictation({
         setIsRecording(true);
         setRecordingError('');
         logInfo('MedicalDictation', `${recordingMode} recording started successfully`);
-
+      } else {
         const errorMsg = 'Failed to start recording service. Please check your microphone and browser permissions.';
         setRecordingError(errorMsg);
         logError('MedicalDictation', errorMsg);
