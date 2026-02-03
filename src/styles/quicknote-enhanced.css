@@ -1,0 +1,674 @@
+/**
+ * Quick Note Enhanced Styling
+ * Modern, clean, professional medical interface
+ * Created: 2026-02-03
+ */
+
+/* ========================================
+   ENHANCED COLOR PALETTE
+   ======================================== */
+:root {
+  /* Primary - Medical Teal */
+  --qn-primary-50: #f0fdfa;
+  --qn-primary-100: #ccfbf1;
+  --qn-primary-500: #14b8a6;
+  --qn-primary-600: #0d9488;
+  --qn-primary-700: #0f766e;
+
+  /* Accent - Professional Blue */
+  --qn-accent-50: #eff6ff;
+  --qn-accent-100: #dbeafe;
+  --qn-accent-500: #3b82f6;
+  --qn-accent-600: #2563eb;
+  --qn-accent-700: #1d4ed8;
+
+  /* Success - Clean Green */
+  --qn-success-50: #f0fdf4;
+  --qn-success-100: #dcfce7;
+  --qn-success-500: #10b981;
+  --qn-success-600: #059669;
+
+  /* Warning - Clear Amber */
+  --qn-warning-50: #fffbeb;
+  --qn-warning-100: #fef3c7;
+  --qn-warning-500: #f59e0b;
+  --qn-warning-600: #d97706;
+
+  /* Error - Attention Red */
+  --qn-error-50: #fef2f2;
+  --qn-error-100: #fee2e2;
+  --qn-error-500: #ef4444;
+  --qn-error-600: #dc2626;
+
+  /* Neutrals - Slate Scale */
+  --qn-gray-50: #f8fafc;
+  --qn-gray-100: #f1f5f9;
+  --qn-gray-200: #e2e8f0;
+  --qn-gray-300: #cbd5e1;
+  --qn-gray-400: #94a3b8;
+  --qn-gray-500: #64748b;
+  --qn-gray-600: #475569;
+  --qn-gray-700: #334155;
+  --qn-gray-800: #1e293b;
+  --qn-gray-900: #0f172a;
+
+  /* Spacing Scale (4px base) */
+  --qn-space-1: 0.25rem;  /* 4px */
+  --qn-space-2: 0.5rem;   /* 8px */
+  --qn-space-3: 0.75rem;  /* 12px */
+  --qn-space-4: 1rem;     /* 16px */
+  --qn-space-5: 1.25rem;  /* 20px */
+  --qn-space-6: 1.5rem;   /* 24px */
+  --qn-space-8: 2rem;     /* 32px */
+  --qn-space-10: 2.5rem;  /* 40px */
+  --qn-space-12: 3rem;    /* 48px */
+
+  /* Shadows */
+  --qn-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --qn-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --qn-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --qn-shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+
+  /* Border Radius */
+  --qn-radius-sm: 0.375rem;
+  --qn-radius-md: 0.5rem;
+  --qn-radius-lg: 0.75rem;
+  --qn-radius-xl: 1rem;
+  --qn-radius-2xl: 1.5rem;
+}
+
+/* ========================================
+   ENHANCED PATIENT INFO CARD
+   ======================================== */
+.qn-patient-card {
+  background: linear-gradient(135deg, var(--qn-primary-50) 0%, var(--qn-accent-50) 100%);
+  border: 2px solid var(--qn-gray-200);
+  border-radius: var(--qn-radius-xl);
+  padding: var(--qn-space-6);
+  margin-bottom: var(--qn-space-6);
+  box-shadow: var(--qn-shadow-md);
+  transition: all 0.2s ease;
+}
+
+.qn-patient-card:hover {
+  box-shadow: var(--qn-shadow-lg);
+}
+
+.qn-patient-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--qn-space-5);
+}
+
+.qn-patient-title {
+  display: flex;
+  align-items: center;
+  gap: var(--qn-space-3);
+}
+
+.qn-patient-title h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--qn-gray-800);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.qn-patient-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--qn-space-4);
+  margin-bottom: var(--qn-space-4);
+}
+
+.qn-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--qn-space-2);
+}
+
+.qn-field-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--qn-gray-700);
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.qn-field-input {
+  padding: var(--qn-space-3) var(--qn-space-4);
+  border: 2px solid var(--qn-gray-300);
+  border-radius: var(--qn-radius-md);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  background: white;
+  transition: all 0.2s ease;
+  color: var(--qn-gray-900);
+}
+
+.qn-field-input:focus {
+  outline: none;
+  border-color: var(--qn-accent-500);
+  ring: 3px solid var(--qn-accent-100);
+  box-shadow: 0 0 0 3px var(--qn-accent-100);
+}
+
+.qn-field-input::placeholder {
+  color: var(--qn-gray-400);
+}
+
+.qn-field-input:read-only {
+  background: var(--qn-gray-100);
+  color: var(--qn-gray-600);
+  cursor: not-allowed;
+}
+
+/* ========================================
+   ENHANCED MODE & CONTROLS
+   ======================================== */
+.qn-controls-card {
+  background: white;
+  border: 2px solid var(--qn-gray-200);
+  border-radius: var(--qn-radius-xl);
+  padding: var(--qn-space-5);
+  margin-bottom: var(--qn-space-6);
+  box-shadow: var(--qn-shadow-md);
+}
+
+.qn-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--qn-space-6);
+  flex-wrap: wrap;
+}
+
+.qn-mode-selector {
+  display: flex;
+  align-items: center;
+  gap: var(--qn-space-4);
+}
+
+.qn-mode-label {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--qn-gray-700);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.qn-mode-btn {
+  padding: var(--qn-space-3) var(--qn-space-6);
+  border: 2px solid transparent;
+  border-radius: var(--qn-radius-lg);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  gap: var(--qn-space-2);
+}
+
+.qn-mode-btn:not(.active) {
+  background: var(--qn-gray-100);
+  color: var(--qn-gray-600);
+}
+
+.qn-mode-btn:not(.active):hover {
+  background: var(--qn-gray-200);
+  transform: translateY(-1px);
+  box-shadow: var(--qn-shadow-sm);
+}
+
+.qn-mode-btn.active.dictation {
+  background: linear-gradient(135deg, var(--qn-success-500) 0%, var(--qn-success-600) 100%);
+  color: white;
+  box-shadow: var(--qn-shadow-lg);
+  transform: scale(1.02);
+}
+
+.qn-mode-btn.active.conversation {
+  background: linear-gradient(135deg, #a855f7 0%, #9333ea 100%);
+  color: white;
+  box-shadow: var(--qn-shadow-lg);
+  transform: scale(1.02);
+}
+
+.qn-action-buttons {
+  display: flex;
+  align-items: center;
+  gap: var(--qn-space-3);
+  flex-wrap: wrap;
+}
+
+.qn-btn-record {
+  padding: var(--qn-space-4) var(--qn-space-8);
+  border: none;
+  border-radius: var(--qn-radius-lg);
+  font-size: 1.125rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: var(--qn-space-3);
+  box-shadow: var(--qn-shadow-md);
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.qn-btn-record.ready {
+  background: linear-gradient(135deg, var(--qn-success-500) 0%, var(--qn-success-600) 100%);
+  color: white;
+}
+
+.qn-btn-record.ready:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--qn-shadow-xl);
+}
+
+.qn-btn-record.recording {
+  background: linear-gradient(135deg, var(--qn-error-500) 0%, var(--qn-error-600) 100%);
+  color: white;
+  animation: pulse-recording 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse-recording {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  50% {
+    opacity: 0.9;
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+  }
+}
+
+.qn-btn-record.disabled {
+  background: var(--qn-gray-300);
+  color: var(--qn-gray-500);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.qn-btn-process {
+  padding: var(--qn-space-4) var(--qn-space-6);
+  border: none;
+  border-radius: var(--qn-radius-lg);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: var(--qn-space-2);
+  background: linear-gradient(135deg, var(--qn-accent-500) 0%, var(--qn-accent-600) 100%);
+  color: white;
+  box-shadow: var(--qn-shadow-md);
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.qn-btn-process:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: var(--qn-shadow-lg);
+}
+
+.qn-btn-process:disabled {
+  background: var(--qn-gray-300);
+  color: var(--qn-gray-500);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.qn-btn-enroll {
+  padding: var(--qn-space-4) var(--qn-space-6);
+  border: none;
+  border-radius: var(--qn-radius-lg);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: var(--qn-space-2);
+  background: linear-gradient(135deg, var(--qn-accent-600) 0%, var(--qn-accent-700) 100%);
+  color: white;
+  box-shadow: var(--qn-shadow-md);
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.qn-btn-enroll:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--qn-shadow-lg);
+}
+
+/* ========================================
+   ENHANCED WARNING BANNERS
+   ======================================== */
+.qn-warning-banner {
+  padding: var(--qn-space-5);
+  border-radius: var(--qn-radius-lg);
+  margin-bottom: var(--qn-space-4);
+  display: flex;
+  align-items: start;
+  gap: var(--qn-space-4);
+  box-shadow: var(--qn-shadow-sm);
+  animation: slide-in 0.3s ease-out;
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.qn-warning-banner.warning {
+  background: linear-gradient(135deg, var(--qn-warning-50) 0%, var(--qn-warning-100) 50%);
+  border-left: 4px solid var(--qn-warning-500);
+}
+
+.qn-warning-banner.error {
+  background: linear-gradient(135deg, var(--qn-error-50) 0%, var(--qn-error-100) 50%);
+  border-left: 4px solid var(--qn-error-500);
+}
+
+.qn-warning-icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+}
+
+.qn-warning-content {
+  flex: 1;
+}
+
+.qn-warning-title {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  margin-bottom: var(--qn-space-1);
+  color: var(--qn-gray-900);
+}
+
+.qn-warning-text {
+  font-size: 0.875rem;
+  color: var(--qn-gray-700);
+  line-height: 1.5;
+}
+
+/* ========================================
+   ENHANCED CLINICAL NOTE DISPLAY
+   ======================================== */
+.qn-note-container {
+  background: white;
+  border: 2px solid var(--qn-gray-200);
+  border-radius: var(--qn-radius-xl);
+  padding: var(--qn-space-8);
+  margin-bottom: var(--qn-space-6);
+  box-shadow: var(--qn-shadow-lg);
+}
+
+.qn-note-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: var(--qn-space-4);
+  margin-bottom: var(--qn-space-6);
+  border-bottom: 3px solid var(--qn-gray-200);
+}
+
+.qn-note-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--qn-gray-900);
+  letter-spacing: -0.02em;
+}
+
+.qn-note-actions {
+  display: flex;
+  gap: var(--qn-space-3);
+}
+
+.qn-note-section {
+  margin-bottom: var(--qn-space-8);
+  padding: var(--qn-space-5);
+  background: var(--qn-gray-50);
+  border-radius: var(--qn-radius-lg);
+  border-left: 4px solid var(--qn-accent-500);
+}
+
+.qn-note-section-header {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--qn-accent-700);
+  margin-bottom: var(--qn-space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--qn-space-2);
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.qn-note-content {
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: var(--qn-gray-800);
+}
+
+/* Medication highlight */
+.qn-medication-item {
+  background: linear-gradient(135deg, var(--qn-accent-50) 0%, white 100%);
+  border-left: 3px solid var(--qn-accent-500);
+  padding: var(--qn-space-3) var(--qn-space-4);
+  margin-bottom: var(--qn-space-2);
+  border-radius: var(--qn-radius-md);
+  font-weight: 500;
+}
+
+.qn-medication-name {
+  color: var(--qn-accent-700);
+  font-weight: 700;
+}
+
+/* Lab highlight */
+.qn-lab-item {
+  padding: var(--qn-space-2) var(--qn-space-3);
+  background: var(--qn-success-50);
+  border-radius: var(--qn-radius-sm);
+  display: inline-block;
+  margin-right: var(--qn-space-2);
+  margin-bottom: var(--qn-space-2);
+  font-weight: 600;
+  color: var(--qn-success-700);
+}
+
+/* ICD-10 code badge */
+.qn-icd-code {
+  display: inline-block;
+  padding: var(--qn-space-1) var(--qn-space-3);
+  background: var(--qn-gray-200);
+  border-radius: var(--qn-radius-md);
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--qn-gray-800);
+  margin-right: var(--qn-space-2);
+}
+
+/* CPT code badge */
+.qn-cpt-code {
+  display: inline-block;
+  padding: var(--qn-space-2) var(--qn-space-4);
+  background: linear-gradient(135deg, var(--qn-accent-100) 0%, var(--qn-accent-200) 100%);
+  border: 2px solid var(--qn-accent-400);
+  border-radius: var(--qn-radius-lg);
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--qn-accent-800);
+  margin-right: var(--qn-space-3);
+  box-shadow: var(--qn-shadow-sm);
+}
+
+/* ========================================
+   ENHANCED BILLING SECTION
+   ======================================== */
+.qn-billing-container {
+  background: linear-gradient(135deg, var(--qn-gray-50) 0%, white 100%);
+  border: 2px solid var(--qn-gray-300);
+  border-radius: var(--qn-radius-xl);
+  padding: var(--qn-space-6);
+  margin-top: var(--qn-space-6);
+}
+
+.qn-billing-header {
+  padding: var(--qn-space-4);
+  background: linear-gradient(135deg, var(--qn-accent-700) 0%, var(--qn-accent-800) 100%);
+  color: white;
+  border-radius: var(--qn-radius-lg);
+  margin-bottom: var(--qn-space-5);
+  text-align: center;
+}
+
+.qn-billing-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.qn-billing-subtitle {
+  font-size: 0.875rem;
+  opacity: 0.9;
+  margin-top: var(--qn-space-1);
+}
+
+.qn-billing-section {
+  margin-bottom: var(--qn-space-6);
+  padding: var(--qn-space-5);
+  background: white;
+  border-radius: var(--qn-radius-lg);
+  border: 1px solid var(--qn-gray-200);
+}
+
+.qn-billing-section-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--qn-gray-800);
+  margin-bottom: var(--qn-space-4);
+  padding-bottom: var(--qn-space-2);
+  border-bottom: 2px solid var(--qn-gray-200);
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+/* ========================================
+   UTILITY CLASSES
+   ======================================== */
+.qn-btn {
+  padding: var(--qn-space-3) var(--qn-space-5);
+  border: none;
+  border-radius: var(--qn-radius-md);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--qn-space-2);
+}
+
+.qn-btn-sm {
+  padding: var(--qn-space-2) var(--qn-space-4);
+  font-size: 0.8125rem;
+}
+
+.qn-btn-primary {
+  background: var(--qn-accent-600);
+  color: white;
+}
+
+.qn-btn-primary:hover {
+  background: var(--qn-accent-700);
+  transform: translateY(-1px);
+  box-shadow: var(--qn-shadow-md);
+}
+
+.qn-btn-secondary {
+  background: var(--qn-gray-200);
+  color: var(--qn-gray-700);
+}
+
+.qn-btn-secondary:hover {
+  background: var(--qn-gray-300);
+}
+
+.qn-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--qn-space-1) var(--qn-space-3);
+  border-radius: var(--qn-radius-md);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.qn-badge-success {
+  background: var(--qn-success-100);
+  color: var(--qn-success-700);
+}
+
+.qn-badge-warning {
+  background: var(--qn-warning-100);
+  color: var(--qn-warning-700);
+}
+
+.qn-badge-info {
+  background: var(--qn-accent-100);
+  color: var(--qn-accent-700);
+}
+
+/* ========================================
+   RESPONSIVE ADJUSTMENTS
+   ======================================== */
+@media (max-width: 768px) {
+  .qn-patient-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .qn-controls-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .qn-action-buttons {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .qn-btn-record,
+  .qn-btn-process,
+  .qn-btn-enroll {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .qn-note-header {
+    flex-direction: column;
+    gap: var(--qn-space-4);
+  }
+
+  .qn-note-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+}

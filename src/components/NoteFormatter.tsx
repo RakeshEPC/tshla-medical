@@ -1,13 +1,74 @@
 import React from 'react';
+import '../styles/quicknote-enhanced.css';
 
 interface NoteFormatterProps {
   content: string;
 }
 
 export default function NoteFormatter({ content }: NoteFormatterProps) {
-  const formatNote = (text: string) => {
-    // Split content into sections
+  /**
+   * Remove duplicate sections from AI-generated notes
+   * Common issue: MEDICATIONS section appears twice
+   */
+  const removeDuplicateSections = (text: string): string => {
+    const sections: Map<string, string> = new Map();
     const lines = text.split('\n');
+    let currentHeader = '';
+    let currentContent: string[] = [];
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+
+      // Check if this is a section header
+      if (trimmed.match(/^[A-Z][A-Z\s,:&/]+:$/)) {
+        // Save previous section if exists
+        if (currentHeader && currentContent.length > 0) {
+          const content = currentContent.join('\n');
+          // Only keep first occurrence of each section
+          if (!sections.has(currentHeader)) {
+            sections.set(currentHeader, content);
+          }
+        }
+
+        // Start new section
+        currentHeader = trimmed;
+        currentContent = [];
+      } else if (currentHeader) {
+        currentContent.push(line);
+      } else {
+        // Content before first header - keep as is
+        currentContent.push(line);
+      }
+    }
+
+    // Save last section
+    if (currentHeader && currentContent.length > 0) {
+      const content = currentContent.join('\n');
+      if (!sections.has(currentHeader)) {
+        sections.set(currentHeader, content);
+      }
+    }
+
+    // Rebuild text without duplicates
+    let result = '';
+    if (currentContent.length > 0 && !currentHeader) {
+      // Add content before first header
+      result = currentContent.join('\n') + '\n\n';
+    }
+
+    for (const [header, content] of sections) {
+      result += `${header}\n${content}\n\n`;
+    }
+
+    return result.trim();
+  };
+
+  const formatNote = (text: string) => {
+    // STEP 1: Remove duplicate sections (common AI output issue)
+    const cleanedText = removeDuplicateSections(text);
+
+    // Split content into sections
+    const lines = cleanedText.split('\n');
     const formattedSections: JSX.Element[] = [];
     let currentSection: string[] = [];
     let sectionKey = 0;
@@ -33,9 +94,10 @@ export default function NoteFormatter({ content }: NoteFormatterProps) {
         formattedSections.push(
           <h3
             key={`header-${sectionKey}`}
-            className="text-lg font-bold text-blue-800 border-b-2 border-blue-200 pb-2 mb-3 mt-6"
+            className="qn-note-section-header"
           >
-            {getSectionIcon(headerText)} {headerText}
+            <span className="mr-2">{getSectionIcon(headerText)}</span>
+            {headerText}
           </h3>
         );
         sectionKey++;
@@ -85,11 +147,11 @@ export default function NoteFormatter({ content }: NoteFormatterProps) {
       if (trimmedLine.match(/^[A-Z]\d{2}\.?\d*/)) {
         const [code, ...description] = trimmedLine.split(':');
         return (
-          <div key={index} className="ml-4 mb-1">
-            <span className="inline-block bg-gray-100 text-gray-800 px-2 py-1 rounded text-sm font-mono mr-2">
+          <div key={index} className="ml-4 mb-2 flex items-start gap-2">
+            <span className="qn-icd-code">
               {code.trim()}
             </span>
-            <span className="text-gray-700">{description.join(':').trim()}</span>
+            <span className="text-gray-700 flex-1">{description.join(':').trim()}</span>
           </div>
         );
       }
