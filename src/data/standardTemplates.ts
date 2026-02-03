@@ -116,10 +116,10 @@ export const standardTemplates: Omit<
       assessment: {
         title: 'Assessment',
         aiInstructions:
-          'List diagnoses being addressed today with ICD-10 codes if available. Number each diagnosis. Include differential diagnoses for new problems.',
+          'List ONLY diagnoses that provider explicitly stated (keywords: "has", "diagnosed with", "diagnosis of"). DO NOT create diagnoses from symptoms - if provider says "patient complains of chest pain", that is a SYMPTOM not a diagnosis (do not code as R07.9 unless provider diagnosed it). Include ICD-10 codes only for explicitly stated diagnoses. Number each diagnosis.',
         required: true,
         order: 10,
-        keywords: ['diagnosis', 'likely', 'suspect', 'consistent with', 'differential'],
+        keywords: ['has', 'diagnosed', 'diagnosis', 'history of'],
         format: 'numbered',
         exampleText:
           '1. Acute bronchitis (J20.9)\n2. Hypertension, uncontrolled (I10)\n3. Type 2 DM, controlled (E11.9)',
@@ -127,17 +127,17 @@ export const standardTemplates: Omit<
       plan: {
         title: 'Plan',
         aiInstructions:
-          'Detail treatment plan for each problem in assessment. Include medications (with sig), labs, imaging, referrals, patient education, and follow-up. Number to match assessment.',
+          'STRICT EXTRACTION ONLY: Document ONLY the treatment actions the provider explicitly stated. List medication changes with exact doses as dictated, labs ordered (using keywords "order", "check", "get"), and follow-up timing if mentioned. DO NOT add recommendations like "monitor at home", "counsel patient", "consider workup", or "reassess" unless the provider explicitly stated them in the dictation. DO NOT add patient education unless provider said "I counseled..." or "I educated...". Number to match assessment.',
         required: true,
         order: 11,
-        keywords: ['start', 'continue', 'discontinue', 'order', 'referral', 'follow-up'],
+        keywords: ['start', 'continue', 'discontinue', 'order', 'check', 'increase', 'decrease'],
         format: 'numbered',
         exampleText:
-          '1. Acute bronchitis:\n   - Start Azithromycin 250mg, 2 tabs day 1, then 1 tab daily x4 days\n   - Albuterol inhaler PRN\n2. HTN:\n   - Increase Lisinopril to 20mg daily',
+          '1. Acute bronchitis:\n   - Start Azithromycin 250mg, 2 tabs day 1, then 1 tab daily x4 days\n   - Albuterol inhaler PRN\n2. HTN:\n   - Increase Lisinopril to 20mg daily\n3. Labs ordered: CBC, CMP',
       },
     },
     generalInstructions:
-      'Create a comprehensive medical note following standard SOAP format. Maintain professional medical terminology throughout. Be thorough but concise.',
+      'Create a comprehensive medical note following standard SOAP format. Maintain professional medical terminology throughout. Extract ONLY what the provider explicitly stated - do NOT add clinical recommendations, patient education, or workup suggestions unless explicitly dictated.',
   },
   {
     name: 'Diabetes Follow-up',
@@ -232,17 +232,17 @@ export const standardTemplates: Omit<
       plan: {
         title: 'Plan',
         aiInstructions:
-          'Detail medication adjustments, lifestyle recommendations, labs to order, referrals, and follow-up timing. Be specific with insulin adjustments.',
+          'STRICT EXTRACTION: Document ONLY medication adjustments, labs, referrals, and follow-up timing that provider explicitly stated. Be specific with insulin doses as dictated. DO NOT add lifestyle recommendations, patient education, or monitoring suggestions unless provider explicitly stated them.',
         required: true,
         order: 8,
-        keywords: ['adjust', 'increase', 'decrease', 'labs', 'A1C', 'follow-up'],
+        keywords: ['adjust', 'increase', 'decrease', 'order', 'check', 'labs', 'A1C', 'follow-up'],
         format: 'numbered',
         exampleText:
           '1. Increase Lantus to 26 units qHS\n2. Check A1C, CMP, lipids, urine microalbumin\n3. Referral to ophthalmology for annual exam\n4. Follow-up in 3 months',
       },
     },
     generalInstructions:
-      'Focus on comprehensive diabetes management including glycemic control, complication screening, and treatment optimization. Use endocrine-specific terminology.',
+      'Focus on comprehensive diabetes management including glycemic control, complication screening, and treatment optimization. Use endocrine-specific terminology. Extract ONLY what provider explicitly stated - do NOT add clinical recommendations or patient education unless explicitly dictated.',
   },
   {
     name: 'Quick Progress Note',

@@ -1140,12 +1140,26 @@ TRANSCRIPTION:
 
 ────────────────────────────────────────────────────────
 
-CRITICAL RULES:
-1. Extract ALL information from the transcription (medications, vitals, labs, diagnoses)
-2. Use exact values mentioned (e.g., "blood sugar 400", "Lantus 20 units")
+CRITICAL RULES - STRICT EXTRACTION MODE (NO AI INFERENCE):
+1. Extract ONLY what provider explicitly stated - DO NOT add clinical recommendations or suggestions
+2. Use exact values and doses AS DICTATED (e.g., "blood sugar 400", "Lantus 20 units")
 3. Match the format shown in examples (abbreviations, bullets, structure)
-4. Do NOT write "[Not mentioned]" if data IS in the transcription
-5. Be thorough - include every detail from the dictation
+4. PLAN section - LITERAL EXTRACTION ONLY:
+   - Document ONLY actions provider stated they performed or ordered
+   - If provider says "increase Lantus from 10 to 20 units" → write exactly that
+   - DO NOT add: "monitor at home", "counsel patient", "consider workup", "reassess at next visit"
+   - DO NOT add clinical recommendations unless provider explicitly stated them
+   - DO NOT add patient education unless provider said "I counseled patient on..."
+5. LABS: Extract ONLY labs explicitly ordered (keywords: "order", "check", "get", "draw")
+   - Provider says "check A1C" → document as lab order
+   - Provider says "A1C is 9.5" → this is a RESULT, not an order
+6. SYMPTOMS vs DIAGNOSES - CRITICAL:
+   - "patient complains of chest pain" → document in HPI/Chief Complaint, NOT as diagnosis
+   - Only create diagnoses if provider says "has", "diagnosed with", "diagnosis of"
+   - DO NOT create ICD-10 codes for symptoms unless provider explicitly diagnosed them
+7. DO NOT create problem categories not mentioned by provider
+   - If provider orders FSH/LH → list in labs only, don't create "Menopausal Symptoms" problem
+8. If information not in transcription: leave blank or write "Not documented" (NOT "[Not mentioned]")
 
 Generate the note now:`;
   }
@@ -1193,17 +1207,26 @@ Generate JSON with these sections:
   }
 }
 
-RULES:
-1. Extract ALL information from the transcription - be thorough
-2. Include exact numbers (blood sugar 400, A1C 9.5, age 45)
-3. MEDICATIONS section: Extract ALL medications mentioned in transcript with:
-   - Drug name and dose (e.g., "Lantus 20 units daily", "Lipitor 10mg daily")
+CRITICAL RULES - STRICT EXTRACTION MODE (NO AI INFERENCE):
+1. Extract ONLY what provider explicitly stated - DO NOT add recommendations or clinical suggestions
+2. Include exact numbers and medication doses AS DICTATED (blood sugar 400, A1C 9.5, age 45)
+3. MEDICATIONS section: List ONLY medications explicitly mentioned by provider with exact doses
+   - Drug name and dose as stated (e.g., "Lantus 20 units daily", "Lipitor 10mg daily")
    - Route and frequency if mentioned
    - List each medication on a separate line with bullet points
    - Even if medications are in the PLAN, also list them in MEDICATIONS section
-4. Extract labs ordered and diagnoses mentioned
-5. DO NOT use "Not provided" or "[Not mentioned]" - extract actual data from transcript
-6. If a section seems empty, re-read the transcription carefully
+4. LABS: Extract ONLY labs explicitly ordered - look for "order", "check", "get", "draw"
+   - Provider says "check A1C" → document as lab order
+   - Provider says "A1C is 9.5" → this is a result, not an order
+5. PLAN section - LITERAL EXTRACTION ONLY:
+   - Document ONLY what provider said they did or ordered
+   - DO NOT add: "monitor at home", "counsel patient", "consider workup", "reassess"
+   - DO NOT add clinical recommendations unless explicitly dictated
+6. SYMPTOMS vs DIAGNOSES:
+   - "patient complains of chest pain" → document in HPI, NOT as R07.9 diagnosis
+   - Only create diagnoses if provider says "has", "diagnosed with", "diagnosis of"
+7. DO NOT create problem categories not mentioned by provider
+8. If information not in transcription: leave blank, write "Not documented" (NOT "Not mentioned in transcription")
 
 Return ONLY the formatted note - no instructions or meta-commentary.`;
     }
@@ -1249,23 +1272,37 @@ Generate JSON:
   }
 }
 
-RULES:
-1. Extract ALL information from the transcription - be thorough
-2. Include exact numbers (blood sugar 400, A1C 9, age 45)
-3. MEDICATIONS section: Extract ALL medications mentioned in transcript with:
-   - Drug name and dose (e.g., "Lantus 20 units daily", "Lipitor 10mg daily")
+CRITICAL RULES - STRICT EXTRACTION MODE (NO AI INFERENCE):
+1. Extract ONLY what the provider explicitly stated - DO NOT add recommendations or suggestions
+2. Include exact numbers and medication doses AS DICTATED (blood sugar 400, A1C 9, age 45)
+3. MEDICATIONS section: List ONLY medications explicitly mentioned by provider with exact doses
+   - Drug name and dose as stated (e.g., "Lantus 20 units daily", "Lipitor 10mg daily")
    - Route and frequency if mentioned
    - List each medication on a separate line with bullet points
    - Even if medications are in the PLAN, also list them in MEDICATIONS section
-4. Extract labs ordered and diagnoses mentioned
-5. DIAGNOSES: Only document diagnoses that are EXPLICITLY stated by the provider
-   - If provider says "diabetes", "diabetic", "has diabetes" → document as definitive diagnosis
-   - If diagnosis is NOT explicitly stated but inferred from medications/labs → add "(possible)" qualifier
-   - Example: Patient on Ozempic but diabetes never mentioned → "Type 2 diabetes mellitus (possible)"
-   - Example: Patient on Synthroid but hypothyroid never mentioned → "Hypothyroidism (possible)"
-6. NEVER write "Not provided", "Not mentioned", or placeholders - always extract from transcription
-7. If a section seems empty, re-read the transcription - the information is there
-8. Return only the note - no explanations`;
+4. LABS: Extract ONLY labs explicitly ordered using keywords: "order", "check", "get", "draw"
+   - If provider says "check A1C" → document "A1C"
+   - If provider mentions "A1C is 9.9" → this is a RESULT, not an order
+5. PLAN section - STRICT LITERAL EXTRACTION:
+   - Document ONLY actions provider stated they performed or ordered
+   - If provider says "increase Lantus from 10 to 20 units" → write exactly that
+   - DO NOT add: "monitor at home", "counsel patient", "consider workup", "reassess at next visit"
+   - DO NOT add clinical recommendations unless provider explicitly stated them
+   - DO NOT add patient education unless provider said "I counseled patient on..."
+   - DO NOT add follow-up plans unless provider said specific follow-up timing
+6. SYMPTOMS vs DIAGNOSES - CRITICAL DISTINCTION:
+   - If provider says "patient complains of chest pain" → document in HPI/CC, NOT as diagnosis in Assessment
+   - If provider says "patient reports SOB" → document as symptom, NOT as R06.02 diagnosis
+   - Only list as diagnosis if provider says "diagnosis of", "has", "diagnosed with"
+   - DO NOT create ICD-10 codes for symptoms unless provider explicitly diagnosed them
+7. DO NOT create new problem categories:
+   - If provider orders FSH/LH → list in labs section only
+   - DO NOT create "Menopausal Symptoms" problem unless provider mentioned menopause
+8. If information is not in transcription:
+   - Leave that section blank or minimal
+   - NEVER write "Not provided", "Not mentioned in transcription", or "[Not specified]"
+   - For Allergies: if not mentioned, write "Not documented"
+9. Return only the note - no explanations, no meta-commentary`;
   }
 
   private parseResponse(
