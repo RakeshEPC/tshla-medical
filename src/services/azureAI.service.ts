@@ -1143,6 +1143,7 @@ TRANSCRIPTION:
 CRITICAL RULES - STRICT EXTRACTION MODE (NO AI INFERENCE):
 1. Extract ONLY what provider explicitly stated - DO NOT add clinical recommendations or suggestions
 2. Use exact values and doses AS DICTATED (e.g., "blood sugar 400", "Lantus 20 units")
+   - Convert spoken numbers to numerics (e.g., "four hundreds" → "400", "one forty over ninety" → "140/90", "nine point five" → "9.5")
    - If dose is incomplete (e.g., "increase from 25 to..."), write "increased from 25mcg (new dose not completed)"
    - If dose is missing entirely, write the medication name only without "(dose not specified)"
 3. PLAN section - LITERAL EXTRACTION ONLY:
@@ -1217,6 +1218,7 @@ Generate JSON with these sections:
 CRITICAL RULES - STRICT EXTRACTION MODE (NO AI INFERENCE):
 1. Extract ONLY what provider explicitly stated - DO NOT add recommendations or clinical suggestions
 2. Include exact numbers and medication doses AS DICTATED (blood sugar 400, A1C 9.5, age 45)
+   - Convert spoken numbers to numerics (e.g., "four hundreds" → "400", "one forty over ninety" → "140/90", "nine point five" → "9.5")
 3. MEDICATIONS section: List ONLY medications explicitly mentioned by provider with exact doses
    - Drug name and dose as stated (e.g., "Lantus 20 units daily", "Lipitor 10mg daily")
    - Route and frequency if mentioned
@@ -1285,6 +1287,7 @@ Generate JSON:
 CRITICAL RULES - STRICT EXTRACTION MODE (NO AI INFERENCE):
 1. Extract ONLY what the provider explicitly stated - DO NOT add recommendations or suggestions
 2. Include exact numbers and medication doses AS DICTATED (blood sugar 400, A1C 9, age 45)
+   - Convert spoken numbers to numerics (e.g., "four hundreds" → "400", "one forty over ninety" → "140/90", "nine point five" → "9.5")
 3. MEDICATIONS section: List ONLY medications explicitly mentioned by provider with exact doses
    - Drug name and dose as stated (e.g., "Lantus 20 units daily", "Lipitor 10mg daily")
    - Route and frequency if mentioned

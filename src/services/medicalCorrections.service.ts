@@ -17,6 +17,7 @@ export class MedicalCorrectionsService {
     'novo log': 'NovoLog',
     overlock: 'NovoLog',
     'nova log': 'NovoLog',
+    'no vlog': 'NovoLog',
     metformin: 'Metformin',
     'met foreman': 'Metformin',
     glucophage: 'Glucophage',
