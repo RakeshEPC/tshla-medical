@@ -14,6 +14,10 @@ export interface ComplexityAnalysis {
   complexityLevel: ComplexityLevel;
   medicationChanges: number;
   chronicConditions: number;
+  // CMS 2021 MDM Components (for audit trail)
+  problemComplexity: ComplexityLevel; // CMS Problem category
+  dataComplexity: ComplexityLevel;    // CMS Data category
+  mdmQualifyingElements?: string[];   // Which 2 of 3 qualified
 }
 
 export interface CPTRecommendation {
@@ -212,9 +216,23 @@ export class CPTBillingAnalyzer {
    * - External records reviewed = 2 points
    * - Independent historian = 1 point
    * - Provider coordination = 1 point
+   *
+   * Returns: Object with count and boolean flags for CMS categorization
    */
-  countDataPoints(plan: string[], transcript: string): number {
-    if (!plan || plan.length === 0) return 0;
+  countDataPoints(plan: string[], transcript: string): {
+    count: number;
+    hasExternalRecords: boolean;
+    hasProviderDiscussion: boolean;
+    hasIndependentHistorian: boolean;
+  } {
+    if (!plan || plan.length === 0) {
+      return {
+        count: 0,
+        hasExternalRecords: false,
+        hasProviderDiscussion: false,
+        hasIndependentHistorian: false
+      };
+    }
 
     // Search BOTH plan and transcript but deduplicate
     const planText = plan.join(' ').toLowerCase();
@@ -399,7 +417,12 @@ export class CPTBillingAnalyzer {
       dataPoints += 1; // Bonus for documenting actual values
     }
 
-    return dataPoints;
+    return {
+      count: dataPoints,
+      hasExternalRecords,
+      hasProviderDiscussion: hasCoordination,
+      hasIndependentHistorian
+    };
   }
 
   /**
@@ -429,7 +452,12 @@ export class CPTBillingAnalyzer {
     // Track what we've counted to prevent double-counting
     const countedRisks = new Set<string>();
 
-    // CATEGORY 1: Recent Hospitalization (HIGH RISK +3, COUNT ONCE)
+    // CATEGORY 1: Recent Hospitalization (CMS COMPLIANT)
+    // CMS Table of Risk:
+    // - HIGH risk = Decision regarding hospitalization OR acute/life-threatening condition
+    // - MODERATE risk = Post-discharge follow-up if stable
+    // - Need to distinguish between: (1) decision to hospitalize, (2) stable post-discharge
+
     const hospitalizationPatterns = [
       /admitted\s+(?:to\s+)?(?:the\s+)?hospital/i,
       /recent(?:ly)?\s+(?:admitted|hospitalized|hospitalization)/i,
@@ -447,14 +475,28 @@ export class CPTBillingAnalyzer {
       for (const pattern of hospitalizationPatterns) {
         if (pattern.test(combinedText)) {
           wasHospitalized = true;
-          riskScore += 3; // Recent hospitalization = HIGH risk
+
+          // CMS COMPLIANCE FIX: Check if this is stable follow-up vs. acute decision
+          const isStableFollowUp = /(?:stable|doing\s+(?:well|fine|better)|routine\s+follow[\s-]up|post[\s-]discharge\s+(?:check|visit))/i.test(combinedText);
+          const isAcuteDecision = /(?:re[\s-]?admit|readmit|consider\s+admission|needs?\s+hospitalization|may\s+need\s+to\s+admit)/i.test(combinedText);
+
+          if (isAcuteDecision) {
+            riskScore += 3; // HIGH risk: Decision regarding hospitalization
+          } else if (isStableFollowUp) {
+            riskScore += 2; // MODERATE risk: Stable post-discharge follow-up
+          } else {
+            // Default: Recent hospitalization without clear stability indicators
+            riskScore += 2; // MODERATE risk (conservative)
+          }
+
           countedRisks.add('hospitalization');
           break;
         }
       }
     }
 
-    // CATEGORY 2: Post-Discharge Timing (Additional +2 if <7 days, COUNT ONCE)
+    // CATEGORY 2: Post-Discharge Timing (Additional +1 if <7 days and unstable)
+    // CMS: Very recent post-discharge with complications = higher risk
     if (wasHospitalized && !countedRisks.has('post-discharge-timing')) {
       const daysMatches = [
         /discharged\s+(\d+)\s+days?\s+ago/i.exec(combinedText),
@@ -462,11 +504,13 @@ export class CPTBillingAnalyzer {
         /two\s+days?\s+(?:ago|status\s+post)/i.exec(combinedText)
       ];
 
+      const hasComplications = /(?:complication|readmission|unstable|worsening|not\s+doing\s+well)/i.test(combinedText);
+
       for (const match of daysMatches) {
         if (match) {
           const days = match[1] === 'two' ? 2 : parseInt(match[1] || '999');
-          if (days <= 7) {
-            riskScore += 2; // Post-discharge within 7 days = extra HIGH risk
+          if (days <= 7 && hasComplications) {
+            riskScore += 1; // Additional risk for very recent discharge with issues
             countedRisks.add('post-discharge-timing');
           }
           break;
@@ -522,31 +566,53 @@ export class CPTBillingAnalyzer {
       }
     }
 
-    // CATEGORY 4: Medication Risk Assessment
+    // CATEGORY 4: Medication Risk Assessment (CMS COMPLIANT)
+    // CMS Table of Risk:
+    // - HIGH risk = Drug therapy requiring intensive monitoring for toxicity (IV drugs, chemo, immunosuppressants)
+    // - MODERATE risk = Prescription drug management (including insulin, warfarin, etc.)
+    // - LOW risk = OTC drugs, minimal risk medication
+
     if (medicationChanges && medicationChanges.length > 0) {
-      // High-risk medications
-      const highRiskMeds = [
-        'insulin', 'lantus', 'novolog', 'humalog', 'levemir',
-        'warfarin', 'coumadin', 'anticoagulant',
-        'chemotherapy', 'immunosuppressant'
+      // CMS COMPLIANCE FIX: Insulin, warfarin = MODERATE risk (not HIGH)
+      // Only IV drugs, chemo, immunosuppressants = HIGH risk
+
+      // HIGH risk medications (requiring intensive monitoring for toxicity)
+      const trulyHighRiskMeds = [
+        'chemotherapy', 'chemo',
+        'immunosuppressant', 'cyclosporine', 'tacrolimus',
+        'IV ', 'intravenous', 'parenteral'
       ];
 
-      let hasHighRiskMed = false;
-      for (const med of highRiskMeds) {
+      let hasTrueHighRisk = false;
+      for (const med of trulyHighRiskMeds) {
         if (new RegExp(med, 'i').test(medicationText)) {
-          hasHighRiskMed = true;
+          hasTrueHighRisk = true;
           break;
         }
       }
-      if (hasHighRiskMed) riskScore += 2;
 
-      // New medication started
-      const hasNewMed = /start|begin|initiate|add/i.test(medicationText);
-      if (hasNewMed) riskScore += 1;
+      // MODERATE risk medications (prescription drug management)
+      const moderateRiskMeds = [
+        'insulin', 'lantus', 'novolog', 'humalog', 'levemir', 'tresiba',
+        'warfarin', 'coumadin', 'eliquis', 'xarelto',
+        'metformin', 'glipizide', 'jardiance',
+        'lisinopril', 'losartan', 'amlodipine'
+      ];
 
-      // Multiple medication changes (3+)
-      if (medicationChanges.length >= 3) {
-        riskScore += 1;
+      let hasModerateRisk = false;
+      for (const med of moderateRiskMeds) {
+        if (new RegExp(med, 'i').test(medicationText)) {
+          hasModerateRisk = true;
+          break;
+        }
+      }
+
+      if (hasTrueHighRisk) {
+        riskScore += 3; // HIGH risk (drug requiring intensive monitoring)
+      } else if (hasModerateRisk) {
+        riskScore += 2; // MODERATE risk (prescription drug management)
+      } else if (medicationChanges.length >= 1) {
+        riskScore += 1; // LOW risk (any medication change)
       }
     }
 
@@ -743,43 +809,214 @@ export class CPTBillingAnalyzer {
   }
 
   /**
-   * Determine overall complexity level
+   * CMS 2021 COMPLIANT: Categorize Problem Complexity
+   * Per CMS Table of Elements for MDM - "Number and Complexity of Problems Addressed"
    */
-  determineComplexity(analysis: ComplexityAnalysis): ComplexityLevel {
-    let complexityScore = 0;
+  categorizeProblemComplexity(
+    problemCount: number,
+    assessment: string[],
+    riskScore: number
+  ): ComplexityLevel {
+    const assessmentText = assessment.join(' ').toLowerCase();
 
-    // Problem count contribution
-    if (analysis.problemCount >= 3) complexityScore += 3;
-    else if (analysis.problemCount >= 2) complexityScore += 2;
-    else if (analysis.problemCount >= 1) complexityScore += 1;
+    // HIGH: 1+ chronic illness with severe exacerbation, OR acute/life-threatening
+    const hasLifeThreatening = /(?:MI|heart attack|stroke|sepsis|DKA|PE|pulmonary embolism)/i.test(assessmentText);
+    const hasSevereExacerbation = /(?:severe|acute\s+exacerbation|decompensated|unstable)/i.test(assessmentText) && problemCount >= 1;
 
-    // Data points contribution
-    if (analysis.dataPoints >= 4) complexityScore += 3;
-    else if (analysis.dataPoints >= 2) complexityScore += 2;
-    else if (analysis.dataPoints >= 1) complexityScore += 1;
+    if (hasLifeThreatening || hasSevereExacerbation) {
+      return 'high';
+    }
 
-    // Risk level contribution
-    const riskMap: Record<RiskLevel, number> = {
-      minimal: 0,
-      low: 1,
-      moderate: 2,
-      high: 3,
-    };
-    complexityScore += riskMap[analysis.riskLevel];
+    // MODERATE: 1+ chronic illness with exacerbation, OR undiagnosed new problem with uncertain prognosis
+    const hasExacerbation = /(?:exacerbation|worsening|uncontrolled|poorly\s+controlled)/i.test(assessmentText);
+    const hasUndiagnosedProblem = /(?:new\s+(?:problem|symptom|complaint)|undiagnosed|unknown\s+etiology)/i.test(assessmentText);
 
-    // Medication changes contribution
-    if (analysis.medicationChanges >= 3) complexityScore += 2;
-    else if (analysis.medicationChanges >= 2) complexityScore += 1;
+    if ((hasExacerbation && problemCount >= 1) || hasUndiagnosedProblem) {
+      return 'moderate';
+    }
 
-    // Determine final complexity
-    if (complexityScore >= 8) return 'high';
-    if (complexityScore >= 5) return 'moderate';
-    if (complexityScore >= 2) return 'low';
+    // LOW: 2+ self-limited/minor problems, OR 1+ stable chronic illness, OR acute uncomplicated
+    const hasStableOrAcute = /(?:stable|well[\s-]controlled|follow[\s-]up|routine)/i.test(assessmentText);
+
+    if (problemCount >= 2 || (problemCount >= 1 && hasStableOrAcute)) {
+      return 'low';
+    }
+
+    // MINIMAL: 1 self-limited or minor problem
+    if (problemCount === 1) {
+      return 'minimal';
+    }
+
     return 'minimal';
   }
 
   /**
+   * CMS 2021 COMPLIANT: Categorize Data Complexity
+   * Per CMS Table - "Amount and/or Complexity of Data to be Reviewed and Analyzed"
+   *
+   * Category 1: Tests, documents, orders, or independent historian (max 2 points)
+   * Category 2: Independent interpretation of tests (1 point)
+   * Category 3: Discussion with external provider or interpretation of data (1 point)
+   *
+   * Total points determine level:
+   * - Minimal/None: 0-1 points
+   * - Limited: 2 points
+   * - Moderate: 3 points
+   * - Extensive: 4-6 points
+   */
+  categorizeDataComplexity(
+    rawDataPoints: number,
+    hasExternalRecords: boolean,
+    hasProviderDiscussion: boolean,
+    hasIndependentHistorian: boolean
+  ): { level: ComplexityLevel; totalPoints: number } {
+    let totalPoints = 0;
+
+    // CATEGORY 1: Tests and documents (MAX 2 POINTS per CMS)
+    // CMS: Each unique test, order of each unique test, or assessment requiring independent historian = 1 point (max 2 for category)
+    let category1Points = 0;
+
+    if (rawDataPoints >= 3) {
+      category1Points = 2; // Extensive tests/orders
+    } else if (rawDataPoints >= 1) {
+      category1Points = 1; // Limited tests/orders
+    }
+
+    if (hasIndependentHistorian) {
+      category1Points = Math.min(category1Points + 1, 2); // Cap at 2
+    }
+
+    totalPoints += category1Points;
+
+    // CATEGORY 2: Independent interpretation of tests (1 point)
+    // NOTE: Current implementation doesn't detect this - would need to identify phrases like
+    // "I personally reviewed the EKG" or "I interpreted the chest x-ray"
+    // For now, we'll estimate this conservatively
+    const hasIndependentInterpretation = false; // TODO: Add detection logic
+    if (hasIndependentInterpretation) {
+      totalPoints += 1;
+    }
+
+    // CATEGORY 3: Discussion with external provider OR external records (1 point)
+    // CMS: Discussion of management or test interpretation with external provider
+    if (hasExternalRecords || hasProviderDiscussion) {
+      totalPoints += 1;
+    }
+
+    // Map total points to complexity level per CMS table
+    let level: ComplexityLevel;
+    if (totalPoints >= 4) {
+      level = 'high'; // Extensive (4-6 points)
+    } else if (totalPoints === 3) {
+      level = 'moderate'; // Moderate (3 points)
+    } else if (totalPoints === 2) {
+      level = 'low'; // Limited (2 points)
+    } else {
+      level = 'minimal'; // Minimal or none (0-1 points)
+    }
+
+    return { level, totalPoints };
+  }
+
+  /**
+   * CMS 2021 COMPLIANT: Determine overall MDM complexity using 2-of-3 methodology
+   *
+   * CRITICAL: Must meet 2 out of 3 elements at the level being billed
+   * Elements: (1) Problem Complexity, (2) Data Complexity, (3) Risk Level
+   *
+   * This replaces the previous point-based scoring system which was non-compliant
+   */
+  determineComplexity(
+    problemComplexity: ComplexityLevel,
+    dataComplexity: ComplexityLevel,
+    riskLevel: RiskLevel
+  ): { level: ComplexityLevel; qualifyingElements: string[] } {
+
+    const qualifyingElements: string[] = [];
+
+    // Helper to count how many elements meet each level
+    const countAtLevel = (targetLevel: ComplexityLevel): number => {
+      let count = 0;
+      const elements: string[] = [];
+
+      if (problemComplexity === targetLevel ||
+          (targetLevel === 'low' && problemComplexity === 'minimal')) {
+        count++;
+        elements.push(`Problem Complexity: ${problemComplexity}`);
+      }
+      if (dataComplexity === targetLevel ||
+          (targetLevel === 'low' && dataComplexity === 'minimal')) {
+        count++;
+        elements.push(`Data Complexity: ${dataComplexity}`);
+      }
+      if (riskLevel === targetLevel ||
+          (targetLevel === 'low' && riskLevel === 'minimal')) {
+        count++;
+        elements.push(`Risk Level: ${riskLevel}`);
+      }
+
+      if (count >= 2) {
+        qualifyingElements.push(...elements.slice(0, 2)); // Record which 2 qualified
+      }
+
+      return count;
+    };
+
+    // Check from highest to lowest level (per CMS: must meet 2 of 3 at that level)
+
+    // HIGH: Need 2 of 3 elements at HIGH level
+    if (countAtLevel('high') >= 2) {
+      return { level: 'high', qualifyingElements };
+    }
+
+    // MODERATE: Need 2 of 3 elements at MODERATE or higher level
+    const moderateOrHigher = [problemComplexity, dataComplexity, riskLevel].filter(
+      level => level === 'moderate' || level === 'high'
+    ).length;
+
+    if (moderateOrHigher >= 2) {
+      qualifyingElements.length = 0; // Reset
+      if (problemComplexity === 'moderate' || problemComplexity === 'high') {
+        qualifyingElements.push(`Problem Complexity: ${problemComplexity}`);
+      }
+      if (dataComplexity === 'moderate' || dataComplexity === 'high') {
+        qualifyingElements.push(`Data Complexity: ${dataComplexity}`);
+      }
+      if (riskLevel === 'moderate' || riskLevel === 'high') {
+        qualifyingElements.push(`Risk Level: ${riskLevel}`);
+      }
+      return { level: 'moderate', qualifyingElements: qualifyingElements.slice(0, 2) };
+    }
+
+    // LOW: Need 2 of 3 elements at LOW or higher level
+    const lowOrHigher = [problemComplexity, dataComplexity, riskLevel].filter(
+      level => level !== 'minimal'
+    ).length;
+
+    if (lowOrHigher >= 2) {
+      qualifyingElements.length = 0;
+      if (problemComplexity !== 'minimal') {
+        qualifyingElements.push(`Problem Complexity: ${problemComplexity}`);
+      }
+      if (dataComplexity !== 'minimal') {
+        qualifyingElements.push(`Data Complexity: ${dataComplexity}`);
+      }
+      if (riskLevel !== 'minimal') {
+        qualifyingElements.push(`Risk Level: ${riskLevel}`);
+      }
+      return { level: 'low', qualifyingElements: qualifyingElements.slice(0, 2) };
+    }
+
+    // MINIMAL: Default if doesn't meet 2 of 3 at any higher level
+    return {
+      level: 'minimal',
+      qualifyingElements: ['Does not meet 2 of 3 elements for higher level']
+    };
+  }
+
+  /**
    * Analyze transcript and extracted info for complexity
+   * UPDATED: Now uses CMS 2021 compliant 2-of-3 MDM methodology
    */
   analyzeComplexity(
     transcript: string,
@@ -793,7 +1030,7 @@ export class CPTBillingAnalyzer {
   ): ComplexityAnalysis {
     const timeSpent = this.extractTimeSpent(transcript);
     const problemCount = this.countProblems(extractedInfo.assessment || []);
-    const dataPoints = this.countDataPoints(extractedInfo.plan || [], transcript);
+    const dataPointsResult = this.countDataPoints(extractedInfo.plan || [], transcript);
     const medicationChanges = this.countMedicationChanges(extractedInfo.medicationChanges || [], transcript);
     const riskLevel = this.assessRiskLevel(
       extractedInfo.medicationChanges || [],
@@ -814,17 +1051,36 @@ export class CPTBillingAnalyzer {
       /cancer/i,
     ].filter((pattern) => pattern.test(assessmentText)).length;
 
+    // CMS 2021 COMPLIANT: Categorize each of the 3 MDM elements
+    const problemComplexity = this.categorizeProblemComplexity(
+      problemCount,
+      extractedInfo.assessment || [],
+      0 // riskScore not used in new method
+    );
+
+    const dataResult = this.categorizeDataComplexity(
+      dataPointsResult.count,
+      dataPointsResult.hasExternalRecords,
+      dataPointsResult.hasProviderDiscussion,
+      dataPointsResult.hasIndependentHistorian
+    );
+    const dataComplexity = dataResult.level;
+
+    // CMS 2021 COMPLIANT: Use 2-of-3 methodology to determine overall complexity
+    const mdmResult = this.determineComplexity(problemComplexity, dataComplexity, riskLevel);
+
     const analysis: ComplexityAnalysis = {
       timeSpent,
       problemCount,
-      dataPoints,
+      dataPoints: dataPointsResult.count, // Keep for backward compatibility
       riskLevel,
       medicationChanges,
       chronicConditions,
-      complexityLevel: 'minimal', // Will be determined next
+      problemComplexity,  // NEW: CMS element
+      dataComplexity,     // NEW: CMS element
+      complexityLevel: mdmResult.level,
+      mdmQualifyingElements: mdmResult.qualifyingElements // NEW: Audit trail
     };
-
-    analysis.complexityLevel = this.determineComplexity(analysis);
 
     return analysis;
   }
@@ -967,16 +1223,43 @@ export class CPTBillingAnalyzer {
         primaryDescription = 'Office/Outpatient Visit, Established Patient (10-19 min)';
         timeRange = '10-19 minutes';
         confidenceScore = 90;
-      } else if (analysis.timeSpent >= 55) {
+      } else if (analysis.timeSpent >= 55 && analysis.timeSpent < 69) {
+        // CMS COMPLIANCE FIX: 55-68 minutes = 99215 only (no 99417 yet)
+        // 99417 requires FULL 15 minutes beyond 54 (i.e., 54 + 15 = 69 minutes minimum)
         primaryCode = '99215';
         primaryDescription = 'Office/Outpatient Visit, Established Patient (40-54 min)';
-        timeRange = '40-54 minutes (55+ minutes documented)';
-        confidenceScore = 90;
+        timeRange = `${analysis.timeSpent} minutes (base 99215, not yet 69+ for prolonged)`;
+        confidenceScore = 95;
         alternativeCodes.push({
-          code: '99215 + prolonged services',
-          description: 'Consider adding prolonged service code (99417)',
-          reason: 'Visit exceeded 54 minutes',
+          code: '99215 only (no 99417)',
+          description: 'Prolonged service requires ≥69 minutes total (54 base + 15 additional)',
+          reason: `Current time ${analysis.timeSpent} min does not qualify for 99417`,
         });
+      } else if (analysis.timeSpent >= 69) {
+        // CMS COMPLIANT: 69+ minutes qualifies for 99215 + 99417
+        // Each additional 15-min block after 69 min = another 99417
+        primaryCode = '99215';
+        primaryDescription = 'Office/Outpatient Visit, Established Patient (40-54 min)';
+
+        const prolongedUnits = Math.floor((analysis.timeSpent - 54) / 15);
+        timeRange = `${analysis.timeSpent} minutes (qualifies for prolonged services)`;
+        confidenceScore = 95;
+
+        alternativeCodes.push({
+          code: `99215 + 99417 x${prolongedUnits}`,
+          description: `Prolonged service: ${prolongedUnits} unit(s) of 99417`,
+          reason: `Total time ${analysis.timeSpent} min = 54 base + ${analysis.timeSpent - 54} additional (${prolongedUnits} x 15-min blocks)`,
+        });
+
+        // If there's significant time beyond complete 15-min blocks, note it
+        const remainderMinutes = (analysis.timeSpent - 54) % 15;
+        if (remainderMinutes >= 7) {
+          alternativeCodes.push({
+            code: 'Additional time note',
+            description: `${remainderMinutes} additional minutes beyond last complete 15-min block`,
+            reason: 'Document this time but may not qualify for additional 99417 unit',
+          });
+        }
       }
     } else {
       // Complexity-based determination (when time not documented)
@@ -1030,16 +1313,29 @@ export class CPTBillingAnalyzer {
       });
     }
 
-    // Build MDM justification
+    // Build MDM justification (CMS 2021 COMPLIANT)
     const mdmJustification: string[] = [];
-    mdmJustification.push(`Problems addressed: ${analysis.problemCount}`);
-    mdmJustification.push(`Data reviewed/ordered: ${analysis.dataPoints} items`);
-    mdmJustification.push(`Risk level: ${analysis.riskLevel.toUpperCase()}`);
+
+    // Show CMS 2-of-3 qualifying elements (if complexity-based)
+    if (!analysis.timeSpent && analysis.mdmQualifyingElements && analysis.mdmQualifyingElements.length > 0) {
+      mdmJustification.push(`⭐ CMS 2021 MDM QUALIFICATION (2 of 3 elements met):`);
+      for (const element of analysis.mdmQualifyingElements) {
+        mdmJustification.push(`  ✓ ${element}`);
+      }
+      mdmJustification.push(``); // Blank line
+    }
+
+    // Show detailed breakdown
+    mdmJustification.push(`📋 MDM Element Details:`);
+    mdmJustification.push(`  • Problem Complexity: ${analysis.problemComplexity?.toUpperCase() || 'N/A'} (${analysis.problemCount} problem(s))`);
+    mdmJustification.push(`  • Data Complexity: ${analysis.dataComplexity?.toUpperCase() || 'N/A'} (${analysis.dataPoints} data points)`);
+    mdmJustification.push(`  • Risk Level: ${analysis.riskLevel.toUpperCase()}`);
+
     if (analysis.medicationChanges > 0) {
-      mdmJustification.push(`Medication changes: ${analysis.medicationChanges}`);
+      mdmJustification.push(`  • Medication changes: ${analysis.medicationChanges}`);
     }
     if (analysis.chronicConditions > 0) {
-      mdmJustification.push(`Chronic conditions managed: ${analysis.chronicConditions}`);
+      mdmJustification.push(`  • Chronic conditions: ${analysis.chronicConditions}`);
     }
 
     return {
@@ -1363,13 +1659,13 @@ export class CPTBillingAnalyzer {
     icd10Suggestions: ICD10Suggestion[],
     procedures: ProcedureRecommendation[] = []
   ): string {
-    let section = `\n═══════════════════════════════════════════════════════
+    let section = `
+═══════════════════════════════════════════════════════
 BILLING CODES (AI-GENERATED)
-═══════════════════════════════════════════════════════\n\n`;
+═══════════════════════════════════════════════════════
 
-    // ========== SECTION 1: CPT CODES TO BILL ==========
-    section += `📋 CPT CODES TO BILL:\n`;
-    section += `───────────────────────────────────────────────────────\n`;
+📋 CPT CODES TO BILL:
+───────────────────────────────────────────────────────`;
 
     // Determine if we should add modifier -25
     // CRITICAL: Only add -25 if E/M is significant (NOT 99211)
@@ -1390,40 +1686,45 @@ BILLING CODES (AI-GENERATED)
       section += `**${cptRecommendation.primaryCode}**  (E/M Visit)\n`;
     }
 
-    section += `\n`;
 
     // ========== SECTION 2: CODE DETAILS ==========
-    section += `📝 CODE DETAILS:\n`;
-    section += `───────────────────────────────────────────────────────\n`;
+    section += `
+
+📝 CODE DETAILS:
+───────────────────────────────────────────────────────`;
 
     // E/M Code details
     if (procedures.length > 0) {
       if (shouldAddModifier25) {
         // Significant E/M with -25 modifier
-        section += `**${cptRecommendation.primaryCode}-25** - ${cptRecommendation.primaryDescription}\n`;
+        section += `
+**${cptRecommendation.primaryCode}-25** - ${cptRecommendation.primaryDescription}\n`;
         section += `  • Complexity Level: ${cptRecommendation.complexity.toUpperCase()}\n`;
         section += `  • Time Range: ${cptRecommendation.timeRange}\n`;
         section += `  • AI Confidence: ${cptRecommendation.confidenceScore}%\n`;
         section += `  • Modifier -25: "Significant, separately identifiable E/M service on same day as procedure"\n`;
-        section += `  • Required when billing E/M + procedure on same day\n\n`;
+        section += `  • Required when billing E/M + procedure on same day\n`;
       } else {
         // Minimal E/M (99211) - NO -25 modifier
-        section += `**${cptRecommendation.primaryCode}** - ${cptRecommendation.primaryDescription}\n`;
+        section += `
+**${cptRecommendation.primaryCode}** - ${cptRecommendation.primaryDescription}\n`;
         section += `  • Complexity Level: ${cptRecommendation.complexity.toUpperCase()}\n`;
         section += `  • Time Range: ${cptRecommendation.timeRange}\n`;
         section += `  • AI Confidence: ${cptRecommendation.confidenceScore}%\n`;
         section += `  • ⚠️ NO MODIFIER -25: Visit appears procedure-focused with minimal separate E/M\n`;
-        section += `  • Consider billing procedure only if no separate E/M was performed\n\n`;
+        section += `  • Consider billing procedure only if no separate E/M was performed\n`;
       }
     } else {
-      section += `**${cptRecommendation.primaryCode}** - ${cptRecommendation.primaryDescription}\n`;
+      section += `
+**${cptRecommendation.primaryCode}** - ${cptRecommendation.primaryDescription}\n`;
       section += `  • Complexity Level: ${cptRecommendation.complexity.toUpperCase()}\n`;
       section += `  • Time Range: ${cptRecommendation.timeRange}\n`;
-      section += `  • AI Confidence: ${cptRecommendation.confidenceScore}%\n\n`;
+      section += `  • AI Confidence: ${cptRecommendation.confidenceScore}%\n`;
     }
 
     // Procedure details (if any)
     if (procedures.length > 0) {
+      section += `\n`;
       for (const proc of procedures) {
         section += `**${proc.cptCode}** - ${proc.description}\n`;
         section += `  • ${proc.note}\n`;
@@ -1438,30 +1739,61 @@ BILLING CODES (AI-GENERATED)
 
     // ICD-10 Codes
     if (icd10Suggestions.length > 0) {
-      section += `🏥 ICD-10 DIAGNOSIS CODES:\n`;
-      section += `───────────────────────────────────────────────────────\n`;
+      section += `
+🏥 ICD-10 DIAGNOSIS CODES:
+───────────────────────────────────────────────────────`;
       for (const icd of icd10Suggestions) {
-        section += `${icd.code} - ${icd.description}\n`;
+        section += `
+${icd.code} - ${icd.description}`;
       }
-      section += `\n`;
     }
 
     // ========== SECTION 3: MEDICAL DECISION MAKING JUSTIFICATION ==========
-    section += `📊 MEDICAL DECISION MAKING (MDM) JUSTIFICATION:\n`;
-    section += `───────────────────────────────────────────────────────\n`;
+    section += `
+
+📊 MEDICAL DECISION MAKING (MDM) JUSTIFICATION:
+───────────────────────────────────────────────────────`;
 
     // Show all MDM points for audit defense
     for (const point of cptRecommendation.mdmJustification) {
-      section += `• ${point}\n`;
+      section += `
+• ${point}`;
     }
 
-    // Show complexity scoring breakdown
-    section += `\nComplexity Score Calculation:\n`;
-    section += `• This visit qualifies as ${cptRecommendation.complexity.toUpperCase()} complexity\n`;
-    section += `• Meets CMS 2021 E/M guidelines for ${cptRecommendation.primaryCode}\n`;
+    // Show complexity methodology
+    section += `
 
-    // ========== SECTION 4: DISCLAIMER ==========
-    section += `\n⚠ REMINDER: Provider must review and verify all codes before billing\n`;
+═══════════════════════════════════════════════════════
+⚠️⚠️⚠️ CRITICAL COMPLIANCE REMINDERS ⚠️⚠️⚠️
+═══════════════════════════════════════════════════════
+
+📌 CMS 2021 E/M METHODOLOGY USED:
+• This analysis uses CMS 2021 "2 out of 3" MDM framework
+• Visit qualifies as ${cptRecommendation.complexity.toUpperCase()} complexity based on MDM elements
+• Time-based coding preferred when time is documented (higher accuracy)
+
+⚠️ PROVIDER RESPONSIBILITIES:
+✓ Provider MUST independently verify code selection
+✓ Ensure documentation supports chosen code level
+✓ Verify medical necessity is clearly documented
+✓ Confirm all MDM elements are appropriately reflected in note
+✓ Final code selection is PROVIDER'S SOLE RESPONSIBILITY
+
+⚠️ KNOWN LIMITATIONS OF AI ANALYSIS:
+• Cannot assess documentation quality or completeness
+• Cannot determine new vs. established patient status
+• Cannot apply payer-specific requirements
+• Cannot detect preventive vs. problem-focused visits
+• Suggestions are preliminary and require human verification
+
+📋 AUDIT PROTECTION:
+• Retain copy of this analysis for billing justification
+• Ensure note contains all required elements (CC, HPI, Assessment, Plan)
+• Document total time if using time-based coding
+• Link diagnosis codes to problems addressed
+
+🔒 This is a SUGGESTION TOOL ONLY - not automated billing
+`;
 
     return section;
   }

@@ -1,0 +1,295 @@
+[
+  {
+    "noteId": 194,
+    "patientName": "NIDHI GUPTA",
+    "visitDate": "2026-02-01",
+    "templateName": "None",
+    "transcriptPreview": "Hello. Come on in. Come on in. How are you? Good. Good. Good. Good to you too. Alright. Have good ho...",
+    "oldCPT": "99215",
+    "oldComplexity": "high",
+    "oldRisk": "moderate",
+    "oldDataPoints": 6,
+    "oldConfidence": 75,
+    "newCPT": "99214",
+    "newComplexity": "moderate",
+    "newRisk": "moderate",
+    "newProblemComplexity": "high",
+    "newDataComplexity": "low",
+    "newDataPoints": 12,
+    "newConfidence": 70,
+    "newQualifyingElements": [
+      "Problem Complexity: high",
+      "Risk Level: moderate"
+    ],
+    "codeChanged": true,
+    "differences": [
+      "CPT changed: 99215 → 99214",
+      "Complexity: high → moderate",
+      "Data points capped: 6 → 12 (CMS limit)"
+    ]
+  },
+  {
+    "noteId": 193,
+    "patientName": "GAUDELIA HURTADO",
+    "visitDate": "2026-02-01",
+    "templateName": "None",
+    "transcriptPreview": "How are you? Good. Good. Tired? Yes. Yes? Oh my goodness. Alright. What's what's going on? Why is it...",
+    "oldCPT": "99215",
+    "oldComplexity": "high",
+    "oldRisk": "moderate",
+    "oldDataPoints": 1,
+    "oldConfidence": 75,
+    "newCPT": "99213",
+    "newComplexity": "low",
+    "newRisk": "low",
+    "newProblemComplexity": "high",
+    "newDataComplexity": "low",
+    "newDataPoints": 7,
+    "newConfidence": 65,
+    "newQualifyingElements": [
+      "Problem Complexity: high",
+      "Data Complexity: low"
+    ],
+    "codeChanged": true,
+    "differences": [
+      "CPT changed: 99215 → 99213",
+      "Complexity: high → low",
+      "Risk: moderate → low"
+    ]
+  },
+  {
+    "noteId": 192,
+    "patientName": "ELIAS FOTY",
+    "visitDate": "2026-01-02",
+    "templateName": "None",
+    "transcriptPreview": "Hey, Liz. How are you, buddy? Alright. I'm treating you well. Everything okay? Holidays is good? Eve...",
+    "oldCPT": "99215",
+    "oldComplexity": "high",
+    "oldRisk": "moderate",
+    "oldDataPoints": 5,
+    "oldConfidence": 75,
+    "newCPT": "99214",
+    "newComplexity": "moderate",
+    "newRisk": "low",
+    "newProblemComplexity": "high",
+    "newDataComplexity": "moderate",
+    "newDataPoints": 12,
+    "newConfidence": 70,
+    "newQualifyingElements": [
+      "Problem Complexity: high",
+      "Data Complexity: moderate"
+    ],
+    "codeChanged": true,
+    "differences": [
+      "CPT changed: 99215 → 99214",
+      "Complexity: high → moderate",
+      "Risk: moderate → low",
+      "Data points capped: 5 → 12 (CMS limit)"
+    ]
+  },
+  {
+    "noteId": 191,
+    "patientName": "IMRANALI RAJABALI",
+    "visitDate": "2026-01-02",
+    "templateName": "None",
+    "transcriptPreview": "How are you? Alright. Well, how are the sugars? Hopefully, they're getting better. All of it is goin...",
+    "oldCPT": "99215",
+    "oldComplexity": "high",
+    "oldRisk": "moderate",
+    "oldDataPoints": 6,
+    "oldConfidence": 75,
+    "newCPT": "99214",
+    "newComplexity": "moderate",
+    "newRisk": "moderate",
+    "newProblemComplexity": "high",
+    "newDataComplexity": "low",
+    "newDataPoints": 11,
+    "newConfidence": 70,
+    "newQualifyingElements": [
+      "Problem Complexity: high",
+      "Risk Level: moderate"
+    ],
+    "codeChanged": true,
+    "differences": [
+      "CPT changed: 99215 → 99214",
+      "Complexity: high → moderate",
+      "Data points capped: 6 → 11 (CMS limit)"
+    ]
+  },
+  {
+    "noteId": 190,
+    "patientName": "TERESA ROBERSON",
+    "visitDate": "2026-02-01",
+    "templateName": "None",
+    "transcriptPreview": "You got. Oh, you you got a low blood sugar? Going down to 87. Oh, okay. Okay. Well, how have you bee...",
+    "oldCPT": "99215",
+    "oldComplexity": "high",
+    "oldRisk": "moderate",
+    "oldDataPoints": 5,
+    "oldConfidence": 75,
+    "newCPT": "99214",
+    "newComplexity": "moderate",
+    "newRisk": "moderate",
+    "newProblemComplexity": "high",
+    "newDataComplexity": "low",
+    "newDataPoints": 10,
+    "newConfidence": 70,
+    "newQualifyingElements": [
+      "Problem Complexity: high",
+      "Risk Level: moderate"
+    ],
+    "codeChanged": true,
+    "differences": [
+      "CPT changed: 99215 → 99214",
+      "Complexity: high → moderate",
+      "Data points capped: 5 → 10 (CMS limit)"
+    ]
+  },
+  {
+    "noteId": 189,
+    "patientName": "Unidentified Patient",
+    "visitDate": "2026-02-02",
+    "templateName": "None",
+    "transcriptPreview": "Hey, Donald. What's up, man? Hey, Always fifty, man. You're looking good, man. Come on in, man. How ...",
+    "oldCPT": "99215",
+    "oldComplexity": "high",
+    "oldRisk": "moderate",
+    "oldDataPoints": 6,
+    "oldConfidence": 75,
+    "newCPT": "99214",
+    "newComplexity": "moderate",
+    "newRisk": "moderate",
+    "newProblemComplexity": "high",
+    "newDataComplexity": "low",
+    "newDataPoints": 11,
+    "newConfidence": 70,
+    "newQualifyingElements": [
+      "Problem Complexity: high",
+      "Risk Level: moderate"
+    ],
+    "codeChanged": true,
+    "differences": [
+      "CPT changed: 99215 → 99214",
+      "Complexity: high → moderate",
+      "Data points capped: 6 → 11 (CMS limit)"
+    ]
+  },
+  {
+    "noteId": 188,
+    "patientName": "ABDEL TAWIL",
+    "visitDate": "2026-01-02",
+    "templateName": "None",
+    "transcriptPreview": "Patient comes in for follow-up. HEDidn't get a chance to do the blood work. We'll do labs today, but...",
+    "oldCPT": "99215",
+    "oldComplexity": "high",
+    "oldRisk": "moderate",
+    "oldDataPoints": 4,
+    "oldConfidence": 75,
+    "newCPT": "99213",
+    "newComplexity": "low",
+    "newRisk": "low",
+    "newProblemComplexity": "high",
+    "newDataComplexity": "low",
+    "newDataPoints": 10,
+    "newConfidence": 65,
+    "newQualifyingElements": [
+      "Problem Complexity: high",
+      "Data Complexity: low"
+    ],
+    "codeChanged": true,
+    "differences": [
+      "CPT changed: 99215 → 99213",
+      "Complexity: high → low",
+      "Risk: moderate → low",
+      "Data points capped: 4 → 10 (CMS limit)"
+    ]
+  },
+  {
+    "noteId": 187,
+    "patientName": "DON JOHNSON",
+    "visitDate": "2026-02-01",
+    "templateName": "None",
+    "transcriptPreview": "Oh, wow. It's a drone. Flying back. Oh, that's a lot of stress, man. So the sugars were okay during ...",
+    "oldCPT": "99215",
+    "oldComplexity": "high",
+    "oldRisk": "high",
+    "oldDataPoints": 4,
+    "oldConfidence": 75,
+    "newCPT": "99214",
+    "newComplexity": "moderate",
+    "newRisk": "moderate",
+    "newProblemComplexity": "high",
+    "newDataComplexity": "low",
+    "newDataPoints": 12,
+    "newConfidence": 70,
+    "newQualifyingElements": [
+      "Problem Complexity: high",
+      "Risk Level: moderate"
+    ],
+    "codeChanged": true,
+    "differences": [
+      "CPT changed: 99215 → 99214",
+      "Complexity: high → moderate",
+      "Risk: high → moderate",
+      "Data points capped: 4 → 12 (CMS limit)"
+    ]
+  },
+  {
+    "noteId": 186,
+    "patientName": "Unidentified Patient",
+    "visitDate": "2026-02-02",
+    "templateName": "None",
+    "transcriptPreview": "Hey, I'm Zana. How are you? Good. How are you? Good. Good. Good. To see you. Good to see you. Everyt...",
+    "oldCPT": "99215",
+    "oldComplexity": "high",
+    "oldRisk": "moderate",
+    "oldDataPoints": 7,
+    "oldConfidence": 75,
+    "newCPT": "99214",
+    "newComplexity": "moderate",
+    "newRisk": "moderate",
+    "newProblemComplexity": "high",
+    "newDataComplexity": "low",
+    "newDataPoints": 12,
+    "newConfidence": 70,
+    "newQualifyingElements": [
+      "Problem Complexity: high",
+      "Risk Level: moderate"
+    ],
+    "codeChanged": true,
+    "differences": [
+      "CPT changed: 99215 → 99214",
+      "Complexity: high → moderate",
+      "Data points capped: 7 → 12 (CMS limit)"
+    ]
+  },
+  {
+    "noteId": 185,
+    "patientName": "YIPSY MELIAN",
+    "visitDate": "2026-01-02",
+    "templateName": "None",
+    "transcriptPreview": "Hello. Yipsey, hey. How are you? Doctor. Patel, nice to meet you. Come on in. Come on in. What's goi...",
+    "oldCPT": "99215",
+    "oldComplexity": "high",
+    "oldRisk": "moderate",
+    "oldDataPoints": 2,
+    "oldConfidence": 75,
+    "newCPT": "99213",
+    "newComplexity": "low",
+    "newRisk": "low",
+    "newProblemComplexity": "high",
+    "newDataComplexity": "low",
+    "newDataPoints": 8,
+    "newConfidence": 65,
+    "newQualifyingElements": [
+      "Problem Complexity: high",
+      "Data Complexity: low"
+    ],
+    "codeChanged": true,
+    "differences": [
+      "CPT changed: 99215 → 99213",
+      "Complexity: high → low",
+      "Risk: moderate → low"
+    ]
+  }
+]
