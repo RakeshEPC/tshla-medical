@@ -211,25 +211,31 @@ function convertToAppointment(row, scheduleDate) {
 async function uploadSchedule() {
   console.log('\n🏥 TSHLA Medical - Schedule Upload Tool\n');
 
-  const csvPath = '/Users/rakeshpatel/Downloads/printcsvreports - 20260129_11-14.csv';
-  const scheduleDate = '2026-01-29';
+  const csvPath = '/Users/rakeshpatel/Downloads/printcsvreports - 20260201_08-22.csv';
 
-  console.log(`📁 Reading file: ${path.basename(csvPath)}`);
-  console.log(`📅 Schedule date: ${scheduleDate}\n`);
+  console.log(`📁 Reading file: ${path.basename(csvPath)}\n`);
 
   // Read CSV file
   const fileContent = fs.readFileSync(csvPath, 'utf-8');
   const rawRows = parseCSV(fileContent);
   console.log(`✅ Parsed ${rawRows.length} rows from CSV\n`);
 
-  // Convert to appointment objects
+  // Convert to appointment objects (let date come from CSV)
   const appointments = rawRows
-    .map(row => convertToAppointment(row, scheduleDate))
+    .map(row => convertToAppointment(row, null))
     .filter(apt => apt !== null);
 
   console.log(`✅ Converted ${appointments.length} valid appointments\n`);
 
-  // Count by provider
+  // Group by date
+  const dateGroups = {};
+  appointments.forEach(apt => {
+    const date = apt.scheduled_date;
+    if (!dateGroups[date]) dateGroups[date] = [];
+    dateGroups[date].push(apt);
+  });
+
+  // Count by provider and status
   const providerCounts = {};
   const statusCounts = {};
   appointments.forEach(apt => {
@@ -247,13 +253,19 @@ async function uploadSchedule() {
     console.log(`   ${status}: ${count}`);
   });
 
-  console.log(`\n🗑️  Clearing existing appointments for ${scheduleDate}...`);
+  console.log('\n📅 Date range:');
+  const dates = Object.keys(dateGroups).sort();
+  console.log(`   ${dates[0]} to ${dates[dates.length - 1]}`);
+  console.log(`   ${dates.length} unique dates`);
 
-  // Delete existing appointments for this date
+  console.log(`\n🗑️  Clearing existing appointments for date range...`);
+
+  // Delete existing appointments for this date range
   const { error: deleteError } = await supabase
     .from('provider_schedules')
     .delete()
-    .eq('scheduled_date', scheduleDate);
+    .gte('scheduled_date', dates[0])
+    .lte('scheduled_date', dates[dates.length - 1]);
 
   if (deleteError) {
     console.error('❌ Failed to clear existing appointments:', deleteError.message);
@@ -267,6 +279,7 @@ async function uploadSchedule() {
   // Insert new appointments in batches of 50
   const batchSize = 50;
   let uploaded = 0;
+  let skipped = 0;
 
   for (let i = 0; i < appointments.length; i += batchSize) {
     const batch = appointments.slice(i, i + batchSize);
@@ -276,16 +289,35 @@ async function uploadSchedule() {
       .insert(batch);
 
     if (error) {
-      console.error(`❌ Failed to upload batch ${Math.floor(i / batchSize) + 1}:`, error.message);
-      console.error('   Details:', error);
+      // If duplicate, try inserting one by one to skip duplicates
+      if (error.code === '23505') {
+        for (const apt of batch) {
+          const { error: singleError } = await supabase
+            .from('provider_schedules')
+            .insert([apt]);
+
+          if (singleError && singleError.code === '23505') {
+            skipped++;
+          } else if (!singleError) {
+            uploaded++;
+          }
+        }
+      } else {
+        console.error(`❌ Failed to upload batch ${Math.floor(i / batchSize) + 1}:`, error.message);
+        console.error('   Details:', error);
+      }
     } else {
       uploaded += batch.length;
-      process.stdout.write(`   Uploaded ${uploaded}/${appointments.length}...\r`);
     }
+    process.stdout.write(`   Uploaded ${uploaded}/${appointments.length}, Skipped duplicates: ${skipped}...\r`);
   }
 
   console.log(`\n\n✅ Successfully uploaded ${uploaded} appointments!`);
-  console.log(`\n📅 Schedule for ${scheduleDate} is now ready in the database.\n`);
+  if (skipped > 0) {
+    console.log(`⚠️  Skipped ${skipped} duplicate entries`);
+  }
+  console.log(`\n📅 Schedule from ${dates[0]} to ${dates[dates.length - 1]} is now ready in the database.`);
+  console.log(`📊 ${dates.length} days with appointments\n`);
 }
 
 // Run the upload

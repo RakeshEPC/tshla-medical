@@ -11,8 +11,12 @@ export default function PatientPaymentReports() {
   const [activeReport, setActiveReport] = useState<ReportType>('daily');
   const [loading, setLoading] = useState(false);
 
-  // Daily Summary
+  // Daily Summary - Date Range Support
+  const [dateRangeMode, setDateRangeMode] = useState<'single' | 'range'>('single');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [filterBy, setFilterBy] = useState<'paid_at' | 'visit_date'>('paid_at');
   const [dailyReport, setDailyReport] = useState<DailySummaryReport | null>(null);
 
   // Unposted Payments
@@ -23,13 +27,16 @@ export default function PatientPaymentReports() {
 
   useEffect(() => {
     loadReport();
-  }, [activeReport, selectedDate]);
+  }, [activeReport, selectedDate, startDate, endDate, dateRangeMode, filterBy]);
 
   const loadReport = async () => {
     setLoading(true);
     try {
       if (activeReport === 'daily') {
-        const data = await paymentRequestService.getDailySummary(selectedDate);
+        const params = dateRangeMode === 'range'
+          ? { startDate, endDate, filterBy }
+          : { date: selectedDate, filterBy };
+        const data = await paymentRequestService.getDailySummary(params);
         setDailyReport(data);
       } else if (activeReport === 'unposted') {
         const data = await paymentRequestService.getUnpostedReport();
@@ -46,6 +53,45 @@ export default function PatientPaymentReports() {
     }
   };
 
+  // Date range preset handlers
+  const setDateRangePreset = (preset: 'today' | 'yesterday' | 'last7' | 'last30' | 'thisMonth') => {
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+
+    switch (preset) {
+      case 'today':
+        setDateRangeMode('single');
+        setSelectedDate(todayStr);
+        break;
+      case 'yesterday':
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        setDateRangeMode('single');
+        setSelectedDate(yesterday.toISOString().split('T')[0]);
+        break;
+      case 'last7':
+        const last7 = new Date(today);
+        last7.setDate(last7.getDate() - 6);
+        setDateRangeMode('range');
+        setStartDate(last7.toISOString().split('T')[0]);
+        setEndDate(todayStr);
+        break;
+      case 'last30':
+        const last30 = new Date(today);
+        last30.setDate(last30.getDate() - 29);
+        setDateRangeMode('range');
+        setStartDate(last30.toISOString().split('T')[0]);
+        setEndDate(todayStr);
+        break;
+      case 'thisMonth':
+        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+        setDateRangeMode('range');
+        setStartDate(firstDay.toISOString().split('T')[0]);
+        setEndDate(todayStr);
+        break;
+    }
+  };
+
   const handlePrint = () => {
     window.print();
   };
@@ -56,12 +102,29 @@ export default function PatientPaymentReports() {
     let filename = '';
 
     if (activeReport === 'daily' && dailyReport) {
-      filename = `daily-summary-${selectedDate}.csv`;
-      csvContent = 'Provider,Amount,Count\n';
+      const dateStr = dateRangeMode === 'range' ? `${startDate}_to_${endDate}` : selectedDate;
+      filename = `daily-summary-${dateStr}.csv`;
+
+      // Header with summary
+      csvContent = `Daily Payment Report - ${filterBy === 'paid_at' ? 'Payment Date' : 'Visit Date'}\n`;
+      csvContent += `Period: ${dateRangeMode === 'range' ? `${startDate} to ${endDate}` : selectedDate}\n`;
+      csvContent += `Total Collected: $${(dailyReport.total_collected / 100).toFixed(2)}\n`;
+      csvContent += `Total Count: ${dailyReport.total_count}\n\n`;
+
+      // Individual transactions
+      csvContent += 'Date Paid,Time,Patient Name,MRN,Provider,Visit Date,Payment Type,Amount,Card Last 4\n';
+      dailyReport.transactions.forEach(t => {
+        const paidDate = t.paid_at ? new Date(t.paid_at) : null;
+        const datePaid = paidDate ? paidDate.toLocaleDateString() : 'N/A';
+        const timePaid = paidDate ? paidDate.toLocaleTimeString() : 'N/A';
+        csvContent += `${datePaid},${timePaid},"${t.patient_name}",${t.athena_mrn || 'N/A'},${t.provider_name},${new Date(t.visit_date).toLocaleDateString()},${t.payment_type},$${(t.amount_cents / 100).toFixed(2)},${t.card_last_4 || 'N/A'}\n`;
+      });
+
+      csvContent += `\n\nSummary by Provider\n`;
+      csvContent += 'Provider,Amount,Count\n';
       dailyReport.by_provider.forEach(p => {
         csvContent += `${p.provider_name},$${(p.total / 100).toFixed(2)},${p.count}\n`;
       });
-      csvContent += `\nTotal,$${(dailyReport.total_collected / 100).toFixed(2)},${dailyReport.total_count}\n`;
     } else if (activeReport === 'unposted' && unpostedReport) {
       filename = `unposted-payments-${new Date().toISOString().split('T')[0]}.csv`;
       csvContent = 'Patient,MRN,Amount,Type,Paid Date\n';
@@ -167,24 +230,134 @@ export default function PatientPaymentReports() {
             {activeReport === 'daily' && (
               <div className="bg-white rounded-lg shadow-md overflow-hidden">
                 <div className="px-6 py-4 bg-indigo-50 border-b border-indigo-200 print:bg-white">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-bold text-gray-900">Daily Collection Summary</h2>
-                    <div className="print:hidden">
-                      <input
-                        type="date"
-                        value={selectedDate}
-                        onChange={(e) => setSelectedDate(e.target.value)}
-                        className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                      />
+                  <h2 className="text-xl font-bold text-gray-900 mb-4">Payment Collection Report</h2>
+
+                  {/* Date Controls */}
+                  <div className="space-y-4 print:hidden">
+                    {/* Quick Presets */}
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => setDateRangePreset('today')}
+                        className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                      >
+                        Today
+                      </button>
+                      <button
+                        onClick={() => setDateRangePreset('yesterday')}
+                        className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                      >
+                        Yesterday
+                      </button>
+                      <button
+                        onClick={() => setDateRangePreset('last7')}
+                        className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                      >
+                        Last 7 Days
+                      </button>
+                      <button
+                        onClick={() => setDateRangePreset('last30')}
+                        className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                      >
+                        Last 30 Days
+                      </button>
+                      <button
+                        onClick={() => setDateRangePreset('thisMonth')}
+                        className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                      >
+                        This Month
+                      </button>
+                    </div>
+
+                    {/* Date Range Toggle */}
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          checked={dateRangeMode === 'single'}
+                          onChange={() => setDateRangeMode('single')}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm font-medium">Single Date</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          checked={dateRangeMode === 'range'}
+                          onChange={() => setDateRangeMode('range')}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm font-medium">Date Range</span>
+                      </label>
+                    </div>
+
+                    {/* Date Pickers */}
+                    <div className="flex items-center gap-4">
+                      {dateRangeMode === 'single' ? (
+                        <input
+                          type="date"
+                          value={selectedDate}
+                          onChange={(e) => setSelectedDate(e.target.value)}
+                          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                        />
+                      ) : (
+                        <>
+                          <div>
+                            <label className="text-xs text-gray-600 block mb-1">Start Date</label>
+                            <input
+                              type="date"
+                              value={startDate}
+                              onChange={(e) => setStartDate(e.target.value)}
+                              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-gray-600 block mb-1">End Date</label>
+                            <input
+                              type="date"
+                              value={endDate}
+                              onChange={(e) => setEndDate(e.target.value)}
+                              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                            />
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Filter By Toggle */}
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm font-medium text-gray-700">Filter by:</span>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          checked={filterBy === 'paid_at'}
+                          onChange={() => setFilterBy('paid_at')}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm">Payment Date</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          checked={filterBy === 'visit_date'}
+                          onChange={() => setFilterBy('visit_date')}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm">Visit Date</span>
+                      </label>
                     </div>
                   </div>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Report Date: {new Date(selectedDate).toLocaleDateString('en-US', {
-                      weekday: 'long',
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })}
+
+                  <p className="text-sm text-gray-600 mt-4">
+                    {dateRangeMode === 'range'
+                      ? `${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}`
+                      : new Date(selectedDate).toLocaleDateString('en-US', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })
+                    }
+                    {' '}(by {filterBy === 'paid_at' ? 'Payment' : 'Visit'} Date)
                   </p>
                 </div>
 
@@ -236,7 +409,7 @@ export default function PatientPaymentReports() {
                     </div>
 
                     {/* By Provider */}
-                    <div>
+                    <div className="mb-8">
                       <h3 className="text-lg font-bold text-gray-900 mb-4">By Provider</h3>
                       {dailyReport.by_provider.length === 0 ? (
                         <p className="text-gray-500 text-center py-8">No payments on this date</p>
@@ -270,6 +443,67 @@ export default function PatientPaymentReports() {
                             </tr>
                           </tfoot>
                         </table>
+                      )}
+                    </div>
+
+                    {/* Individual Transactions */}
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900 mb-4">Transaction History</h3>
+                      {dailyReport.transactions.length === 0 ? (
+                        <p className="text-gray-500 text-center py-8">No transactions found</p>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">MRN</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Provider</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Visit Date</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Card</th>
+                              </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                              {dailyReport.transactions.map((transaction) => {
+                                const paidDate = transaction.paid_at ? new Date(transaction.paid_at) : null;
+                                return (
+                                  <tr key={transaction.id} className="hover:bg-gray-50 text-sm">
+                                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">
+                                      {paidDate ? paidDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+                                    </td>
+                                    <td className="px-4 py-3 font-semibold text-gray-900">{transaction.patient_name}</td>
+                                    <td className="px-4 py-3 font-mono text-orange-600 text-xs">{transaction.athena_mrn || 'N/A'}</td>
+                                    <td className="px-4 py-3 text-gray-700">{transaction.provider_name}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">
+                                      {new Date(transaction.visit_date).toLocaleDateString()}
+                                    </td>
+                                    <td className="px-4 py-3 capitalize text-gray-700">{transaction.payment_type}</td>
+                                    <td className="px-4 py-3 text-right font-bold text-gray-900">
+                                      ${(transaction.amount_cents / 100).toFixed(2)}
+                                    </td>
+                                    <td className="px-4 py-3 font-mono text-xs text-gray-600">
+                                      {transaction.card_last_4 ? `****${transaction.card_last_4}` : 'N/A'}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                            <tfoot className="bg-gray-100">
+                              <tr>
+                                <td colSpan={6} className="px-4 py-3 text-sm font-bold text-gray-900">
+                                  Total: {dailyReport.transactions.length} transactions
+                                </td>
+                                <td className="px-4 py-3 text-right text-sm font-bold text-green-700">
+                                  ${(dailyReport.total_collected / 100).toFixed(2)}
+                                </td>
+                                <td></td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
                       )}
                     </div>
                   </div>

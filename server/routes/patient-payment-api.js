@@ -568,20 +568,60 @@ router.delete('/:id', async (req, res) => {
 });
 
 /**
- * Get daily summary report
+ * Get daily summary report (supports date ranges)
  * GET /api/payment-requests/reports/daily-summary
+ * Query params:
+ *   - date: single date (YYYY-MM-DD) - for backwards compatibility
+ *   - startDate: start of date range (YYYY-MM-DD)
+ *   - endDate: end of date range (YYYY-MM-DD)
+ *   - filterBy: 'paid_at' (default) or 'visit_date'
  */
 router.get('/reports/daily-summary', async (req, res) => {
   try {
-    const { date } = req.query;
-    const targetDate = date || new Date().toISOString().split('T')[0];
+    const { date, startDate, endDate, filterBy = 'paid_at' } = req.query;
 
-    const { data, error } = await supabase
+    // Determine date range
+    let queryStartDate, queryEndDate;
+    if (startDate && endDate) {
+      // Date range mode
+      queryStartDate = startDate;
+      queryEndDate = endDate;
+    } else if (date) {
+      // Single date mode (backwards compatible)
+      queryStartDate = date;
+      queryEndDate = date;
+    } else {
+      // Default to today
+      const today = new Date().toISOString().split('T')[0];
+      queryStartDate = today;
+      queryEndDate = today;
+    }
+
+    // Validate filter field
+    const dateField = filterBy === 'visit_date' ? 'visit_date' : 'paid_at';
+
+    // Build query
+    let query = supabase
       .from('patient_payment_requests')
       .select('*')
-      .eq('payment_status', 'paid')
-      .gte('paid_at', `${targetDate}T00:00:00`)
-      .lte('paid_at', `${targetDate}T23:59:59`);
+      .eq('payment_status', 'paid');
+
+    // Apply date filtering based on field type
+    if (dateField === 'paid_at') {
+      // paid_at includes time, so use full timestamp ranges
+      query = query
+        .gte('paid_at', `${queryStartDate}T00:00:00`)
+        .lte('paid_at', `${queryEndDate}T23:59:59`);
+    } else {
+      // visit_date is date-only, so use date comparison
+      query = query
+        .gte('visit_date', queryStartDate)
+        .lte('visit_date', queryEndDate);
+    }
+
+    query = query.order('paid_at', { ascending: false });
+
+    const { data, error } = await query;
 
     if (error) {
       throw new Error(`Database error: ${error.message}`);
@@ -614,11 +654,15 @@ router.get('/reports/daily-summary', async (req, res) => {
 
     res.json({
       success: true,
-      date: targetDate,
+      date: queryStartDate, // For backwards compatibility
+      start_date: queryStartDate,
+      end_date: queryEndDate,
+      filter_by: dateField,
       total_collected: totalCollected,
       total_count: data.length,
       by_payment_type: byPaymentType,
-      by_provider: byProvider
+      by_provider: byProvider,
+      transactions: data // Include individual transactions
     });
   } catch (error) {
     logger.error('PaymentAPI', 'Daily summary error', { error: error.message });

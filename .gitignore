@@ -68,3 +68,11 @@ legal-compliance/baas/*.pdf
 *.baa.pdf
 *-baa-*.pdf
 /Downloads/*BAA*.pdf
+
+# Schedule import utility scripts (local use only)
+do-import.mjs
+import-todays-schedule.cjs
+schedule-import-data.json
+todays-schedule-*.csv
+todays-schedule-*.txt
+verify-schedule-*.cjs

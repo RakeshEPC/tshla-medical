@@ -102,6 +102,8 @@ export interface PaymentDashboardFilters {
 
 export interface DailySummaryReport {
   date: string;
+  start_date?: string; // For date range queries
+  end_date?: string;   // For date range queries
   total_collected: number;
   total_count: number;
   by_payment_type: {
@@ -115,6 +117,7 @@ export interface DailySummaryReport {
     total: number;
     count: number;
   }>;
+  transactions: PaymentRequest[]; // Individual payment transactions
 }
 
 export interface UnpostedPaymentsReport {

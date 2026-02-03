@@ -40,7 +40,10 @@ Time: ${time}
       output += this.simpleFormat(cleanTranscript);
     }
 
-    // Step 4: Add CPT Billing Section (if enabled)
+    // Step 4: Add transcript (once only)
+    output += `\nTRANSCRIPT:\n────────────────\n${cleanTranscript}\n`;
+
+    // Step 5: Add CPT Billing Section at the END (if enabled)
     const billingEnabled = template?.billingConfig?.enabled !== false; // Default to enabled
     if (billingEnabled) {
       const billingSection = this.generateBillingSection(
@@ -49,9 +52,6 @@ Time: ${time}
       );
       output += billingSection;
     }
-
-    // Step 5: Add transcript at the end (once only)
-    output += `\nTRANSCRIPT:\n────────────────\n${cleanTranscript}\n`;
 
     // Step 6: Add footer
     output += `\n════════════════════════════════════════════════════════

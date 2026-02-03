@@ -111,20 +111,59 @@ async function handleCheckoutCompleted(session) {
       // Retrieve payment method details to get last 4 digits of card
       let cardLast4 = null;
       try {
-        const paymentIntent = await stripeInstance.paymentIntents.retrieve(session.payment_intent);
-        if (paymentIntent && paymentIntent.charges && paymentIntent.charges.data.length > 0) {
-          const charge = paymentIntent.charges.data[0];
-          if (charge.payment_method_details && charge.payment_method_details.card) {
-            cardLast4 = charge.payment_method_details.card.last4;
-            logger.info('StripeWebhook', 'Retrieved card last 4 digits', {
-              paymentRequestId,
-              last4: cardLast4
-            });
+        // Try to get card details from the session first (more reliable)
+        if (session.payment_method_details && session.payment_method_details.card) {
+          cardLast4 = session.payment_method_details.card.last4;
+          logger.info('StripeWebhook', 'Retrieved card last 4 from session', {
+            paymentRequestId,
+            last4: cardLast4
+          });
+        } else if (session.payment_intent) {
+          // Fallback: retrieve from PaymentIntent with expanded charge data
+          const paymentIntent = await stripeInstance.paymentIntents.retrieve(
+            session.payment_intent,
+            { expand: ['charges.data.payment_method_details'] }
+          );
+
+          logger.info('StripeWebhook', 'PaymentIntent retrieved', {
+            paymentRequestId,
+            hasCharges: !!paymentIntent.charges,
+            chargeCount: paymentIntent.charges?.data?.length || 0
+          });
+
+          if (paymentIntent && paymentIntent.charges && paymentIntent.charges.data.length > 0) {
+            const charge = paymentIntent.charges.data[0];
+
+            // Try multiple paths to get card details
+            if (charge.payment_method_details && charge.payment_method_details.card) {
+              cardLast4 = charge.payment_method_details.card.last4;
+              logger.info('StripeWebhook', 'Retrieved card last 4 from charge', {
+                paymentRequestId,
+                last4: cardLast4,
+                brand: charge.payment_method_details.card.brand
+              });
+            } else if (charge.source && charge.source.last4) {
+              // Older Stripe API structure
+              cardLast4 = charge.source.last4;
+              logger.info('StripeWebhook', 'Retrieved card last 4 from source', {
+                paymentRequestId,
+                last4: cardLast4
+              });
+            }
           }
         }
+
+        if (!cardLast4) {
+          logger.warn('StripeWebhook', 'Could not extract card last 4 from any source', {
+            paymentRequestId,
+            sessionId: session.id,
+            hasPaymentIntent: !!session.payment_intent
+          });
+        }
       } catch (cardError) {
-        logger.warn('StripeWebhook', 'Could not retrieve card details', {
+        logger.error('StripeWebhook', 'Error retrieving card details', {
           error: cardError.message,
+          stack: cardError.stack,
           paymentRequestId
         });
       }

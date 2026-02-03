@@ -509,7 +509,10 @@ Time: ${time}
       }
     }
     
-    // Add CPT Billing Section (if enabled in template or by default)
+    // Add transcript
+    formatted += `\nFULL TRANSCRIPT:\n────────────────\n${this.cleanTranscript(transcript)}\n\n`;
+
+    // Add CPT Billing Section at the END (if enabled in template or by default)
     const billingEnabled = template.billingConfig?.enabled !== false; // Default to enabled
     if (billingEnabled) {
       const billingSection = this.generateBillingSection(
@@ -520,9 +523,7 @@ Time: ${time}
       formatted += billingSection;
     }
 
-    // Add transcript
-    formatted += `\nFULL TRANSCRIPT:\n────────────────\n${this.cleanTranscript(transcript)}\n\n`;
-    formatted += `═══════════════════════════════════════════════════════\nGenerated: ${date} ${time}\nTemplate: ${template.name}`;
+    formatted += `\n═══════════════════════════════════════════════════════\nGenerated: ${date} ${time}\nTemplate: ${template.name}`;
 
     return formatted;
   }
@@ -558,9 +559,10 @@ Changes: ${extracted.medicationChanges?.join('; ') || 'None'}
 FOLLOW-UP:
 ${extracted.followUp}
 
+════════════════════════════════════════════════════════
+
 ${this.generateBillingSection(extracted, transcript, true)}
 
-════════════════════════════════════════════════════════
 Generated: ${date} ${time}`;
   }
 

@@ -2178,6 +2178,16 @@ try {
   logger.error('UnifiedAPI', 'AI Chat Educator API not mounted - module failed to load', { error: error.message, stack: error.stack });
 }
 
+// CGM Data API - Nightscout integration for continuous glucose monitoring
+let cgmApi = null;
+try {
+  cgmApi = require('./routes/cgm-api');
+  app.use('/api/cgm', cgmApi); // Routes: /api/cgm/*
+  logger.info('UnifiedAPI', 'CGM Data API mounted at /api/cgm');
+} catch (error) {
+  logger.error('UnifiedAPI', 'CGM Data API not mounted - module failed to load', { error: error.message, stack: error.stack });
+}
+
 // ====== PATIENT MANAGEMENT API ======
 // Endpoint for finding or creating unified patients
 app.post('/api/patients/find-or-create', async (req, res) => {
@@ -2732,7 +2742,7 @@ app.use('*', (req, res, next) => {
 });
 
 // Start the unified server
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, '0.0.0.0', async () => {
   logger.info('========================================');
   logger.info(`✅ Unified API Server running on port ${PORT}`);
   logger.info('');

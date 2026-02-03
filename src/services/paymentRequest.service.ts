@@ -161,9 +161,29 @@ class PaymentRequestService {
   /**
    * Get daily summary report
    */
-  async getDailySummary(date?: string) {
-    const params = date ? `?date=${date}` : '';
-    const response = await fetch(`${API_BASE_URL}/api/payment-requests/reports/daily-summary${params}`);
+  async getDailySummary(params?: {
+    date?: string;
+    startDate?: string;
+    endDate?: string;
+    filterBy?: 'paid_at' | 'visit_date'
+  }) {
+    const queryParams = new URLSearchParams();
+
+    if (params?.date) {
+      queryParams.append('date', params.date);
+    }
+    if (params?.startDate) {
+      queryParams.append('startDate', params.startDate);
+    }
+    if (params?.endDate) {
+      queryParams.append('endDate', params.endDate);
+    }
+    if (params?.filterBy) {
+      queryParams.append('filterBy', params.filterBy);
+    }
+
+    const queryString = queryParams.toString();
+    const response = await fetch(`${API_BASE_URL}/api/payment-requests/reports/daily-summary${queryString ? `?${queryString}` : ''}`);
 
     if (!response.ok) {
       throw new Error('Failed to fetch daily summary');

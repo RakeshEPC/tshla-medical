@@ -21,11 +21,12 @@ function normalizePhone(phone) {
 async function linkAppointments() {
   console.log('\n🔗 Linking Schedule Appointments to Patient Records...\n');
 
-  // Get all appointments for today that aren't linked yet
+  // Get all appointments in the date range that aren't linked yet
   const { data: appointments, error: aptError } = await supabase
     .from('provider_schedules')
-    .select('id, patient_name, patient_phone, patient_mrn, patient_email, unified_patient_id')
-    .eq('scheduled_date', '2026-01-29')
+    .select('id, scheduled_date, patient_name, patient_phone, patient_mrn, patient_email, unified_patient_id')
+    .gte('scheduled_date', '2026-01-05')
+    .lte('scheduled_date', '2026-03-31')
     .is('unified_patient_id', null);
 
   if (aptError) {
@@ -33,14 +34,26 @@ async function linkAppointments() {
     return;
   }
 
-  console.log(`📅 Found ${appointments.length} unlinked appointments\n`);
+  console.log(`📅 Found ${appointments.length} unlinked appointments (Jan 5 - Mar 31, 2026)\n`);
 
   let linkedCount = 0;
   let notFoundCount = 0;
   const notFound = [];
+  let processed = 0;
 
   for (const apt of appointments) {
-    console.log(`\n🔍 Processing: ${apt.patient_name}`);
+    processed++;
+
+    // Only show detailed logs for first 10, then show progress every 50
+    const showDetails = processed <= 10 || processed % 50 === 0;
+
+    if (processed % 50 === 0 || processed === 1 || processed === appointments.length) {
+      console.log(`\n📊 Progress: ${processed}/${appointments.length} (${linkedCount} linked, ${notFoundCount} not found)`);
+    }
+
+    if (showDetails) {
+      console.log(`\n🔍 Processing: ${apt.patient_name} (${apt.scheduled_date})`);
+    }
 
     let patientId = null;
     let matchMethod = null;
@@ -48,7 +61,7 @@ async function linkAppointments() {
     // Try 1: Match by phone number (most reliable)
     if (apt.patient_phone) {
       const normalizedPhone = normalizePhone(apt.patient_phone);
-      console.log(`   📞 Searching by phone: ${apt.patient_phone} → ${normalizedPhone}`);
+      if (showDetails) console.log(`   📞 Searching by phone: ${apt.patient_phone} → ${normalizedPhone}`);
 
       const { data: phoneMatches } = await supabase
         .from('unified_patients')
@@ -59,13 +72,13 @@ async function linkAppointments() {
       if (phoneMatches && phoneMatches.length > 0) {
         patientId = phoneMatches[0].id;
         matchMethod = 'phone';
-        console.log(`   ✅ MATCHED by phone → TSH_ID: ${phoneMatches[0].patient_id}`);
+        if (showDetails) console.log(`   ✅ MATCHED by phone → TSH_ID: ${phoneMatches[0].patient_id}`);
       }
     }
 
     // Try 2: Match by MRN (Athena Patient ID)
     if (!patientId && apt.patient_mrn) {
-      console.log(`   🏥 Searching by MRN: ${apt.patient_mrn}`);
+      if (showDetails) console.log(`   🏥 Searching by MRN: ${apt.patient_mrn}`);
 
       const { data: mrnMatches } = await supabase
         .from('unified_patients')
@@ -76,7 +89,7 @@ async function linkAppointments() {
       if (mrnMatches && mrnMatches.length > 0) {
         patientId = mrnMatches[0].id;
         matchMethod = 'mrn';
-        console.log(`   ✅ MATCHED by MRN → TSH_ID: ${mrnMatches[0].patient_id}`);
+        if (showDetails) console.log(`   ✅ MATCHED by MRN → TSH_ID: ${mrnMatches[0].patient_id}`);
       }
     }
 
@@ -86,7 +99,7 @@ async function linkAppointments() {
       const lastName = lastNameParts.join(' ');
 
       if (firstName && lastName) {
-        console.log(`   👤 Searching by name: ${firstName} ${lastName}`);
+        if (showDetails) console.log(`   👤 Searching by name: ${firstName} ${lastName}`);
 
         const { data: nameMatches } = await supabase
           .from('unified_patients')
@@ -98,8 +111,10 @@ async function linkAppointments() {
         if (nameMatches && nameMatches.length > 0) {
           patientId = nameMatches[0].id;
           matchMethod = 'name';
-          console.log(`   ⚠️  MATCHED by name → TSH_ID: ${nameMatches[0].patient_id}`);
-          console.log(`      (Phone in DB: ${nameMatches[0].phone_primary}, MRN in DB: ${nameMatches[0].mrn})`);
+          if (showDetails) {
+            console.log(`   ⚠️  MATCHED by name → TSH_ID: ${nameMatches[0].patient_id}`);
+            console.log(`      (Phone in DB: ${nameMatches[0].phone_primary}, MRN in DB: ${nameMatches[0].mrn})`);
+          }
         }
       }
     }
@@ -112,19 +127,20 @@ async function linkAppointments() {
         .eq('id', apt.id);
 
       if (updateError) {
-        console.log(`   ❌ Failed to link: ${updateError.message}`);
+        if (showDetails) console.log(`   ❌ Failed to link: ${updateError.message}`);
       } else {
         linkedCount++;
-        console.log(`   ✅ LINKED via ${matchMethod}`);
+        if (showDetails) console.log(`   ✅ LINKED via ${matchMethod}`);
       }
     } else {
       notFoundCount++;
       notFound.push({
         name: apt.patient_name,
         phone: apt.patient_phone,
-        mrn: apt.patient_mrn
+        mrn: apt.patient_mrn,
+        date: apt.scheduled_date
       });
-      console.log(`   ❌ NO MATCH FOUND`);
+      if (showDetails) console.log(`   ❌ NO MATCH FOUND`);
     }
   }
 
@@ -137,11 +153,14 @@ async function linkAppointments() {
   console.log(`📊 Total Processed: ${appointments.length}`);
 
   if (notFound.length > 0) {
-    console.log('\n⚠️  Patients Not Found in Database:');
-    notFound.forEach(p => {
-      console.log(`   - ${p.name}`);
+    console.log('\n⚠️  Patients Not Found in Database (first 20):');
+    notFound.slice(0, 20).forEach(p => {
+      console.log(`   - ${p.name} (${p.date})`);
       console.log(`     Phone: ${p.phone || 'N/A'}, MRN: ${p.mrn || 'N/A'}`);
     });
+    if (notFound.length > 20) {
+      console.log(`\n   ... and ${notFound.length - 20} more`);
+    }
     console.log('\n💡 These patients need to be created in unified_patients table.');
   }
 
