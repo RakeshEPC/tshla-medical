@@ -191,20 +191,69 @@ async function checkRateLimit(patientPhone) {
 
 /**
  * Load patient's comprehensive H&P for context
+ * Falls back to dictation summaries if no H&P chart exists
  */
 async function loadPatientHPContext(patientPhone) {
   try {
-    const { data: hp, error } = await supabase
+    // Try comprehensive H&P first
+    const { data: hp } = await supabase
       .from('patient_comprehensive_chart')
       .select('*')
       .eq('patient_phone', patientPhone)
       .single();
 
-    if (error || !hp) {
-      return { success: false };
+    if (hp) {
+      return { success: true, hp, source: 'comprehensive_chart' };
     }
 
-    return { success: true, hp };
+    // Fall back to patient audio summaries (patient-friendly version)
+    const { data: summaries } = await supabase
+      .from('patient_audio_summaries')
+      .select('summary_script, soap_note_text, patient_name')
+      .eq('patient_phone', patientPhone)
+      .order('created_at', { ascending: false })
+      .limit(3);
+
+    if (summaries && summaries.length > 0) {
+      // Build a minimal context from summaries
+      const minimalHp = {
+        medications: [],
+        labs: {},
+        diagnoses: [],
+        current_goals: [],
+        allergies: [],
+        recent_notes: summaries.map(s => s.summary_script || s.soap_note_text).filter(Boolean).join('\n\n')
+      };
+      logger.info('AIChat', 'Using patient_audio_summaries as context', { count: summaries.length });
+      return { success: true, hp: minimalHp, source: 'summaries' };
+    }
+
+    // Fall back to dictated_notes directly
+    const digitsOnly = patientPhone.replace(/\D/g, '');
+    const phoneVariations = [patientPhone, digitsOnly].filter(Boolean);
+
+    const { data: dictations } = await supabase
+      .from('dictated_notes')
+      .select('processed_note, ai_summary, patient_name')
+      .in('patient_phone', phoneVariations)
+      .order('created_at', { ascending: false })
+      .limit(3);
+
+    if (dictations && dictations.length > 0) {
+      const minimalHp = {
+        medications: [],
+        labs: {},
+        diagnoses: [],
+        current_goals: [],
+        allergies: [],
+        recent_notes: dictations.map(d => d.ai_summary || d.processed_note).filter(Boolean).join('\n\n')
+      };
+      logger.info('AIChat', 'Using dictated_notes as context', { count: dictations.length });
+      return { success: true, hp: minimalHp, source: 'dictations' };
+    }
+
+    logger.warn('AIChat', 'No medical context found for patient', { patientPhone });
+    return { success: false };
   } catch (error) {
     logger.error('AIChat', 'Load H&P context error:', error);
     return { success: false };
@@ -234,6 +283,15 @@ function buildEducatorPrompt(hp) {
       .join('\n  ');
   }
 
+  // Format recent visit notes if available (fallback when no structured H&P)
+  let recentNotesSummary = '';
+  if (hp.recent_notes) {
+    recentNotesSummary = `
+
+RECENT VISIT NOTES (Use this context to understand the patient's situation):
+${hp.recent_notes}`;
+  }
+
   const prompt = `You are a caring, empathetic diabetes educator assistant named Rachel. You provide education and support to patients with diabetes, but you do NOT provide medical advice or diagnose conditions.
 
 PATIENT CONTEXT (Use this to personalize your responses):
@@ -248,7 +306,7 @@ DIAGNOSES: ${JSON.stringify(hp.diagnoses || [])}
 
 CURRENT HEALTH GOALS: ${JSON.stringify(hp.current_goals || [])}
 
-ALLERGIES: ${JSON.stringify(hp.allergies || [])}
+ALLERGIES: ${JSON.stringify(hp.allergies || [])}${recentNotesSummary}
 
 YOUR ROLE:
 1. Provide education about diabetes, medications, lifestyle, and self-management
