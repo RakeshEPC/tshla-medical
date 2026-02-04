@@ -206,11 +206,18 @@ async function loadPatientHPContext(patientPhone) {
       return { success: true, hp, source: 'comprehensive_chart' };
     }
 
+    // Build phone variations for matching different formats
+    const digitsOnly = patientPhone.replace(/\D/g, '');
+    const formatted = digitsOnly.length === 10
+      ? `(${digitsOnly.slice(0,3)}) ${digitsOnly.slice(3,6)}-${digitsOnly.slice(6)}`
+      : null;
+    const phoneVariations = [patientPhone, digitsOnly, formatted].filter(Boolean);
+
     // Fall back to patient audio summaries (patient-friendly version)
     const { data: summaries } = await supabase
       .from('patient_audio_summaries')
       .select('summary_script, soap_note_text, patient_name')
-      .eq('patient_phone', patientPhone)
+      .in('patient_phone', phoneVariations)
       .order('created_at', { ascending: false })
       .limit(3);
 
@@ -229,8 +236,6 @@ async function loadPatientHPContext(patientPhone) {
     }
 
     // Fall back to dictated_notes directly
-    const digitsOnly = patientPhone.replace(/\D/g, '');
-    const phoneVariations = [patientPhone, digitsOnly].filter(Boolean);
 
     const { data: dictations } = await supabase
       .from('dictated_notes')
