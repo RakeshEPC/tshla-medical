@@ -389,6 +389,7 @@ export default function SchedulePageV2() {
 
   const [providerGroups, setProviderGroups] = useState<ProviderGroup[]>([]);
   const [allProviders, setAllProviders] = useState<string[]>([]);
+  const [providerNameMap, setProviderNameMap] = useState<Record<string, string>>({});
   const [selectedProvider, setSelectedProvider] = useState<string>('all');
 
   // Track if we've loaded preferences yet to prevent double-loading
@@ -489,14 +490,19 @@ export default function SchedulePageV2() {
       // This ensures dropdown always shows all available providers, not just filtered ones
       const { data: allProvidersData } = await supabase
         .from('provider_schedules')
-        .select('provider_id')
+        .select('provider_id, provider_name')
         .eq('scheduled_date', dateStr)
         .neq('status', 'cancelled');
 
-      const uniqueProviders = Array.from(
-        new Set(allProvidersData?.map(apt => apt.provider_id).filter(Boolean) || [])
-      ) as string[];
+      const nameMap: Record<string, string> = {};
+      allProvidersData?.forEach(apt => {
+        if (apt.provider_id) {
+          nameMap[apt.provider_id] = apt.provider_name || apt.provider_id;
+        }
+      });
+      const uniqueProviders = Object.keys(nameMap);
       setAllProviders(uniqueProviders);
+      setProviderNameMap(nameMap);
 
       console.log('📋 Found', uniqueProviders.length, 'unique providers for date:', dateStr);
       console.log('📋 Unique provider IDs:', uniqueProviders);
@@ -669,6 +675,7 @@ export default function SchedulePageV2() {
 
       // QUERY 1: Get ALL providers for the entire week (for dropdown - NO FILTER)
       const allProvidersSet = new Set<string>();
+      const weekNameMap: Record<string, string> = {};
       for (let i = 0; i < 5; i++) {
         const currentDate = new Date(weekStart);
         currentDate.setDate(weekStart.getDate() + i);
@@ -676,16 +683,20 @@ export default function SchedulePageV2() {
 
         const { data: providersData } = await supabase
           .from('provider_schedules')
-          .select('provider_id')
+          .select('provider_id, provider_name')
           .eq('scheduled_date', dateStr)
           .neq('status', 'cancelled');
 
         providersData?.forEach(apt => {
-          if (apt.provider_id) allProvidersSet.add(apt.provider_id);
+          if (apt.provider_id) {
+            allProvidersSet.add(apt.provider_id);
+            weekNameMap[apt.provider_id] = apt.provider_name || apt.provider_id;
+          }
         });
       }
 
       setAllProviders(Array.from(allProvidersSet));
+      setProviderNameMap(weekNameMap);
       console.log('📋 Found', allProvidersSet.size, 'unique providers for the week');
 
       // QUERY 2: Load appointments for each day (WITH FILTER if specific provider selected)
@@ -1017,9 +1028,9 @@ export default function SchedulePageV2() {
                 className="px-2 py-1 border border-gray-300 rounded text-xs font-medium focus:border-blue-500"
               >
                 <option value="all">All Providers ({allProviders.length})</option>
-                {allProviders.map((provider) => (
-                  <option key={provider} value={provider}>
-                    {provider}
+                {allProviders.map((providerId) => (
+                  <option key={providerId} value={providerId}>
+                    {formatProviderName(providerNameMap[providerId] || providerId)}
                   </option>
                 ))}
               </select>

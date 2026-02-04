@@ -68,7 +68,7 @@ router.post('/stripe', express.raw({ type: 'application/json' }), async (req, re
       break;
 
     case 'payment_intent.succeeded':
-      logger.info('StripeWebhook', 'Payment intent succeeded', { paymentIntentId: event.data.object.id });
+      await handlePaymentIntentSucceeded(event.data.object);
       break;
 
     case 'payment_intent.payment_failed':
@@ -161,15 +161,20 @@ async function handleCheckoutCompleted(session) {
         });
       }
 
-      const { data, error } = await supabase
-        .from('patient_payment_requests')
-        .update({
+      const updateData = {
           payment_status: 'paid',
           paid_at: new Date().toISOString(),
           stripe_payment_intent_id: session.payment_intent,
           stripe_charge_id: chargeId || session.payment_intent,
-          card_last_4: cardLast4
-        })
+        };
+      // Only set card_last_4 if we actually got it — don't overwrite with null
+      if (cardLast4) {
+        updateData.card_last_4 = cardLast4;
+      }
+
+      const { data, error } = await supabase
+        .from('patient_payment_requests')
+        .update(updateData)
         .eq('id', paymentRequestId)
         .select()
         .single();
@@ -201,6 +206,96 @@ async function handleCheckoutCompleted(session) {
     logger.error('StripeWebhook', 'Error handling checkout completion', {
       error: err.message,
       sessionId: session.id
+    });
+  }
+}
+
+/**
+ * Handle payment_intent.succeeded event
+ * Backfills card_last_4 if it was missed during checkout.session.completed
+ */
+async function handlePaymentIntentSucceeded(paymentIntent) {
+  try {
+    // Find payment request by this payment intent ID
+    const { data: paymentRequest } = await supabase
+      .from('patient_payment_requests')
+      .select('id, card_last_4, patient_name')
+      .eq('stripe_payment_intent_id', paymentIntent.id)
+      .limit(1)
+      .single();
+
+    if (!paymentRequest) {
+      logger.info('StripeWebhook', 'payment_intent.succeeded: no matching payment request', {
+        paymentIntentId: paymentIntent.id
+      });
+      return;
+    }
+
+    // If card_last_4 is already set, nothing to do
+    if (paymentRequest.card_last_4) {
+      logger.info('StripeWebhook', 'payment_intent.succeeded: card_last_4 already set', {
+        paymentIntentId: paymentIntent.id,
+        last4: paymentRequest.card_last_4
+      });
+      return;
+    }
+
+    // Extract card details — by this event, charge is guaranteed available
+    let cardLast4 = null;
+    let chargeId = null;
+
+    // Retrieve with latest_charge expanded
+    const pi = await stripeInstance.paymentIntents.retrieve(
+      paymentIntent.id,
+      { expand: ['latest_charge'] }
+    );
+
+    const charge = pi.latest_charge;
+    if (charge && typeof charge === 'object') {
+      chargeId = charge.id;
+      if (charge.payment_method_details?.card) {
+        cardLast4 = charge.payment_method_details.card.last4;
+      }
+    }
+
+    // Fallback: legacy charges array
+    if (!cardLast4 && pi.charges?.data?.length > 0) {
+      const legacyCharge = pi.charges.data[0];
+      chargeId = chargeId || legacyCharge.id;
+      if (legacyCharge.payment_method_details?.card) {
+        cardLast4 = legacyCharge.payment_method_details.card.last4;
+      } else if (legacyCharge.source?.last4) {
+        cardLast4 = legacyCharge.source.last4;
+      }
+    }
+
+    if (cardLast4) {
+      const updateData = { card_last_4: cardLast4 };
+      if (chargeId) updateData.stripe_charge_id = chargeId;
+
+      const { error } = await supabase
+        .from('patient_payment_requests')
+        .update(updateData)
+        .eq('id', paymentRequest.id);
+
+      if (error) {
+        logger.error('StripeWebhook', 'Failed to backfill card_last_4', { error: error.message });
+      } else {
+        logger.info('StripeWebhook', 'Backfilled card_last_4 from payment_intent.succeeded', {
+          paymentRequestId: paymentRequest.id,
+          patientName: paymentRequest.patient_name,
+          last4: cardLast4
+        });
+      }
+    } else {
+      logger.warn('StripeWebhook', 'payment_intent.succeeded but still could not extract card_last_4', {
+        paymentIntentId: paymentIntent.id
+      });
+    }
+  } catch (err) {
+    logger.error('StripeWebhook', 'Error handling payment_intent.succeeded', {
+      error: err.message,
+      paymentIntentId: paymentIntent.id
     });
   }
 }

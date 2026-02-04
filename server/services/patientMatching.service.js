@@ -15,7 +15,9 @@
 const { createClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcryptjs');
 const patientIdGenerator = require('./patientIdGenerator.service');
+const nightscoutService = require('./nightscout.service');
 const logger = require('../logger');
+const { toNormalized, toE164, allFormats } = require('../utils/phoneNormalize');
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -740,17 +742,16 @@ class PatientMatchingService {
       // Try to find patient
       let patient;
 
-      // Check if it's a phone number or patient ID
-      if (identifier.includes('-')) {
-        // It's a patient ID (PT-2025-0001)
-        const { data } = await supabase
-          .from('unified_patients')
-          .select('*')
-          .eq('patient_id', identifier)
-          .single();
-        patient = data;
-      } else {
-        // It's a phone number
+      // Try patient_id first (any format: PT-2025-0001, 61024475, etc.)
+      const { data: byId } = await supabase
+        .from('unified_patients')
+        .select('*')
+        .eq('patient_id', identifier)
+        .single();
+      patient = byId;
+
+      // Fall back to phone number lookup
+      if (!patient) {
         patient = await this.findPatientByPhone(identifier);
       }
 
@@ -790,12 +791,21 @@ class PatientMatchingService {
           .order('created_at', { ascending: false })
       ]);
 
+      // Get CGM summary
+      let cgm = null;
+      try {
+        cgm = await this.getCGMSummary(patient.id, patient.phone_primary);
+      } catch (cgmErr) {
+        logger.error('PatientMatching', 'CGM summary fetch failed', { error: cgmErr.message });
+      }
+
       return {
         patient,
         dictations: dictations || [],
         previsitResponses: previsitResponses || [],
         appointments: appointments || [],
         pumpAssessments: pumpAssessments || [],
+        cgm,
 
         // Summary stats
         stats: {
@@ -810,6 +820,145 @@ class PatientMatchingService {
       logger.error('PatientMatching', 'Error getting patient chart', { error: error.message });
       throw error;
     }
+  }
+
+  /**
+   * Get CGM summary for a patient (current glucose, 14-day stats, config status)
+   */
+  async getCGMSummary(patientId, phoneNormalized) {
+    // Find config using all phone formats
+    const formats = allFormats(phoneNormalized);
+    if (formats.length === 0) return null;
+
+    const orFilter = formats.map(f => `patient_phone.eq.${f}`).join(',');
+    const { data: config } = await supabase
+      .from('patient_nightscout_config')
+      .select('id, patient_phone, data_source, sync_enabled, connection_status, last_sync_at, last_successful_sync_at')
+      .or(orFilter)
+      .limit(1)
+      .single();
+
+    if (!config) return null;
+
+    // Get most recent reading
+    const { data: latestReadings } = await supabase
+      .from('cgm_readings')
+      .select('glucose_value, glucose_units, trend_direction, trend_arrow, reading_timestamp')
+      .or(orFilter)
+      .order('reading_timestamp', { ascending: false })
+      .limit(1);
+
+    const latest = latestReadings?.[0] || null;
+    let currentGlucose = null;
+    if (latest) {
+      const minutesAgo = Math.round((Date.now() - new Date(latest.reading_timestamp).getTime()) / 60000);
+      currentGlucose = {
+        glucoseValue: latest.glucose_value,
+        glucoseUnits: latest.glucose_units,
+        trendDirection: latest.trend_direction,
+        trendArrow: latest.trend_arrow,
+        readingTimestamp: latest.reading_timestamp,
+        minutesAgo,
+      };
+    }
+
+    // Get 14-day readings for stats
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: readings14d } = await supabase
+      .from('cgm_readings')
+      .select('glucose_value')
+      .or(orFilter)
+      .gte('reading_timestamp', fourteenDaysAgo)
+      .order('reading_timestamp', { ascending: false });
+
+    let stats14day = null;
+    if (readings14d && readings14d.length > 0) {
+      stats14day = nightscoutService.calculateStatistics(
+        readings14d.map(r => ({ glucoseValue: r.glucose_value }))
+      );
+    }
+
+    // Visit comparison: compare current 14-day stats with pre-visit stats
+    let comparison = null;
+    try {
+      if (stats14day && patientId) {
+        // Find most recent visit for this patient
+        const { data: recentVisit } = await supabase
+          .from('dictated_notes')
+          .select('visit_date')
+          .eq('unified_patient_id', patientId)
+          .order('visit_date', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (recentVisit?.visit_date) {
+          const visitDate = new Date(recentVisit.visit_date);
+          const preVisitEnd = visitDate.toISOString();
+          const preVisitStart = new Date(visitDate.getTime() - 14 * 24 * 60 * 60 * 1000).toISOString();
+
+          const { data: preVisitReadings } = await supabase
+            .from('cgm_readings')
+            .select('glucose_value')
+            .or(orFilter)
+            .gte('reading_timestamp', preVisitStart)
+            .lt('reading_timestamp', preVisitEnd);
+
+          if (preVisitReadings && preVisitReadings.length >= 50) {
+            const preStats = nightscoutService.calculateStatistics(
+              preVisitReadings.map(r => ({ glucoseValue: r.glucose_value }))
+            );
+
+            const daysSinceVisit = Math.round((Date.now() - visitDate.getTime()) / (24 * 60 * 60 * 1000));
+            comparison = {
+              lastVisitDate: recentVisit.visit_date,
+              periodLabel: `Since last visit (${daysSinceVisit} days)`,
+              changes: [
+                {
+                  metric: 'avgGlucose',
+                  label: 'Avg Glucose',
+                  before: preStats.avgGlucose,
+                  after: stats14day.avgGlucose,
+                  delta: stats14day.avgGlucose - preStats.avgGlucose,
+                  improved: stats14day.avgGlucose < preStats.avgGlucose,
+                  unit: 'mg/dl',
+                },
+                {
+                  metric: 'timeInRangePercent',
+                  label: 'Time in Range',
+                  before: preStats.timeInRangePercent,
+                  after: stats14day.timeInRangePercent,
+                  delta: stats14day.timeInRangePercent - preStats.timeInRangePercent,
+                  improved: stats14day.timeInRangePercent > preStats.timeInRangePercent,
+                  unit: '%',
+                },
+                {
+                  metric: 'estimatedA1c',
+                  label: 'Est. A1C',
+                  before: preStats.estimatedA1c,
+                  after: stats14day.estimatedA1c,
+                  delta: Math.round((stats14day.estimatedA1c - preStats.estimatedA1c) * 10) / 10,
+                  improved: stats14day.estimatedA1c < preStats.estimatedA1c,
+                  unit: '%',
+                },
+              ],
+            };
+          }
+        }
+      }
+    } catch (compErr) {
+      // Non-critical, skip comparison silently
+    }
+
+    return {
+      configured: true,
+      dataSource: config.data_source,
+      connectionStatus: config.connection_status,
+      syncEnabled: config.sync_enabled,
+      lastSync: config.last_successful_sync_at || config.last_sync_at,
+      currentGlucose,
+      stats14day,
+      comparison,
+    };
   }
 }
 

@@ -18,6 +18,9 @@ function getAllowedOrigins() {
       'https://www.tshla.ai',
       'https://tshla.ai',
       'https://mango-sky-0ba265c0f.1.azurestaticapps.net',
+      'http://localhost:5173',
+      'http://localhost:5174',
+      'http://localhost:3000',
       process.env.FRONTEND_URL,
       process.env.VITE_APP_URL
     ].filter(Boolean); // Remove null/undefined

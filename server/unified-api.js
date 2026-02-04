@@ -156,15 +156,20 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
           });
         }
 
-        const { error: paymentRequestError } = await supabase
-          .from('patient_payment_requests')
-          .update({
+        const paymentUpdateData = {
             payment_status: 'paid',
             paid_at: new Date().toISOString(),
             stripe_payment_intent_id: session.payment_intent,
             stripe_charge_id: chargeId || session.payment_intent,
-            card_last_4: cardLast4
-          })
+          };
+        // Only set card_last_4 if we actually got it — don't overwrite with null
+        if (cardLast4) {
+          paymentUpdateData.card_last_4 = cardLast4;
+        }
+
+        const { error: paymentRequestError } = await supabase
+          .from('patient_payment_requests')
+          .update(paymentUpdateData)
           .eq('id', metadata.payment_request_id);
 
         if (paymentRequestError) {
@@ -2212,6 +2217,15 @@ try {
   logger.info('UnifiedAPI', 'CGM Data API mounted at /api/cgm');
 } catch (error) {
   logger.error('UnifiedAPI', 'CGM Data API not mounted - module failed to load', { error: error.message, stack: error.stack });
+}
+
+// CGM Auto-Sync Job - syncs Dexcom Share data every 15 minutes
+try {
+  const cgmSyncJob = require('./jobs/cgmSync');
+  cgmSyncJob.start();
+  logger.info('UnifiedAPI', 'CGM auto-sync job started (every 15 minutes)');
+} catch (error) {
+  logger.error('UnifiedAPI', 'CGM auto-sync job failed to start', { error: error.message });
 }
 
 // ====== PATIENT MANAGEMENT API ======

@@ -124,6 +124,9 @@ const StaffReviewQueue = lazy(() => import('./pages/StaffReviewQueue'));
 const StaffPatientSummaries = lazy(() => import('./pages/StaffPatientSummaries'));
 const PatientSummaryPortal = lazy(() => import('./pages/PatientSummaryPortal'));
 const UnifiedPatientChart = lazy(() => import('./pages/UnifiedPatientChart'));
+const CGMDashboard = lazy(() => import('./pages/CGMDashboard'));
+const PatientPortalCGMConnect = lazy(() => import('./pages/PatientPortalCGMConnect'));
+const PatientPortalCGMData = lazy(() => import('./pages/PatientPortalCGMData'));
 
 // Patient Payment System
 const StaffPaymentDashboard = lazy(() => import('./pages/StaffPaymentDashboard'));
@@ -693,6 +696,22 @@ function App() {
                   </Suspense>
                 }
               />
+              <Route
+                path="/patient-portal/cgm-connect"
+                element={
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <PatientPortalCGMConnect />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/patient-portal/cgm-data"
+                element={
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <PatientPortalCGMData />
+                  </Suspense>
+                }
+              />
 
               {/* ===== PATIENT AUDIO SUMMARIES (WEB-BASED) ===== */}
               {/* Staff Dashboard - View all patient summaries */}
@@ -747,6 +766,17 @@ function App() {
                   <ProtectedRoute>
                     <Suspense fallback={<LoadingSpinner />}>
                       <UnifiedPatientChart />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/cgm-dashboard"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <CGMDashboard />
                     </Suspense>
                   </ProtectedRoute>
                 }

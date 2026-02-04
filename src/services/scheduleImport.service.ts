@@ -152,7 +152,7 @@ class ScheduleImportService {
           header.includes('schdlng') || header.includes('doctor') || header.includes('physician')) {
         columnMap['provider'] = index;
       }
-      if (header.includes('time') || header.includes('apptscheduletime') || header.includes('appointmenttime') || header.includes('scheduletime')) {
+      if (header === 'apptstarttime' || (header.includes('time') && !header.includes('cancelled') && !header.includes('schedule')) || header.includes('appointmenttime')) {
         columnMap['time'] = index;
       }
     });

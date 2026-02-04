@@ -124,11 +124,6 @@ class NightscoutService {
 
       const data = await response.json();
 
-        name: data.name,
-        version: data.version,
-        apiEnabled: data.apiEnabled,
-      });
-
       return {
         success: true,
         message: 'Successfully connected to Nightscout',
@@ -166,11 +161,6 @@ class NightscoutService {
       // Build API URL with filters
       // Nightscout uses MongoDB query syntax in URL params
       const entriesUrl = `${url}/api/v1/entries/sgv.json?find[dateString][$gte]=${startDate.toISOString()}&count=${maxCount}`;
-
-        url: entriesUrl,
-        hoursBack,
-        startDate: startDate.toISOString(),
-      });
 
       const response = await fetch(entriesUrl, {
         method: 'GET',

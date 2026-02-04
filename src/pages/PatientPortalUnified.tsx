@@ -19,7 +19,8 @@ import {
   Clock,
   FileText,
   ChevronRight,
-  AlertCircle
+  AlertCircle,
+  Activity
 } from 'lucide-react';
 import PatientPortalLogin from '../components/PatientPortalLogin';
 
@@ -52,6 +53,7 @@ export default function PatientPortalUnified() {
   // Dashboard data
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [cgmConnected, setCgmConnected] = useState(false);
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
@@ -194,6 +196,18 @@ export default function PatientPortalUnified() {
       } else {
         setError('Failed to load dashboard data');
       }
+
+      // Check CGM connection status
+      try {
+        const phone10 = session.patientPhone.replace(/\D/g, '').slice(-10);
+        const cgmRes = await fetch(`${API_BASE_URL}/api/cgm/summary/${phone10}`);
+        const cgmData = await cgmRes.json();
+        if (cgmData.success && cgmData.summary?.configured) {
+          setCgmConnected(true);
+        }
+      } catch {
+        // Non-critical
+      }
     } catch (error) {
       console.error('Error loading dashboard:', error);
       setError('Network error loading dashboard');
@@ -274,7 +288,7 @@ export default function PatientPortalUnified() {
   /**
    * Navigate to section
    */
-  const goToSection = (section: 'payment' | 'audio' | 'ai-chat' | 'hp-view') => {
+  const goToSection = (section: 'payment' | 'audio' | 'ai-chat' | 'hp-view' | 'cgm-connect') => {
     // Track section view
     trackSectionView(section);
 
@@ -283,7 +297,8 @@ export default function PatientPortalUnified() {
       'payment': '/patient-portal/payment',
       'audio': '/patient-portal/audio',
       'ai-chat': '/patient-portal/ai-chat',
-      'hp-view': '/patient-hp-view'
+      'hp-view': '/patient-hp-view',
+      'cgm-connect': cgmConnected ? '/patient-portal/cgm-data' : '/patient-portal/cgm-connect'
     };
 
     navigate(routes[section] || `/patient-portal/${section}`, {
@@ -394,8 +409,8 @@ export default function PatientPortalUnified() {
           </div>
         )}
 
-        {/* 3-Box Grid (Mobile: Stack vertically, Desktop: 3 columns) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Main Grid (Mobile: Stack, Tablet: 2 cols, Desktop: 4 cols) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* Box 1: Payment */}
           <button
             onClick={() => goToSection('payment')}
@@ -512,6 +527,53 @@ export default function PatientPortalUnified() {
 
             <div className="mt-4 flex items-center text-purple-600 group-hover:translate-x-1 transition-transform">
               <span className="text-sm font-medium">Start Chat</span>
+              <ChevronRight className="w-4 h-4 ml-1" />
+            </div>
+          </button>
+
+          {/* Box 4: Connect CGM */}
+          <button
+            onClick={() => goToSection('cgm-connect')}
+            className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all p-6 text-left relative overflow-hidden group hover:scale-[1.02] active:scale-[0.98]"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-14 h-14 bg-cyan-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Activity className="w-7 h-7 text-cyan-600" />
+              </div>
+            </div>
+
+            <h3 className="text-xl font-bold text-gray-900 mb-2">
+              {cgmConnected ? 'Your CGM' : 'Connect Your CGM'}
+            </h3>
+
+            {cgmConnected ? (
+              <div>
+                <p className="text-lg text-green-600 font-semibold mb-1">Connected</p>
+                <p className="text-sm text-gray-600">
+                  Syncing glucose data with your care team
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Automatic updates every 15 minutes
+                </p>
+              </div>
+            ) : (
+              <div>
+                <p className="text-lg text-gray-700 font-semibold mb-1">
+                  Share glucose data
+                </p>
+                <p className="text-sm text-gray-600">
+                  Dexcom, Libre, Eversense & more
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Automatic sync with your care team
+                </p>
+              </div>
+            )}
+
+            <div className="mt-4 flex items-center text-cyan-600 group-hover:translate-x-1 transition-transform">
+              <span className="text-sm font-medium">
+                {cgmConnected ? 'View Your Data' : 'Set Up Now'}
+              </span>
               <ChevronRight className="w-4 h-4 ml-1" />
             </div>
           </button>

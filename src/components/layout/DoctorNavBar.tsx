@@ -20,6 +20,7 @@ import {
   Home,
   Shield,
   Upload,
+  Activity,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabaseAuthService as unifiedAuthService } from '../../services/supabaseAuth.service';
@@ -299,6 +300,15 @@ export default function DoctorNavBar({
             >
               <Plus className="w-4 h-4" />
               <span>Quick Note</span>
+            </button>
+
+            {/* CGM Panel Button */}
+            <button
+              onClick={() => navigate('/cgm-dashboard')}
+              className="bg-cyan-500 hover:bg-cyan-600 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2 shadow-sm"
+            >
+              <Activity className="w-4 h-4" />
+              <span>CGM Panel</span>
             </button>
 
             {/* Upload Schedule Button - Admin Only */}

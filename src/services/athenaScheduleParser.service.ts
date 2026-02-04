@@ -219,12 +219,12 @@ class AthenaScheduleParserService {
     headers.forEach((header, index) => {
       const normalized = header.toLowerCase().trim();
 
-      // Date - including Athena's "apptdate"
-      if (normalized === 'apptdate' || (normalized.includes('date') && !normalized.includes('birth') && !normalized.includes('dob'))) {
+      // Date - including Athena's "apptdate" (exclude cancelled dates)
+      if (normalized === 'apptdate' || (normalized.includes('date') && !normalized.includes('birth') && !normalized.includes('dob') && !normalized.includes('cancelled'))) {
         mapping['date'] = index;
       }
-      // Time - including Athena's "apptstarttime"
-      else if (normalized === 'apptstarttime' || normalized.includes('time') || normalized.includes('start')) {
+      // Time - including Athena's "apptstarttime" (exclude cancelled/schedule times)
+      else if (normalized === 'apptstarttime' || (normalized.includes('time') && !normalized.includes('cancelled') && !normalized.includes('schedule')) || (normalized.includes('start') && !normalized.includes('cancelled'))) {
         mapping['time'] = index;
       }
       // Provider - including Athena's "rndrng prvdr" and "appt schdlng prvdr"
@@ -276,8 +276,8 @@ class AthenaScheduleParserService {
       else if (normalized.includes('duration')) {
         mapping['duration'] = index;
       }
-      // MRN/Patient ID
-      else if (normalized.includes('mrn') || (normalized.includes('patient') && normalized.includes('id'))) {
+      // MRN/Patient ID (exclude chart id, middle initial)
+      else if (normalized.includes('mrn') || normalized === 'patientid' || (normalized.includes('patient') && normalized.includes('id') && !normalized.includes('chart') && !normalized.includes('middle') && !normalized.includes('initial'))) {
         mapping['mrn'] = index;
       }
       // Phone - including "patient mobile no"

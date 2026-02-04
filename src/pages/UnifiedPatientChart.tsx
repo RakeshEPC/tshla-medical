@@ -20,7 +20,10 @@ import {
   Headphones,
   Upload,
   CalendarDays,
+  Droplets,
 } from 'lucide-react';
+import GlucoseTab from '../components/GlucoseTab';
+import type { CGMSummary } from '../types/cgm.types';
 
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
@@ -86,6 +89,7 @@ interface PatientChart {
   dictations: Dictation[];
   previsits: PreVisit[];
   appointments: Appointment[];
+  cgm?: CGMSummary | null;
   stats: {
     totalVisits: number;
     totalDictations: number;
@@ -117,17 +121,47 @@ const UnifiedPatientChart: React.FC = () => {
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [patientChart, setPatientChart] = useState<PatientChart | null>(null);
   const [isLoadingChart, setIsLoadingChart] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'timeline' | 'dictations' | 'demographics'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'timeline' | 'dictations' | 'demographics' | 'glucose'>('overview');
   const [isEditingDemographics, setIsEditingDemographics] = useState(false);
   const [editedPatient, setEditedPatient] = useState<Partial<Patient>>({});
   const [error, setError] = useState<string | null>(null);
+  const [alertDismissed, setAlertDismissed] = useState(false);
+  const [lastAlertValue, setLastAlertValue] = useState<number | null>(null);
+
+  // Glucose alert logic
+  const currentGlucose = patientChart?.cgm?.currentGlucose;
+  const glucoseAlert = (() => {
+    if (!currentGlucose || alertDismissed) return null;
+    if (currentGlucose.minutesAgo > 15) return null;
+    const v = currentGlucose.glucoseValue;
+    if (v < 54) return { level: 'urgent_low', label: 'URGENT LOW', color: 'bg-red-600', textColor: 'text-white', value: v };
+    if (v > 300) return { level: 'very_high', label: 'VERY HIGH', color: 'bg-amber-500', textColor: 'text-white', value: v };
+    return null;
+  })();
+
+  // Reset alert dismissed when glucose value changes
+  useEffect(() => {
+    if (currentGlucose && currentGlucose.glucoseValue !== lastAlertValue) {
+      setAlertDismissed(false);
+      setLastAlertValue(currentGlucose.glucoseValue);
+    }
+  }, [currentGlucose?.glucoseValue]);
+
+  // Auto-dismiss alert after 30s
+  useEffect(() => {
+    if (!glucoseAlert) return;
+    const timer = setTimeout(() => setAlertDismissed(true), 30000);
+    return () => clearTimeout(timer);
+  }, [glucoseAlert?.value]);
 
   // Check for patient ID in URL params on mount
   useEffect(() => {
     const patientId = searchParams.get('patient');
-    if (patientId) {
-      loadPatientChart(patientId);
-    }
+    if (!patientId) return;
+    // Skip refetch if we already have this patient loaded
+    const loaded = selectedPatient;
+    if (loaded && (loaded.patient_id === patientId || loaded.phone_primary === patientId)) return;
+    loadPatientChart(patientId);
   }, [searchParams]);
 
   // Search patients
@@ -172,8 +206,11 @@ const UnifiedPatientChart: React.FC = () => {
       setSelectedPatient(data.chart.patient);
       setEditedPatient(data.chart.patient);
 
-      // Update URL with patient ID
-      setSearchParams({ patient: data.chart.patient.patient_id });
+      // Update URL with patient ID (fall back to phone if patient_id is null)
+      const urlId = data.chart.patient.patient_id || data.chart.patient.phone_primary;
+      if (urlId && urlId !== identifier) {
+        setSearchParams({ patient: urlId }, { replace: true });
+      }
     } catch (err) {
       setError('Failed to load patient chart. Please try again.');
       console.error('Chart load error:', err);
@@ -286,6 +323,27 @@ const UnifiedPatientChart: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      {/* Critical Glucose Alert Banner */}
+      {glucoseAlert && (
+        <div className={`fixed top-16 left-4 right-4 z-50 ${glucoseAlert.color} ${glucoseAlert.textColor} rounded-lg shadow-lg px-4 py-3 flex items-center justify-between animate-pulse`}>
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-6 h-6 flex-shrink-0" />
+            <span className="font-bold text-lg">
+              {glucoseAlert.label}: {glucoseAlert.value} mg/dl
+            </span>
+            <span className="text-sm opacity-90">
+              — {selectedPatient?.full_name || 'Patient'} ({currentGlucose?.minutesAgo}m ago)
+            </span>
+          </div>
+          <button
+            onClick={() => setAlertDismissed(true)}
+            className={`${glucoseAlert.textColor} hover:opacity-80 p-1`}
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
@@ -459,19 +517,55 @@ const UnifiedPatientChart: React.FC = () => {
                   <Headphones className="w-8 h-8 text-purple-500" />
                 </div>
               </div>
-              <div className="bg-white rounded-lg shadow p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Last Visit</p>
-                    <p className="text-sm font-semibold text-gray-900">
-                      {patientChart.stats.lastVisitDate
-                        ? new Date(patientChart.stats.lastVisitDate).toLocaleDateString()
-                        : 'N/A'}
-                    </p>
+              {patientChart.cgm?.currentGlucose ? (
+                <div
+                  className="bg-white rounded-lg shadow p-4 cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all"
+                  onClick={() => setActiveTab('glucose')}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">Glucose</p>
+                      <p className="text-2xl font-bold" style={{
+                        color: patientChart.cgm.currentGlucose.glucoseValue < 70 ? '#ef4444'
+                          : patientChart.cgm.currentGlucose.glucoseValue > 180 ? '#f59e0b'
+                          : '#22c55e'
+                      }}>
+                        {patientChart.cgm.currentGlucose.glucoseValue}
+                        <span className="text-sm ml-1">{patientChart.cgm.currentGlucose.trendArrow}</span>
+                      </p>
+                    </div>
+                    <Droplets className="w-8 h-8 text-teal-500" />
                   </div>
-                  <Clock className="w-8 h-8 text-orange-500" />
+                  {/* Mini TIR bar + A1C */}
+                  {patientChart.cgm.stats14day && (
+                    <div className="mt-2">
+                      <div className="flex h-2 rounded-full overflow-hidden">
+                        <div className="bg-red-400" style={{ width: `${patientChart.cgm.stats14day.timeBelowRangePercent}%` }} />
+                        <div className="bg-green-400" style={{ width: `${patientChart.cgm.stats14day.timeInRangePercent}%` }} />
+                        <div className="bg-amber-400" style={{ width: `${patientChart.cgm.stats14day.timeAboveRangePercent}%` }} />
+                      </div>
+                      <div className="flex justify-between mt-1">
+                        <span className="text-xs text-gray-500">TIR {patientChart.cgm.stats14day.timeInRangePercent}%</span>
+                        <span className="text-xs text-gray-500">A1C ~{patientChart.cgm.stats14day.estimatedA1c}%</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
+              ) : (
+                <div className="bg-white rounded-lg shadow p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">Last Visit</p>
+                      <p className="text-sm font-semibold text-gray-900">
+                        {patientChart.stats.lastVisitDate
+                          ? new Date(patientChart.stats.lastVisitDate).toLocaleDateString()
+                          : 'N/A'}
+                      </p>
+                    </div>
+                    <Clock className="w-8 h-8 text-orange-500" />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Tabs */}
@@ -480,6 +574,7 @@ const UnifiedPatientChart: React.FC = () => {
                 <div className="flex">
                   {[
                     { id: 'overview', label: 'Overview', icon: <Activity className="w-4 h-4" /> },
+                    ...(patientChart.cgm?.configured ? [{ id: 'glucose', label: 'Glucose', icon: <Droplets className="w-4 h-4" /> }] : []),
                     { id: 'timeline', label: 'Timeline', icon: <Clock className="w-4 h-4" /> },
                     { id: 'dictations', label: 'Dictations', icon: <FileText className="w-4 h-4" /> },
                     { id: 'demographics', label: 'Demographics', icon: <User className="w-4 h-4" /> },
@@ -591,6 +686,16 @@ const UnifiedPatientChart: React.FC = () => {
                       </div>
                     </div>
                   </div>
+                )}
+
+                {/* Glucose Tab */}
+                {activeTab === 'glucose' && patientChart.cgm?.configured && (
+                  <GlucoseTab
+                    patientPhone={selectedPatient.phone_primary}
+                    currentGlucose={patientChart.cgm.currentGlucose}
+                    stats14day={patientChart.cgm.stats14day}
+                    comparison={patientChart.cgm.comparison}
+                  />
                 )}
 
                 {/* Timeline Tab */}
