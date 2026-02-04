@@ -960,6 +960,8 @@ class AzureAIService {
 
     if (billingEnabled && originalTranscript) {
       try {
+        // RESILIENCE: If AI-extracted sections are empty (e.g., API failure),
+        // the billing analyzer will automatically fall back to scanning the raw transcript.
         const extractedInfo = {
           assessment: sections.assessment ? [sections.assessment] : [],
           plan: sections.plan ? [sections.plan] : [],

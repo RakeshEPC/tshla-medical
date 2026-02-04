@@ -1028,19 +1028,29 @@ export class CPTBillingAnalyzer {
       currentMedications?: string[];
     }
   ): ComplexityAnalysis {
+    // RESILIENCE: When AI extraction fails (e.g., API 404), sections may be empty.
+    // Fall back to scanning the raw transcript directly so billing still works.
+    const hasAssessment = extractedInfo.assessment && extractedInfo.assessment.some(a => a.trim().length > 0);
+    const hasPlan = extractedInfo.plan && extractedInfo.plan.some(p => p.trim().length > 0);
+    const hasMedChanges = extractedInfo.medicationChanges && extractedInfo.medicationChanges.some(m => m.trim().length > 0);
+
+    const effectiveAssessment = hasAssessment ? extractedInfo.assessment! : [transcript];
+    const effectivePlan = hasPlan ? extractedInfo.plan! : [transcript];
+    const effectiveMedChanges = hasMedChanges ? extractedInfo.medicationChanges! : [transcript];
+
     const timeSpent = this.extractTimeSpent(transcript);
-    const problemCount = this.countProblems(extractedInfo.assessment || []);
-    const dataPointsResult = this.countDataPoints(extractedInfo.plan || [], transcript);
-    const medicationChanges = this.countMedicationChanges(extractedInfo.medicationChanges || [], transcript);
+    const problemCount = this.countProblems(effectiveAssessment);
+    const dataPointsResult = this.countDataPoints(effectivePlan, transcript);
+    const medicationChanges = this.countMedicationChanges(effectiveMedChanges, transcript);
     const riskLevel = this.assessRiskLevel(
-      extractedInfo.medicationChanges || [],
-      extractedInfo.assessment || [],
+      effectiveMedChanges,
+      effectiveAssessment,
       extractedInfo.vitals,
       transcript
     );
 
-    // Count chronic conditions
-    const assessmentText = (extractedInfo.assessment || []).join(' ').toLowerCase();
+    // Count chronic conditions (use effective assessment for resilience)
+    const assessmentText = effectiveAssessment.join(' ').toLowerCase();
     const chronicConditions = [
       /diabetes/i,
       /hypertension/i,
@@ -1054,7 +1064,7 @@ export class CPTBillingAnalyzer {
     // CMS 2021 COMPLIANT: Categorize each of the 3 MDM elements
     const problemComplexity = this.categorizeProblemComplexity(
       problemCount,
-      extractedInfo.assessment || [],
+      effectiveAssessment,
       0 // riskScore not used in new method
     );
 
