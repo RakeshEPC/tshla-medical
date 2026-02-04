@@ -18,7 +18,7 @@ import {
   Wifi,
   WifiOff,
 } from 'lucide-react';
-import { CGM_DEVICES, DEXCOM_DEVICES, NIGHTSCOUT_DEVICES, type CGMDevice } from '../config/cgmDevices';
+import { CGM_DEVICES, DEXCOM_DEVICES, LIBRE_LINKUP_DEVICES, NIGHTSCOUT_DEVICES, type CGMDevice } from '../config/cgmDevices';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
@@ -54,6 +54,9 @@ const PatientPortalCGMConnect: React.FC = () => {
   const [dexcomPassword, setDexcomPassword] = useState('');
   const [nightscoutUrl, setNightscoutUrl] = useState('');
   const [apiSecret, setApiSecret] = useState('');
+  const [libreLinkUpEmail, setLibreLinkUpEmail] = useState('');
+  const [libreLinkUpPassword, setLibreLinkUpPassword] = useState('');
+  const [libreLinkUpRegion, setLibreLinkUpRegion] = useState('US');
 
   // Connection test
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
@@ -128,6 +131,9 @@ const PatientPortalCGMConnect: React.FC = () => {
     setDexcomPassword('');
     setNightscoutUrl('');
     setApiSecret('');
+    setLibreLinkUpEmail('');
+    setLibreLinkUpPassword('');
+    setLibreLinkUpRegion('US');
     setStep(2);
   };
 
@@ -150,6 +156,15 @@ const PatientPortalCGMConnect: React.FC = () => {
         }
         body.dexcomUsername = dexcomUsername;
         body.dexcomPassword = dexcomPassword;
+      } else if (selectedDevice.connectionMethod === 'libre_linkup') {
+        if (!libreLinkUpEmail || !libreLinkUpPassword) {
+          setTestStatus('error');
+          setTestMessage('Please enter your LibreLinkUp email and password.');
+          return;
+        }
+        body.libreLinkUpEmail = libreLinkUpEmail;
+        body.libreLinkUpPassword = libreLinkUpPassword;
+        body.libreLinkUpRegion = libreLinkUpRegion;
       } else {
         if (!nightscoutUrl || !apiSecret) {
           setTestStatus('error');
@@ -203,6 +218,10 @@ const PatientPortalCGMConnect: React.FC = () => {
       if (selectedDevice.connectionMethod === 'dexcom_share') {
         body.dexcomUsername = dexcomUsername;
         body.dexcomPassword = dexcomPassword;
+      } else if (selectedDevice.connectionMethod === 'libre_linkup') {
+        body.libreLinkUpEmail = libreLinkUpEmail;
+        body.libreLinkUpPassword = libreLinkUpPassword;
+        body.libreLinkUpRegion = libreLinkUpRegion;
       } else {
         body.nightscoutUrl = nightscoutUrl;
         body.apiSecret = apiSecret;
@@ -300,7 +319,7 @@ const PatientPortalCGMConnect: React.FC = () => {
               <div>
                 <p className="font-semibold text-green-800">CGM Already Connected</p>
                 <p className="text-sm text-green-700 mt-1">
-                  Your {existingConfig.data_source === 'dexcom_share' ? 'Dexcom' : 'Nightscout'} is currently connected
+                  Your {existingConfig.data_source === 'dexcom_share' ? 'Dexcom' : existingConfig.data_source === 'libre_linkup' ? 'FreeStyle Libre' : 'Nightscout'} is currently connected
                   {existingConfig.connection_status === 'active' ? ' and syncing' : ''}.
                   {existingConfig.last_sync && (
                     <> Last sync: {new Date(existingConfig.last_sync).toLocaleString()}</>
@@ -339,6 +358,31 @@ const PatientPortalCGMConnect: React.FC = () => {
                 ))}
               </div>
             </div>
+
+            {/* FreeStyle Libre Direct Group */}
+            {LIBRE_LINKUP_DEVICES.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Wifi className="w-4 h-4 text-orange-600" />
+                  <h2 className="text-lg font-semibold text-gray-900">FreeStyle Libre Direct</h2>
+                  <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium">Easy</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {LIBRE_LINKUP_DEVICES.map((device) => (
+                    <button
+                      key={device.id}
+                      onClick={() => handleSelectDevice(device)}
+                      className="bg-white border-2 border-gray-200 rounded-xl p-4 text-left hover:border-orange-500 hover:shadow-md transition-all group"
+                    >
+                      <div className="text-2xl mb-2">{'\u{1F4E1}'}</div>
+                      <div className="font-semibold text-gray-900 group-hover:text-orange-700">{device.displayName}</div>
+                      <div className="text-xs text-gray-500">{device.brand}</div>
+                      <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-orange-500 mt-2 group-hover:translate-x-1 transition-transform" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Nightscout Bridge Group */}
             <div>
@@ -420,6 +464,56 @@ const PatientPortalCGMConnect: React.FC = () => {
                     className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
                     autoComplete="current-password"
                   />
+                </div>
+              </div>
+            )}
+
+            {/* LibreLinkUp Fields */}
+            {selectedDevice.connectionMethod === 'libre_linkup' && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    LibreLinkUp Email
+                  </label>
+                  <input
+                    type="email"
+                    value={libreLinkUpEmail}
+                    onChange={(e) => setLibreLinkUpEmail(e.target.value)}
+                    placeholder="Your LibreLinkUp email address"
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                    autoComplete="email"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    LibreLinkUp Password
+                  </label>
+                  <input
+                    type="password"
+                    value={libreLinkUpPassword}
+                    onChange={(e) => setLibreLinkUpPassword(e.target.value)}
+                    placeholder="Your LibreLinkUp password"
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                    autoComplete="current-password"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Region
+                  </label>
+                  <select
+                    value={libreLinkUpRegion}
+                    onChange={(e) => setLibreLinkUpRegion(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none bg-white"
+                  >
+                    <option value="US">United States</option>
+                    <option value="EU">Europe</option>
+                    <option value="DE">Germany</option>
+                    <option value="FR">France</option>
+                    <option value="JP">Japan</option>
+                    <option value="AP">Asia Pacific</option>
+                    <option value="AU">Australia</option>
+                  </select>
                 </div>
               </div>
             )}

@@ -9,7 +9,7 @@ export interface CGMDevice {
   brand: string;
   model: string;
   displayName: string;
-  connectionMethod: 'dexcom_share' | 'nightscout';
+  connectionMethod: 'dexcom_share' | 'nightscout' | 'libre_linkup';
   setupInstructions: string;
   helpUrl?: string;
 }
@@ -40,23 +40,33 @@ export const CGM_DEVICES: CGMDevice[] = [
     connectionMethod: 'dexcom_share',
     setupInstructions: 'Enter your Dexcom account username and password. Stelo uses the same Dexcom Share platform as G6/G7.',
   },
-  // Nightscout bridge connections
+  // Direct LibreLinkUp connections (FreeStyle Libre)
   {
     id: 'libre_2',
     brand: 'Abbott',
     model: 'FreeStyle Libre 2',
     displayName: 'FreeStyle Libre 2',
-    connectionMethod: 'nightscout',
-    setupInstructions: 'Libre requires a Nightscout server to share data with your care team. Set up xDrip+ or a Nightscout bridge on your phone, then enter your Nightscout URL and API secret below.',
-    helpUrl: 'https://nightscout.github.io/uploader/setup/',
+    connectionMethod: 'libre_linkup',
+    setupInstructions: 'Enter your LibreLinkUp email and password. Make sure you have the LibreLinkUp app set up and connected to your FreeStyle Libre 2 sensor.',
+    helpUrl: 'https://www.librelinkup.com/',
   },
   {
     id: 'libre_3',
     brand: 'Abbott',
     model: 'FreeStyle Libre 3',
     displayName: 'FreeStyle Libre 3',
+    connectionMethod: 'libre_linkup',
+    setupInstructions: 'Enter your LibreLinkUp email and password. Make sure you have the LibreLinkUp app set up and connected to your FreeStyle Libre 3 sensor.',
+    helpUrl: 'https://www.librelinkup.com/',
+  },
+  // Nightscout bridge connections
+  {
+    id: 'libre_nightscout',
+    brand: 'Abbott',
+    model: 'FreeStyle Libre (Nightscout)',
+    displayName: 'FreeStyle Libre (via Nightscout)',
     connectionMethod: 'nightscout',
-    setupInstructions: 'Libre 3 requires a Nightscout server to share data with your care team. Set up xDrip+ or a Nightscout bridge, then enter your Nightscout URL and API secret below.',
+    setupInstructions: 'If you already have a Nightscout server running for your Libre, you can connect through Nightscout instead. Enter your Nightscout URL and API secret below.',
     helpUrl: 'https://nightscout.github.io/uploader/setup/',
   },
   {
@@ -87,4 +97,5 @@ export const CGM_DEVICES: CGMDevice[] = [
 ];
 
 export const DEXCOM_DEVICES = CGM_DEVICES.filter(d => d.connectionMethod === 'dexcom_share');
+export const LIBRE_LINKUP_DEVICES = CGM_DEVICES.filter(d => d.connectionMethod === 'libre_linkup');
 export const NIGHTSCOUT_DEVICES = CGM_DEVICES.filter(d => d.connectionMethod === 'nightscout');

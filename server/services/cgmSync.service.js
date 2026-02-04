@@ -9,6 +9,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const dexcomShareService = require('./dexcomShare.service');
 const nightscoutService = require('./nightscout.service');
+const libreLinkUpService = require('./libreLinkUp.service');
 const { toNormalized, toE164 } = require('../utils/phoneNormalize');
 const logger = require('../logger');
 
@@ -73,6 +74,13 @@ class CGMSyncService {
         const maxCount = backfill ? 4032 : 864;
         entries = await dexcomShareService.getGlucoseReadings(config.dexcom_username, dexcomPassword, minutes, maxCount);
       }
+      // Try LibreLinkUp (FreeStyle Libre direct)
+      else if (config.libre_linkup_email && config.libre_linkup_password_encrypted) {
+        const librePassword = nightscoutService.decryptApiSecret(config.libre_linkup_password_encrypted);
+        entries = await libreLinkUpService.getGlucoseReadings(
+          config.libre_linkup_email, librePassword, config.libre_linkup_region || 'US'
+        );
+      }
       // Fall back to Nightscout
       else if (config.nightscout_url && config.api_secret_encrypted) {
         const apiSecret = nightscoutService.decryptApiSecret(config.api_secret_encrypted);
@@ -108,9 +116,9 @@ class CGMSyncService {
           trend_direction: entry.trendDirection,
           trend_arrow: entry.trendArrow,
           reading_timestamp: entry.readingTimestamp.toISOString(),
-          device_name: entry.deviceName || 'Dexcom Share',
+          device_name: entry.deviceName || (entry.source === 'libre_linkup' ? 'FreeStyle Libre' : 'Dexcom Share'),
           nightscout_id: readingId,
-          nightscout_url: config.nightscout_url || 'dexcom_share',
+          nightscout_url: config.nightscout_url || entry.source || 'dexcom_share',
         };
 
         if (unifiedPatientId) {

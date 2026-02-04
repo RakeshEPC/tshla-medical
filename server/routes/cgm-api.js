@@ -22,6 +22,7 @@ const { createClient } = require('@supabase/supabase-js');
 const logger = require('../logger');
 const nightscoutService = require('../services/nightscout.service');
 const dexcomShareService = require('../services/dexcomShare.service');
+const libreLinkUpService = require('../services/libreLinkUp.service');
 const cgmSyncService = require('../services/cgmSync.service');
 const cgmPatternsService = require('../services/cgmPatterns.service');
 const patientMatchingService = require('../services/patientMatching.service');
@@ -74,6 +75,9 @@ router.post('/config', async (req, res) => {
       apiSecret,
       dexcomUsername,
       dexcomPassword,
+      libreLinkUpEmail,
+      libreLinkUpPassword,
+      libreLinkUpRegion,
       dataSource = 'dexcom_share',
       providerId,
       providerName,
@@ -110,6 +114,17 @@ router.post('/config', async (req, res) => {
         });
       }
       const test = await dexcomShareService.testConnection(dexcomUsername, dexcomPassword);
+      if (!test.success) {
+        return res.status(400).json({ success: false, error: test.message });
+      }
+    } else if (dataSource === 'libre_linkup') {
+      if (!libreLinkUpEmail || !libreLinkUpPassword) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing required fields: libreLinkUpEmail, libreLinkUpPassword',
+        });
+      }
+      const test = await libreLinkUpService.testConnection(libreLinkUpEmail, libreLinkUpPassword, libreLinkUpRegion || 'US');
       if (!test.success) {
         return res.status(400).json({ success: false, error: test.message });
       }
@@ -159,6 +174,11 @@ router.post('/config', async (req, res) => {
     if (dataSource === 'dexcom_share') {
       configRecord.dexcom_username = dexcomUsername;
       configRecord.dexcom_password_encrypted = nightscoutService.encryptApiSecret(dexcomPassword);
+    }
+    if (dataSource === 'libre_linkup') {
+      configRecord.libre_linkup_email = libreLinkUpEmail;
+      configRecord.libre_linkup_password_encrypted = nightscoutService.encryptApiSecret(libreLinkUpPassword);
+      configRecord.libre_linkup_region = libreLinkUpRegion || 'US';
     }
     if (nightscoutUrl) {
       configRecord.nightscout_url = nightscoutService.normalizeNightscoutUrl(nightscoutUrl);
@@ -231,7 +251,7 @@ router.get('/config/:phone', async (req, res) => {
     }
 
     // Don't return encrypted fields
-    const { api_secret_encrypted, dexcom_password_encrypted, ...safeConfig } = config;
+    const { api_secret_encrypted, dexcom_password_encrypted, libre_linkup_password_encrypted, ...safeConfig } = config;
     res.json({ success: true, configured: true, config: safeConfig });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to fetch configuration' });
@@ -275,7 +295,7 @@ router.get('/summary/:phone', async (req, res) => {
  */
 router.post('/test-connection', async (req, res) => {
   try {
-    const { nightscoutUrl, apiSecret, dexcomUsername, dexcomPassword, dataSource = 'dexcom_share' } = req.body;
+    const { nightscoutUrl, apiSecret, dexcomUsername, dexcomPassword, libreLinkUpEmail, libreLinkUpPassword, libreLinkUpRegion, dataSource = 'dexcom_share' } = req.body;
 
     let result;
     if (dataSource === 'dexcom_share') {
@@ -283,6 +303,11 @@ router.post('/test-connection', async (req, res) => {
         return res.status(400).json({ success: false, error: 'Missing: dexcomUsername, dexcomPassword' });
       }
       result = await dexcomShareService.testConnection(dexcomUsername, dexcomPassword);
+    } else if (dataSource === 'libre_linkup') {
+      if (!libreLinkUpEmail || !libreLinkUpPassword) {
+        return res.status(400).json({ success: false, error: 'Missing: libreLinkUpEmail, libreLinkUpPassword' });
+      }
+      result = await libreLinkUpService.testConnection(libreLinkUpEmail, libreLinkUpPassword, libreLinkUpRegion || 'US');
     } else {
       if (!nightscoutUrl || !apiSecret) {
         return res.status(400).json({ success: false, error: 'Missing: nightscoutUrl, apiSecret' });
@@ -313,6 +338,9 @@ router.get('/current/:phone', async (req, res) => {
     if (config.data_source === 'dexcom_share' && config.dexcom_username && config.dexcom_password_encrypted) {
       const dexcomPassword = nightscoutService.decryptApiSecret(config.dexcom_password_encrypted);
       currentGlucose = await dexcomShareService.getCurrentGlucose(config.dexcom_username, dexcomPassword);
+    } else if (config.data_source === 'libre_linkup' && config.libre_linkup_email && config.libre_linkup_password_encrypted) {
+      const librePassword = nightscoutService.decryptApiSecret(config.libre_linkup_password_encrypted);
+      currentGlucose = await libreLinkUpService.getCurrentGlucose(config.libre_linkup_email, librePassword, config.libre_linkup_region || 'US');
     } else if (config.nightscout_url && config.api_secret_encrypted) {
       const apiSecret = nightscoutService.decryptApiSecret(config.api_secret_encrypted);
       currentGlucose = await nightscoutService.getCurrentGlucose(config.nightscout_url, apiSecret);
