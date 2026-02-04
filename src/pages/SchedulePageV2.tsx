@@ -1193,9 +1193,16 @@ export default function SchedulePageV2() {
                                   </span>
                                 )}
                                 {apt.tshId && (
-                                  <span className="px-1.5 py-0.5 bg-purple-50 border border-purple-300 text-purple-700 text-[10px] font-mono font-bold rounded">
-                                    {apt.tshId}
-                                  </span>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenPatientPortal(apt.tshId!);
+                                    }}
+                                    title="Open Patient Portal as this patient"
+                                    className="px-1.5 py-0.5 bg-purple-50 border border-purple-300 text-purple-700 text-[10px] font-mono font-bold rounded hover:bg-purple-200 hover:border-purple-500 cursor-pointer transition-colors"
+                                  >
+                                    {apt.tshId} ↗
+                                  </button>
                                 )}
                                 {apt.phone && (
                                   <span className="px-1.5 py-0.5 bg-orange-50 border border-orange-400 text-orange-700 text-[10px] font-mono font-bold rounded" title="Patient phone (for portal login)">
