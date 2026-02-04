@@ -136,12 +136,13 @@ export default function PatientPortalAudioSection() {
 
   /**
    * Toggle audio playback
+   * Generates audio on-demand via API if not yet created
    */
-  const toggleAudio = async (summaryId: string, audioUrl: string) => {
-    const audio = audioRefs.current[summaryId];
+  const toggleAudio = async (dictationId: string, audioUrl: string | null) => {
+    const audio = audioRefs.current[dictationId];
 
     // If already playing, pause
-    if (playingId === summaryId) {
+    if (playingId === dictationId) {
       audio?.pause();
       setPlayingId(null);
       return;
@@ -154,14 +155,35 @@ export default function PatientPortalAudioSection() {
 
     // Load and play new audio
     if (!audio) {
-      setLoadingAudioId(summaryId);
-      const newAudio = new Audio(audioUrl);
-      audioRefs.current[summaryId] = newAudio;
+      setLoadingAudioId(dictationId);
+
+      let resolvedUrl = audioUrl;
+
+      // If no direct audio URL, generate on-demand via API
+      if (!resolvedUrl) {
+        try {
+          const response = await fetch(
+            `${API_BASE_URL}/api/patient-summaries/portal-audio/${dictationId}`
+          );
+          const data = await response.json();
+          if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Failed to generate audio');
+          }
+          resolvedUrl = data.audioUrl;
+        } catch (err: any) {
+          setLoadingAudioId(null);
+          alert(err.message || 'Error generating audio. Please try again.');
+          return;
+        }
+      }
+
+      const newAudio = new Audio(resolvedUrl!);
+      audioRefs.current[dictationId] = newAudio;
 
       newAudio.addEventListener('loadeddata', () => {
         setLoadingAudioId(null);
         newAudio.play();
-        setPlayingId(summaryId);
+        setPlayingId(dictationId);
       });
 
       newAudio.addEventListener('ended', () => {
@@ -174,7 +196,7 @@ export default function PatientPortalAudioSection() {
       });
     } else {
       audio.play();
-      setPlayingId(summaryId);
+      setPlayingId(dictationId);
     }
   };
 
@@ -356,10 +378,10 @@ export default function PatientPortalAudioSection() {
 
                       {/* Audio Controls */}
                       <div className="flex items-center space-x-2">
-                        {dictation.has_audio && dictation.audio_url && (
+                        {dictation.has_audio && (
                           <>
                             <button
-                              onClick={() => toggleAudio(dictation.id, dictation.audio_url!)}
+                              onClick={() => toggleAudio(dictation.id, dictation.audio_url)}
                               disabled={isLoadingAudio}
                               className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50"
                             >

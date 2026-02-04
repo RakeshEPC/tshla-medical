@@ -1143,4 +1143,76 @@ router.get('/patient-summaries/:linkId/audio', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/patient-summaries/portal-audio/:dictationId
+ * Generate or retrieve audio for a dictation (called from patient portal)
+ * Generates audio on-demand via ElevenLabs if not yet generated
+ */
+router.get('/portal-audio/:dictationId', async (req, res) => {
+  try {
+    const { dictationId } = req.params;
+
+    // Look up the patient_audio_summaries record by dictation_id
+    const { data: summary, error } = await supabase
+      .from('patient_audio_summaries')
+      .select('id, summary_script, voice_id, audio_blob_url')
+      .eq('dictation_id', parseInt(dictationId))
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error || !summary) {
+      return res.status(404).json({
+        success: false,
+        error: 'No audio summary found for this dictation'
+      });
+    }
+
+    // If audio already generated, return cached URL
+    if (summary.audio_blob_url) {
+      logger.info('PatientSummary', 'Portal audio cache hit', { dictationId });
+      return res.json({
+        success: true,
+        audioUrl: summary.audio_blob_url,
+        cached: true
+      });
+    }
+
+    // Generate audio on-demand
+    logger.info('PatientSummary', 'Generating portal audio on-demand', { dictationId });
+    const audioBuffer = await generateAudio(summary.summary_script, summary.voice_id);
+
+    // Upload to Azure Blob Storage
+    const audioUrl = await uploadAudioToAzure(audioBuffer, summary.voice_id, summary.id);
+
+    // Save URL to database
+    await supabase
+      .from('patient_audio_summaries')
+      .update({
+        audio_blob_url: audioUrl,
+        audio_generated_at: new Date().toISOString(),
+        audio_file_size_kb: Math.round(audioBuffer.length / 1024)
+      })
+      .eq('id', summary.id);
+
+    logger.info('PatientSummary', 'Portal audio generated and saved', { dictationId });
+
+    res.json({
+      success: true,
+      audioUrl: audioUrl,
+      cached: false
+    });
+
+  } catch (error) {
+    logger.error('PatientSummary', 'Portal audio generation failed', {
+      error: error.message,
+      dictationId: req.params.dictationId
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate audio. Please try again.'
+    });
+  }
+});
+
 module.exports = router;

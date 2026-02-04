@@ -2995,7 +2995,7 @@ router.get('/dictations/:tshlaId', async (req, res) => {
         audio_deleted: d.audio_deleted || false,
         audio_deleted_at: d.audio_deleted_at,
         created_at: d.created_at,
-        has_audio: !!(patientSummary?.audio_blob_url || (d.audio_url && !d.audio_deleted))
+        has_audio: !!(patientSummary || (d.audio_url && !d.audio_deleted))
       };
     });
 
