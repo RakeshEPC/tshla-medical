@@ -2209,6 +2209,16 @@ try {
   logger.error('UnifiedAPI', 'AI Chat Educator API not mounted - module failed to load', { error: error.message, stack: error.stack });
 }
 
+// Nutrition Note Review API - AI-assisted note processing with dietician feedback
+let nutritionReviewApi = null;
+try {
+  nutritionReviewApi = require('./routes/nutrition-review-api');
+  app.use('/api/nutrition-review', nutritionReviewApi); // Routes: /api/nutrition-review/*
+  logger.info('UnifiedAPI', 'Nutrition Review API mounted at /api/nutrition-review');
+} catch (error) {
+  logger.error('UnifiedAPI', 'Nutrition Review API not mounted - module failed to load', { error: error.message, stack: error.stack });
+}
+
 // CGM Data API - Nightscout integration for continuous glucose monitoring
 let cgmApi = null;
 try {

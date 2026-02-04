@@ -153,6 +153,9 @@ const PCMCallSummaries = lazy(() => import('./pages/PCMCallSummaries'));
 // CCD Summary Generator (HIPAA-Compliant)
 const CCDSummaryGenerator = lazy(() => import('./pages/CCDSummaryGenerator'));
 
+// Nutrition Note Review (AI-assisted, no auth required)
+const NutritionReview = lazy(() => import('./pages/NutritionReview'));
+
 function App() {
   return (
     <AuthProvider>
@@ -582,6 +585,16 @@ function App() {
                       <PatientDataImport />
                     </Suspense>
                   </ProtectedRoute>
+                }
+              />
+
+              {/* ===== NUTRITION NOTE REVIEW (NO AUTH - OPEN ACCESS) ===== */}
+              <Route
+                path="/nutrition-review"
+                element={
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <NutritionReview />
+                  </Suspense>
                 }
               />
 
