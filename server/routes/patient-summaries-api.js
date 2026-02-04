@@ -32,7 +32,7 @@ const AZURE_API_VERSION = process.env.AZURE_OPENAI_API_VERSION || '2024-10-01-pr
 
 // ElevenLabs configuration
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
-const DEFAULT_VOICE_ID = 'EXAVITQu4vr4xnSDxMaL'; // Bella - professional female
+const DEFAULT_VOICE_ID = process.env.VITE_ELEVENLABS_DEFAULT_VOICE_ID || 'f6qhiUOSRVGsfwvD4oSU'; // Dr. Rakesh Patel cloned voice
 
 // Azure Blob Storage configuration
 const AZURE_STORAGE_CONNECTION_STRING = process.env.AZURE_STORAGE_CONNECTION_STRING;
