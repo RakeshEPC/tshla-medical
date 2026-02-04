@@ -1148,7 +1148,7 @@ router.get('/patient-summaries/:linkId/audio', async (req, res) => {
  * Generate or retrieve audio for a dictation (called from patient portal)
  * Generates audio on-demand via ElevenLabs if not yet generated
  */
-router.get('/portal-audio/:dictationId', async (req, res) => {
+router.get('/patient-summaries/portal-audio/:dictationId', async (req, res) => {
   try {
     const { dictationId } = req.params;
 
