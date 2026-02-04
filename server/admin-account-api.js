@@ -8,6 +8,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
+const logger = require('./logger');
 
 const app = express();
 const PORT = process.env.ADMIN_ACCOUNT_PORT || 3004;
@@ -56,11 +57,11 @@ async function verifyAdmin(req, res, next) {
     } = await supabaseAuth.auth.getUser(token);
 
     if (error || !user) {
-      console.error('Token validation failed:', error?.message);
+      logger.warn('AdminAccount', 'Token validation failed', { error: error?.message });
       return res.status(401).json({ error: 'Invalid token' });
     }
 
-    console.log('✅ Token validated for user:', user.email);
+    logger.info('AdminAccount', 'Token validated');
 
     // Get the medical_staff record to check role
     const { data: staffData, error: staffError } = await supabase
@@ -82,7 +83,7 @@ async function verifyAdmin(req, res, next) {
     req.user = staffData;
     next();
   } catch (error) {
-    console.error('Auth middleware error:', error);
+    logger.error('AdminAccount', 'Auth middleware error', { error: error.message });
     res.status(500).json({ error: 'Authentication failed' });
   }
 }
@@ -138,7 +139,7 @@ app.post('/api/accounts/create', verifyAdmin, async (req, res) => {
     });
 
     if (authError) {
-      console.error('Auth creation error:', authError);
+      logger.error('AdminAccount', 'Auth creation error', { error: authError.message });
       return res.status(400).json({
         error: `Failed to create auth user: ${authError.message}`,
       });
@@ -175,7 +176,7 @@ app.post('/api/accounts/create', verifyAdmin, async (req, res) => {
         .single();
 
       if (staffError) {
-        console.error('Staff creation error:', staffError);
+        logger.error('AdminAccount', 'Staff creation error', { error: staffError.message });
         // Clean up auth user
         await supabase.auth.admin.deleteUser(authData.user.id);
         return res.status(400).json({
@@ -209,7 +210,7 @@ app.post('/api/accounts/create', verifyAdmin, async (req, res) => {
         .single();
 
       if (patientError) {
-        console.error('Patient creation error:', patientError);
+        logger.error('AdminAccount', 'Patient creation error', { error: patientError.message });
         // Clean up auth user
         await supabase.auth.admin.deleteUser(authData.user.id);
         return res.status(400).json({
@@ -242,7 +243,7 @@ app.post('/api/accounts/create', verifyAdmin, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Account creation error:', error);
+    logger.error('AdminAccount', 'Account creation error', { error: error.message });
     res.status(500).json({
       error: 'Failed to create account',
       details: error.message,
@@ -271,7 +272,7 @@ app.get('/api/accounts/list', verifyAdmin, async (req, res) => {
     const { data: staffData, error: staffError } = await staffQuery;
 
     if (staffError) {
-      console.error('Staff query error:', staffError);
+      logger.error('AdminAccount', 'Staff query error', { error: staffError.message });
       return res.status(500).json({ error: 'Failed to fetch staff accounts' });
     }
 
@@ -293,7 +294,7 @@ app.get('/api/accounts/list', verifyAdmin, async (req, res) => {
     const { data: patientData, error: patientError } = await patientQuery;
 
     if (patientError) {
-      console.error('Patient query error:', patientError);
+      logger.error('AdminAccount', 'Patient query error', { error: patientError.message });
       return res.status(500).json({ error: 'Failed to fetch patient accounts' });
     }
 
@@ -317,7 +318,7 @@ app.get('/api/accounts/list', verifyAdmin, async (req, res) => {
       total: accounts.length,
     });
   } catch (error) {
-    console.error('List accounts error:', error);
+    logger.error('AdminAccount', 'List accounts error', { error: error.message });
     res.status(500).json({ error: 'Failed to list accounts', details: error.message });
   }
 });
@@ -371,7 +372,7 @@ app.post('/api/accounts/reset-password', verifyAdmin, async (req, res) => {
     });
 
     if (error) {
-      console.error('Password reset error:', error);
+      logger.error('AdminAccount', 'Password reset error', { error: error.message });
       return res.status(500).json({ error: 'Failed to reset password', details: error.message });
     }
 
@@ -390,7 +391,7 @@ app.post('/api/accounts/reset-password', verifyAdmin, async (req, res) => {
       newPassword,
     });
   } catch (error) {
-    console.error('Reset password error:', error);
+    logger.error('AdminAccount', 'Reset password error', { error: error.message });
     res.status(500).json({ error: 'Failed to reset password', details: error.message });
   }
 });
@@ -425,11 +426,7 @@ app.get('/api/health', (req, res) => {
 // Start server (only if running directly, not when imported)
 if (require.main === module) {
   app.listen(PORT, () => {
-    console.log(`🔐 Admin Account API running on port ${PORT}`);
-    console.log(`📝 Endpoints:`);
-    console.log(`   POST /api/accounts/create`);
-    console.log(`   GET  /api/accounts/list`);
-    console.log(`   POST /api/accounts/reset-password`);
+    logger.startup('Admin Account API', { port: PORT });
   });
 }
 

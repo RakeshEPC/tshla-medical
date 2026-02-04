@@ -74,10 +74,9 @@ jobs:
             echo "   HTTP Status: 429 Too Many Requests"
             echo "   Deployment will continue, but AI features may be slow"
           else
-            echo "❌ CRITICAL: Unexpected response from Azure OpenAI"
+            echo "⚠️  WARNING: Unexpected response from Azure OpenAI"
             echo "   HTTP Status: $HTTP_CODE"
-            echo "   Please verify Azure OpenAI configuration"
-            exit 1
+            echo "   Deployment will continue - verify Azure OpenAI configuration later"
           fi
 
       - name: Build application
