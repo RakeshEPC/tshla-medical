@@ -2968,19 +2968,36 @@ router.get('/dictations/:tshlaId', async (req, res) => {
       throw dictError;
     }
 
-    // Format dictations for frontend
-    const formattedDictations = (dictations || []).map(d => ({
-      id: d.id,
-      provider_name: d.provider_name || 'Dr. Unknown',
-      patient_name: d.patient_name,
-      visit_date: d.visit_date || d.dictated_at || d.created_at,
-      summary_text: d.ai_summary || d.processed_note || d.raw_transcript || '', // Patient-friendly summary first
-      audio_url: d.audio_deleted ? null : d.audio_url, // Hide URL if deleted
-      audio_deleted: d.audio_deleted || false,
-      audio_deleted_at: d.audio_deleted_at,
-      created_at: d.created_at,
-      has_audio: !!(d.audio_url && !d.audio_deleted)
-    }));
+    // Fetch patient-friendly summaries and audio URLs from patient_audio_summaries
+    const dictationIds = (dictations || []).map(d => d.id).filter(Boolean);
+    let summaryMap = {};
+    if (dictationIds.length > 0) {
+      const { data: summaries } = await supabase
+        .from('patient_audio_summaries')
+        .select('dictation_id, summary_script, audio_blob_url')
+        .in('dictation_id', dictationIds);
+
+      (summaries || []).forEach(s => {
+        summaryMap[s.dictation_id] = s;
+      });
+    }
+
+    // Format dictations for frontend, preferring patient-friendly data
+    const formattedDictations = (dictations || []).map(d => {
+      const patientSummary = summaryMap[d.id];
+      return {
+        id: d.id,
+        provider_name: d.provider_name || 'Dr. Unknown',
+        patient_name: d.patient_name,
+        visit_date: d.visit_date || d.dictated_at || d.created_at,
+        summary_text: patientSummary?.summary_script || d.ai_summary || d.processed_note || d.raw_transcript || '',
+        audio_url: patientSummary?.audio_blob_url || (d.audio_deleted ? null : d.audio_url),
+        audio_deleted: d.audio_deleted || false,
+        audio_deleted_at: d.audio_deleted_at,
+        created_at: d.created_at,
+        has_audio: !!(patientSummary?.audio_blob_url || (d.audio_url && !d.audio_deleted))
+      };
+    });
 
     logger.info('PatientPortal', 'Dictations loaded', {
       tshlaId: normalizedTshId,
