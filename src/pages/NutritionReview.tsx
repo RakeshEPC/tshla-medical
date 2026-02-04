@@ -4,9 +4,9 @@
  *
  * Flow:
  * 1. Nutritionist pastes note -> hits "Process"
- * 2. AI generates summary + recommendations
- * 3. Dietician reviews -> Agree or Disagree
- * 4. If disagree -> provides feedback + optional corrections
+ * 2. AI generates summary + 5 recommendations (array)
+ * 3. Dietician reviews each recommendation inline, can type notes next to each
+ * 4. If disagree -> provides overall feedback
  * 5. Everything saved to Supabase for RAG learning
  *
  * No login required - open access
@@ -20,7 +20,7 @@ import { env } from '../config/environment';
 interface ProcessResult {
   id: string | null;
   summary: string;
-  recommendations: string;
+  recommendations: string[];
   tokensUsed: number;
   ragExamplesUsed: number;
 }
@@ -51,13 +51,23 @@ export default function NutritionReview() {
   const [dieticianName, setDieticianName] = useState('');
   const [feedback, setFeedback] = useState('');
   const [revisedSummary, setRevisedSummary] = useState('');
-  const [revisedRecommendations, setRevisedRecommendations] = useState('');
+  // Per-recommendation notes from the dietician
+  const [recNotes, setRecNotes] = useState<string[]>([]);
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState('');
 
   // Stats
   const [stats, setStats] = useState<ReviewStats | null>(null);
   const [showStats, setShowStats] = useState(false);
+
+  // Update a single recommendation note
+  const updateRecNote = useCallback((index: number, value: string) => {
+    setRecNotes(prev => {
+      const updated = [...prev];
+      updated[index] = value;
+      return updated;
+    });
+  }, []);
 
   // Process the note
   const handleProcess = useCallback(async () => {
@@ -83,14 +93,43 @@ export default function NutritionReview() {
         return;
       }
 
-      setResult(data);
+      // Ensure recommendations is an array
+      let recs = data.recommendations;
+      if (typeof recs === 'string') {
+        try {
+          recs = JSON.parse(recs);
+        } catch {
+          recs = recs.split(/\n?\d+\.\s+/).filter((r: string) => r.trim().length > 0);
+        }
+      }
+      if (!Array.isArray(recs)) {
+        recs = [String(recs)];
+      }
+
+      setResult({ ...data, recommendations: recs });
+      setRecNotes(new Array(recs.length).fill(''));
       setStep('review');
-    } catch (err) {
+    } catch {
       setError('Failed to connect to the server. Please check your connection and try again.');
     } finally {
       setProcessing(false);
     }
   }, [note, noteType]);
+
+  // Build revised recommendations string from inline notes
+  const buildRevisedRecommendations = useCallback(() => {
+    if (!result) return undefined;
+    const hasAnyNotes = recNotes.some(n => n.trim().length > 0);
+    if (!hasAnyNotes) return undefined;
+
+    return result.recommendations.map((rec, i) => {
+      const note = recNotes[i]?.trim();
+      if (note) {
+        return `${i + 1}. ${rec}\n   Dietician note: ${note}`;
+      }
+      return `${i + 1}. ${rec}`;
+    }).join('\n\n');
+  }, [result, recNotes]);
 
   // Submit agreement
   const handleAgree = useCallback(async () => {
@@ -102,12 +141,15 @@ export default function NutritionReview() {
 
     setSubmittingFeedback(true);
     try {
+      const revisedRecs = buildRevisedRecommendations();
+
       const response = await fetch(`${API_BASE}/api/nutrition-review/${result.id}/feedback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           agrees: true,
-          dieticianName: dieticianName || 'Anonymous'
+          dieticianName: dieticianName || 'Anonymous',
+          revisedRecommendations: revisedRecs
         })
       });
 
@@ -119,7 +161,7 @@ export default function NutritionReview() {
     } finally {
       setSubmittingFeedback(false);
     }
-  }, [result, dieticianName]);
+  }, [result, dieticianName, buildRevisedRecommendations]);
 
   // Submit disagreement with feedback
   const handleDisagree = useCallback(() => {
@@ -143,6 +185,8 @@ export default function NutritionReview() {
     setError('');
 
     try {
+      const revisedRecs = buildRevisedRecommendations();
+
       const response = await fetch(`${API_BASE}/api/nutrition-review/${result.id}/feedback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -151,7 +195,7 @@ export default function NutritionReview() {
           dieticianName: dieticianName || 'Anonymous',
           feedback: feedback.trim(),
           revisedSummary: revisedSummary.trim() || undefined,
-          revisedRecommendations: revisedRecommendations.trim() || undefined
+          revisedRecommendations: revisedRecs
         })
       });
 
@@ -163,7 +207,7 @@ export default function NutritionReview() {
     } finally {
       setSubmittingFeedback(false);
     }
-  }, [result, feedback, dieticianName, revisedSummary, revisedRecommendations]);
+  }, [result, feedback, dieticianName, revisedSummary, buildRevisedRecommendations]);
 
   // Load stats
   const handleLoadStats = useCallback(async () => {
@@ -188,7 +232,7 @@ export default function NutritionReview() {
     setError('');
     setFeedback('');
     setRevisedSummary('');
-    setRevisedRecommendations('');
+    setRecNotes([]);
     setFeedbackMessage('');
   }, []);
 
@@ -216,7 +260,7 @@ export default function NutritionReview() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-8">
-        {/* Stats Modal */}
+        {/* Stats Panel */}
         {showStats && stats && (
           <div className="mb-6 bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
@@ -249,7 +293,6 @@ export default function NutritionReview() {
             </div>
             <p className="text-xs text-gray-400 mt-3">
               The AI uses {stats.approved + stats.revised} approved/revised examples as context when processing new notes.
-              Higher agreement rates indicate the AI is learning your dietician's preferences.
             </p>
           </div>
         )}
@@ -270,11 +313,10 @@ export default function NutritionReview() {
             <div className="p-6 border-b border-gray-100">
               <h2 className="text-lg font-semibold text-gray-900">Paste Nutrition Note</h2>
               <p className="text-sm text-gray-500 mt-1">
-                Paste the patient's nutrition note below. The AI will generate a summary and additional recommendations.
+                Paste the patient's nutrition note below. The AI will generate a summary and 5 additional recommendations.
               </p>
             </div>
             <div className="p-6 space-y-4">
-              {/* Note Type Selector */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Note Type</label>
                 <select
@@ -291,7 +333,6 @@ export default function NutritionReview() {
                 </select>
               </div>
 
-              {/* Note Text Area */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nutrition Note</label>
                 <textarea
@@ -302,16 +343,13 @@ export default function NutritionReview() {
                   className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm font-mono leading-relaxed focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none resize-y"
                 />
                 <div className="flex justify-between items-center mt-1">
-                  <span className="text-xs text-gray-400">
-                    {note.length} characters
-                  </span>
+                  <span className="text-xs text-gray-400">{note.length} characters</span>
                   {note.length > 0 && note.length < 20 && (
                     <span className="text-xs text-amber-600">Minimum 20 characters required</span>
                   )}
                 </div>
               </div>
 
-              {/* Process Button */}
               <div className="flex justify-end pt-2">
                 <button
                   onClick={handleProcess}
@@ -363,17 +401,35 @@ export default function NutritionReview() {
               </div>
             </div>
 
-            {/* AI Recommendations */}
+            {/* AI Recommendations - Individual cards with inline edit */}
             <div className="bg-white border border-emerald-200 rounded-xl shadow-sm">
               <div className="p-4 border-b border-emerald-100 flex items-center gap-2">
                 <div className="w-6 h-6 bg-emerald-100 rounded-full flex items-center justify-center">
                   <span className="text-emerald-600 text-xs font-bold">AI</span>
                 </div>
-                <h3 className="font-semibold text-gray-900">Additional Recommendations</h3>
-                <span className="text-xs text-gray-400 ml-auto">Beyond what's in the note</span>
+                <h3 className="font-semibold text-gray-900">Recommendations</h3>
+                <span className="text-xs text-gray-400 ml-auto">Type your notes next to each</span>
               </div>
-              <div className="p-4">
-                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{result.recommendations}</p>
+              <div className="divide-y divide-gray-100">
+                {result.recommendations.map((rec, index) => (
+                  <div key={index} className="p-4">
+                    <div className="flex gap-3 items-start">
+                      <div className="w-7 h-7 bg-emerald-50 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span className="text-emerald-700 text-xs font-bold">{index + 1}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-gray-700 leading-relaxed">{rec}</p>
+                        <input
+                          type="text"
+                          value={recNotes[index] || ''}
+                          onChange={(e) => updateRecNote(index, e.target.value)}
+                          placeholder="Your note on this recommendation..."
+                          className="mt-2 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 placeholder-gray-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-gray-50"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -396,7 +452,7 @@ export default function NutritionReview() {
               />
             </div>
 
-            {/* Agree / Disagree Buttons */}
+            {/* Agree / Disagree */}
             <div className="flex gap-4">
               <button
                 onClick={handleAgree}
@@ -418,18 +474,24 @@ export default function NutritionReview() {
         {/* Step 3: Feedback Form (when disagreeing) */}
         {step === 'feedback' && result && (
           <div className="space-y-6">
-            {/* Show what they're disagreeing with */}
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-              <h3 className="text-sm font-medium text-gray-600 mb-2">AI Summary (for reference)</h3>
-              <p className="text-sm text-gray-500 whitespace-pre-wrap">{result.summary}</p>
-              <h3 className="text-sm font-medium text-gray-600 mb-2 mt-4">AI Recommendations (for reference)</h3>
-              <p className="text-sm text-gray-500 whitespace-pre-wrap">{result.recommendations}</p>
-            </div>
+            {/* Reference: AI output */}
+            <details className="bg-gray-50 border border-gray-200 rounded-xl">
+              <summary className="p-4 cursor-pointer text-sm font-medium text-gray-600">
+                View AI Summary & Recommendations (for reference)
+              </summary>
+              <div className="px-4 pb-4 space-y-3">
+                <p className="text-sm text-gray-500 whitespace-pre-wrap">{result.summary}</p>
+                <ol className="list-decimal list-inside text-sm text-gray-500 space-y-1">
+                  {result.recommendations.map((rec, i) => (
+                    <li key={i}>{rec}</li>
+                  ))}
+                </ol>
+              </div>
+            </details>
 
             <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 space-y-5">
               <h2 className="text-lg font-semibold text-gray-900">Dietician Feedback</h2>
 
-              {/* Required: Why disagree */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Why do you disagree? <span className="text-red-500">*</span>
@@ -443,14 +505,10 @@ export default function NutritionReview() {
                 />
               </div>
 
-              {/* Optional: Corrected Summary */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Your Corrected Summary <span className="text-gray-400">(optional)</span>
                 </label>
-                <p className="text-xs text-gray-400 mb-2">
-                  If you'd like to rewrite the summary, paste your version here. This helps the AI learn your preferred style.
-                </p>
                 <textarea
                   value={revisedSummary}
                   onChange={(e) => setRevisedSummary(e.target.value)}
@@ -460,24 +518,20 @@ export default function NutritionReview() {
                 />
               </div>
 
-              {/* Optional: Corrected Recommendations */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Your Corrected Recommendations <span className="text-gray-400">(optional)</span>
-                </label>
-                <p className="text-xs text-gray-400 mb-2">
-                  Rewrite the recommendations as you think they should be. The AI will use this in future processing.
-                </p>
-                <textarea
-                  value={revisedRecommendations}
-                  onChange={(e) => setRevisedRecommendations(e.target.value)}
-                  placeholder="Your corrected recommendations..."
-                  rows={4}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none resize-y"
-                />
-              </div>
+              {/* Inline recommendation notes carried over */}
+              {recNotes.some(n => n.trim()) && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                  <p className="text-sm font-medium text-emerald-800 mb-2">Your notes on recommendations (from previous step):</p>
+                  {result.recommendations.map((rec, i) => (
+                    recNotes[i]?.trim() ? (
+                      <div key={i} className="text-sm text-emerald-700 mb-1">
+                        <span className="font-medium">#{i + 1}:</span> {recNotes[i]}
+                      </div>
+                    ) : null
+                  ))}
+                </div>
+              )}
 
-              {/* Submit */}
               <div className="flex gap-4 pt-2">
                 <button
                   onClick={handleSubmitFeedback}
@@ -509,7 +563,6 @@ export default function NutritionReview() {
             <p className="text-sm text-gray-600 mb-6">{feedbackMessage}</p>
             <p className="text-xs text-gray-400 mb-6">
               Your feedback has been stored and will be used to improve future AI recommendations.
-              The more reviews you submit, the better the AI becomes at matching your clinical judgment.
             </p>
             <button
               onClick={handleNewNote}
@@ -520,7 +573,7 @@ export default function NutritionReview() {
           </div>
         )}
 
-        {/* How It Works (always visible at bottom) */}
+        {/* How It Works */}
         <div className="mt-12 bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
           <h3 className="font-semibold text-gray-900 mb-3">How AI Learning Works</h3>
           <div className="grid md:grid-cols-4 gap-4 text-sm">
@@ -539,7 +592,7 @@ export default function NutritionReview() {
               </div>
               <div>
                 <p className="font-medium text-gray-700">AI Analyzes</p>
-                <p className="text-gray-400 text-xs mt-0.5">GPT-4o generates summary + new recommendations</p>
+                <p className="text-gray-400 text-xs mt-0.5">GPT-4o generates summary + 5 recommendations</p>
               </div>
             </div>
             <div className="flex gap-3">
@@ -548,7 +601,7 @@ export default function NutritionReview() {
               </div>
               <div>
                 <p className="font-medium text-gray-700">Dietician Reviews</p>
-                <p className="text-gray-400 text-xs mt-0.5">Agree or provide corrections</p>
+                <p className="text-gray-400 text-xs mt-0.5">Add notes to each recommendation</p>
               </div>
             </div>
             <div className="flex gap-3">

@@ -91,6 +91,7 @@ Your job is to:
 3. Generate AI RECOMMENDATIONS that ADD VALUE beyond what is already in the note
 
 IMPORTANT RULES FOR RECOMMENDATIONS:
+- Provide EXACTLY 5 recommendations, no more and no less
 - Your recommendations should be DIFFERENT from or ADDITIONAL to what the nutritionist already documented
 - Focus on evidence-based suggestions the nutritionist may not have considered
 - Include specific, actionable items (e.g., "Consider adding 25g fiber daily" not just "increase fiber")
@@ -98,13 +99,16 @@ IMPORTANT RULES FOR RECOMMENDATIONS:
 - If the note mentions labs, reference clinical guidelines for nutrition-related targets
 - Flag any potential nutrient-drug interactions if medications are mentioned
 - Suggest follow-up topics or monitoring that wasn't mentioned in the note
+- Prioritize the 5 most clinically relevant recommendations
 
 FORMAT:
 Return your response as JSON with exactly two fields:
 {
   "summary": "Your concise clinical summary here...",
-  "recommendations": "Your additional AI recommendations here, using numbered points..."
-}`;
+  "recommendations": ["Recommendation 1 text here", "Recommendation 2 text here", "Recommendation 3 text here", "Recommendation 4 text here", "Recommendation 5 text here"]
+}
+
+IMPORTANT: The "recommendations" field MUST be a JSON array of exactly 5 strings, NOT a single string.`;
 
   // Add RAG examples if available
   if (ragExamples && ragExamples.length > 0) {
@@ -180,11 +184,23 @@ router.post('/process', async (req, res) => {
     let parsed;
     try {
       parsed = JSON.parse(responseText);
+      // Ensure recommendations is an array of strings
+      if (typeof parsed.recommendations === 'string') {
+        // Split numbered string into array
+        parsed.recommendations = parsed.recommendations
+          .split(/\n?\d+\.\s+/)
+          .filter(r => r.trim().length > 0)
+          .slice(0, 5);
+      }
+      if (!Array.isArray(parsed.recommendations)) {
+        parsed.recommendations = [String(parsed.recommendations)];
+      }
+      // Enforce max 5
+      parsed.recommendations = parsed.recommendations.slice(0, 5);
     } catch (parseErr) {
-      // If JSON parse fails, try to extract summary and recommendations from text
       parsed = {
         summary: responseText.substring(0, responseText.indexOf('\n\n') || 500),
-        recommendations: responseText.substring(responseText.indexOf('\n\n') || 0)
+        recommendations: [responseText.substring(responseText.indexOf('\n\n') || 0)]
       };
     }
 
@@ -194,7 +210,7 @@ router.post('/process', async (req, res) => {
       .insert({
         original_note: note,
         ai_summary: parsed.summary,
-        ai_recommendations: parsed.recommendations,
+        ai_recommendations: JSON.stringify(parsed.recommendations),
         ai_model: process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
         ai_tokens_used: tokensUsed,
         note_type: noteType || 'general',
