@@ -44,6 +44,9 @@ const loginAttempts = new Map();
 // This tracks active patient portal sessions for validation
 const activeSessions = new Map();
 
+// Staff-initiated patient portal access tokens (one-time, 5-min expiry)
+const staffAccessTokens = new Map();
+
 /**
  * Parse athenaCollector PDF files for medical data
  * Handles multiple formats: clinical visit notes, lab reports, etc.
@@ -621,6 +624,139 @@ router.post('/login', async (req, res) => {
       success: false,
       error: 'Server error during login. Please try again.'
     });
+  }
+});
+
+/**
+ * POST /api/patient-portal/staff-access
+ * Create a one-time token for staff to open patient portal as a patient
+ * Called from the schedule view when staff clicks a TSH ID
+ */
+router.post('/staff-access', async (req, res) => {
+  try {
+    const { tshlaId } = req.body;
+
+    if (!tshlaId) {
+      return res.status(400).json({ success: false, error: 'TSH ID required' });
+    }
+
+    const normalizedTshId = tshlaId.replace(/[\s-]/g, '').toUpperCase();
+
+    // Look up patient by TSH ID (try normalized, then formatted)
+    let patient;
+    const result1 = await supabase
+      .from('unified_patients')
+      .select('id, phone_primary, first_name, last_name, tshla_id, is_active')
+      .eq('tshla_id', normalizedTshId)
+      .maybeSingle();
+
+    if (result1.data) {
+      patient = result1.data;
+    } else {
+      const formatted = normalizedTshId.replace(/^TSH(\d{3})(\d{3})$/, 'TSH $1-$2');
+      const result2 = await supabase
+        .from('unified_patients')
+        .select('id, phone_primary, first_name, last_name, tshla_id, is_active')
+        .eq('tshla_id', formatted)
+        .maybeSingle();
+      patient = result2.data;
+    }
+
+    if (!patient) {
+      return res.status(404).json({ success: false, error: 'Patient not found' });
+    }
+
+    // Create one-time token
+    const token = uuidv4();
+    const patientName = `${patient.first_name || ''} ${patient.last_name || ''}`.trim();
+
+    staffAccessTokens.set(token, {
+      tshlaId: patient.tshla_id,
+      patientPhone: patient.phone_primary,
+      patientName,
+      createdAt: Date.now()
+    });
+
+    // Auto-expire token after 5 minutes
+    setTimeout(() => staffAccessTokens.delete(token), 5 * 60 * 1000);
+
+    // Log for HIPAA
+    await supabase.from('access_logs').insert({
+      user_type: 'staff',
+      action: 'staff_portal_access_token_created',
+      resource_type: 'patient_portal',
+      details: { tshla_id: patient.tshla_id, patient_name: patientName }
+    });
+
+    logger.info('PatientPortal', 'Staff access token created', { tshlaId: patient.tshla_id });
+
+    res.json({ success: true, token });
+  } catch (error) {
+    logger.error('PatientPortal', 'Staff access token error', { error: error.message });
+    res.status(500).json({ success: false, error: 'Failed to create access token' });
+  }
+});
+
+/**
+ * POST /api/patient-portal/validate-staff-token
+ * Validate a one-time staff access token and return session data
+ */
+router.post('/validate-staff-token', async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ success: false, error: 'Token required' });
+    }
+
+    const tokenData = staffAccessTokens.get(token);
+
+    if (!tokenData) {
+      return res.status(401).json({ success: false, error: 'Invalid or expired token' });
+    }
+
+    // Check if token is older than 5 minutes
+    if (Date.now() - tokenData.createdAt > 5 * 60 * 1000) {
+      staffAccessTokens.delete(token);
+      return res.status(401).json({ success: false, error: 'Token expired' });
+    }
+
+    // One-time use — delete immediately
+    staffAccessTokens.delete(token);
+
+    // Create a real session (same as normal login)
+    const sessionId = uuidv4();
+
+    activeSessions.set(sessionId, {
+      tshlaId: tokenData.tshlaId,
+      patientPhone: tokenData.patientPhone,
+      patientName: tokenData.patientName,
+      createdAt: Date.now()
+    });
+
+    // Auto-expire session after 2 hours
+    setTimeout(() => activeSessions.delete(sessionId), 2 * 60 * 60 * 1000);
+
+    // Log for HIPAA
+    await supabase.from('access_logs').insert({
+      user_type: 'staff',
+      action: 'staff_portal_access_login',
+      resource_type: 'patient_portal',
+      details: { tshla_id: tokenData.tshlaId }
+    });
+
+    logger.info('PatientPortal', 'Staff access login', { tshlaId: tokenData.tshlaId });
+
+    res.json({
+      success: true,
+      sessionId,
+      patientPhone: tokenData.patientPhone,
+      tshlaId: tokenData.tshlaId,
+      patientName: tokenData.patientName
+    });
+  } catch (error) {
+    logger.error('PatientPortal', 'Staff token validation error', { error: error.message });
+    res.status(500).json({ success: false, error: 'Token validation failed' });
   }
 });
 

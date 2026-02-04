@@ -220,9 +220,16 @@ function WeeklyView({ weeklyData, navigate, getStatusColor }: WeeklyViewProps) {
                                   </div>
                                 )}
                                 {apt.tshId && (
-                                  <div className="px-1.5 py-0.5 bg-purple-50 border border-purple-300 text-purple-700 font-mono font-bold rounded text-[10px]">
-                                    {apt.tshId}
-                                  </div>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenPatientPortal(apt.tshId!);
+                                    }}
+                                    title="Open Patient Portal as this patient"
+                                    className="px-1.5 py-0.5 bg-purple-50 border border-purple-300 text-purple-700 font-mono font-bold rounded text-[10px] hover:bg-purple-200 hover:border-purple-500 cursor-pointer transition-colors"
+                                  >
+                                    {apt.tshId} ↗
+                                  </button>
                                 )}
                                 {apt.phone && (
                                   <div className="px-1.5 py-0.5 bg-orange-50 border border-orange-400 text-orange-700 font-mono font-bold rounded text-[10px]" title="Patient phone (for portal login)">
@@ -925,6 +932,24 @@ export default function SchedulePageV2() {
       loadSchedule();
     } else {
       loadWeeklySchedule();
+    }
+  };
+
+  // Open patient portal as a patient (staff access via one-time token)
+  const handleOpenPatientPortal = async (tshId: string) => {
+    try {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      const res = await fetch(`${API_BASE_URL}/api/patient-portal/staff-access`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tshlaId: tshId }),
+      });
+      const data = await res.json();
+      if (data.success && data.token) {
+        window.open(`/patient-portal-unified?staffToken=${data.token}`, '_blank');
+      }
+    } catch {
+      // Silent fail — staff can still use normal login
     }
   };
 

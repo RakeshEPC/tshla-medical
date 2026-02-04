@@ -58,10 +58,48 @@ export default function PatientPortalUnified() {
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
   /**
+   * Validate a staff access token (one-time, from schedule TSH ID click)
+   */
+  const validateStaffToken = async (token: string) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/patient-portal/validate-staff-token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        const sessionData: SessionData = {
+          patientPhone: data.patientPhone,
+          tshlaId: data.tshlaId,
+          patientName: data.patientName,
+          sessionId: data.sessionId,
+          sessionStart: new Date().toISOString(),
+        };
+        sessionStorage.setItem('patient_portal_session', JSON.stringify(sessionData));
+        setSession(sessionData);
+      }
+    } catch {
+      // Token invalid or expired — fall through to login screen
+    }
+    setIsLoading(false);
+  };
+
+  /**
    * Check for existing session on mount or from navigation state
    */
   useEffect(() => {
-    // First check if session was passed via navigation state
+    // Check for staff access token in URL (from schedule TSH ID click)
+    const params = new URLSearchParams(location.search);
+    const staffToken = params.get('staffToken');
+    if (staffToken) {
+      // Remove token from URL for security (don't leave in browser history)
+      window.history.replaceState({}, '', '/patient-portal-unified');
+      validateStaffToken(staffToken);
+      return;
+    }
+
+    // Check if session was passed via navigation state
     if (location.state?.session) {
       const incomingSession = location.state.session;
       setSession(incomingSession);
