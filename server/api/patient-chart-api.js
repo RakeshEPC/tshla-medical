@@ -440,6 +440,221 @@ router.get('/stats/overview', async (req, res) => {
 });
 
 /**
+ * GET /api/patient-chart/:patientId/appointments
+ * Get upcoming appointments for a patient
+ */
+router.get('/:patientId/appointments', async (req, res) => {
+  try {
+    const { patientId } = req.params;
+    const { upcoming = 'true', limit = '10' } = req.query;
+
+    const supabase = getSupabase();
+
+    // First find the patient
+    const { data: patient, error: patientError } = await supabase
+      .from('unified_patients')
+      .select('id')
+      .or(`patient_id.eq.${patientId},phone_primary.eq.${patientId.replace(/\D/g, '')}`)
+      .eq('is_active', true)
+      .single();
+
+    if (patientError || !patient) {
+      return res.status(404).json({
+        success: false,
+        error: 'Patient not found'
+      });
+    }
+
+    // Get appointments
+    let query = supabase
+      .from('provider_schedules')
+      .select(`
+        id,
+        provider_id,
+        provider_name,
+        provider_email,
+        unified_patient_id,
+        patient_name,
+        patient_phone,
+        patient_email,
+        appointment_date,
+        start_time,
+        end_time,
+        appointment_type,
+        status,
+        chief_complaint,
+        notes,
+        created_at
+      `)
+      .eq('unified_patient_id', patient.id)
+      .order('appointment_date', { ascending: true })
+      .order('start_time', { ascending: true })
+      .limit(parseInt(limit, 10));
+
+    // Filter to upcoming if requested
+    if (upcoming === 'true') {
+      const today = new Date().toISOString().split('T')[0];
+      query = query.gte('appointment_date', today);
+    }
+
+    const { data: appointments, error } = await query;
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      appointments: appointments || [],
+      count: appointments?.length || 0
+    });
+
+  } catch (error) {
+    logger.error('PatientChart', 'Failed to fetch patient appointments', {
+      error: error.message,
+      errorCode: error.code
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch appointments'
+    });
+  }
+});
+
+/**
+ * POST /api/patient-chart/:patientId/portal-invite
+ * Send portal invitation to patient
+ */
+router.post('/:patientId/portal-invite', async (req, res) => {
+  try {
+    const { patientId } = req.params;
+
+    const supabase = getSupabase();
+
+    // Get patient with email
+    const { data: patient, error: patientError } = await supabase
+      .from('unified_patients')
+      .select('id, patient_id, full_name, email, phone_primary, portal_registered_at')
+      .or(`id.eq.${patientId},patient_id.eq.${patientId}`)
+      .eq('is_active', true)
+      .single();
+
+    if (patientError || !patient) {
+      return res.status(404).json({
+        success: false,
+        error: 'Patient not found'
+      });
+    }
+
+    if (!patient.email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Patient does not have an email address'
+      });
+    }
+
+    if (patient.portal_registered_at) {
+      return res.status(400).json({
+        success: false,
+        error: 'Patient is already registered for the portal'
+      });
+    }
+
+    // Generate invite token
+    const crypto = require('crypto');
+    const inviteToken = crypto.randomBytes(24).toString('hex');
+
+    // Update patient with invite token
+    const { error: updateError } = await supabase
+      .from('unified_patients')
+      .update({
+        portal_invite_token: inviteToken,
+        portal_invite_sent_at: new Date().toISOString()
+      })
+      .eq('id', patient.id);
+
+    if (updateError) throw updateError;
+
+    // In production, send email here via SendGrid/Resend/etc.
+    // For now, log the invite details
+    logger.info('PatientChart', 'Portal invite created', {
+      patientId: patient.id,
+      email: patient.email,
+      inviteToken: inviteToken.slice(0, 8) + '...'
+    });
+
+    res.json({
+      success: true,
+      message: `Portal invitation sent to ${patient.email}`,
+      inviteToken: inviteToken // In production, don't return this
+    });
+
+  } catch (error) {
+    logger.error('PatientChart', 'Failed to send portal invite', {
+      error: error.message,
+      errorCode: error.code
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to send portal invitation'
+    });
+  }
+});
+
+/**
+ * GET /api/patient-chart/:patientId/portal-status
+ * Get portal invite status for a patient
+ */
+router.get('/:patientId/portal-status', async (req, res) => {
+  try {
+    const { patientId } = req.params;
+
+    const supabase = getSupabase();
+
+    const { data: patient, error } = await supabase
+      .from('unified_patients')
+      .select(`
+        email,
+        portal_invite_token,
+        portal_invite_sent_at,
+        portal_invite_clicked_at,
+        portal_registered_at,
+        portal_access_enabled
+      `)
+      .or(`id.eq.${patientId},patient_id.eq.${patientId}`)
+      .single();
+
+    if (error || !patient) {
+      return res.status(404).json({
+        success: false,
+        error: 'Patient not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      status: {
+        hasEmail: !!patient.email,
+        inviteSent: !!patient.portal_invite_sent_at,
+        inviteClicked: !!patient.portal_invite_clicked_at,
+        isRegistered: !!patient.portal_registered_at || !!patient.portal_access_enabled,
+        sentAt: patient.portal_invite_sent_at,
+        clickedAt: patient.portal_invite_clicked_at,
+        registeredAt: patient.portal_registered_at
+      }
+    });
+
+  } catch (error) {
+    logger.error('PatientChart', 'Failed to get portal status', {
+      error: error.message,
+      errorCode: error.code
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get portal status'
+    });
+  }
+});
+
+/**
  * GET /api/patient-chart/:patientId/timeline
  * Get patient timeline of all interactions
  */

@@ -21,9 +21,18 @@ import {
   Upload,
   CalendarDays,
   Droplets,
+  Mic,
+  CalendarPlus,
+  Send,
+  MapPin,
+  Shield,
+  Heart,
+  Building,
 } from 'lucide-react';
 import GlucoseTab from '../components/GlucoseTab';
 import type { CGMSummary } from '../types/cgm.types';
+import { patientAppointmentLinkerService, type PatientAppointment } from '../services/patientAppointmentLinker.service';
+import { portalInviteService, type PortalInviteStatus } from '../services/portalInvite.service';
 
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
@@ -31,12 +40,15 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000
 interface Patient {
   id: string;
   patient_id: string;
+  tshla_id?: string;
   phone_primary: string;
   phone_display: string;
   first_name: string;
   last_name: string;
   full_name: string;
   date_of_birth: string;
+  gender?: string;
+  age?: number;
   email: string;
   mrn: string;
   active_conditions: string[];
@@ -49,6 +61,22 @@ interface Patient {
   created_at: string;
   has_portal_access: boolean;
   portal_last_login: string;
+  // Address
+  street_address?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
+  // Insurance
+  insurance_provider?: string;
+  insurance_member_id?: string;
+  insurance_group_number?: string;
+  // Emergency Contact
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  emergency_contact_relationship?: string;
+  // Preferences
+  preferred_language?: string;
+  communication_preference?: string;
 }
 
 interface Dictation {
@@ -128,6 +156,9 @@ const UnifiedPatientChart: React.FC = () => {
   const [alertDismissed, setAlertDismissed] = useState(false);
   const [lastAlertValue, setLastAlertValue] = useState<number | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
+  const [upcomingAppointments, setUpcomingAppointments] = useState<PatientAppointment[]>([]);
+  const [portalStatus, setPortalStatus] = useState<PortalInviteStatus | null>(null);
+  const [isSendingInvite, setIsSendingInvite] = useState(false);
 
   // Debounced live search as user types
   useEffect(() => {
@@ -209,6 +240,41 @@ const UnifiedPatientChart: React.FC = () => {
     if (loaded && (loaded.patient_id === patientId || loaded.phone_primary === patientId)) return;
     loadPatientChart(patientId);
   }, [searchParams]);
+
+  // Load upcoming appointments and portal status when patient is selected
+  useEffect(() => {
+    if (!selectedPatient?.id) {
+      setUpcomingAppointments([]);
+      setPortalStatus(null);
+      return;
+    }
+
+    // Load appointments
+    const loadAppointments = async () => {
+      try {
+        const appointments = await patientAppointmentLinkerService.getPatientAppointments(
+          selectedPatient.id,
+          { upcomingOnly: true, limit: 5 }
+        );
+        setUpcomingAppointments(appointments);
+      } catch (err) {
+        console.error('Failed to load appointments:', err);
+      }
+    };
+
+    // Load portal status
+    const loadPortalStatus = async () => {
+      try {
+        const status = await portalInviteService.getInviteStatus(selectedPatient.id);
+        setPortalStatus(status);
+      } catch (err) {
+        console.error('Failed to load portal status:', err);
+      }
+    };
+
+    loadAppointments();
+    loadPortalStatus();
+  }, [selectedPatient?.id]);
 
   // Load full patient chart
   const loadPatientChart = async (identifier: string) => {
@@ -337,7 +403,62 @@ const UnifiedPatientChart: React.FC = () => {
   const handleBackToSearch = () => {
     setSelectedPatient(null);
     setPatientChart(null);
+    setUpcomingAppointments([]);
+    setPortalStatus(null);
     setSearchParams({});
+  };
+
+  // Quick Actions
+  const handleStartDictation = () => {
+    if (selectedPatient) {
+      navigate(`/dictation?patient_id=${selectedPatient.patient_id}&patient_name=${encodeURIComponent(selectedPatient.full_name)}`);
+    }
+  };
+
+  const handleScheduleAppointment = () => {
+    if (selectedPatient) {
+      navigate(`/schedule?action=new&patient_id=${selectedPatient.patient_id}&patient_name=${encodeURIComponent(selectedPatient.full_name)}&patient_phone=${selectedPatient.phone_primary}`);
+    }
+  };
+
+  const handleSendPortalInvite = async () => {
+    if (!selectedPatient) return;
+
+    if (!selectedPatient.email) {
+      alert('Please add an email address for this patient first.');
+      return;
+    }
+
+    setIsSendingInvite(true);
+    try {
+      const result = await portalInviteService.sendPortalInvite({
+        patientId: selectedPatient.id,
+        email: selectedPatient.email,
+        patientName: selectedPatient.full_name,
+        phone: selectedPatient.phone_primary
+      });
+
+      if (result.success) {
+        alert(result.message);
+        // Refresh portal status
+        const status = await portalInviteService.getInviteStatus(selectedPatient.id);
+        setPortalStatus(status);
+      } else {
+        alert(result.error || 'Failed to send invitation');
+      }
+    } catch (err) {
+      alert('Failed to send portal invitation');
+      console.error('Portal invite error:', err);
+    } finally {
+      setIsSendingInvite(false);
+    }
+  };
+
+  // Format appointment for display
+  const formatAppointmentTime = (appointment: PatientAppointment) => {
+    const dateObj = new Date(appointment.appointment_date + 'T12:00:00');
+    const dateStr = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    return `${dateStr} at ${appointment.start_time}`;
   };
 
   return (
@@ -500,17 +621,24 @@ const UnifiedPatientChart: React.FC = () => {
                       </span>
                     </div>
                     <div className="flex items-center gap-2 mt-2">
+                      {selectedPatient.tshla_id && (
+                        <span className="font-mono text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded font-semibold">
+                          {selectedPatient.tshla_id}
+                        </span>
+                      )}
                       <span className="font-mono text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
-                        {selectedPatient.patient_id}
+                        ID: {selectedPatient.patient_id}
                       </span>
                       {selectedPatient.mrn && (
-                        <span className="font-mono text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                        <span className="font-mono text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
                           MRN: {selectedPatient.mrn}
                         </span>
                       )}
-                      <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
-                        {selectedPatient.data_sources.join(', ')}
-                      </span>
+                      {selectedPatient.age && (
+                        <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                          {selectedPatient.age}yo {selectedPatient.gender || ''}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -520,9 +648,75 @@ const UnifiedPatientChart: React.FC = () => {
                   {selectedPatient.has_portal_access && (
                     <p className="text-xs text-green-600 mt-1">✓ Portal Access Enabled</p>
                   )}
+                  {portalStatus && !portalStatus.isRegistered && portalStatus.inviteSent && (
+                    <p className="text-xs text-blue-600 mt-1">📧 Invite Sent</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Quick Actions Bar */}
+              <div className="mt-6 pt-4 border-t border-gray-200">
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={handleStartDictation}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    <Mic className="w-4 h-4" />
+                    Start Dictation
+                  </button>
+                  <button
+                    onClick={handleScheduleAppointment}
+                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                  >
+                    <CalendarPlus className="w-4 h-4" />
+                    Schedule Appointment
+                  </button>
+                  <button
+                    onClick={handleSendPortalInvite}
+                    disabled={isSendingInvite || (portalStatus?.isRegistered ?? false)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                      portalStatus?.isRegistered
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-green-600 text-white hover:bg-green-700'
+                    }`}
+                  >
+                    <Send className="w-4 h-4" />
+                    {isSendingInvite ? 'Sending...' : portalStatus?.isRegistered ? 'Already Registered' : portalStatus?.inviteSent ? 'Resend Portal Invite' : 'Send Portal Invite'}
+                  </button>
                 </div>
               </div>
             </div>
+
+            {/* Upcoming Appointments Section */}
+            {upcomingAppointments.length > 0 && (
+              <div className="bg-white rounded-lg shadow-lg p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <CalendarDays className="w-5 h-5 text-purple-500" />
+                  Upcoming Appointments
+                </h3>
+                <div className="space-y-3">
+                  {upcomingAppointments.map((appt) => {
+                    const display = patientAppointmentLinkerService.formatAppointmentDisplay(appt);
+                    return (
+                      <div key={appt.id} className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-3 h-3 rounded-full bg-${display.statusColor}-500`} />
+                          <div>
+                            <p className="font-medium text-gray-900">{display.dateDisplay}</p>
+                            <p className="text-sm text-gray-600">
+                              {display.timeDisplay} • {appt.provider_name || 'Provider TBD'} • {display.typeDisplay}
+                            </p>
+                          </div>
+                        </div>
+                        <span className={`px-2 py-1 text-xs rounded bg-${display.statusColor}-100 text-${display.statusColor}-700`}>
+                          {display.statusDisplay}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -807,8 +1001,9 @@ const UnifiedPatientChart: React.FC = () => {
 
                 {/* Demographics Tab */}
                 {activeTab === 'demographics' && (
-                  <div>
-                    <div className="flex items-center justify-between mb-6">
+                  <div className="space-y-8">
+                    {/* Header with Edit Button */}
+                    <div className="flex items-center justify-between">
                       <h3 className="text-lg font-semibold text-gray-900">Patient Information</h3>
                       {!isEditingDemographics ? (
                         <button
@@ -841,35 +1036,184 @@ const UnifiedPatientChart: React.FC = () => {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {[
-                        { key: 'first_name', label: 'First Name', type: 'text' },
-                        { key: 'last_name', label: 'Last Name', type: 'text' },
-                        { key: 'date_of_birth', label: 'Date of Birth', type: 'date' },
-                        { key: 'email', label: 'Email', type: 'email' },
-                        { key: 'phone_primary', label: 'Phone Number', type: 'tel' },
-                        { key: 'mrn', label: 'MRN', type: 'text' },
-                      ].map((field) => (
-                        <div key={field.key}>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            {field.label}
-                          </label>
-                          {isEditingDemographics ? (
-                            <input
-                              type={field.type}
-                              value={(editedPatient as any)[field.key] || ''}
-                              onChange={(e) =>
-                                setEditedPatient({ ...editedPatient, [field.key]: e.target.value })
-                              }
-                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            />
-                          ) : (
-                            <p className="px-4 py-2 bg-gray-50 rounded-lg text-gray-900">
-                              {(selectedPatient as any)[field.key] || 'Not provided'}
-                            </p>
-                          )}
-                        </div>
-                      ))}
+                    {/* Basic Information Card */}
+                    <div className="bg-gray-50 rounded-lg p-6">
+                      <h4 className="text-md font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                        <User className="w-5 h-5 text-blue-500" />
+                        Personal Information
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {[
+                          { key: 'first_name', label: 'First Name', type: 'text' },
+                          { key: 'last_name', label: 'Last Name', type: 'text' },
+                          { key: 'date_of_birth', label: 'Date of Birth', type: 'date' },
+                          { key: 'gender', label: 'Gender', type: 'text' },
+                          { key: 'email', label: 'Email', type: 'email' },
+                          { key: 'phone_primary', label: 'Phone Number', type: 'tel' },
+                        ].map((field) => (
+                          <div key={field.key}>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">
+                              {field.label}
+                            </label>
+                            {isEditingDemographics ? (
+                              <input
+                                type={field.type}
+                                value={(editedPatient as any)[field.key] || ''}
+                                onChange={(e) =>
+                                  setEditedPatient({ ...editedPatient, [field.key]: e.target.value })
+                                }
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                              />
+                            ) : (
+                              <p className="text-gray-900 font-medium">
+                                {(selectedPatient as any)[field.key] || '—'}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Address Card */}
+                    <div className="bg-gray-50 rounded-lg p-6">
+                      <h4 className="text-md font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                        <MapPin className="w-5 h-5 text-green-500" />
+                        Address
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {[
+                          { key: 'street_address', label: 'Street Address', type: 'text', span: 2 },
+                          { key: 'city', label: 'City', type: 'text' },
+                          { key: 'state', label: 'State', type: 'text' },
+                          { key: 'zip_code', label: 'ZIP Code', type: 'text' },
+                        ].map((field) => (
+                          <div key={field.key} className={field.span === 2 ? 'md:col-span-2' : ''}>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">
+                              {field.label}
+                            </label>
+                            {isEditingDemographics ? (
+                              <input
+                                type={field.type}
+                                value={(editedPatient as any)[field.key] || ''}
+                                onChange={(e) =>
+                                  setEditedPatient({ ...editedPatient, [field.key]: e.target.value })
+                                }
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                              />
+                            ) : (
+                              <p className="text-gray-900 font-medium">
+                                {(selectedPatient as any)[field.key] || '—'}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Insurance Card */}
+                    <div className="bg-gray-50 rounded-lg p-6">
+                      <h4 className="text-md font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                        <Shield className="w-5 h-5 text-purple-500" />
+                        Insurance Information
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {[
+                          { key: 'insurance_provider', label: 'Insurance Provider', type: 'text' },
+                          { key: 'insurance_member_id', label: 'Member ID', type: 'text' },
+                          { key: 'insurance_group_number', label: 'Group Number', type: 'text' },
+                        ].map((field) => (
+                          <div key={field.key}>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">
+                              {field.label}
+                            </label>
+                            {isEditingDemographics ? (
+                              <input
+                                type={field.type}
+                                value={(editedPatient as any)[field.key] || ''}
+                                onChange={(e) =>
+                                  setEditedPatient({ ...editedPatient, [field.key]: e.target.value })
+                                }
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                              />
+                            ) : (
+                              <p className="text-gray-900 font-medium">
+                                {(selectedPatient as any)[field.key] || '—'}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Emergency Contact Card */}
+                    <div className="bg-red-50 rounded-lg p-6">
+                      <h4 className="text-md font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                        <Heart className="w-5 h-5 text-red-500" />
+                        Emergency Contact
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {[
+                          { key: 'emergency_contact_name', label: 'Contact Name', type: 'text' },
+                          { key: 'emergency_contact_phone', label: 'Contact Phone', type: 'tel' },
+                          { key: 'emergency_contact_relationship', label: 'Relationship', type: 'text' },
+                        ].map((field) => (
+                          <div key={field.key}>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">
+                              {field.label}
+                            </label>
+                            {isEditingDemographics ? (
+                              <input
+                                type={field.type}
+                                value={(editedPatient as any)[field.key] || ''}
+                                onChange={(e) =>
+                                  setEditedPatient({ ...editedPatient, [field.key]: e.target.value })
+                                }
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                              />
+                            ) : (
+                              <p className="text-gray-900 font-medium">
+                                {(selectedPatient as any)[field.key] || '—'}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Preferences Card */}
+                    <div className="bg-gray-50 rounded-lg p-6">
+                      <h4 className="text-md font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                        <Building className="w-5 h-5 text-indigo-500" />
+                        Preferences & IDs
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        {[
+                          { key: 'mrn', label: 'MRN', type: 'text' },
+                          { key: 'tshla_id', label: 'TSH ID', type: 'text' },
+                          { key: 'preferred_language', label: 'Preferred Language', type: 'text' },
+                          { key: 'communication_preference', label: 'Communication Preference', type: 'text' },
+                        ].map((field) => (
+                          <div key={field.key}>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">
+                              {field.label}
+                            </label>
+                            {isEditingDemographics ? (
+                              <input
+                                type={field.type}
+                                value={(editedPatient as any)[field.key] || ''}
+                                onChange={(e) =>
+                                  setEditedPatient({ ...editedPatient, [field.key]: e.target.value })
+                                }
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                              />
+                            ) : (
+                              <p className="text-gray-900 font-medium">
+                                {(selectedPatient as any)[field.key] || '—'}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}
