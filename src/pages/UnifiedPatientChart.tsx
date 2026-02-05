@@ -34,6 +34,7 @@ import {
   Wine,
   Cigarette,
   Briefcase,
+  Home,
 } from 'lucide-react';
 import GlucoseTab from '../components/GlucoseTab';
 import MedicationManagement from '../components/MedicationManagement';
@@ -184,17 +185,6 @@ interface ComprehensiveChart {
   last_updated?: string;
 }
 
-interface TimelineEvent {
-  id: string;
-  type: 'dictation' | 'previsit' | 'appointment' | 'created';
-  date: string;
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  color: string;
-  data: any;
-}
-
 const UnifiedPatientChart: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -206,7 +196,7 @@ const UnifiedPatientChart: React.FC = () => {
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [patientChart, setPatientChart] = useState<PatientChart | null>(null);
   const [isLoadingChart, setIsLoadingChart] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'timeline' | 'dictations' | 'demographics' | 'glucose' | 'medications' | 'labs' | 'medical-history'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'dictations' | 'demographics' | 'glucose' | 'medications' | 'labs' | 'medical-history'>('overview');
   const [isEditingDemographics, setIsEditingDemographics] = useState(false);
   const [comprehensiveChart, setComprehensiveChart] = useState<ComprehensiveChart | null>(null);
   const [isLoadingCompChart, setIsLoadingCompChart] = useState(false);
@@ -432,70 +422,6 @@ const UnifiedPatientChart: React.FC = () => {
     }
   };
 
-  // Build timeline from all events
-  const buildTimeline = (): TimelineEvent[] => {
-    if (!patientChart) return [];
-
-    const events: TimelineEvent[] = [];
-
-    // Patient created event
-    events.push({
-      id: 'created',
-      type: 'created',
-      date: patientChart.patient.created_at,
-      title: 'Patient Record Created',
-      description: `Created from ${patientChart.patient.created_from}`,
-      icon: <User className="w-5 h-5" />,
-      color: 'bg-gray-500',
-      data: null,
-    });
-
-    // Dictations
-    patientChart.dictations.forEach(dictation => {
-      events.push({
-        id: dictation.id,
-        type: 'dictation',
-        date: dictation.visit_date || dictation.created_at,
-        title: 'Medical Visit',
-        description: dictation.chief_complaint || 'Dictated note',
-        icon: <Stethoscope className="w-5 h-5" />,
-        color: 'bg-blue-500',
-        data: dictation,
-      });
-    });
-
-    // Pre-visits
-    patientChart.previsits.forEach(previsit => {
-      events.push({
-        id: previsit.id,
-        type: 'previsit',
-        date: previsit.scheduled_date || previsit.created_at,
-        title: 'Pre-Visit Call',
-        description: `${previsit.concerns?.length || 0} concerns discussed`,
-        icon: <Headphones className="w-5 h-5" />,
-        color: 'bg-green-500',
-        data: previsit,
-      });
-    });
-
-    // Appointments
-    patientChart.appointments.forEach(appointment => {
-      events.push({
-        id: appointment.id,
-        type: 'appointment',
-        date: appointment.appointment_date,
-        title: 'Scheduled Appointment',
-        description: `${appointment.appointment_time} with ${appointment.provider_name}`,
-        icon: <CalendarDays className="w-5 h-5" />,
-        color: 'bg-purple-500',
-        data: appointment,
-      });
-    });
-
-    // Sort by date (most recent first)
-    return events.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  };
-
   // Go back to search
   const handleBackToSearch = () => {
     setSelectedPatient(null);
@@ -585,10 +511,19 @@ const UnifiedPatientChart: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
+          {/* Back to Dashboard */}
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors"
+          >
+            <Home className="w-4 h-4" />
+            <span className="text-sm">Back to Dashboard</span>
+          </button>
+
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Unified Patient Charts</h1>
-              <p className="text-gray-600 mt-1">Search and view complete patient medical records</p>
+              <h1 className="text-3xl font-bold text-gray-900">Patient EMR</h1>
+              <p className="text-gray-600 mt-1">Comprehensive electronic medical records</p>
             </div>
             {selectedPatient && (
               <button
@@ -818,15 +753,57 @@ const UnifiedPatientChart: React.FC = () => {
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-white rounded-lg shadow p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Total Visits</p>
-                    <p className="text-2xl font-bold text-gray-900">{patientChart.stats.totalVisits}</p>
+              {/* CGM Card - Shows glucose if configured, setup button if not */}
+              {patientChart.cgm?.currentGlucose ? (
+                <div
+                  className="bg-gradient-to-br from-teal-50 to-cyan-50 rounded-lg shadow p-4 cursor-pointer hover:ring-2 hover:ring-teal-300 transition-all border border-teal-200"
+                  onClick={() => setActiveTab('glucose')}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-teal-700 font-medium">CGM Glucose</p>
+                      <p className="text-2xl font-bold" style={{
+                        color: patientChart.cgm.currentGlucose.glucoseValue < 70 ? '#ef4444'
+                          : patientChart.cgm.currentGlucose.glucoseValue > 180 ? '#f59e0b'
+                          : '#22c55e'
+                      }}>
+                        {patientChart.cgm.currentGlucose.glucoseValue}
+                        <span className="text-sm ml-1">{patientChart.cgm.currentGlucose.trendArrow}</span>
+                      </p>
+                    </div>
+                    <Droplets className="w-8 h-8 text-teal-500" />
                   </div>
-                  <Activity className="w-8 h-8 text-blue-500" />
+                  {patientChart.cgm.stats14day && (
+                    <div className="mt-2">
+                      <div className="flex h-2 rounded-full overflow-hidden">
+                        <div className="bg-red-400" style={{ width: `${patientChart.cgm.stats14day.timeBelowRangePercent}%` }} />
+                        <div className="bg-green-400" style={{ width: `${patientChart.cgm.stats14day.timeInRangePercent}%` }} />
+                        <div className="bg-amber-400" style={{ width: `${patientChart.cgm.stats14day.timeAboveRangePercent}%` }} />
+                      </div>
+                      <div className="flex justify-between mt-1">
+                        <span className="text-xs text-gray-600">TIR {patientChart.cgm.stats14day.timeInRangePercent}%</span>
+                        <span className="text-xs text-gray-600">A1C ~{patientChart.cgm.stats14day.estimatedA1c}%</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
+              ) : (
+                <div
+                  className="bg-gradient-to-br from-gray-50 to-slate-100 rounded-lg shadow p-4 cursor-pointer hover:ring-2 hover:ring-teal-300 transition-all border border-dashed border-gray-300"
+                  onClick={() => navigate(`/admin/cgm-setup?patient=${selectedPatient.patient_id}&phone=${selectedPatient.phone_primary}`)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">CGM Not Setup</p>
+                      <p className="text-sm font-semibold text-teal-600 mt-1">
+                        + Connect Dexcom/Libre
+                      </p>
+                    </div>
+                    <Droplets className="w-8 h-8 text-gray-400" />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">Click to setup CGM tracking</p>
+                </div>
+              )}
               <div className="bg-white rounded-lg shadow p-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -845,55 +822,19 @@ const UnifiedPatientChart: React.FC = () => {
                   <Headphones className="w-8 h-8 text-purple-500" />
                 </div>
               </div>
-              {patientChart.cgm?.currentGlucose ? (
-                <div
-                  className="bg-white rounded-lg shadow p-4 cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all"
-                  onClick={() => setActiveTab('glucose')}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Glucose</p>
-                      <p className="text-2xl font-bold" style={{
-                        color: patientChart.cgm.currentGlucose.glucoseValue < 70 ? '#ef4444'
-                          : patientChart.cgm.currentGlucose.glucoseValue > 180 ? '#f59e0b'
-                          : '#22c55e'
-                      }}>
-                        {patientChart.cgm.currentGlucose.glucoseValue}
-                        <span className="text-sm ml-1">{patientChart.cgm.currentGlucose.trendArrow}</span>
-                      </p>
-                    </div>
-                    <Droplets className="w-8 h-8 text-teal-500" />
+              <div className="bg-white rounded-lg shadow p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Last Visit</p>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {patientChart.stats.lastVisitDate
+                        ? new Date(patientChart.stats.lastVisitDate).toLocaleDateString()
+                        : 'N/A'}
+                    </p>
                   </div>
-                  {/* Mini TIR bar + A1C */}
-                  {patientChart.cgm.stats14day && (
-                    <div className="mt-2">
-                      <div className="flex h-2 rounded-full overflow-hidden">
-                        <div className="bg-red-400" style={{ width: `${patientChart.cgm.stats14day.timeBelowRangePercent}%` }} />
-                        <div className="bg-green-400" style={{ width: `${patientChart.cgm.stats14day.timeInRangePercent}%` }} />
-                        <div className="bg-amber-400" style={{ width: `${patientChart.cgm.stats14day.timeAboveRangePercent}%` }} />
-                      </div>
-                      <div className="flex justify-between mt-1">
-                        <span className="text-xs text-gray-500">TIR {patientChart.cgm.stats14day.timeInRangePercent}%</span>
-                        <span className="text-xs text-gray-500">A1C ~{patientChart.cgm.stats14day.estimatedA1c}%</span>
-                      </div>
-                    </div>
-                  )}
+                  <Clock className="w-8 h-8 text-orange-500" />
                 </div>
-              ) : (
-                <div className="bg-white rounded-lg shadow p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Last Visit</p>
-                      <p className="text-sm font-semibold text-gray-900">
-                        {patientChart.stats.lastVisitDate
-                          ? new Date(patientChart.stats.lastVisitDate).toLocaleDateString()
-                          : 'N/A'}
-                      </p>
-                    </div>
-                    <Clock className="w-8 h-8 text-orange-500" />
-                  </div>
-                </div>
-              )}
+              </div>
             </div>
 
             {/* Tabs */}
@@ -906,7 +847,6 @@ const UnifiedPatientChart: React.FC = () => {
                     { id: 'medications', label: 'Medications', icon: <Pill className="w-4 h-4" /> },
                     { id: 'labs', label: 'Labs', icon: <FlaskConical className="w-4 h-4" /> },
                     { id: 'medical-history', label: 'Medical History', icon: <ClipboardList className="w-4 h-4" /> },
-                    { id: 'timeline', label: 'Timeline', icon: <Clock className="w-4 h-4" /> },
                     { id: 'dictations', label: 'Dictations', icon: <FileText className="w-4 h-4" /> },
                     { id: 'demographics', label: 'Demographics', icon: <User className="w-4 h-4" /> },
                   ].map((tab) => (
@@ -1320,40 +1260,6 @@ const UnifiedPatientChart: React.FC = () => {
                         </div>
                       </>
                     )}
-                  </div>
-                )}
-
-                {/* Timeline Tab */}
-                {activeTab === 'timeline' && (
-                  <div className="space-y-4">
-                    {buildTimeline().map((event, idx) => (
-                      <div key={event.id} className="flex gap-4">
-                        <div className="flex flex-col items-center">
-                          <div className={`w-10 h-10 ${event.color} rounded-full flex items-center justify-center text-white`}>
-                            {event.icon}
-                          </div>
-                          {idx < buildTimeline().length - 1 && <div className="w-0.5 h-full bg-gray-200 my-2" />}
-                        </div>
-                        <div className="flex-1 pb-8">
-                          <div className="bg-gray-50 rounded-lg p-4">
-                            <div className="flex items-start justify-between">
-                              <div>
-                                <h4 className="font-semibold text-gray-900">{event.title}</h4>
-                                <p className="text-sm text-gray-600 mt-1">{event.description}</p>
-                              </div>
-                              <span className="text-xs text-gray-500">
-                                {new Date(event.date).toLocaleDateString()}
-                              </span>
-                            </div>
-                            {event.data && event.type === 'dictation' && (
-                              <div className="mt-3 pt-3 border-t border-gray-200">
-                                <p className="text-sm text-gray-700 line-clamp-3">{event.data.processed_note}</p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
                   </div>
                 )}
 
