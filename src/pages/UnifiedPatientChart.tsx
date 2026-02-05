@@ -293,7 +293,7 @@ const UnifiedPatientChart: React.FC = () => {
 
       // Update URL with patient ID (fall back to phone if patient_id is null)
       const urlId = data.chart.patient.patient_id || data.chart.patient.phone_primary;
-      if (urlId && urlId !== identifier) {
+      if (urlId) {
         setSearchParams({ patient: urlId }, { replace: true });
       }
     } catch (err) {
