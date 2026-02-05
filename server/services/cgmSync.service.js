@@ -147,13 +147,35 @@ class CGMSyncService {
       return { synced: insertedCount, total: entries.length };
 
     } catch (error) {
+      const errorCount = (config.sync_error_count || 0) + 1;
+      const errorMsg = error.message || '';
+
+      // Determine error type and appropriate status
+      const isAuthError = errorMsg.includes('auth') ||
+                          errorMsg.includes('unauthorized') ||
+                          errorMsg.includes('invalid') ||
+                          errorMsg.includes('401') ||
+                          errorMsg.includes('credentials');
+
+      // Graduated error handling:
+      // - Auth errors immediately set 'unauthorized' (needs user action)
+      // - Transient errors keep 'active' for first 2 failures
+      // - 3+ consecutive failures set 'error'
+      let newStatus = config.connection_status;
+      if (isAuthError) {
+        newStatus = 'unauthorized';
+      } else if (errorCount >= 3) {
+        newStatus = 'error';
+      }
+      // Otherwise keep current status (likely 'active') for transient failures
+
       await supabase
         .from('patient_nightscout_config')
         .update({
           last_sync_at: new Date().toISOString(),
-          connection_status: 'error',
-          sync_error_count: (config.sync_error_count || 0) + 1,
-          last_error: error.message,
+          connection_status: newStatus,
+          sync_error_count: errorCount,
+          last_error: errorMsg,
         })
         .eq('id', config.id);
 

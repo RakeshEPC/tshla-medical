@@ -11,6 +11,8 @@ interface PanelPatient {
   dataSource: string;
   connectionStatus: string;
   lastSync: string | null;
+  syncErrorCount: number;
+  lastError: string | null;
   currentGlucose: {
     value: number;
     trend: string;
@@ -63,6 +65,16 @@ const CGMDashboard: React.FC = () => {
   }, []);
 
   const phone10 = (phone: string) => phone.replace(/\D/g, '').slice(-10);
+
+  const handleRetrySync = async (phone: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await fetch(`${API_BASE_URL}/api/cgm/sync/${encodeURIComponent(phone)}`, { method: 'POST' });
+      setTimeout(fetchPanel, 2000);
+    } catch (err) {
+      console.error('Sync retry failed:', err);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -142,6 +154,7 @@ const CGMDashboard: React.FC = () => {
                   <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">CV%</th>
                   <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Patterns</th>
                   <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Risk</th>
+                  <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Status</th>
                   <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">Last Sync</th>
                 </tr>
               </thead>
@@ -215,6 +228,31 @@ const CGMDashboard: React.FC = () => {
                         <span className={`px-2 py-1 rounded-full text-xs font-bold ${risk.bg}`}>
                           {risk.label}
                         </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {patient.connectionStatus === 'active' ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-medium">
+                            Active
+                          </span>
+                        ) : patient.connectionStatus === 'error' ? (
+                          <div className="flex items-center justify-center gap-2">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-medium" title={patient.lastError || 'Sync issue'}>
+                              Sync Issue
+                            </span>
+                            <button
+                              onClick={(e) => handleRetrySync(patient.patientPhone, e)}
+                              className="text-xs text-blue-600 hover:underline"
+                            >
+                              Retry
+                            </button>
+                          </div>
+                        ) : patient.connectionStatus === 'unauthorized' ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-medium" title="Credentials need to be updated">
+                            Credentials
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 text-xs">{patient.connectionStatus}</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right text-xs text-gray-500">
                         {patient.lastSync

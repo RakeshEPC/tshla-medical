@@ -547,11 +547,11 @@ router.delete('/events/:id', async (req, res) => {
  */
 router.get('/panel', async (req, res) => {
   try {
-    // Get all configured CGM patients
+    // Get all configured CGM patients (show all, status column indicates sync issues)
     const { data: configs, error: cfgErr } = await supabase
       .from('patient_nightscout_config')
-      .select('patient_phone, patient_name, unified_patient_id, data_source, connection_status, sync_enabled, last_sync_at')
-      .eq('connection_status', 'active');
+      .select('patient_phone, patient_name, unified_patient_id, data_source, connection_status, sync_enabled, last_sync_at, sync_error_count, last_error')
+      .or('sync_enabled.eq.true,connection_status.eq.active');
 
     if (cfgErr) throw cfgErr;
     if (!configs || configs.length === 0) {
@@ -621,6 +621,8 @@ router.get('/panel', async (req, res) => {
         dataSource: config.data_source,
         connectionStatus: config.connection_status,
         lastSync: config.last_sync_at,
+        syncErrorCount: config.sync_error_count || 0,
+        lastError: config.last_error,
         currentGlucose,
         stats14day,
         patternCount: patterns.length,
