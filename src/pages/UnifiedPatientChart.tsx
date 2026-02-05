@@ -127,6 +127,52 @@ const UnifiedPatientChart: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [alertDismissed, setAlertDismissed] = useState(false);
   const [lastAlertValue, setLastAlertValue] = useState<number | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
+
+  // Debounced live search as user types
+  useEffect(() => {
+    // Don't search if query is too short
+    if (searchQuery.trim().length < 2) {
+      setSearchResults([]);
+      setHasSearched(false);
+      return;
+    }
+
+    // Debounce: wait 300ms after user stops typing
+    const timer = setTimeout(() => {
+      performSearch(searchQuery);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Perform the actual search
+  const performSearch = async (query: string) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    setError(null);
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/patient-chart/search/query?q=${encodeURIComponent(query)}`
+      );
+
+      if (!response.ok) throw new Error('Search failed');
+
+      const data = await response.json();
+      setSearchResults(data.patients || []);
+      setHasSearched(true);
+    } catch (err) {
+      setError('Failed to search patients. Please try again.');
+      console.error('Search error:', err);
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
   // Glucose alert logic
   const currentGlucose = patientChart?.cgm?.currentGlucose;
@@ -163,33 +209,6 @@ const UnifiedPatientChart: React.FC = () => {
     if (loaded && (loaded.patient_id === patientId || loaded.phone_primary === patientId)) return;
     loadPatientChart(patientId);
   }, [searchParams]);
-
-  // Search patients
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) {
-      setSearchResults([]);
-      return;
-    }
-
-    setIsSearching(true);
-    setError(null);
-
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/patient-chart/search/query?q=${encodeURIComponent(searchQuery)}`
-      );
-
-      if (!response.ok) throw new Error('Search failed');
-
-      const data = await response.json();
-      setSearchResults(data.patients || []);
-    } catch (err) {
-      setError('Failed to search patients. Please try again.');
-      console.error('Search error:', err);
-    } finally {
-      setIsSearching(false);
-    }
-  };
 
   // Load full patient chart
   const loadPatientChart = async (identifier: string) => {
@@ -367,31 +386,46 @@ const UnifiedPatientChart: React.FC = () => {
         {/* Search Section */}
         {!selectedPatient && (
           <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
-            <div className="flex gap-4">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                  placeholder="Search by name, phone number, MRN, or patient ID..."
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+            {/* Search Instructions */}
+            <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <p className="text-sm text-blue-800 font-medium mb-1">Search by any of the following:</p>
+              <div className="flex flex-wrap gap-2 text-xs text-blue-700">
+                <span className="bg-white px-2 py-1 rounded border border-blue-200">Patient Name (e.g., "Smith" or "John Smith")</span>
+                <span className="bg-white px-2 py-1 rounded border border-blue-200">Phone Number (e.g., "832" or "832-555")</span>
+                <span className="bg-white px-2 py-1 rounded border border-blue-200">TSH ID (e.g., "TSH 972-918")</span>
+                <span className="bg-white px-2 py-1 rounded border border-blue-200">MRN (e.g., "12345678")</span>
               </div>
-              <button
-                onClick={handleSearch}
-                disabled={isSearching}
-                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition-colors font-medium"
-              >
-                {isSearching ? 'Searching...' : 'Search'}
-              </button>
             </div>
+
+            {/* Search Input */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Start typing to search patients..."
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                autoFocus
+              />
+              {isSearching && (
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                </div>
+              )}
+            </div>
+
+            {/* Minimum characters hint */}
+            {searchQuery.length > 0 && searchQuery.length < 2 && (
+              <p className="mt-2 text-sm text-gray-500">Type at least 2 characters to search...</p>
+            )}
 
             {/* Search Results */}
             {searchResults.length > 0 && (
               <div className="mt-6 space-y-2">
-                <p className="text-sm text-gray-600 mb-3">Found {searchResults.length} patient(s)</p>
+                <p className="text-sm text-gray-600 mb-3">
+                  Found <span className="font-semibold text-blue-600">{searchResults.length}</span> patient{searchResults.length !== 1 ? 's' : ''} matching "{searchQuery}"
+                </p>
                 {searchResults.map((patient) => (
                   <div
                     key={patient.id}
@@ -427,9 +461,11 @@ const UnifiedPatientChart: React.FC = () => {
               </div>
             )}
 
-            {searchQuery && !isSearching && searchResults.length === 0 && (
-              <div className="mt-6 text-center text-gray-500">
-                <p>No patients found matching "{searchQuery}"</p>
+            {/* No results message - only show after search completed */}
+            {hasSearched && searchQuery.length >= 2 && !isSearching && searchResults.length === 0 && (
+              <div className="mt-6 text-center py-8 bg-gray-50 rounded-lg">
+                <p className="text-gray-500 mb-2">No patients found matching "<span className="font-semibold">{searchQuery}</span>"</p>
+                <p className="text-sm text-gray-400">Try searching by name, phone, TSH ID, or MRN</p>
               </div>
             )}
           </div>

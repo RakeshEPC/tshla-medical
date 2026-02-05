@@ -358,20 +358,67 @@ class PatientMatchingService {
         return await this.searchPatientsByDOB(dob);
       }
 
-      // Generic text search - try to match across multiple fields
+      // Generic text search using Full-Text Search (FTS) for better performance
       if (query) {
         const searchTerm = query.trim();
 
-        // Build OR query for multiple fields
+        // Build FTS query with prefix matching
+        // Split into words and join with & for AND matching
+        // Add :* suffix for prefix matching (e.g., "PAT" matches "PATEL")
+        const ftsQuery = searchTerm
+          .split(/\s+/)
+          .filter(word => word.length > 0)
+          .map(word => `${word}:*`)
+          .join(' & ');
+
+        logger.debug('PatientMatching', `FTS query: ${ftsQuery}`);
+
+        // Try FTS first (fast path)
         const { data, error } = await supabase
           .from('unified_patients')
           .select('*')
-          .or(`patient_id.eq.${searchTerm},tshla_id.ilike.%${searchTerm}%,phone_primary.ilike.%${searchTerm}%,mrn.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`)
           .eq('is_active', true)
+          .textSearch('search_vector', ftsQuery, {
+            type: 'plain',
+            config: 'simple'
+          })
+          .order('last_visit_date', { ascending: false, nullsFirst: false })
           .limit(50);
 
         if (error) {
-          throw error;
+          // Fall back to ILIKE if FTS fails (e.g., search_vector not populated)
+          logger.warn('PatientMatching', `FTS failed, falling back to ILIKE: ${error.message}`);
+
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('unified_patients')
+            .select('*')
+            .or(`patient_id.eq.${searchTerm},tshla_id.ilike.%${searchTerm}%,phone_primary.ilike.%${searchTerm}%,mrn.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`)
+            .eq('is_active', true)
+            .limit(50);
+
+          if (fallbackError) {
+            throw fallbackError;
+          }
+
+          return fallbackData || [];
+        }
+
+        // If FTS returns empty, try ILIKE fallback (handles edge cases)
+        if (!data || data.length === 0) {
+          logger.debug('PatientMatching', 'FTS returned no results, trying ILIKE fallback');
+
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('unified_patients')
+            .select('*')
+            .or(`patient_id.eq.${searchTerm},tshla_id.ilike.%${searchTerm}%,phone_primary.ilike.%${searchTerm}%,mrn.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`)
+            .eq('is_active', true)
+            .limit(50);
+
+          if (fallbackError) {
+            throw fallbackError;
+          }
+
+          return fallbackData || [];
         }
 
         return data || [];
