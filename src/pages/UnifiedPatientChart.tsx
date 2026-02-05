@@ -28,8 +28,16 @@ import {
   Shield,
   Heart,
   Building,
+  FlaskConical,
+  ClipboardList,
+  Users,
+  Wine,
+  Cigarette,
+  Briefcase,
 } from 'lucide-react';
 import GlucoseTab from '../components/GlucoseTab';
+import MedicationManagement from '../components/MedicationManagement';
+import LabTrendTable from '../components/LabTrendTable';
 import type { CGMSummary } from '../types/cgm.types';
 import { patientAppointmentLinkerService, type PatientAppointment } from '../services/patientAppointmentLinker.service';
 import { portalInviteService, type PortalInviteStatus } from '../services/portalInvite.service';
@@ -127,6 +135,55 @@ interface PatientChart {
   };
 }
 
+// Comprehensive H&P data types
+interface LabValue {
+  value: number | string;
+  date: string;
+  unit?: string;
+}
+
+interface Diagnosis {
+  diagnosis: string;
+  icd10?: string;
+  date_diagnosed?: string;
+  status?: string;
+  notes?: string;
+}
+
+interface Allergy {
+  allergen: string;
+  reaction?: string;
+  severity?: string;
+  date_added?: string;
+}
+
+interface FamilyHistoryItem {
+  condition: string;
+  relationship: string;
+  age_onset?: string;
+  notes?: string;
+}
+
+interface SocialHistory {
+  smoking?: string;
+  alcohol?: string;
+  occupation?: string;
+  living_situation?: string;
+  exercise?: string;
+}
+
+interface ComprehensiveChart {
+  medications: any[];
+  diagnoses: Diagnosis[];
+  allergies: Allergy[];
+  family_history: FamilyHistoryItem[];
+  social_history: SocialHistory;
+  labs: { [testName: string]: LabValue[] };
+  vitals: { [vitalType: string]: any[] };
+  current_goals: any[];
+  last_updated?: string;
+}
+
 interface TimelineEvent {
   id: string;
   type: 'dictation' | 'previsit' | 'appointment' | 'created';
@@ -149,8 +206,10 @@ const UnifiedPatientChart: React.FC = () => {
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [patientChart, setPatientChart] = useState<PatientChart | null>(null);
   const [isLoadingChart, setIsLoadingChart] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'timeline' | 'dictations' | 'demographics' | 'glucose'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'timeline' | 'dictations' | 'demographics' | 'glucose' | 'medications' | 'labs' | 'medical-history'>('overview');
   const [isEditingDemographics, setIsEditingDemographics] = useState(false);
+  const [comprehensiveChart, setComprehensiveChart] = useState<ComprehensiveChart | null>(null);
+  const [isLoadingCompChart, setIsLoadingCompChart] = useState(false);
   const [editedPatient, setEditedPatient] = useState<Partial<Patient>>({});
   const [error, setError] = useState<string | null>(null);
   const [alertDismissed, setAlertDismissed] = useState(false);
@@ -275,6 +334,44 @@ const UnifiedPatientChart: React.FC = () => {
     loadAppointments();
     loadPortalStatus();
   }, [selectedPatient?.id]);
+
+  // Load comprehensive chart data (labs, diagnoses, allergies, etc.) when patient is selected
+  useEffect(() => {
+    if (!selectedPatient?.tshla_id) {
+      setComprehensiveChart(null);
+      return;
+    }
+
+    const loadComprehensiveChart = async () => {
+      try {
+        setIsLoadingCompChart(true);
+        const response = await fetch(`${API_BASE_URL}/api/hp/patient/${selectedPatient.tshla_id}`);
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.hp) {
+            setComprehensiveChart({
+              medications: data.hp.medications || [],
+              diagnoses: data.hp.diagnoses || [],
+              allergies: data.hp.allergies || [],
+              family_history: data.hp.family_history || [],
+              social_history: data.hp.social_history || {},
+              labs: data.hp.labs || {},
+              vitals: data.hp.vitals || {},
+              current_goals: data.hp.current_goals || [],
+              last_updated: data.hp.last_updated
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load comprehensive chart:', err);
+      } finally {
+        setIsLoadingCompChart(false);
+      }
+    };
+
+    loadComprehensiveChart();
+  }, [selectedPatient?.tshla_id]);
 
   // Load full patient chart
   const loadPatientChart = async (identifier: string) => {
@@ -405,6 +502,7 @@ const UnifiedPatientChart: React.FC = () => {
     setPatientChart(null);
     setUpcomingAppointments([]);
     setPortalStatus(null);
+    setComprehensiveChart(null);
     setSearchParams({});
   };
 
@@ -805,6 +903,9 @@ const UnifiedPatientChart: React.FC = () => {
                   {[
                     { id: 'overview', label: 'Overview', icon: <Activity className="w-4 h-4" /> },
                     ...(patientChart.cgm?.configured ? [{ id: 'glucose', label: 'Glucose', icon: <Droplets className="w-4 h-4" /> }] : []),
+                    { id: 'medications', label: 'Medications', icon: <Pill className="w-4 h-4" /> },
+                    { id: 'labs', label: 'Labs', icon: <FlaskConical className="w-4 h-4" /> },
+                    { id: 'medical-history', label: 'Medical History', icon: <ClipboardList className="w-4 h-4" /> },
                     { id: 'timeline', label: 'Timeline', icon: <Clock className="w-4 h-4" /> },
                     { id: 'dictations', label: 'Dictations', icon: <FileText className="w-4 h-4" /> },
                     { id: 'demographics', label: 'Demographics', icon: <User className="w-4 h-4" /> },
@@ -846,15 +947,21 @@ const UnifiedPatientChart: React.FC = () => {
                       </div>
                     )}
 
-                    {/* Current Medications */}
-                    {selectedPatient.current_medications && selectedPatient.current_medications.length > 0 && (
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    {/* Current Medications - Clickable */}
+                    <div
+                      onClick={() => setActiveTab('medications')}
+                      className="cursor-pointer hover:bg-blue-50 rounded-lg p-4 -m-4 transition-colors group"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                           <Pill className="w-5 h-5 text-blue-500" />
                           Current Medications
                         </h3>
+                        <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-blue-600" />
+                      </div>
+                      {selectedPatient.current_medications && selectedPatient.current_medications.length > 0 ? (
                         <div className="space-y-2">
-                          {selectedPatient.current_medications.map((med: any, idx) => (
+                          {selectedPatient.current_medications.slice(0, 3).map((med: any, idx) => (
                             <div key={idx} className="p-3 bg-blue-50 rounded-lg">
                               <p className="font-medium text-blue-900">
                                 {typeof med === 'string' ? med : med.medication || med.name}
@@ -866,17 +973,75 @@ const UnifiedPatientChart: React.FC = () => {
                               )}
                             </div>
                           ))}
+                          {selectedPatient.current_medications.length > 3 && (
+                            <p className="text-sm text-blue-600 mt-2">
+                              +{selectedPatient.current_medications.length - 3} more medications
+                            </p>
+                          )}
                         </div>
-                      </div>
-                    )}
+                      ) : (
+                        <p className="text-gray-500 text-sm">No medications recorded</p>
+                      )}
+                    </div>
 
-                    {/* Allergies */}
-                    {selectedPatient.allergies && selectedPatient.allergies.length > 0 && (
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    {/* Latest Labs - Clickable */}
+                    <div
+                      onClick={() => setActiveTab('labs')}
+                      className="cursor-pointer hover:bg-green-50 rounded-lg p-4 -m-4 transition-colors group"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                          <FlaskConical className="w-5 h-5 text-green-500" />
+                          Latest Labs
+                        </h3>
+                        <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-green-600" />
+                      </div>
+                      {comprehensiveChart && Object.keys(comprehensiveChart.labs).length > 0 ? (
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          {['A1C', 'Hemoglobin A1C', 'LDL', 'LDL Cholesterol', 'Creatinine', 'Serum Creatinine', 'TSH']
+                            .map(labName => {
+                              // Find matching lab (case-insensitive)
+                              const matchingKey = Object.keys(comprehensiveChart.labs).find(
+                                k => k.toLowerCase().includes(labName.toLowerCase().replace(' ', ''))
+                              );
+                              if (!matchingKey) return null;
+                              const values = comprehensiveChart.labs[matchingKey];
+                              if (!values || values.length === 0) return null;
+                              const latest = values[values.length - 1];
+                              return { name: matchingKey, latest };
+                            })
+                            .filter(Boolean)
+                            .slice(0, 4)
+                            .map((lab: any, idx) => (
+                              <div key={idx} className="bg-green-50 rounded-lg p-3">
+                                <p className="text-xs text-gray-600 truncate">{lab.name}</p>
+                                <p className="font-bold text-gray-900">
+                                  {lab.latest.value} <span className="text-xs font-normal">{lab.latest.unit}</span>
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  {new Date(lab.latest.date).toLocaleDateString()}
+                                </p>
+                              </div>
+                            ))}
+                        </div>
+                      ) : (
+                        <p className="text-gray-500 text-sm">No lab results available</p>
+                      )}
+                    </div>
+
+                    {/* Allergies - Clickable */}
+                    <div
+                      onClick={() => setActiveTab('medical-history')}
+                      className="cursor-pointer hover:bg-yellow-50 rounded-lg p-4 -m-4 transition-colors group"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                           <AlertCircle className="w-5 h-5 text-yellow-500" />
                           Allergies
                         </h3>
+                        <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-yellow-600" />
+                      </div>
+                      {selectedPatient.allergies && selectedPatient.allergies.length > 0 ? (
                         <div className="flex flex-wrap gap-2">
                           {selectedPatient.allergies.map((allergy, idx) => (
                             <span key={idx} className="px-3 py-1 bg-yellow-50 text-yellow-700 rounded-full text-sm font-medium">
@@ -884,8 +1049,10 @@ const UnifiedPatientChart: React.FC = () => {
                             </span>
                           ))}
                         </div>
-                      </div>
-                    )}
+                      ) : (
+                        <p className="text-gray-500 text-sm">No known allergies</p>
+                      )}
+                    </div>
 
                     {/* Recent Activity */}
                     <div>
@@ -926,6 +1093,234 @@ const UnifiedPatientChart: React.FC = () => {
                     stats14day={patientChart.cgm.stats14day}
                     comparison={patientChart.cgm.comparison}
                   />
+                )}
+
+                {/* Medications Tab */}
+                {activeTab === 'medications' && (
+                  <div className="space-y-4">
+                    {selectedPatient.tshla_id ? (
+                      <MedicationManagement
+                        tshlaId={selectedPatient.tshla_id}
+                        sessionId=""
+                        initialMedications={selectedPatient.current_medications || []}
+                      />
+                    ) : (
+                      <div className="text-center py-12">
+                        <Pill className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                        <p className="text-gray-500">No TSH ID available for this patient</p>
+                        <p className="text-xs text-gray-400 mt-2">
+                          Medications require a TSH ID to be assigned
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Labs Tab */}
+                {activeTab === 'labs' && (
+                  <div className="space-y-4">
+                    {isLoadingCompChart ? (
+                      <div className="text-center py-12">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                        <p className="text-gray-500 mt-2">Loading lab results...</p>
+                      </div>
+                    ) : comprehensiveChart && Object.keys(comprehensiveChart.labs).length > 0 ? (
+                      <LabTrendTable labs={comprehensiveChart.labs} />
+                    ) : (
+                      <div className="text-center py-12">
+                        <FlaskConical className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                        <p className="text-gray-500">No lab results available</p>
+                        <p className="text-xs text-gray-400 mt-2">
+                          Lab results will appear here after they are recorded
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Medical History Tab */}
+                {activeTab === 'medical-history' && (
+                  <div className="space-y-8">
+                    {isLoadingCompChart ? (
+                      <div className="text-center py-12">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                        <p className="text-gray-500 mt-2">Loading medical history...</p>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Diagnoses Section */}
+                        <div className="bg-gray-50 rounded-lg p-6">
+                          <h4 className="text-md font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                            <Stethoscope className="w-5 h-5 text-red-500" />
+                            Diagnoses
+                          </h4>
+                          {comprehensiveChart?.diagnoses && comprehensiveChart.diagnoses.length > 0 ? (
+                            <div className="space-y-3">
+                              {comprehensiveChart.diagnoses.map((dx, idx) => (
+                                <div key={idx} className="bg-white rounded-lg p-4 border border-gray-200">
+                                  <div className="flex items-start justify-between">
+                                    <div>
+                                      <p className="font-medium text-gray-900">{dx.diagnosis}</p>
+                                      {dx.icd10 && (
+                                        <span className="text-xs font-mono bg-blue-100 text-blue-700 px-2 py-0.5 rounded mt-1 inline-block">
+                                          ICD-10: {dx.icd10}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {dx.status && (
+                                      <span className={`px-2 py-1 text-xs rounded ${
+                                        dx.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                                      }`}>
+                                        {dx.status}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {dx.date_diagnosed && (
+                                    <p className="text-xs text-gray-500 mt-2">
+                                      Diagnosed: {new Date(dx.date_diagnosed).toLocaleDateString()}
+                                    </p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-gray-500 text-sm">No diagnoses recorded</p>
+                          )}
+                        </div>
+
+                        {/* Allergies Section */}
+                        <div className="bg-red-50 rounded-lg p-6">
+                          <h4 className="text-md font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                            <AlertCircle className="w-5 h-5 text-red-500" />
+                            Allergies
+                          </h4>
+                          {comprehensiveChart?.allergies && comprehensiveChart.allergies.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                              {comprehensiveChart.allergies.map((allergy, idx) => (
+                                <div
+                                  key={idx}
+                                  className={`px-3 py-2 rounded-lg border ${
+                                    allergy.severity === 'severe'
+                                      ? 'bg-red-100 border-red-300 text-red-800'
+                                      : allergy.severity === 'moderate'
+                                      ? 'bg-yellow-100 border-yellow-300 text-yellow-800'
+                                      : 'bg-gray-100 border-gray-300 text-gray-800'
+                                  }`}
+                                >
+                                  <p className="font-medium">{allergy.allergen}</p>
+                                  {allergy.reaction && (
+                                    <p className="text-xs mt-1">{allergy.reaction}</p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          ) : selectedPatient.allergies && selectedPatient.allergies.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                              {selectedPatient.allergies.map((allergy, idx) => (
+                                <span
+                                  key={idx}
+                                  className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-medium"
+                                >
+                                  {allergy}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-gray-500 text-sm">No known allergies</p>
+                          )}
+                        </div>
+
+                        {/* Family History Section */}
+                        <div className="bg-purple-50 rounded-lg p-6">
+                          <h4 className="text-md font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                            <Users className="w-5 h-5 text-purple-500" />
+                            Family History
+                          </h4>
+                          {comprehensiveChart?.family_history && comprehensiveChart.family_history.length > 0 ? (
+                            <div className="space-y-3">
+                              {comprehensiveChart.family_history.map((item, idx) => (
+                                <div key={idx} className="bg-white rounded-lg p-3 border border-purple-200">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">
+                                      {item.relationship}
+                                    </span>
+                                    <span className="font-medium text-gray-900">{item.condition}</span>
+                                  </div>
+                                  {item.age_onset && (
+                                    <p className="text-xs text-gray-500 mt-1">Age of onset: {item.age_onset}</p>
+                                  )}
+                                  {item.notes && (
+                                    <p className="text-xs text-gray-600 mt-1">{item.notes}</p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-gray-500 text-sm">No family history recorded</p>
+                          )}
+                        </div>
+
+                        {/* Social History Section */}
+                        <div className="bg-blue-50 rounded-lg p-6">
+                          <h4 className="text-md font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                            <Briefcase className="w-5 h-5 text-blue-500" />
+                            Social History
+                          </h4>
+                          {comprehensiveChart?.social_history && Object.keys(comprehensiveChart.social_history).length > 0 ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {comprehensiveChart.social_history.smoking && (
+                                <div className="bg-white rounded-lg p-3 border border-blue-200">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Cigarette className="w-4 h-4 text-gray-500" />
+                                    <span className="text-xs font-medium text-gray-500">Smoking</span>
+                                  </div>
+                                  <p className="text-gray-900">{comprehensiveChart.social_history.smoking}</p>
+                                </div>
+                              )}
+                              {comprehensiveChart.social_history.alcohol && (
+                                <div className="bg-white rounded-lg p-3 border border-blue-200">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Wine className="w-4 h-4 text-gray-500" />
+                                    <span className="text-xs font-medium text-gray-500">Alcohol</span>
+                                  </div>
+                                  <p className="text-gray-900">{comprehensiveChart.social_history.alcohol}</p>
+                                </div>
+                              )}
+                              {comprehensiveChart.social_history.occupation && (
+                                <div className="bg-white rounded-lg p-3 border border-blue-200">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Briefcase className="w-4 h-4 text-gray-500" />
+                                    <span className="text-xs font-medium text-gray-500">Occupation</span>
+                                  </div>
+                                  <p className="text-gray-900">{comprehensiveChart.social_history.occupation}</p>
+                                </div>
+                              )}
+                              {comprehensiveChart.social_history.living_situation && (
+                                <div className="bg-white rounded-lg p-3 border border-blue-200">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Building className="w-4 h-4 text-gray-500" />
+                                    <span className="text-xs font-medium text-gray-500">Living Situation</span>
+                                  </div>
+                                  <p className="text-gray-900">{comprehensiveChart.social_history.living_situation}</p>
+                                </div>
+                              )}
+                              {comprehensiveChart.social_history.exercise && (
+                                <div className="bg-white rounded-lg p-3 border border-blue-200">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Activity className="w-4 h-4 text-gray-500" />
+                                    <span className="text-xs font-medium text-gray-500">Exercise</span>
+                                  </div>
+                                  <p className="text-gray-900">{comprehensiveChart.social_history.exercise}</p>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-gray-500 text-sm">No social history recorded</p>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 )}
 
                 {/* Timeline Tab */}
