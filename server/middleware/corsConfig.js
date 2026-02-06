@@ -21,6 +21,8 @@ function getAllowedOrigins() {
       'http://localhost:5173',
       'http://localhost:5174',
       'http://localhost:3000',
+      'http://localhost:8081',  // Expo web
+      'http://localhost:19006', // Expo web alternate
       process.env.FRONTEND_URL,
       process.env.VITE_APP_URL
     ].filter(Boolean); // Remove null/undefined
@@ -37,7 +39,10 @@ function getAllowedOrigins() {
       'http://localhost:5174',
       'http://localhost:5175',
       'http://localhost:3000',
-      'http://127.0.0.1:5173'
+      'http://localhost:8081',  // Expo web
+      'http://localhost:19006', // Expo web alternate
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:8081'   // Expo web
     ];
 
     logger.info('CORS', 'Development CORS configured', {

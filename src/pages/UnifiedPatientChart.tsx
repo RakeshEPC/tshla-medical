@@ -39,6 +39,7 @@ import {
 import GlucoseTab from '../components/GlucoseTab';
 import MedicationManagement from '../components/MedicationManagement';
 import LabTrendTable from '../components/LabTrendTable';
+import PatientStatusBanner from '../components/PatientStatusBanner';
 import type { CGMSummary } from '../types/cgm.types';
 import { patientAppointmentLinkerService, type PatientAppointment } from '../services/patientAppointmentLinker.service';
 import { portalInviteService, type PortalInviteStatus } from '../services/portalInvite.service';
@@ -719,6 +720,14 @@ const UnifiedPatientChart: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {/* Patient AI Status Banner */}
+            {selectedPatient.tshla_id && (
+              <PatientStatusBanner
+                tshlaId={selectedPatient.tshla_id}
+                onRefresh={() => loadPatientChart(selectedPatient.id)}
+              />
+            )}
 
             {/* Upcoming Appointments Section */}
             {upcomingAppointments.length > 0 && (

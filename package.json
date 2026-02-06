@@ -49,7 +49,9 @@
     "previsit:api:dev": "nodemon --exec npx tsx server/previsit-api-server.ts",
     "previsit:api:pm2": "pm2 start server/previsit-api-server.ts --name previsit-api --interpreter tsx",
     "previsit:test:patient": "npx tsx server/test-patient-service.ts",
-    "previsit:scheduler": "npx tsx server/jobs/schedulePreVisitCalls.ts"
+    "previsit:scheduler": "npx tsx server/jobs/schedulePreVisitCalls.ts",
+    "upload-schedule": "npx tsx src/scripts/upload-schedule.ts",
+    "link-schedule-patients": "npx tsx src/scripts/link-schedule-patients.ts"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.899.0",

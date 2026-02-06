@@ -5,15 +5,19 @@
  *
  * Uses two-step authentication:
  * 1. Login with email/password → gets auth token
- * 2. Get connections → gets patientId
+ * 2. Get connections → gets patientId (SHA-256 hashed account-id required)
  * 3. Fetch graph data for patientId → gets glucose readings (~12h)
  *
  * Regional servers: US, EU, DE, FR, JP, AP, AU
  * The login endpoint auto-redirects if wrong region is selected.
  *
+ * Based on: https://github.com/timoschlueter/nightscout-librelink-up
+ *
  * Created: 2026-02-04
+ * Updated: 2026-02-05 - Fixed auth with SHA-256 hashed account-id
  */
 
+const crypto = require('crypto');
 const logger = require('../logger');
 
 // Regional base URLs for LibreLinkUp API
@@ -29,9 +33,9 @@ const LIBRE_REGIONS = {
 
 const DEFAULT_HEADERS = {
   'Content-Type': 'application/json',
-  'product': 'llu.android',
-  'version': '4.7.0',
-  'Accept-Encoding': 'gzip',
+  'product': 'llu.ios',
+  'version': '4.16.0',
+  'User-Agent': 'Mozilla/5.0 (iPhone; CPU OS 17_4.1 like Mac OS X) AppleWebKit/536.26 (KHTML, like Gecko) Version/17.4.1 Mobile/10A5355d Safari/8536.25',
 };
 
 // LibreLinkUp TrendArrow (1-5) to direction string mapping
@@ -115,29 +119,37 @@ class LibreLinkUpService {
 
   /**
    * Step 2: Get connected patient from connections list
-   * LibreLinkUp works on a "follower" model — the logged-in user follows one or more patients
+   * Works for both patient accounts (accessing own data) and follower accounts
    */
-  async getPatientId(token, region = 'US') {
+  async getPatientId(token, region = 'US', accountId = null) {
     const baseUrl = this.getBaseUrl(region);
     const url = `${baseUrl}/llu/connections`;
 
+    const headers = {
+      ...DEFAULT_HEADERS,
+      'Authorization': `Bearer ${token}`,
+    };
+
+    // API requires SHA-256 hashed account-id header
+    if (accountId) {
+      headers['account-id'] = crypto.createHash('sha256').update(accountId).digest('hex');
+    }
+
     const response = await fetch(url, {
       method: 'GET',
-      headers: {
-        ...DEFAULT_HEADERS,
-        'Authorization': `Bearer ${token}`,
-      },
+      headers,
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch LibreLinkUp connections: ${response.status}`);
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`Failed to fetch LibreLinkUp connections: ${response.status} - ${errorData.message || 'Unknown error'}`);
     }
 
     const data = await response.json();
     const connections = data.data || [];
 
     if (connections.length === 0) {
-      throw new Error('No LibreLinkUp connections found. Please make sure you have shared your FreeStyle Libre data via the LibreLinkUp app.');
+      throw new Error('No glucose data available yet. The Libre sensor may still be warming up (60 min for new sensors) or hasn\'t synced to LibreView. Please ensure the FreeStyle Libre app has synced recently.');
     }
 
     // Use first connection (most users have exactly one)
@@ -160,13 +172,15 @@ class LibreLinkUpService {
     }
 
     const auth = await this.login(email, password, region);
-    const patient = await this.getPatientId(auth.token, auth.region);
+    const hashedAccountId = crypto.createHash('sha256').update(auth.accountId).digest('hex');
+    const patient = await this.getPatientId(auth.token, auth.region, auth.accountId);
 
     const session = {
       token: auth.token,
       patientId: patient.patientId,
       region: auth.region,
       patientName: `${patient.firstName || ''} ${patient.lastName || ''}`.trim(),
+      hashedAccountId, // Store hashed ID for subsequent API calls
       expiresAt: Date.now() + 10 * 60 * 1000, // 10-minute cache
     };
 
@@ -190,13 +204,13 @@ class LibreLinkUpService {
     const baseUrl = this.getBaseUrl(session.region);
     const url = `${baseUrl}/llu/connections/${session.patientId}/graph`;
 
-    let response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        ...DEFAULT_HEADERS,
-        'Authorization': `Bearer ${session.token}`,
-      },
-    });
+    const headers = {
+      ...DEFAULT_HEADERS,
+      'Authorization': `Bearer ${session.token}`,
+      'account-id': session.hashedAccountId,
+    };
+
+    let response = await fetch(url, { method: 'GET', headers });
 
     // If token expired, re-auth and retry once (same pattern as Dexcom)
     if (response.status === 401) {
@@ -208,6 +222,7 @@ class LibreLinkUpService {
         headers: {
           ...DEFAULT_HEADERS,
           'Authorization': `Bearer ${session.token}`,
+          'account-id': session.hashedAccountId,
         },
       });
     }
@@ -285,14 +300,45 @@ class LibreLinkUpService {
   async testConnection(email, password, region = 'US') {
     try {
       const auth = await this.login(email, password, region);
-      const patient = await this.getPatientId(auth.token, auth.region);
+
+      // Try to get connections - may be empty if sensor is warming up
+      const baseUrl = this.getBaseUrl(auth.region);
+      const url = `${baseUrl}/llu/connections`;
+
+      const headers = {
+        ...DEFAULT_HEADERS,
+        'Authorization': `Bearer ${auth.token}`,
+        'account-id': crypto.createHash('sha256').update(auth.accountId).digest('hex'),
+      };
+
+      const response = await fetch(url, { method: 'GET', headers });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`Connection check failed: ${response.status} - ${errorData.message || 'Unknown error'}`);
+      }
+
+      const data = await response.json();
+      const connections = data.data || [];
+
+      if (connections.length === 0) {
+        // Auth worked but no data yet - sensor might be warming up
+        return {
+          success: true,
+          message: 'LibreLinkUp authentication successful. Sensor may be warming up - no glucose data available yet.',
+          patientName: '',
+          region: auth.region,
+          hasConnection: false,
+          isWarmingUp: true,
+        };
+      }
 
       return {
         success: true,
         message: 'LibreLinkUp authentication successful',
-        patientName: `${patient.firstName || ''} ${patient.lastName || ''}`.trim(),
+        patientName: `${connections[0].firstName || ''} ${connections[0].lastName || ''}`.trim(),
         region: auth.region,
-        hasConnection: !!patient.patientId,
+        hasConnection: true,
       };
     } catch (error) {
       return {

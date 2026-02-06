@@ -2189,6 +2189,31 @@ try {
   logger.error('UnifiedAPI', 'Patient Portal API not mounted - module failed to load', { error: error.message, stack: error.stack });
 }
 
+// Patient Status Engine - AI-powered status computation for patient portal
+let patientStatusEngine = null;
+try {
+  patientStatusEngine = require('./services/patientStatusEngine.service');
+  app.locals.patientStatusEngine = patientStatusEngine;
+  logger.info('UnifiedAPI', 'Patient Status Engine loaded');
+
+  // Schedule nightly job at 4 AM to compute all patient statuses
+  const cron = require('node-cron');
+  cron.schedule('0 4 * * *', async () => {
+    logger.info('UnifiedAPI', 'Running nightly patient status computation...');
+    try {
+      const result = await patientStatusEngine.computeAllPatientStatuses();
+      logger.info('UnifiedAPI', 'Nightly patient status computation complete', result);
+    } catch (error) {
+      logger.error('UnifiedAPI', 'Nightly patient status computation failed', { error: error.message });
+    }
+  }, {
+    timezone: 'America/New_York'
+  });
+  logger.info('UnifiedAPI', 'Patient Status nightly job scheduled for 4 AM EST');
+} catch (error) {
+  logger.warn('UnifiedAPI', 'Patient Status Engine not loaded - module not available', { error: error.message });
+}
+
 // Comprehensive H&P API - Patient medical chart generation and management
 let comprehensiveHPApi = null;
 try {

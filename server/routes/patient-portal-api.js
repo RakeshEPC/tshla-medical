@@ -3262,4 +3262,1083 @@ router.get('/staff/dictations', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/patient-portal/search
+ * Search patient health data (labs, medications, glucose, appointments)
+ * Used by the TSHLA Patient mobile app
+ */
+router.post('/search', async (req, res) => {
+  try {
+    const { query, tshlaId } = req.body;
+    const sessionId = req.headers['x-session-id'];
+
+    if (!query || !tshlaId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Query and TSH ID required'
+      });
+    }
+
+    const normalizedTshId = tshlaId.replace(/[\s-]/g, '').toUpperCase();
+    const formattedTshId = normalizedTshId.replace(/^TSH(\d{3})(\d{3})$/, 'TSH $1-$2');
+
+    logger.info('PatientPortal', 'Search request', {
+      query,
+      tshlaId: normalizedTshId,
+      sessionId
+    });
+
+    // Validate session
+    let session = activeSessions.get(sessionId);
+    if (!session) {
+      // Check database for recent session
+      const { data: dbSession } = await supabase
+        .from('patient_portal_sessions')
+        .select('tshla_id')
+        .eq('id', sessionId)
+        .gte('session_start', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString())
+        .maybeSingle();
+
+      if (!dbSession) {
+        return res.status(401).json({
+          success: false,
+          error: 'Session expired. Please log in again.'
+        });
+      }
+      session = { tshlaId: dbSession.tshla_id };
+    }
+
+    // Verify session ownership
+    const sessionTshId = session.tshlaId.replace(/[\s-]/g, '').toUpperCase();
+    if (sessionTshId !== normalizedTshId) {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied'
+      });
+    }
+
+    const results = [];
+    const queryLower = query.toLowerCase();
+
+    // 1. Search Labs (use limit(1) since there may be duplicate records)
+    const { data: hpDataArr } = await supabase
+      .from('patient_comprehensive_chart')
+      .select('labs')
+      .or(`tshla_id.eq.${normalizedTshId},tshla_id.eq.${formattedTshId}`)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    const hpData = hpDataArr?.[0];
+    if (hpData?.labs && typeof hpData.labs === 'object') {
+      // Labs stored as { testName: [{ value, date, unit }] }
+      for (const [testName, values] of Object.entries(hpData.labs)) {
+        if (testName.toLowerCase().includes(queryLower) ||
+            queryLower.includes('lab') ||
+            queryLower.includes('a1c') && testName.toLowerCase().includes('a1c') ||
+            queryLower.includes('cholesterol') && testName.toLowerCase().includes('cholesterol') ||
+            queryLower.includes('ldl') && testName.toLowerCase().includes('ldl') ||
+            queryLower.includes('glucose') && testName.toLowerCase().includes('glucose')) {
+
+          const labValues = Array.isArray(values) ? values : [];
+          for (const lab of labValues.slice(0, 5)) { // Limit to 5 per test
+            results.push({
+              type: 'lab',
+              name: testName,
+              value: String(lab.value),
+              date: lab.date,
+              unit: lab.unit || ''
+            });
+          }
+        }
+      }
+    }
+
+    // 2. Search Medications
+    const { data: meds } = await supabase
+      .from('patient_medications')
+      .select('drug_name, dose, frequency, status, start_date, end_date')
+      .or(`tshla_id.eq.${normalizedTshId},tshla_id.eq.${formattedTshId}`);
+
+    if (meds) {
+      for (const med of meds) {
+        if (med.drug_name?.toLowerCase().includes(queryLower) ||
+            queryLower.includes('medication') ||
+            queryLower.includes('med') ||
+            queryLower.includes('drug') ||
+            queryLower.includes('prescription')) {
+
+          results.push({
+            type: 'medication',
+            name: med.drug_name,
+            value: med.dose,
+            details: med.frequency,
+            status: med.status || 'active',
+            date: med.start_date || new Date().toISOString().split('T')[0]
+          });
+        }
+      }
+    }
+
+    // 3. Search Appointments
+    const { data: appointments } = await supabase
+      .from('appointments')
+      .select('appointment_date, appointment_time, appointment_type, provider_name, status')
+      .or(`tshla_id.eq.${normalizedTshId},tshla_id.eq.${formattedTshId}`)
+      .order('appointment_date', { ascending: false })
+      .limit(10);
+
+    if (appointments) {
+      for (const apt of appointments) {
+        if (queryLower.includes('appointment') ||
+            queryLower.includes('visit') ||
+            queryLower.includes('schedule') ||
+            queryLower.includes('next') ||
+            apt.appointment_type?.toLowerCase().includes(queryLower) ||
+            apt.provider_name?.toLowerCase().includes(queryLower)) {
+
+          results.push({
+            type: 'appointment',
+            name: apt.appointment_type || 'Office Visit',
+            details: apt.provider_name ? `with ${apt.provider_name}` : '',
+            value: apt.appointment_time,
+            status: apt.status,
+            date: apt.appointment_date
+          });
+        }
+      }
+    }
+
+    // 4. Search CGM/Glucose data (if query mentions glucose)
+    if (queryLower.includes('glucose') || queryLower.includes('sugar') || queryLower.includes('cgm')) {
+      // Check if patient has CGM configured
+      const { data: cgmConfig } = await supabase
+        .from('patient_nightscout_config')
+        .select('cgm_type')
+        .or(`tshla_id.eq.${normalizedTshId},tshla_id.eq.${formattedTshId}`)
+        .maybeSingle();
+
+      if (cgmConfig) {
+        // Note: Actual CGM readings would require calling the CGM service
+        // For now, just indicate CGM is configured
+        results.push({
+          type: 'glucose',
+          name: 'CGM Connected',
+          details: `${cgmConfig.cgm_type} - View real-time data in your chart`,
+          date: new Date().toISOString().split('T')[0]
+        });
+      }
+    }
+
+    // Sort results by date (most recent first)
+    results.sort((a, b) => {
+      const dateA = new Date(a.date || 0);
+      const dateB = new Date(b.date || 0);
+      return dateB.getTime() - dateA.getTime();
+    });
+
+    logger.info('PatientPortal', 'Search complete', {
+      query,
+      tshlaId: normalizedTshId,
+      resultCount: results.length
+    });
+
+    res.json({
+      success: true,
+      results: results.slice(0, 20) // Limit to 20 results
+    });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Search error', {
+      error: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Search failed. Please try again.'
+    });
+  }
+});
+
+/**
+ * POST /api/patient-portal/ai-search
+ * AI-powered natural language search across all patient health data
+ * HIPAA Compliance: Validates session ownership, logs all PHI access
+ */
+router.post('/ai-search', async (req, res) => {
+  const startTime = Date.now();
+
+  try {
+    const { query, tshlaId } = req.body;
+    const sessionId = req.headers['x-session-id'];
+    const clientIp = req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+
+    // HIPAA: Input validation
+    if (!query || !tshlaId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Query and TSH ID required'
+      });
+    }
+
+    const normalizedTshId = tshlaId.replace(/[\s-]/g, '').toUpperCase();
+
+    // HIPAA: Log PHI access attempt
+    logger.info('PatientPortal', 'AI Search - PHI Access Attempt', {
+      action: 'ai_search_start',
+      tshlaId: normalizedTshId,
+      sessionId,
+      clientIp,
+      queryLength: query.length,
+      timestamp: new Date().toISOString()
+    });
+
+    // HIPAA: Session validation
+    let session = activeSessions.get(sessionId);
+    if (!session) {
+      const { data: dbSession } = await supabase
+        .from('patient_portal_sessions')
+        .select('tshla_id')
+        .eq('id', sessionId)
+        .gte('session_start', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString())
+        .maybeSingle();
+
+      if (!dbSession) {
+        // HIPAA: Log failed access attempt
+        logger.warn('PatientPortal', 'AI Search - Session Invalid', {
+          action: 'ai_search_denied',
+          reason: 'session_expired',
+          sessionId,
+          clientIp,
+          timestamp: new Date().toISOString()
+        });
+
+        return res.status(401).json({
+          success: false,
+          error: 'Session expired. Please log in again.'
+        });
+      }
+      session = { tshlaId: dbSession.tshla_id };
+    }
+
+    // HIPAA: Verify session ownership (patient can only access own data)
+    const sessionTshId = session.tshlaId.replace(/[\s-]/g, '').toUpperCase();
+    if (sessionTshId !== normalizedTshId) {
+      // HIPAA: Log unauthorized access attempt - potential security event
+      logger.error('PatientPortal', 'AI Search - Unauthorized Access Attempt', {
+        action: 'ai_search_denied',
+        reason: 'tshla_id_mismatch',
+        requestedTshId: normalizedTshId,
+        sessionTshId: sessionTshId,
+        sessionId,
+        clientIp,
+        timestamp: new Date().toISOString()
+      });
+
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied'
+      });
+    }
+
+    // Import the AI search service
+    const patientAISearch = require('../services/patientAISearch.service');
+
+    // Process the AI search
+    const result = await patientAISearch.search(query, normalizedTshId);
+
+    const processingTime = Date.now() - startTime;
+
+    // HIPAA: Log successful PHI access
+    logger.info('PatientPortal', 'AI Search - PHI Access Complete', {
+      action: 'ai_search_complete',
+      tshlaId: normalizedTshId,
+      sessionId,
+      clientIp,
+      queryLength: query.length,
+      visualizationType: result.visualization?.type || 'none',
+      processingTimeMs: processingTime,
+      timestamp: new Date().toISOString()
+    });
+
+    // HIPAA: Record PHI access in audit log table (async, non-blocking)
+    supabase
+      .from('phi_access_log')
+      .insert({
+        tshla_id: normalizedTshId,
+        session_id: sessionId,
+        access_type: 'ai_search',
+        client_ip: clientIp,
+        query_summary: query.substring(0, 100), // Truncate for privacy
+        response_type: result.visualization?.type || 'none',
+        processing_time_ms: processingTime
+      })
+      .then(() => {})
+      .catch(err => {
+        // Don't fail the request if audit logging fails, but do log it
+        logger.warn('PatientPortal', 'PHI audit log insert failed', { error: err.message });
+      });
+
+    res.json({
+      success: true,
+      answer: result.answer,
+      visualization: result.visualization,
+      followUp: result.followUp
+    });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'AI Search error', {
+      error: error.message,
+      stack: error.stack
+    });
+
+    res.status(500).json({
+      success: false,
+      answer: "I'm sorry, I had trouble processing your question. Please try asking in a different way.",
+      visualization: { type: 'none', data: [] },
+      followUp: null,
+      error: 'Search failed'
+    });
+  }
+});
+
+// ============================================
+// NEW 5-SCREEN PORTAL ENDPOINTS
+// Added: 2026-02-06
+// ============================================
+
+/**
+ * GET /status - Get patient daily status (HOME screen)
+ * Returns pre-computed AI status from patient_daily_status table
+ */
+router.get('/status', async (req, res) => {
+  const { tshlaId } = req.query;
+  const sessionId = req.headers['x-session-id'];
+
+  try {
+    // Validate session
+    const session = activeSessions.get(sessionId);
+    if (!session) {
+      return res.status(401).json({ error: 'Invalid or expired session' });
+    }
+
+    // Normalize TSH ID
+    const normalizedId = tshlaId.replace(/[\s-]/g, '').toUpperCase();
+    const formattedId = normalizedId.replace(/^TSH(\d{3})(\d{3})$/, 'TSH $1-$2');
+
+    // Look up patient
+    const { data: patient, error: patientError } = await supabase
+      .from('unified_patients')
+      .select('id, first_name, last_name, tshla_id')
+      .or(`tshla_id.eq.${normalizedId},tshla_id.eq.${formattedId}`)
+      .single();
+
+    if (patientError || !patient) {
+      return res.status(404).json({ error: 'Patient not found' });
+    }
+
+    // Get latest status
+    const { data: status, error: statusError } = await supabase
+      .from('patient_daily_status')
+      .select('*')
+      .eq('unified_patient_id', patient.id)
+      .order('computed_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (statusError || !status) {
+      // Return default status if none computed yet
+      return res.json({
+        status_type: 'stable',
+        status_headline: `Welcome back, ${patient.first_name}! Everything is looking good.`,
+        status_emoji: '✅',
+        patient_first_name: patient.first_name,
+        changes: [],
+        focus_item: 'Keep up your current routine',
+        focus_category: 'stable',
+        next_action: null,
+        next_action_type: 'none',
+        council_status: {},
+        clinical_snapshot: {}
+      });
+    }
+
+    res.json({
+      ...status,
+      patient_first_name: patient.first_name
+    });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Status fetch error', { error: error.message });
+    res.status(500).json({ error: 'Failed to fetch status' });
+  }
+});
+
+/**
+ * GET /results - Get patient lab results and CGM data (RESULTS screen)
+ */
+router.get('/results', async (req, res) => {
+  const { tshlaId } = req.query;
+  const sessionId = req.headers['x-session-id'];
+
+  try {
+    // Validate session
+    const session = activeSessions.get(sessionId);
+    if (!session) {
+      return res.status(401).json({ error: 'Invalid or expired session' });
+    }
+
+    // Normalize TSH ID
+    const normalizedId = tshlaId.replace(/[\s-]/g, '').toUpperCase();
+    const formattedId = normalizedId.replace(/^TSH(\d{3})(\d{3})$/, 'TSH $1-$2');
+
+    // Get patient chart with labs
+    const { data: chart, error: chartError } = await supabase
+      .from('patient_comprehensive_chart')
+      .select('labs, vitals, tshla_id')
+      .or(`tshla_id.eq.${normalizedId},tshla_id.eq.${formattedId}`)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    // Get patient for CGM lookup
+    const { data: patient } = await supabase
+      .from('unified_patients')
+      .select('id, phone_primary')
+      .or(`tshla_id.eq.${normalizedId},tshla_id.eq.${formattedId}`)
+      .single();
+
+    // Get CGM data (last 24 hours)
+    let cgmData = [];
+    if (patient?.id) {
+      const { data: cgm } = await supabase
+        .from('cgm_readings')
+        .select('glucose_value, trend_arrow, reading_timestamp')
+        .eq('unified_patient_id', patient.id)
+        .gte('reading_timestamp', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .order('reading_timestamp', { ascending: false })
+        .limit(288);
+
+      cgmData = (cgm || []).map(r => ({
+        time: r.reading_timestamp,
+        value: r.glucose_value,
+        trend: r.trend_arrow
+      }));
+    }
+
+    // Process labs with categories and interpretations
+    const processedLabs = {};
+    if (chart?.labs) {
+      for (const [labName, results] of Object.entries(chart.labs)) {
+        if (!Array.isArray(results) || results.length === 0) continue;
+
+        const latest = results[0];
+        const previous = results[1];
+        const value = parseFloat(latest.value);
+
+        // Determine category based on lab type and value
+        let category = 'green';
+        let interpretation = '';
+
+        if (labName.toLowerCase().includes('a1c')) {
+          if (value > 9) {
+            category = 'red';
+            interpretation = 'Your A1C is elevated. Let\'s discuss ways to improve it.';
+          } else if (value > 7.5) {
+            category = 'yellow';
+            interpretation = 'Your A1C is above target. We\'re working on bringing it down.';
+          } else if (value <= 7) {
+            interpretation = 'Great job! Your A1C is at or near goal.';
+          }
+        } else if (labName.toLowerCase().includes('glucose')) {
+          if (value > 180) {
+            category = 'yellow';
+            interpretation = 'This glucose reading was elevated.';
+          } else if (value < 70) {
+            category = 'yellow';
+            interpretation = 'This glucose reading was low.';
+          } else {
+            interpretation = 'This glucose level is in the normal range.';
+          }
+        }
+
+        // Determine trend
+        let trend = 'stable';
+        if (previous) {
+          const prevValue = parseFloat(previous.value);
+          if (value > prevValue * 1.05) trend = 'up';
+          else if (value < prevValue * 0.95) trend = 'down';
+        }
+
+        processedLabs[labName] = {
+          latest_value: latest.value,
+          unit: latest.unit || '',
+          trend,
+          category,
+          interpretation,
+          history: results.map(r => ({
+            date: r.date,
+            value: parseFloat(r.value),
+            unit: r.unit || ''
+          }))
+        };
+      }
+    }
+
+    // Generate summary
+    const redCount = Object.values(processedLabs).filter((l) => l.category === 'red').length;
+    const yellowCount = Object.values(processedLabs).filter((l) => l.category === 'yellow').length;
+
+    let summary = 'Your results are looking good overall.';
+    let worryAnswer = 'No immediate concerns. Keep up your current routine.';
+
+    if (redCount > 0) {
+      summary = 'Some results need attention. Let\'s discuss at your next visit.';
+      worryAnswer = 'There are a few values we should address. Your care team will reach out.';
+    } else if (yellowCount > 0) {
+      summary = 'Most results are good, with a few to watch.';
+      worryAnswer = 'Nothing urgent, but we\'ll keep an eye on a few values.';
+    }
+
+    // CGM summary
+    let cgmSummary = null;
+    if (cgmData.length > 0) {
+      const inRange = cgmData.filter(r => r.value >= 70 && r.value <= 180).length;
+      const tir = Math.round((inRange / cgmData.length) * 100);
+      cgmSummary = `Over the last 24 hours, you've been in target range (70-180) ${tir}% of the time.`;
+    }
+
+    res.json({
+      summary,
+      worry_answer: worryAnswer,
+      labs: processedLabs,
+      cgm_data: cgmData,
+      cgm_summary: cgmSummary
+    });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Results fetch error', { error: error.message });
+    res.status(500).json({ error: 'Failed to fetch results' });
+  }
+});
+
+/**
+ * GET /plan - Get patient care plan (PLAN screen)
+ */
+router.get('/plan', async (req, res) => {
+  const { tshlaId } = req.query;
+  const sessionId = req.headers['x-session-id'];
+
+  try {
+    // Validate session
+    const session = activeSessions.get(sessionId);
+    if (!session) {
+      return res.status(401).json({ error: 'Invalid or expired session' });
+    }
+
+    // Normalize TSH ID
+    const normalizedId = tshlaId.replace(/[\s-]/g, '').toUpperCase();
+    const formattedId = normalizedId.replace(/^TSH(\d{3})(\d{3})$/, 'TSH $1-$2');
+
+    // Get patient
+    const { data: patient } = await supabase
+      .from('unified_patients')
+      .select('id, next_appointment_date')
+      .or(`tshla_id.eq.${normalizedId},tshla_id.eq.${formattedId}`)
+      .single();
+
+    // Get latest dictation for plan content
+    const { data: dictation } = await supabase
+      .from('dictated_notes')
+      .select('visit_date, processed_note, ai_summary')
+      .or(`tshla_id.eq.${normalizedId},tshla_id.eq.${formattedId}`)
+      .eq('status', 'final')
+      .order('visit_date', { ascending: false })
+      .limit(1)
+      .single();
+
+    // Get diagnoses from chart
+    const { data: chart } = await supabase
+      .from('patient_comprehensive_chart')
+      .select('diagnoses, medications')
+      .or(`tshla_id.eq.${normalizedId},tshla_id.eq.${formattedId}`)
+      .single();
+
+    // Build plan from available data
+    const treating = [];
+    if (chart?.diagnoses) {
+      for (const diag of chart.diagnoses.slice(0, 5)) {
+        treating.push(typeof diag === 'string' ? diag : diag.name || diag.description || 'Condition');
+      }
+    }
+    if (treating.length === 0) {
+      treating.push('Your ongoing health management');
+    }
+
+    const actions = [];
+    if (chart?.medications) {
+      const meds = Array.isArray(chart.medications) ? chart.medications : [];
+      const activeMeds = meds.filter(m => m.active !== false).slice(0, 5);
+      for (const med of activeMeds) {
+        actions.push({
+          title: `Continue ${med.name || med.medication_name}`,
+          description: med.dose ? `${med.dose} ${med.frequency || ''}`.trim() : null
+        });
+      }
+    }
+    if (actions.length === 0) {
+      actions.push({
+        title: 'Follow up with your care team',
+        description: 'Your personalized plan will be updated after your next visit.'
+      });
+    }
+
+    res.json({
+      last_visit_date: dictation?.visit_date || null,
+      treating,
+      actions,
+      why_it_matters: 'Following your care plan helps prevent complications and keeps you feeling your best. Each step is designed to work together for your overall health.',
+      success_metrics: [
+        'A1C at or below your target',
+        'Fewer high and low glucose episodes',
+        'More energy and better sleep',
+        'Reduced risk of complications'
+      ],
+      next_appointment: patient?.next_appointment_date || null
+    });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Plan fetch error', { error: error.message });
+    res.status(500).json({ error: 'Failed to fetch plan' });
+  }
+});
+
+/**
+ * GET /messages - Get patient message thread (MESSAGES screen)
+ */
+router.get('/messages', async (req, res) => {
+  const { tshlaId } = req.query;
+  const sessionId = req.headers['x-session-id'];
+
+  try {
+    // Validate session
+    const session = activeSessions.get(sessionId);
+    if (!session) {
+      return res.status(401).json({ error: 'Invalid or expired session' });
+    }
+
+    // Normalize TSH ID
+    const normalizedId = tshlaId.replace(/[\s-]/g, '').toUpperCase();
+    const formattedId = normalizedId.replace(/^TSH(\d{3})(\d{3})$/, 'TSH $1-$2');
+
+    // Get patient
+    const { data: patient } = await supabase
+      .from('unified_patients')
+      .select('id')
+      .or(`tshla_id.eq.${normalizedId},tshla_id.eq.${formattedId}`)
+      .single();
+
+    if (!patient) {
+      return res.json({ messages: [] });
+    }
+
+    // Get messages (if messages table exists)
+    const { data: messages, error } = await supabase
+      .from('patient_messages')
+      .select('*')
+      .eq('unified_patient_id', patient.id)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      // Table might not exist yet, return empty
+      return res.json({ messages: [] });
+    }
+
+    res.json({ messages: messages || [] });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Messages fetch error', { error: error.message });
+    res.json({ messages: [] });
+  }
+});
+
+/**
+ * POST /messages - Send a patient message (MESSAGES screen)
+ */
+router.post('/messages', async (req, res) => {
+  const { tshlaId, category, content } = req.body;
+  const sessionId = req.headers['x-session-id'];
+
+  try {
+    // Validate session
+    const session = activeSessions.get(sessionId);
+    if (!session) {
+      return res.status(401).json({ error: 'Invalid or expired session' });
+    }
+
+    // Normalize TSH ID
+    const normalizedId = tshlaId.replace(/[\s-]/g, '').toUpperCase();
+    const formattedId = normalizedId.replace(/^TSH(\d{3})(\d{3})$/, 'TSH $1-$2');
+
+    // Get patient
+    const { data: patient } = await supabase
+      .from('unified_patients')
+      .select('id')
+      .or(`tshla_id.eq.${normalizedId},tshla_id.eq.${formattedId}`)
+      .single();
+
+    if (!patient) {
+      return res.status(404).json({ error: 'Patient not found' });
+    }
+
+    // Insert message
+    const { error } = await supabase
+      .from('patient_messages')
+      .insert({
+        unified_patient_id: patient.id,
+        sender: 'patient',
+        category,
+        content,
+        created_at: new Date().toISOString()
+      });
+
+    if (error) {
+      // Table might not exist yet
+      logger.warn('PatientPortal', 'Message insert failed - table may not exist', { error: error.message });
+      return res.status(500).json({ error: 'Failed to send message' });
+    }
+
+    logger.info('PatientPortal', 'Patient message sent', { tshlaId: normalizedId, category });
+    res.json({ success: true });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Message send error', { error: error.message });
+    res.status(500).json({ error: 'Failed to send message' });
+  }
+});
+
+/**
+ * GET /progress - Get patient progress data (PROGRESS screen)
+ */
+router.get('/progress', async (req, res) => {
+  const { tshlaId } = req.query;
+  const sessionId = req.headers['x-session-id'];
+
+  try {
+    // Validate session
+    const session = activeSessions.get(sessionId);
+    if (!session) {
+      return res.status(401).json({ error: 'Invalid or expired session' });
+    }
+
+    // Normalize TSH ID
+    const normalizedId = tshlaId.replace(/[\s-]/g, '').toUpperCase();
+    const formattedId = normalizedId.replace(/^TSH(\d{3})(\d{3})$/, 'TSH $1-$2');
+
+    // Get patient chart with labs
+    const { data: chart } = await supabase
+      .from('patient_comprehensive_chart')
+      .select('labs')
+      .or(`tshla_id.eq.${normalizedId},tshla_id.eq.${formattedId}`)
+      .single();
+
+    // Get patient for CGM lookup
+    const { data: patient } = await supabase
+      .from('unified_patients')
+      .select('id, first_name')
+      .or(`tshla_id.eq.${normalizedId},tshla_id.eq.${formattedId}`)
+      .single();
+
+    // Build A1C history
+    let a1cHistory = [];
+    let a1cSummary = null;
+    if (chart?.labs) {
+      const a1cResults = chart.labs['A1C'] || chart.labs['HbA1c'] || [];
+      if (Array.isArray(a1cResults) && a1cResults.length > 0) {
+        a1cHistory = a1cResults.slice(0, 6).map(r => ({
+          date: r.date,
+          value: parseFloat(r.value)
+        })).reverse();
+
+        if (a1cResults.length >= 2) {
+          const latest = parseFloat(a1cResults[0].value);
+          const previous = parseFloat(a1cResults[1].value);
+          a1cSummary = {
+            direction: latest < previous ? 'improving' : latest > previous ? 'worsening' : 'stable'
+          };
+        }
+      }
+    }
+
+    // Get CGM stats for time in range
+    let timeInRange = null;
+    let timeAboveRange = null;
+    let timeBelowRange = null;
+    let tirInterpretation = null;
+
+    if (patient?.id) {
+      const { data: cgm } = await supabase
+        .from('cgm_readings')
+        .select('glucose_value')
+        .eq('unified_patient_id', patient.id)
+        .gte('reading_timestamp', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+        .limit(2016); // 7 days of 5-min readings
+
+      if (cgm && cgm.length > 0) {
+        const inRange = cgm.filter(r => r.glucose_value >= 70 && r.glucose_value <= 180).length;
+        const below = cgm.filter(r => r.glucose_value < 70).length;
+        const above = cgm.filter(r => r.glucose_value > 180).length;
+
+        timeInRange = Math.round((inRange / cgm.length) * 100);
+        timeBelowRange = Math.round((below / cgm.length) * 100);
+        timeAboveRange = Math.round((above / cgm.length) * 100);
+
+        if (timeInRange >= 70) {
+          tirInterpretation = 'Excellent! You\'re meeting the target of 70% or more time in range.';
+        } else if (timeInRange >= 50) {
+          tirInterpretation = 'Good progress! Keep working toward 70% time in range.';
+        } else {
+          tirInterpretation = 'Let\'s work together to improve your time in range.';
+        }
+      }
+    }
+
+    // Generate win of the week
+    let winOfWeek = 'You checked in this week - that\'s a win!';
+    if (a1cSummary?.direction === 'improving') {
+      winOfWeek = 'Your A1C is improving - great work!';
+    } else if (timeInRange && timeInRange >= 70) {
+      winOfWeek = `You\'re at ${timeInRange}% time in range this week - excellent!`;
+    }
+
+    res.json({
+      win_of_week: winOfWeek,
+      a1c_history: a1cHistory,
+      a1c_summary: a1cSummary,
+      a1c_interpretation: 'Your A1C shows your average blood sugar control over the past 3 months.',
+      time_in_range: timeInRange,
+      time_above_range: timeAboveRange,
+      time_below_range: timeBelowRange,
+      tir_interpretation: tirInterpretation,
+      habits: [
+        { name: 'Check-ins', value: 'Active this week', icon: 'checkmark-circle', status: 'good' }
+      ],
+      encouragement: `Keep going, ${patient?.first_name || 'there'}! Every small step counts.`
+    });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Progress fetch error', { error: error.message });
+    res.status(500).json({ error: 'Failed to fetch progress' });
+  }
+});
+
+// ============================================
+// STAFF MESSAGE ENDPOINTS (for PatientMessagesInbox)
+// ============================================
+
+/**
+ * GET /staff/message-threads - Get all patient message threads for staff
+ */
+router.get('/staff/message-threads', async (req, res) => {
+  const { category, status } = req.query;
+
+  try {
+    let query = supabase
+      .from('v_patient_message_threads')
+      .select('*')
+      .order('last_message_at', { ascending: false });
+
+    if (category && category !== 'all') {
+      query = query.eq('category', category);
+    }
+
+    if (status === 'unread') {
+      query = query.eq('has_unread', true);
+    } else if (status === 'pending') {
+      query = query.eq('has_pending', true);
+    }
+
+    const { data: threads, error } = await query.limit(100);
+
+    if (error) {
+      // View might not exist yet, return empty
+      logger.warn('PatientPortal', 'Message threads query failed - view may not exist', { error: error.message });
+      return res.json({ threads: [] });
+    }
+
+    res.json({ threads: threads || [] });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Staff message threads error', { error: error.message });
+    res.json({ threads: [] });
+  }
+});
+
+/**
+ * GET /staff/messages/:patientId - Get messages for a specific patient
+ */
+router.get('/staff/messages/:patientId', async (req, res) => {
+  const { patientId } = req.params;
+  const { thread_id } = req.query;
+
+  try {
+    // Get patient info
+    const { data: patient } = await supabase
+      .from('unified_patients')
+      .select('tshla_id, full_name, phone_display')
+      .eq('id', patientId)
+      .single();
+
+    // Get messages
+    let query = supabase
+      .from('patient_messages')
+      .select('*')
+      .eq('unified_patient_id', patientId)
+      .order('created_at', { ascending: true });
+
+    if (thread_id) {
+      query = query.eq('thread_id', thread_id);
+    }
+
+    const { data: messages, error } = await query;
+
+    if (error) {
+      logger.warn('PatientPortal', 'Messages query failed - table may not exist', { error: error.message });
+      return res.json({ messages: [], patient });
+    }
+
+    res.json({ messages: messages || [], patient });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Staff messages fetch error', { error: error.message });
+    res.json({ messages: [] });
+  }
+});
+
+/**
+ * POST /staff/messages/:patientId - Send a staff message to patient
+ */
+router.post('/staff/messages/:patientId', async (req, res) => {
+  const { patientId } = req.params;
+  const { content, thread_id } = req.body;
+
+  try {
+    const { error } = await supabase
+      .from('patient_messages')
+      .insert({
+        unified_patient_id: patientId,
+        sender: 'staff',
+        content,
+        thread_id,
+        status: 'unread',
+        created_at: new Date().toISOString()
+      });
+
+    if (error) {
+      logger.error('PatientPortal', 'Staff message insert failed', { error: error.message });
+      return res.status(500).json({ error: 'Failed to send message' });
+    }
+
+    logger.info('PatientPortal', 'Staff message sent', { patientId });
+    res.json({ success: true });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Staff message send error', { error: error.message });
+    res.status(500).json({ error: 'Failed to send message' });
+  }
+});
+
+/**
+ * POST /staff/messages/:patientId/mark-read - Mark messages as read
+ */
+router.post('/staff/messages/:patientId/mark-read', async (req, res) => {
+  const { patientId } = req.params;
+  const { thread_id } = req.body;
+
+  try {
+    let query = supabase
+      .from('patient_messages')
+      .update({ status: 'read', read_at: new Date().toISOString() })
+      .eq('unified_patient_id', patientId)
+      .eq('sender', 'patient')
+      .eq('status', 'unread');
+
+    if (thread_id) {
+      query = query.eq('thread_id', thread_id);
+    }
+
+    await query;
+    res.json({ success: true });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Mark read error', { error: error.message });
+    res.json({ success: false });
+  }
+});
+
+/**
+ * POST /staff/messages/:patientId/resolve - Resolve a message thread
+ */
+router.post('/staff/messages/:patientId/resolve', async (req, res) => {
+  const { patientId } = req.params;
+  const { thread_id } = req.body;
+
+  try {
+    let query = supabase
+      .from('patient_messages')
+      .update({ status: 'resolved', resolved_at: new Date().toISOString() })
+      .eq('unified_patient_id', patientId);
+
+    if (thread_id) {
+      query = query.eq('thread_id', thread_id);
+    }
+
+    await query;
+
+    logger.info('PatientPortal', 'Thread resolved', { patientId, thread_id });
+    res.json({ success: true });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Resolve error', { error: error.message });
+    res.json({ success: false });
+  }
+});
+
+/**
+ * POST /refresh-status - Trigger status recomputation for a patient
+ */
+router.post('/refresh-status', async (req, res) => {
+  const { tshlaId } = req.body;
+
+  try {
+    // Get the patientStatusEngine from app.locals
+    const patientStatusEngine = req.app.locals?.patientStatusEngine;
+
+    if (!patientStatusEngine) {
+      logger.warn('PatientPortal', 'patientStatusEngine not available');
+      return res.json({ success: false, error: 'Status engine not available' });
+    }
+
+    // Find the patient
+    const { data: patient } = await supabase
+      .from('unified_patients')
+      .select('id')
+      .or(`tshla_id.eq.${tshlaId},tshla_id.eq.${tshlaId.replace(/[\s-]/g, '')}`)
+      .single();
+
+    if (!patient) {
+      return res.json({ success: false, error: 'Patient not found' });
+    }
+
+    // Compute status
+    await patientStatusEngine.computePatientStatus(patient.id);
+
+    logger.info('PatientPortal', 'Status refreshed', { tshlaId });
+    res.json({ success: true });
+
+  } catch (error) {
+    logger.error('PatientPortal', 'Status refresh error', { error: error.message });
+    res.json({ success: false, error: error.message });
+  }
+});
+
 module.exports = router;

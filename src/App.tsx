@@ -46,6 +46,7 @@ const UnifiedStaffDashboard = lazy(() => import('./pages/UnifiedStaffDashboard')
 const StaffWorkflowDashboard = lazy(() => import('./pages/StaffWorkflowDashboard'));
 const StaffOrdersQueue = lazy(() => import('./pages/StaffOrdersQueue'));
 const CaseManagementDashboard = lazy(() => import('./pages/CaseManagementDashboard'));
+const PatientMessagesInbox = lazy(() => import('./pages/PatientMessagesInbox'));
 const MADashboard = lazy(() => import('./pages/MADashboard'));
 const StaffPreVisitPrep = lazy(() => import('./pages/StaffPreVisitPrep'));
 const StaffPreVisitWorkflow = lazy(() => import('./pages/StaffPreVisitWorkflow'));
@@ -318,6 +319,16 @@ function App() {
                   <ProtectedRoute>
                     <Suspense fallback={<LoadingSpinner />}>
                       <CaseManagementDashboard />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/patient-messages"
+                element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <PatientMessagesInbox />
                     </Suspense>
                   </ProtectedRoute>
                 }
