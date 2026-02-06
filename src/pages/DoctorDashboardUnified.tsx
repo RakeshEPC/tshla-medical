@@ -365,6 +365,18 @@ export default function DoctorDashboardUnified() {
                 </div>
               </button>
               <button
+                onClick={() => navigate('/patient-messages')}
+                className="w-full text-left p-3 border border-orange-200 bg-orange-50 rounded hover:bg-orange-100 transition-colors"
+              >
+                <div className="font-medium text-sm flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-orange-600" />
+                  Patient Messages
+                </div>
+                <div className="text-xs text-orange-700 mt-1">
+                  View and respond to messages from patient portal
+                </div>
+              </button>
+              <button
                 onClick={() => navigate('/templates/list')}
                 className="w-full text-left p-3 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
               >
