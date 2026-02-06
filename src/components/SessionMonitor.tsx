@@ -44,6 +44,10 @@ export default function SessionMonitor({ children }: SessionMonitorProps) {
       }
       secureStorage.removeItem('auth_token');
       secureStorage.removeItem('session_expires');
+
+      // Clear the protected route auth flag so next login goes through normal flow
+      sessionStorage.removeItem('protected_route_authed');
+
       navigate('/login', { replace: true });
     },
     [navigate]

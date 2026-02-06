@@ -167,12 +167,19 @@ export const setupFetchInterceptor = () => {
       // Patient summaries are public links that require TSHLA ID verification, not login
       const isPatientSummaryApi = requestUrl.includes('/api/patient-summaries');
 
+      // SKIP auth interception for patient chart and patient portal APIs
+      // These may return 401 for unauthenticated resources without meaning the user's session is invalid
+      const isPatientChartApi = requestUrl.includes('/api/patient-chart') ||
+                                requestUrl.includes('/api/patient-portal') ||
+                                requestUrl.includes('/api/hp/');
+
       // SKIP auth interception for admin routes
       const currentPath = window.location.pathname;
       const isAdminRoute = currentPath.startsWith('/admin');
       const isPatientSummaryRoute = currentPath.startsWith('/patient-summary');
+      const isPatientChartRoute = currentPath.startsWith('/patient-chart');
 
-      if (isAdminApi || isAdminRoute || isSupabaseApi || isDeepgramProxy || isDiabetesEducationApi || isPatientSummaryApi || isPatientSummaryRoute) {
+      if (isAdminApi || isAdminRoute || isSupabaseApi || isDeepgramProxy || isDiabetesEducationApi || isPatientSummaryApi || isPatientSummaryRoute || isPatientChartApi || isPatientChartRoute) {
         console.log('🔓 [AuthInterceptor] SKIPPING interception for:', {
           url: requestUrl,
           path: currentPath,
@@ -183,6 +190,8 @@ export const setupFetchInterceptor = () => {
                   isDiabetesEducationApi ? 'Diabetes Education API call' :
                   isPatientSummaryApi ? 'Patient Summary API call (public)' :
                   isPatientSummaryRoute ? 'Patient Summary route (public)' :
+                  isPatientChartApi ? 'Patient Chart API call' :
+                  isPatientChartRoute ? 'Patient Chart route' :
                   'Deepgram proxy call'
         });
         // Return the response as-is, let the calling code handle errors
@@ -191,10 +200,11 @@ export const setupFetchInterceptor = () => {
 
       // Check for auth errors on non-admin requests
       if (response.status === 401 || response.status === 403) {
-        console.log('🚨 [AuthInterceptor] Auth error detected:', {
+        console.log('🚨 [AuthInterceptor] Auth error detected - WILL TRIGGER REDIRECT:', {
           url: requestUrl,
           status: response.status,
-          path: currentPath
+          path: currentPath,
+          note: 'This error was NOT skipped - check skip conditions above'
         });
 
         // Clone the response for error handling

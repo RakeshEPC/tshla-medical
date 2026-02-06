@@ -79,13 +79,9 @@ export const secureStorage = {
 
       return decrypted;
     } catch (error) {
-      logError('SecureStorage', `Failed to retrieve encrypted item: ${key}`, { error });
-
-      // If decryption fails, the data is corrupted or the key changed
-      // Remove the corrupted data
-      logWarn('SecureStorage', `Removing corrupted data for key: ${key}`);
-      localStorage.removeItem(key);
-
+      // DON'T remove the data - it might be a transient issue
+      // Just log and return null, let the auth flow handle re-login if needed
+      logWarn('SecureStorage', `Decryption issue for key: ${key} - NOT removing data`);
       return null;
     }
   },
@@ -141,12 +137,8 @@ export const secureStorage = {
 
       return decrypted;
     } catch (error) {
-      logError('SecureStorage', `Failed to retrieve encrypted JSON: ${key}`, { error });
-
-      // Remove corrupted data
-      logWarn('SecureStorage', `Removing corrupted JSON data for key: ${key}`);
-      localStorage.removeItem(key);
-
+      // DON'T remove the data - just return null
+      logWarn('SecureStorage', `Decryption issue for JSON key: ${key} - NOT removing data`);
       return null;
     }
   },

@@ -80,9 +80,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Listen for auth state changes (registration, login, logout)
     const { data: authListener } = supabaseAuthService.onAuthStateChange(async (event, session) => {
+      console.log('🔔 [AuthContext] Auth state changed:', event, {
+        hasSession: !!session,
+        path: window.location.pathname
+      });
       logInfo('AuthContext', `Auth state changed: ${event}`);
 
       if (event === 'SIGNED_IN' && session) {
+        console.log('✅ [AuthContext] SIGNED_IN event - fetching user profile');
         // User signed in or registered - fetch their profile
         const result = await supabaseAuthService.getCurrentUser();
         if (result.success && result.user) {
@@ -97,6 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           });
         }
       } else if (event === 'SIGNED_OUT') {
+        console.log('🚪 [AuthContext] SIGNED_OUT event - clearing user');
         setUser(null);
       }
     });
