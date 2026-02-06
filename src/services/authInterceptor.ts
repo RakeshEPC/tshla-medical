@@ -200,6 +200,18 @@ export const setupFetchInterceptor = () => {
 
       // Check for auth errors on non-admin requests
       if (response.status === 401 || response.status === 403) {
+        // IMPORTANT: If user has been authenticated in this session, don't redirect
+        // This prevents redirect loops during navigation when API calls briefly fail
+        const hasBeenAuthed = sessionStorage.getItem('protected_route_authed') === 'true';
+        if (hasBeenAuthed) {
+          console.log('🔓 [AuthInterceptor] 401/403 detected but user was previously authenticated - NOT redirecting', {
+            url: requestUrl,
+            status: response.status,
+            path: currentPath
+          });
+          return response;
+        }
+
         console.log('🚨 [AuthInterceptor] Auth error detected - WILL TRIGGER REDIRECT:', {
           url: requestUrl,
           status: response.status,
