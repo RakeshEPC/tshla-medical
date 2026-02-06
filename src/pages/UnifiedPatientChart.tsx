@@ -514,7 +514,7 @@ const UnifiedPatientChart: React.FC = () => {
         <div className="mb-8">
           {/* Back to Dashboard */}
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/dashboard')}
             className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors"
           >
             <Home className="w-4 h-4" />
