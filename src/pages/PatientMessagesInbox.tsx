@@ -269,7 +269,7 @@ export default function PatientMessagesInbox() {
         {/* Header */}
         <div className="mb-6">
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/dashboard')}
             className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
