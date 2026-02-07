@@ -436,7 +436,20 @@ const UnifiedPatientChart: React.FC = () => {
   // Quick Actions
   const handleStartDictation = () => {
     if (selectedPatient) {
-      navigate(`/dictation?patient_id=${selectedPatient.patient_id}&patient_name=${encodeURIComponent(selectedPatient.full_name)}`);
+      // Store patient data in sessionStorage for QuickNote to read
+      sessionStorage.setItem('current_patient', JSON.stringify({
+        id: selectedPatient.id,
+        patient_id: selectedPatient.patient_id,
+        tshla_id: selectedPatient.tshla_id,
+        full_name: selectedPatient.full_name,
+        first_name: selectedPatient.first_name,
+        last_name: selectedPatient.last_name,
+        phone_primary: selectedPatient.phone_primary,
+        date_of_birth: selectedPatient.date_of_birth,
+        mrn: selectedPatient.mrn,
+        email: selectedPatient.email
+      }));
+      navigate('/quick-note');
     }
   };
 
