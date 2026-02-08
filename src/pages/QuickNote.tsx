@@ -6,7 +6,7 @@ import PreVisitSummary from '../components/PreVisitSummary';
 import { supabase } from '../lib/supabase';
 import '../styles/unified-theme.css';
 import { formatDOB } from '../utils/date';
-import { FileText, Layers } from 'lucide-react';
+import { FileText, Layers, ArrowLeft, Calendar, LayoutDashboard } from 'lucide-react';
 import type { ExtractionResult } from '../components/MicroDictation';
 
 interface AppointmentData {
@@ -101,6 +101,33 @@ export default function QuickNote() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Navigation Links */}
+        <div className="flex items-center gap-4 mb-6">
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:text-slate-900 hover:bg-white rounded-lg transition-colors"
+          >
+            <LayoutDashboard className="w-4 h-4" />
+            Back to Dashboard
+          </button>
+          <button
+            onClick={() => navigate('/schedule')}
+            className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:text-slate-900 hover:bg-white rounded-lg transition-colors"
+          >
+            <Calendar className="w-4 h-4" />
+            Back to Schedule
+          </button>
+          {patientData?.id && (
+            <button
+              onClick={() => navigate(`/patient-chart?id=${patientData.id}`)}
+              className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:text-slate-900 hover:bg-white rounded-lg transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Patient Chart
+            </button>
+          )}
+        </div>
+
         {/* Patient Info Header - shows MRN prominently */}
         {appointmentData && (
           <div className="unified-card mb-6 border-l-4 border-teal-500">
