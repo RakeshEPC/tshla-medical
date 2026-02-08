@@ -726,6 +726,470 @@ router.get('/:patientId/timeline', async (req, res) => {
 });
 
 // ===============================
+// DISEASE DASHBOARDS
+// ===============================
+
+/**
+ * GET /api/patient-chart/:patientId/dashboard
+ * Get disease-specific dashboard data for a patient
+ *
+ * Query params:
+ * - dashboardType: 'diabetes' | 'thyroid' | 'thyroid-cancer' | 'thyroid-nodule' | 'osteoporosis' | 'general'
+ */
+router.get('/:patientId/dashboard', async (req, res) => {
+  try {
+    const { patientId } = req.params;
+    const { dashboardType = 'general' } = req.query;
+
+    const supabase = getSupabase();
+
+    // Find patient by various identifiers
+    const { data: patient, error: patientError } = await supabase
+      .from('unified_patients')
+      .select('id, tshla_id, patient_id, full_name, current_medications, active_conditions')
+      .or(`id.eq.${patientId},patient_id.eq.${patientId},tshla_id.eq.${patientId}`)
+      .eq('is_active', true)
+      .single();
+
+    if (patientError || !patient) {
+      return res.status(404).json({
+        success: false,
+        error: 'Patient not found'
+      });
+    }
+
+    // Get comprehensive chart data
+    const { data: compChart } = await supabase
+      .from('patient_comprehensive_chart')
+      .select('*')
+      .eq('tshla_id', patient.tshla_id)
+      .single();
+
+    // Get recent dictations for plan/memory
+    const { data: dictations } = await supabase
+      .from('dictated_notes')
+      .select('id, visit_date, chief_complaint, processed_note, provider_name')
+      .eq('unified_patient_id', patient.id)
+      .order('visit_date', { ascending: false })
+      .limit(5);
+
+    // Get CGM data if available
+    const { data: cgmReadings } = await supabase
+      .from('cgm_readings')
+      .select('glucose_value, trend_arrow, recorded_at')
+      .eq('patient_phone', patient.patient_id?.replace(/\D/g, '') || '')
+      .order('recorded_at', { ascending: false })
+      .limit(288); // 24 hours of 5-min readings
+
+    // Build dashboard-specific response
+    const dashboardData = {
+      patientId: patient.id,
+      tshlaId: patient.tshla_id,
+      patientName: patient.full_name,
+      dashboardType,
+
+      // Medications (grouped by class for diabetes dashboard)
+      medications: compChart?.medications || patient.current_medications || [],
+
+      // Labs with trends
+      labs: compChart?.labs || {},
+
+      // Vitals
+      vitals: compChart?.vitals || {},
+
+      // Diagnoses
+      diagnoses: compChart?.diagnoses || [],
+
+      // CGM Data (for diabetes)
+      cgm: cgmReadings?.length > 0 ? {
+        currentGlucose: cgmReadings[0],
+        readings: cgmReadings,
+        stats: calculateCGMStats(cgmReadings)
+      } : null,
+
+      // Last visit info for Zone C (Plan & Memory)
+      lastVisit: dictations?.[0] ? {
+        date: dictations[0].visit_date,
+        chiefComplaint: dictations[0].chief_complaint,
+        provider: dictations[0].provider_name,
+        noteExcerpt: dictations[0].processed_note?.slice(0, 500)
+      } : null,
+
+      // Disease-specific data based on dashboard type
+      diseaseSpecific: buildDiseaseSpecificData(dashboardType, compChart, cgmReadings)
+    };
+
+    res.json({
+      success: true,
+      dashboard: dashboardData
+    });
+
+  } catch (error) {
+    logger.error('PatientChart', 'Failed to fetch dashboard data', {
+      error: error.message,
+      errorCode: error.code
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch dashboard data'
+    });
+  }
+});
+
+/**
+ * GET /api/patient-chart/:patientId/treatment-history
+ * Get medication timeline with reasons for changes
+ */
+router.get('/:patientId/treatment-history', async (req, res) => {
+  try {
+    const { patientId } = req.params;
+    const { category } = req.query; // e.g., 'diabetes', 'thyroid', 'bone'
+
+    const supabase = getSupabase();
+
+    // Find patient
+    const { data: patient } = await supabase
+      .from('unified_patients')
+      .select('id, tshla_id')
+      .or(`id.eq.${patientId},patient_id.eq.${patientId},tshla_id.eq.${patientId}`)
+      .single();
+
+    if (!patient) {
+      return res.status(404).json({ success: false, error: 'Patient not found' });
+    }
+
+    // Get medication history from patient_medications
+    let query = supabase
+      .from('patient_medications')
+      .select('*')
+      .eq('unified_patient_id', patient.id)
+      .order('start_date', { ascending: false });
+
+    // Filter by category if provided
+    if (category) {
+      const categoryPatterns = {
+        diabetes: ['metformin', 'insulin', 'glp-1', 'sglt2', 'sulfonylurea', 'dpp-4', 'ozempic', 'mounjaro', 'jardiance', 'farxiga'],
+        thyroid: ['levothyroxine', 'synthroid', 'liothyronine', 'cytomel', 'armour', 'methimazole', 'ptu'],
+        bone: ['alendronate', 'fosamax', 'risedronate', 'actonel', 'ibandronate', 'boniva', 'zoledronic', 'reclast', 'denosumab', 'prolia', 'teriparatide', 'forteo', 'romosozumab', 'evenity']
+      };
+
+      if (categoryPatterns[category]) {
+        // This would need OR conditions for each pattern
+        // For now, we'll filter in JavaScript
+      }
+    }
+
+    const { data: medications, error } = await query;
+
+    if (error) throw error;
+
+    // Format as timeline
+    const timeline = (medications || []).map(med => ({
+      id: med.id,
+      medication: med.medication_name,
+      dosage: med.dosage,
+      frequency: med.frequency,
+      startDate: med.start_date,
+      endDate: med.end_date,
+      status: med.status || (med.end_date ? 'discontinued' : 'active'),
+      stopReason: med.stop_reason,
+      changeReason: med.change_reason,
+      prescribedBy: med.prescribed_by,
+      category: med.category,
+      rxnormCode: med.rxnorm_code
+    }));
+
+    res.json({
+      success: true,
+      treatmentHistory: timeline
+    });
+
+  } catch (error) {
+    logger.error('PatientChart', 'Failed to fetch treatment history', {
+      error: error.message,
+      errorCode: error.code
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch treatment history'
+    });
+  }
+});
+
+/**
+ * GET /api/patient-chart/:patientId/plan-memory
+ * Get last visit changes and next decision triggers (Zone C data)
+ */
+router.get('/:patientId/plan-memory', async (req, res) => {
+  try {
+    const { patientId } = req.params;
+
+    const supabase = getSupabase();
+
+    // Find patient
+    const { data: patient } = await supabase
+      .from('unified_patients')
+      .select('id, tshla_id')
+      .or(`id.eq.${patientId},patient_id.eq.${patientId},tshla_id.eq.${patientId}`)
+      .single();
+
+    if (!patient) {
+      return res.status(404).json({ success: false, error: 'Patient not found' });
+    }
+
+    // Get last 2 dictations to compare changes
+    const { data: dictations } = await supabase
+      .from('dictated_notes')
+      .select('id, visit_date, chief_complaint, processed_note, provider_name, assessment_plan')
+      .eq('unified_patient_id', patient.id)
+      .order('visit_date', { ascending: false })
+      .limit(2);
+
+    // Get patient daily status if available
+    const { data: dailyStatus } = await supabase
+      .from('patient_daily_status')
+      .select('*')
+      .eq('unified_patient_id', patient.id)
+      .order('computed_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    const lastVisit = dictations?.[0];
+    const previousVisit = dictations?.[1];
+
+    // Extract changes from notes (simplified - would use AI in production)
+    const extractChanges = (note) => {
+      if (!note) return [];
+      const changes = [];
+
+      // Look for medication changes
+      const medPatterns = [
+        /(?:started|began|initiated|added)\s+(\w+)/gi,
+        /(?:increased|decreased|adjusted)\s+(\w+)\s+(?:to|by)/gi,
+        /(?:stopped|discontinued|held)\s+(\w+)/gi
+      ];
+
+      for (const pattern of medPatterns) {
+        let match;
+        while ((match = pattern.exec(note)) !== null) {
+          changes.push({
+            action: match[0],
+            details: null
+          });
+        }
+      }
+
+      return changes.slice(0, 5); // Limit to 5 changes
+    };
+
+    // Build watching list from assessment/plan
+    const extractWatching = (note) => {
+      if (!note) return [];
+      const watching = [];
+
+      const watchPatterns = [
+        /(?:monitor|watch|follow|check)\s+([^.]+)/gi,
+        /(?:recheck|repeat)\s+(\w+)\s+(?:in|at)/gi
+      ];
+
+      for (const pattern of watchPatterns) {
+        let match;
+        while ((match = pattern.exec(note)) !== null) {
+          watching.push({
+            item: match[1].trim(),
+            status: 'watching'
+          });
+        }
+      }
+
+      return watching.slice(0, 5);
+    };
+
+    // Build triggers from assessment/plan
+    const extractTriggers = (note) => {
+      if (!note) return [];
+      const triggers = [];
+
+      const triggerPatterns = [
+        /if\s+([^,]+),\s*(?:then\s+)?([^.]+)/gi,
+        /(?:consider|start|add)\s+(\w+)\s+if\s+([^.]+)/gi
+      ];
+
+      for (const pattern of triggerPatterns) {
+        let match;
+        while ((match = pattern.exec(note)) !== null) {
+          triggers.push({
+            condition: match[1].trim(),
+            action: match[2]?.trim() || match[1].trim()
+          });
+        }
+      }
+
+      return triggers.slice(0, 3);
+    };
+
+    const planMemory = {
+      lastVisitDate: lastVisit?.visit_date,
+      lastVisitProvider: lastVisit?.provider_name,
+
+      // What we did last visit
+      lastVisitChanges: extractChanges(lastVisit?.processed_note),
+
+      // What we're watching
+      watching: extractWatching(lastVisit?.processed_note || lastVisit?.assessment_plan),
+
+      // Decision triggers
+      nextTriggers: extractTriggers(lastVisit?.processed_note || lastVisit?.assessment_plan),
+
+      // Last note excerpt
+      lastNoteExcerpt: lastVisit?.processed_note?.slice(0, 300),
+
+      // From daily status if available
+      statusHeadline: dailyStatus?.status_headline,
+      focusItem: dailyStatus?.focus_item
+    };
+
+    res.json({
+      success: true,
+      planMemory
+    });
+
+  } catch (error) {
+    logger.error('PatientChart', 'Failed to fetch plan memory', {
+      error: error.message,
+      errorCode: error.code
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch plan memory'
+    });
+  }
+});
+
+// Helper function to calculate CGM stats
+function calculateCGMStats(readings) {
+  if (!readings || readings.length === 0) return null;
+
+  const values = readings.map(r => r.glucose_value).filter(v => v > 0);
+  if (values.length === 0) return null;
+
+  const avg = values.reduce((a, b) => a + b, 0) / values.length;
+  const inRange = values.filter(v => v >= 70 && v <= 180).length;
+  const belowRange = values.filter(v => v < 70).length;
+  const aboveRange = values.filter(v => v > 180).length;
+
+  return {
+    averageGlucose: Math.round(avg),
+    timeInRangePercent: Math.round((inRange / values.length) * 100),
+    timeBelowRangePercent: Math.round((belowRange / values.length) * 100),
+    timeAboveRangePercent: Math.round((aboveRange / values.length) * 100),
+    estimatedA1c: ((avg + 46.7) / 28.7).toFixed(1),
+    readingCount: values.length
+  };
+}
+
+// Helper function to build disease-specific data
+function buildDiseaseSpecificData(dashboardType, compChart, cgmReadings) {
+  const data = {};
+
+  switch (dashboardType) {
+    case 'diabetes':
+      // Group medications by class
+      const diabetesMeds = (compChart?.medications || []).filter(m => {
+        const name = (m.medication_name || m.medication || '').toLowerCase();
+        return name.includes('metformin') ||
+               name.includes('insulin') ||
+               name.includes('glp') ||
+               name.includes('sglt2') ||
+               name.includes('ozempic') ||
+               name.includes('mounjaro') ||
+               name.includes('jardiance') ||
+               name.includes('trulicity');
+      });
+
+      data.medicationsByClass = {
+        basal: diabetesMeds.filter(m => /insulin.*(glargine|detemir|degludec|nph)/i.test(m.medication_name || m.medication)),
+        bolus: diabetesMeds.filter(m => /insulin.*(lispro|aspart|glulisine|regular)/i.test(m.medication_name || m.medication)),
+        glp1: diabetesMeds.filter(m => /ozempic|mounjaro|trulicity|victoza|wegovy|zepbound/i.test(m.medication_name || m.medication)),
+        sglt2: diabetesMeds.filter(m => /jardiance|farxiga|invokana/i.test(m.medication_name || m.medication)),
+        oral: diabetesMeds.filter(m => /metformin|glipizide|glimepiride|pioglitazone/i.test(m.medication_name || m.medication))
+      };
+
+      // A1C trend
+      const a1cLabs = compChart?.labs?.['Hemoglobin A1C'] || compChart?.labs?.['A1C'] || [];
+      data.a1cTrend = a1cLabs.slice(-4);
+
+      // Hypoglycemia events from CGM
+      if (cgmReadings) {
+        const lowEvents = cgmReadings.filter(r => r.glucose_value < 70);
+        data.hypoglycemiaEvents = {
+          count: lowEvents.length,
+          percentOfReadings: cgmReadings.length > 0 ? ((lowEvents.length / cgmReadings.length) * 100).toFixed(1) : 0
+        };
+      }
+      break;
+
+    case 'thyroid':
+      // TSH, FT4, FT3 trends
+      data.tshTrend = compChart?.labs?.['TSH'] || [];
+      data.ft4Trend = compChart?.labs?.['Free T4'] || compChart?.labs?.['FT4'] || [];
+      data.ft3Trend = compChart?.labs?.['Free T3'] || compChart?.labs?.['FT3'] || [];
+
+      // Thyroid medications
+      data.thyroidMeds = (compChart?.medications || []).filter(m => {
+        const name = (m.medication_name || m.medication || '').toLowerCase();
+        return name.includes('levothyroxine') ||
+               name.includes('synthroid') ||
+               name.includes('liothyronine') ||
+               name.includes('methimazole');
+      });
+      break;
+
+    case 'thyroid-cancer':
+      // Thyroglobulin trend
+      data.tgTrend = compChart?.labs?.['Thyroglobulin'] || [];
+      data.tgAbTrend = compChart?.labs?.['Thyroglobulin Antibody'] || [];
+      data.tshTrend = compChart?.labs?.['TSH'] || [];
+
+      // Cancer-specific diagnoses
+      data.cancerInfo = (compChart?.diagnoses || []).find(d =>
+        /thyroid.*cancer|papillary|follicular|medullary|anaplastic/i.test(d.diagnosis)
+      );
+      break;
+
+    case 'thyroid-nodule':
+      // Nodule tracking would typically come from imaging reports
+      // For now, extract from diagnoses
+      data.noduleInfo = (compChart?.diagnoses || []).filter(d =>
+        /nodule|ti-rads/i.test(d.diagnosis)
+      );
+      break;
+
+    case 'osteoporosis':
+      // DEXA results would be in labs or special table
+      data.dexaResults = compChart?.labs?.['DEXA'] || compChart?.labs?.['Bone Density'] || [];
+
+      // Bone medications
+      data.boneMeds = (compChart?.medications || []).filter(m => {
+        const name = (m.medication_name || m.medication || '').toLowerCase();
+        return name.includes('alendronate') ||
+               name.includes('risedronate') ||
+               name.includes('denosumab') ||
+               name.includes('prolia') ||
+               name.includes('teriparatide') ||
+               name.includes('forteo');
+      });
+
+      // Vitamin D and Calcium
+      data.vitaminD = compChart?.labs?.['Vitamin D'] || compChart?.labs?.['25-OH Vitamin D'] || [];
+      data.calcium = compChart?.labs?.['Calcium'] || [];
+      break;
+  }
+
+  return data;
+}
+
+// ===============================
 // GET PATIENT CHART (Generic route - MUST BE LAST)
 // ===============================
 

@@ -35,11 +35,14 @@ import {
   Cigarette,
   Briefcase,
   Home,
+  PenSquare,
 } from 'lucide-react';
 import GlucoseTab from '../components/GlucoseTab';
 import MedicationManagement from '../components/MedicationManagement';
 import LabTrendTable from '../components/LabTrendTable';
 import PatientStatusBanner from '../components/PatientStatusBanner';
+import ChartUpdateDictation from '../components/ChartUpdateDictation';
+import DashboardSelector, { selectPrimaryDashboard, type DashboardType } from '../components/disease-dashboards/DashboardSelector';
 import type { CGMSummary } from '../types/cgm.types';
 import { patientAppointmentLinkerService, type PatientAppointment } from '../services/patientAppointmentLinker.service';
 import { portalInviteService, type PortalInviteStatus } from '../services/portalInvite.service';
@@ -197,7 +200,8 @@ const UnifiedPatientChart: React.FC = () => {
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [patientChart, setPatientChart] = useState<PatientChart | null>(null);
   const [isLoadingChart, setIsLoadingChart] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'dictations' | 'demographics' | 'glucose' | 'medications' | 'labs' | 'medical-history'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'disease-dashboard' | 'dictations' | 'demographics' | 'glucose' | 'medications' | 'labs' | 'medical-history'>('overview');
+  const [detectedDashboard, setDetectedDashboard] = useState<DashboardType | null>(null);
   const [isEditingDemographics, setIsEditingDemographics] = useState(false);
   const [comprehensiveChart, setComprehensiveChart] = useState<ComprehensiveChart | null>(null);
   const [isLoadingCompChart, setIsLoadingCompChart] = useState(false);
@@ -209,6 +213,7 @@ const UnifiedPatientChart: React.FC = () => {
   const [upcomingAppointments, setUpcomingAppointments] = useState<PatientAppointment[]>([]);
   const [portalStatus, setPortalStatus] = useState<PortalInviteStatus | null>(null);
   const [isSendingInvite, setIsSendingInvite] = useState(false);
+  const [isChartUpdateOpen, setIsChartUpdateOpen] = useState(false);
 
   // Debounced live search as user types
   useEffect(() => {
@@ -330,6 +335,7 @@ const UnifiedPatientChart: React.FC = () => {
   useEffect(() => {
     if (!selectedPatient?.tshla_id) {
       setComprehensiveChart(null);
+      setDetectedDashboard(null);
       return;
     }
 
@@ -341,7 +347,7 @@ const UnifiedPatientChart: React.FC = () => {
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.hp) {
-            setComprehensiveChart({
+            const chartData = {
               medications: data.hp.medications || [],
               diagnoses: data.hp.diagnoses || [],
               allergies: data.hp.allergies || [],
@@ -351,7 +357,18 @@ const UnifiedPatientChart: React.FC = () => {
               vitals: data.hp.vitals || {},
               current_goals: data.hp.current_goals || [],
               last_updated: data.hp.last_updated
-            });
+            };
+            setComprehensiveChart(chartData);
+
+            // Auto-detect disease dashboard based on diagnoses
+            if (chartData.diagnoses && chartData.diagnoses.length > 0) {
+              const dashboard = selectPrimaryDashboard(chartData.diagnoses);
+              setDetectedDashboard(dashboard);
+              // Switch to disease dashboard tab if one is detected
+              if (dashboard !== 'general') {
+                setActiveTab('disease-dashboard');
+              }
+            }
           }
         }
       } catch (err) {
@@ -712,6 +729,13 @@ const UnifiedPatientChart: React.FC = () => {
                     Start Dictation
                   </button>
                   <button
+                    onClick={() => setIsChartUpdateOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                  >
+                    <PenSquare className="w-4 h-4" />
+                    Update Chart
+                  </button>
+                  <button
                     onClick={handleScheduleAppointment}
                     className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
                   >
@@ -864,7 +888,20 @@ const UnifiedPatientChart: React.FC = () => {
               <div className="border-b border-gray-200">
                 <div className="flex">
                   {[
-                    { id: 'overview', label: 'Overview', icon: <Activity className="w-4 h-4" /> },
+                    // Show disease-specific dashboard tab if detected, otherwise show overview
+                    ...(detectedDashboard && detectedDashboard !== 'general'
+                      ? [{
+                          id: 'disease-dashboard',
+                          label: detectedDashboard === 'diabetes' ? 'Diabetes'
+                            : detectedDashboard === 'thyroid' ? 'Thyroid'
+                            : detectedDashboard === 'thyroid-cancer' ? 'Thyroid Cancer'
+                            : detectedDashboard === 'thyroid-nodule' ? 'Thyroid Nodule'
+                            : detectedDashboard === 'osteoporosis' ? 'Osteoporosis'
+                            : 'Dashboard',
+                          icon: <Activity className="w-4 h-4" />
+                        }]
+                      : []),
+                    { id: 'overview', label: detectedDashboard && detectedDashboard !== 'general' ? 'Overview' : 'Overview', icon: <Activity className="w-4 h-4" /> },
                     ...(patientChart.cgm?.configured ? [{ id: 'glucose', label: 'Glucose', icon: <Droplets className="w-4 h-4" /> }] : []),
                     { id: 'medications', label: 'Medications', icon: <Pill className="w-4 h-4" /> },
                     { id: 'labs', label: 'Labs', icon: <FlaskConical className="w-4 h-4" /> },
@@ -889,6 +926,21 @@ const UnifiedPatientChart: React.FC = () => {
               </div>
 
               <div className="p-6">
+                {/* Disease Dashboard Tab */}
+                {activeTab === 'disease-dashboard' && detectedDashboard && comprehensiveChart && (
+                  <DashboardSelector
+                    diagnoses={comprehensiveChart.diagnoses}
+                    patientData={{
+                      tshlaId: selectedPatient?.tshla_id,
+                      medications: comprehensiveChart.medications || selectedPatient?.current_medications || [],
+                      labs: comprehensiveChart.labs || {},
+                      vitals: comprehensiveChart.vitals || {},
+                      lastVisitDate: patientChart?.stats?.lastVisitDate,
+                      cgmData: patientChart?.cgm || undefined
+                    }}
+                  />
+                )}
+
                 {/* Overview Tab */}
                 {activeTab === 'overview' && (
                   <div className="space-y-6">
@@ -1561,6 +1613,21 @@ const UnifiedPatientChart: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Chart Update Dictation Modal */}
+      {selectedPatient && (
+        <ChartUpdateDictation
+          patientId={selectedPatient.id}
+          patientName={selectedPatient.full_name}
+          tshlaId={selectedPatient.tshla_id}
+          isOpen={isChartUpdateOpen}
+          onClose={() => setIsChartUpdateOpen(false)}
+          onSuccess={() => {
+            // Reload patient chart after successful update
+            loadPatientChart(selectedPatient.id);
+          }}
+        />
+      )}
     </div>
   );
 };

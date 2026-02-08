@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import MedicalDictation from '../components/MedicalDictation';
+import MicroDictation from '../components/MicroDictation';
 import PreVisitSummary from '../components/PreVisitSummary';
 import { supabase } from '../lib/supabase';
 import '../styles/unified-theme.css';
 import { formatDOB } from '../utils/date';
+import { FileText, Layers } from 'lucide-react';
+import type { ExtractionResult } from '../components/MicroDictation';
 
 interface AppointmentData {
   id: number;
@@ -20,8 +23,10 @@ interface AppointmentData {
 
 export default function QuickNote() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [appointmentData, setAppointmentData] = useState<AppointmentData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [dictationMode, setDictationMode] = useState<'standard' | 'micro'>('standard');
 
   // Get appointment ID from URL params (passed from schedule)
   const appointmentIdParam = searchParams.get('appointmentId');
@@ -182,13 +187,126 @@ export default function QuickNote() {
           <PreVisitSummary appointmentId={appointmentId} />
         )}
 
-        {/* Medical Dictation Component */}
-        <MedicalDictation
-          appointmentId={appointmentId}
-          appointmentData={appointmentData}
-          patientId={appointmentData?.unified_patient_id || patientData?.id}
-          preloadPatientData={true}
-        />
+        {/* Dictation Mode Toggle */}
+        <div className="unified-card mb-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-slate-800">Dictation Mode</h3>
+            <div className="flex bg-slate-100 rounded-lg p-1">
+              <button
+                onClick={() => setDictationMode('standard')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  dictationMode === 'standard'
+                    ? 'bg-white text-indigo-600 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-800'
+                }`}
+              >
+                <FileText className="w-4 h-4" />
+                Standard Note
+              </button>
+              <button
+                onClick={() => setDictationMode('micro')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  dictationMode === 'micro'
+                    ? 'bg-white text-indigo-600 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-800'
+                }`}
+              >
+                <Layers className="w-4 h-4" />
+                Micro-Dictation
+              </button>
+            </div>
+          </div>
+          <p className="text-sm text-slate-500 mt-2">
+            {dictationMode === 'standard'
+              ? 'Record continuously and generate a formatted clinical note.'
+              : 'Pause anytime to review AI-extracted clinical data (meds, labs, vitals) before continuing.'}
+          </p>
+        </div>
+
+        {/* Standard Medical Dictation */}
+        {dictationMode === 'standard' && (
+          <MedicalDictation
+            appointmentId={appointmentId}
+            appointmentData={appointmentData}
+            patientId={appointmentData?.unified_patient_id || patientData?.id}
+            preloadPatientData={true}
+          />
+        )}
+
+        {/* Micro-Dictation Mode */}
+        {dictationMode === 'micro' && (
+          <MicroDictation
+            patientId={appointmentData?.unified_patient_id || patientData?.id}
+            patientName={appointmentData?.patient_name || patientData?.full_name}
+            tshlaId={patientData?.tshla_id}
+            onFinalSubmit={async (data: ExtractionResult, transcript: string) => {
+              // Apply extracted data to chart
+              try {
+                const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+                // Convert to merge format
+                const mergeResult = {
+                  medications: data.medications.map(m => ({
+                    medication: m,
+                    decision: { action: 'add' as const, reason: 'New from micro-dictation' }
+                  })),
+                  labs: data.labs.map(l => ({
+                    lab: l,
+                    decision: { action: 'add' as const, reason: 'New from micro-dictation' }
+                  })),
+                  vitals: data.vitals.map(v => ({
+                    vital: v,
+                    decision: { action: 'add' as const, reason: 'New from micro-dictation' }
+                  })),
+                  summary: {
+                    medicationsToAdd: data.medications.length,
+                    medicationsToUpdate: 0,
+                    medicationsSkipped: 0,
+                    labsToAdd: data.labs.length,
+                    labsToUpdate: 0,
+                    labsSkipped: 0,
+                    vitalsToAdd: data.vitals.length,
+                    vitalsToUpdate: 0,
+                    vitalsSkipped: 0
+                  }
+                };
+
+                const response = await fetch(`${apiBase}/api/chart-update/apply`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    mergeResult,
+                    patientId: appointmentData?.unified_patient_id || patientData?.id,
+                    tshlaId: patientData?.tshla_id
+                  })
+                });
+
+                if (response.ok) {
+                  alert('Chart updated successfully!');
+                  // Navigate back to patient chart or dashboard
+                  if (patientData?.id) {
+                    navigate(`/patient-chart?id=${patientData.id}`);
+                  } else {
+                    navigate('/dashboard');
+                  }
+                } else {
+                  alert('Failed to update chart. Please try again.');
+                }
+              } catch (error) {
+                console.error('Failed to apply micro-dictation data:', error);
+                alert('Failed to update chart. Please try again.');
+              }
+            }}
+            onCancel={() => {
+              // Navigate back
+              if (patientData?.id) {
+                navigate(`/patient-chart?id=${patientData.id}`);
+              } else {
+                navigate('/dashboard');
+              }
+            }}
+          />
+        )}
       </div>
     </div>
   );

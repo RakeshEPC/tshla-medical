@@ -2263,6 +2263,20 @@ try {
   logger.error('UnifiedAPI', 'CGM auto-sync job failed to start', { error: error.message });
 }
 
+// Chart Update API - Voice-powered chart updates with AI extraction
+let chartUpdateApi = null;
+try {
+  chartUpdateApi = require('./routes/chart-update-api');
+  // Initialize services with Supabase client
+  if (chartUpdateApi.initializeServices && supabase) {
+    chartUpdateApi.initializeServices(supabase);
+  }
+  app.use('/api/chart-update', chartUpdateApi); // Routes: /api/chart-update/*
+  logger.info('UnifiedAPI', 'Chart Update API mounted at /api/chart-update');
+} catch (error) {
+  logger.error('UnifiedAPI', 'Chart Update API not mounted - module failed to load', { error: error.message, stack: error.stack });
+}
+
 // ====== PATIENT MANAGEMENT API ======
 // Endpoint for finding or creating unified patients
 app.post('/api/patients/find-or-create', async (req, res) => {
