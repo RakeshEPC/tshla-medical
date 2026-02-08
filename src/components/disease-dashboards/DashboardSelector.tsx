@@ -29,7 +29,7 @@ interface Diagnosis {
 }
 
 interface DashboardSelectorProps {
-  patientId: string;
+  patientId?: string;
   diagnoses: Diagnosis[];
   patientData?: any; // Full patient data from API
   onDashboardChange?: (dashboard: DashboardType) => void;
@@ -182,8 +182,23 @@ export default function DashboardSelector({
       setIsLoading(true);
       setError('');
 
+      // If we have patientData, use it directly without API call
+      if (patientData) {
+        const transformedData = transformPatientDataToDashboard(selectedDashboard, patientData);
+        setDashboardData(transformedData);
+        setIsLoading(false);
+        return;
+      }
+
+      // Only fetch from API if we have patientId and no patientData
+      if (!patientId) {
+        setError('No patient data available');
+        setIsLoading(false);
+        return;
+      }
+
       try {
-        const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
         const response = await fetch(
           `${apiBase}/api/patient-chart/${patientId}/dashboard?type=${selectedDashboard}`
         );
@@ -193,12 +208,10 @@ export default function DashboardSelector({
         }
 
         const result = await response.json();
-        setDashboardData(result.data);
+        setDashboardData(result.data || result.dashboard);
       } catch (err: any) {
         console.error('Dashboard data load error:', err);
         setError(err.message || 'Failed to load dashboard data');
-        // Use patient data as fallback
-        setDashboardData(transformPatientDataToDashboard(selectedDashboard, patientData));
       } finally {
         setIsLoading(false);
       }
